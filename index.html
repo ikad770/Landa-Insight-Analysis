@@ -17,8 +17,10 @@
       --border: rgba(255,255,255,0.1);
       --focus: #77b6ff;
       --critical: #f25c54;
-      --info: #7b8dff;
+      --elevated: #f2954f;
+      --watch: #f2d35c;
       --ok: #51c285;
+      --info: #7b8dff;
       --shadow: 0 8px 28px rgba(0,0,0,.32);
     }
     * { box-sizing: border-box; }
@@ -29,15 +31,12 @@
       color: var(--text);
       background: radial-gradient(1300px 500px at 10% -10%, #1a2230 0%, transparent 55%), var(--bg);
     }
-    .app { max-width: 1520px; margin: 0 auto; padding: 22px; }
+    .app { max-width: 1540px; margin: 0 auto; padding: 22px; }
     .hidden { display: none !important; }
+    .eyebrow { color: var(--muted); font-size: .82rem; text-transform: uppercase; letter-spacing: .13em; }
+    h1, h2, h3 { margin: 0; }
 
-    .intake-shell {
-      min-height: calc(100vh - 44px);
-      display: grid;
-      place-items: center;
-      padding: 20px 0;
-    }
+    .intake-shell { min-height: calc(100vh - 44px); display: grid; place-items: center; padding: 20px 0; }
     .intake-card {
       width: min(860px, 100%);
       background: linear-gradient(180deg, rgba(255,255,255,.035), rgba(255,255,255,.012));
@@ -46,14 +45,7 @@
       box-shadow: 0 14px 36px rgba(0,0,0,.34);
       padding: clamp(20px, 3vw, 34px);
     }
-    .intake-content {
-      width: min(720px, 100%);
-      margin: 0 auto;
-      display: grid;
-      gap: 14px;
-    }
-    .eyebrow { color: var(--muted); font-size: .82rem; text-transform: uppercase; letter-spacing: .13em; }
-    h1, h2, h3 { margin: 0; }
+    .intake-content { width: min(720px, 100%); margin: 0 auto; display: grid; gap: 14px; }
     .intake-title { margin-top: 8px; font-size: clamp(1.45rem, 3vw, 1.9rem); line-height: 1.2; }
     .subtitle { margin-top: 8px; color: var(--muted); max-width: 760px; line-height: 1.5; }
     .format-badges { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
@@ -64,68 +56,39 @@
       font-size: .78rem;
       color: #cad6eb;
       background: rgba(255,255,255,.04);
-      line-height: 1.2;
-      white-space: nowrap;
     }
     .dropzone {
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      align-items: center;
-      width: 100%;
-      min-height: 220px;
-      border: 1.5px dashed rgba(123,141,255,.55);
-      border-radius: 14px;
-      background: rgba(123,141,255,.06);
-      padding: clamp(24px, 4vw, 42px);
-      text-align: center;
-      transition: all .18s ease;
-      cursor: pointer;
+      display: flex; flex-direction: column; justify-content: center; align-items: center;
+      width: 100%; min-height: 220px; border: 1.5px dashed rgba(123,141,255,.55);
+      border-radius: 14px; background: rgba(123,141,255,.06); padding: clamp(24px, 4vw, 42px);
+      text-align: center; transition: all .18s ease; cursor: pointer;
     }
     .dropzone:hover { border-color: rgba(139,157,255,.82); background: rgba(123,141,255,.12); }
     .dropzone.drag { border-color: #9bb1ff; background: rgba(123,141,255,.14); }
-    .dropzone-title { font-weight: 600; }
-    .dropzone-sub { color: var(--muted); margin-top: 8px; }
-    .microcopy { color: #9fb0cc; margin-top: 10px; font-size: .86rem; max-width: 52ch; }
-    .status {
-      margin-top: 2px;
-      border-radius: 10px;
-      padding: 10px 12px;
-      font-size: .9rem;
-      display: none;
-    }
+    .dropzone-sub,.microcopy { color: var(--muted); margin-top: 8px; }
+    .microcopy { font-size: .86rem; max-width: 52ch; }
+    .status { margin-top: 2px; border-radius: 10px; padding: 10px 12px; font-size: .9rem; display: none; }
     .status.show { display: block; }
     .status.info { border: 1px solid rgba(123,141,255,.4); background: rgba(123,141,255,.12); color: #cfdaff; }
     .status.error { border: 1px solid rgba(242,92,84,.35); background: rgba(242,92,84,.13); color: #ffc5c2; }
     .status.ok { border: 1px solid rgba(81,194,133,.35); background: rgba(81,194,133,.13); color: #c7ffdf; }
 
     .topbar {
-      display: grid;
-      grid-template-columns: 1fr auto;
-      gap: 14px;
-      align-items: start;
+      display: grid; grid-template-columns: 1fr auto; gap: 14px; align-items: start;
       background: linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.015));
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      padding: 20px;
-      box-shadow: var(--shadow);
-      margin-bottom: 14px;
+      border: 1px solid var(--border); border-radius: 16px; padding: 20px; box-shadow: var(--shadow); margin-bottom: 14px;
     }
     .dashboard-title { font-size: 1.28rem; }
     .controls { display: flex; gap: 10px; flex-wrap: wrap; }
     .btn, select, input {
-      border: 1px solid var(--border);
-      background: var(--panel-soft);
-      color: var(--text);
-      border-radius: 10px;
-      padding: 8px 12px;
-      font-size: .9rem;
+      border: 1px solid var(--border); background: var(--panel-soft); color: var(--text);
+      border-radius: 10px; padding: 8px 12px; font-size: .9rem;
     }
     .btn { cursor: pointer; }
     .btn:hover { background: #212a3d; }
+    .btn.secondary { background: transparent; }
     .btn:focus-visible, input:focus-visible, select:focus-visible, [role="tab"]:focus-visible {
-      outline: 2px solid var(--focus);
-      outline-offset: 2px;
+      outline: 2px solid var(--focus); outline-offset: 2px;
     }
     .filters { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
     .kpis { display: grid; grid-template-columns: repeat(4, minmax(140px, 1fr)); gap: 10px; margin-bottom: 14px; }
@@ -133,20 +96,35 @@
     .k { color: var(--muted); font-size: .74rem; letter-spacing: .08em; text-transform: uppercase; }
     .v { font-size: 1.2rem; margin-top: 6px; font-weight: 640; }
     .d { color: var(--muted); font-size: .82rem; margin-top: 4px; }
+
+    .exec-section { margin-bottom: 14px; }
+    .exec-header { display:flex; justify-content:space-between; align-items:flex-end; gap:14px; margin-bottom:10px; }
+    .exec-grid { display:grid; grid-template-columns: 2fr 1.2fr; gap:12px; }
+    .card { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 12px; }
+    .risk-list { display:grid; gap:10px; }
+    .risk-item { border:1px solid rgba(255,255,255,.08); background:rgba(255,255,255,.02); border-radius:12px; padding:10px; }
+    .risk-line { display:flex; justify-content:space-between; gap:10px; align-items:flex-start; }
+    .risk-reason { color: var(--muted); font-size:.84rem; margin-top:6px; }
+    .badge { border-radius:999px; padding:4px 10px; font-size:.74rem; font-weight:600; border:1px solid transparent; white-space:nowrap; }
+    .badge.high { color:#ffd3d1; background: rgba(242,92,84,.18); border-color:rgba(242,92,84,.4); }
+    .badge.elevated { color:#ffe4cc; background: rgba(242,149,79,.18); border-color:rgba(242,149,79,.4); }
+    .badge.watch { color:#fff1bf; background: rgba(242,211,92,.17); border-color:rgba(242,211,92,.4); }
+    .badge.stable { color:#cbffe0; background: rgba(81,194,133,.16); border-color:rgba(81,194,133,.38); }
+    .exec-pillars { display:grid; gap:8px; margin-top:10px; }
+    .exec-pillars div { border:1px solid rgba(123,141,255,.25); border-radius:10px; padding:8px; background:rgba(123,141,255,.08); font-size:.86rem; }
+    .focus-list { margin:10px 0 0; padding-left:18px; color:#d5dded; }
+    .focus-list li { margin: 4px 0; }
+    .mode-toggle { display:flex; align-items:center; gap:8px; color:var(--muted); font-size:.84rem; }
+
     .tabs { display: flex; gap: 8px; margin: 14px 0; }
     [role="tab"] {
-      padding: 8px 12px;
-      border-radius: 10px;
-      border: 1px solid var(--border);
-      background: transparent;
-      color: var(--muted);
-      cursor: pointer;
+      padding: 8px 12px; border-radius: 10px; border: 1px solid var(--border);
+      background: transparent; color: var(--muted); cursor: pointer;
     }
     [role="tab"][aria-selected="true"] { background: #1a2540; color: #dfe8ff; border-color: rgba(123,141,255,.5); }
     .content { display: none; }
     .content.active { display: block; }
     .grid { display: grid; gap: 12px; grid-template-columns: repeat(12, minmax(0,1fr)); }
-    .card { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 12px; }
     .span-4 { grid-column: span 4; }
     .span-6 { grid-column: span 6; }
     .span-8 { grid-column: span 8; }
@@ -155,29 +133,58 @@
     .chart-area { position: relative; min-height: 280px; height: 280px; }
     .chart-area.wide { min-height: 340px; height: 340px; }
     canvas { width: 100% !important; height: 100% !important; }
+    .chart-click-hint { color: #8ea1be; font-size:.75rem; margin-top:5px; }
+
     .table-wrap { max-height: 470px; overflow: auto; border: 1px solid var(--border); border-radius: 10px; }
     table { width: 100%; border-collapse: collapse; font-size: .86rem; }
     th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid rgba(255,255,255,.06); }
-    th { position: sticky; top: 0; background: #151c2c; z-index: 2; }
+    th { position: sticky; top: 0; background: #151c2c; z-index: 2; cursor: pointer; }
     tr.row { cursor: pointer; }
     tr.row:hover { background: rgba(255,255,255,.03); }
 
     .drawer {
-      position: fixed;
-      right: -450px;
-      top: 0;
-      width: 420px;
-      height: 100vh;
-      overflow: auto;
-      background: #111722;
-      border-left: 1px solid var(--border);
-      transition: right .2s ease;
-      padding: 16px;
-      z-index: 20;
+      position: fixed; right: -500px; top: 0; width: 470px; height: 100vh; overflow: auto;
+      background: #111722; border-left: 1px solid var(--border); transition: right .22s ease; padding: 16px; z-index: 20;
       box-shadow: -12px 0 28px rgba(0,0,0,.38);
     }
     .drawer.open { right: 0; }
 
+    .drill-shell { position:fixed; inset:0; background: rgba(5,8,14,.68); display:none; z-index:40; }
+    .drill-shell.open { display:block; }
+    .drill-panel {
+      position:absolute; right:0; top:0; height:100%; width:min(1100px, 94vw); background:#0f1520;
+      border-left:1px solid var(--border); box-shadow:-20px 0 44px rgba(0,0,0,.45); padding:16px; overflow:auto;
+    }
+    .drill-header { display:flex; justify-content:space-between; align-items:flex-start; gap:14px; margin-bottom:10px; }
+    .chips { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px; }
+    .chip { border:1px solid rgba(123,141,255,.35); background:rgba(123,141,255,.12); color:#d2dcff; border-radius:999px; padding:4px 10px; font-size:.76rem; }
+    .metric-strip { display:grid; gap:10px; grid-template-columns: repeat(5, minmax(120px, 1fr)); margin-bottom:12px; }
+    .metric { border:1px solid rgba(255,255,255,.09); border-radius:10px; padding:8px; background:rgba(255,255,255,.02); }
+    .drill-actions { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:10px; }
+    .drill-toolbar { display:grid; grid-template-columns: 1fr auto auto; gap:8px; margin-bottom:8px; }
+
+    .export-modal { position:fixed; inset:0; background:rgba(5,8,14,.72); display:none; z-index:55; }
+    .export-modal.open { display:grid; place-items:center; padding:22px; }
+    .export-card {
+      width:min(980px, 95vw); max-height:92vh; overflow:auto; background:#0f1520; border:1px solid var(--border);
+      border-radius:16px; padding:18px;
+    }
+    .export-top { display:flex; justify-content:space-between; gap:14px; align-items:flex-start; margin-bottom:12px; }
+    .export-layout { display:grid; gap:12px; grid-template-columns: 1.4fr 1fr; }
+    .plain-block { white-space:pre-wrap; background:#111a2a; border:1px solid rgba(255,255,255,.08); border-radius:10px; padding:10px; }
+
+    @media print {
+      body { background: #fff !important; color:#000 !important; }
+      .app, .drill-shell, .drawer, .export-controls, .topbar .controls, .tabs, #filterPanel, #kpiStrip, .exec-section, .content { display:none !important; }
+      .export-modal { display:block !important; position: static; background: #fff; }
+      .export-card { width:100%; max-height:none; overflow:visible; border:none; border-radius:0; color:#000; background:#fff; }
+      .card, .risk-item, .metric, .plain-block { border-color:#ddd; background:#fff; color:#000; }
+    }
+
+    @media (max-width: 1200px) {
+      .exec-grid, .export-layout { grid-template-columns: 1fr; }
+      .metric-strip { grid-template-columns: repeat(2, minmax(120px, 1fr)); }
+    }
     @media (max-width: 1100px) {
       .kpis { grid-template-columns: 1fr 1fr; }
       .span-4, .span-6, .span-8 { grid-column: span 12; }
@@ -186,9 +193,8 @@
     @media (max-width: 700px) {
       .app { padding: 14px; }
       .intake-shell { min-height: calc(100vh - 28px); }
-      .intake-content { gap: 12px; }
-      .format-badges { gap: 6px; }
       .dropzone { min-height: 200px; }
+      .drill-toolbar { grid-template-columns:1fr; }
     }
   </style>
 </head>
@@ -219,10 +225,36 @@
         <div class="subtitle" id="datasetMeta">Dataset not loaded.</div>
       </div>
       <div class="controls">
+        <label class="mode-toggle"><input type="checkbox" id="managementModeToggle" /> Executive view</label>
         <button class="btn" id="replaceBtn">Replace dataset</button>
         <button class="btn" id="exportBtn">Export filtered CSV</button>
+        <button class="btn" id="openExecExportBtn">Export Executive Summary</button>
       </div>
     </header>
+
+    <section class="exec-section card" id="executiveSection">
+      <div class="exec-header">
+        <div>
+          <h3>Executive Risk Snapshot</h3>
+          <div class="micro">Operational status layer for leadership: top risks, stabilizing entities, and immediate focus areas.</div>
+        </div>
+      </div>
+      <div class="exec-grid">
+        <article class="card">
+          <h3>Highest-Risk Presses</h3>
+          <div id="riskRankedList" class="risk-list"></div>
+          <h3 style="margin-top:12px;">Stable / Lowest Concern</h3>
+          <div id="stableList" class="risk-list"></div>
+        </article>
+        <article class="card">
+          <h3>Situation Summary</h3>
+          <div id="executiveNarrative" class="micro" style="margin-top:8px;"></div>
+          <div class="exec-pillars" id="executivePillars"></div>
+          <h3 style="margin-top:12px;">Recommended Immediate Focus</h3>
+          <ul id="recommendedFocus" class="focus-list"></ul>
+        </article>
+      </div>
+    </section>
 
     <section class="kpis" id="kpiStrip"></section>
 
@@ -251,23 +283,28 @@
             <h3>Top Error Names</h3>
             <div class="micro">Most frequent Name values across filtered events.</div>
             <div class="chart-area"><canvas id="nameChart"></canvas></div>
+            <div class="chart-click-hint">Click any bar to drill into matching events.</div>
           </article>
           <article class="card span-6">
             <h3>Top Alert Titles</h3>
             <div class="micro">Leading alert titles by event volume.</div>
             <div class="chart-area"><canvas id="alertChart"></canvas></div>
+            <div class="chart-click-hint">Click any bar to drill into matching events.</div>
           </article>
           <article class="card span-4">
             <h3>Top Subsystems</h3>
             <div class="chart-area"><canvas id="subsystemChart"></canvas></div>
+            <div class="chart-click-hint">Click any bar to drill into matching events.</div>
           </article>
           <article class="card span-4">
             <h3>Top Presses</h3>
             <div class="chart-area"><canvas id="pressChart"></canvas></div>
+            <div class="chart-click-hint">Click any bar to drill into matching events.</div>
           </article>
           <article class="card span-4">
             <h3>Top Versions</h3>
             <div class="chart-area"><canvas id="versionChart"></canvas></div>
+            <div class="chart-click-hint">Click any bar to drill into matching events.</div>
           </article>
         </div>
       </section>
@@ -278,6 +315,7 @@
             <h3>Events and Downtime Over Time (Daily)</h3>
             <div class="micro">Daily aggregation by Start Time.</div>
             <div class="chart-area wide"><canvas id="timeChart"></canvas></div>
+            <div class="chart-click-hint">Click any date to drill into daily events.</div>
           </article>
         </div>
       </section>
@@ -288,6 +326,7 @@
             <h3>Downtime by Alert Title (Top 12)</h3>
             <div class="micro">Used to prioritize high-impact alert patterns.</div>
             <div class="chart-area"><canvas id="downtimeAlertChart"></canvas></div>
+            <div class="chart-click-hint">Click any bar to drill into matching events.</div>
           </article>
           <article class="card span-4">
             <h3>Operational Brief</h3>
@@ -297,6 +336,7 @@
           <article class="card span-12">
             <h3>Pre-Error State Patterns</h3>
             <div class="chart-area"><canvas id="stateChart"></canvas></div>
+            <div class="chart-click-hint">Click any bar to drill into matching events.</div>
           </article>
         </div>
       </section>
@@ -318,6 +358,67 @@
   <button class="btn" id="closeDrawer">Close</button>
 </aside>
 
+<section class="drill-shell" id="drilldownShell" aria-hidden="true">
+  <article class="drill-panel">
+    <div class="drill-header">
+      <div>
+        <h3 id="drillTitle">Drilldown</h3>
+        <div class="micro" id="drillSubtitle"></div>
+      </div>
+      <button class="btn secondary" id="closeDrilldownBtn">Close</button>
+    </div>
+    <div class="chips" id="drillChips"></div>
+    <div class="metric-strip" id="drillMetrics"></div>
+    <div class="micro" id="drillTrend"></div>
+    <div class="drill-actions">
+      <button class="btn" id="drillExportBtn">Export selected subset CSV</button>
+      <button class="btn" id="drillCopyBtn">Copy summary</button>
+    </div>
+    <div class="drill-toolbar">
+      <input id="drillSearch" placeholder="Search inside drilldown subset" />
+      <select id="drillSortField"></select>
+      <button class="btn secondary" id="drillSortDir">Desc</button>
+    </div>
+    <div class="table-wrap"><table id="drillTable"></table></div>
+  </article>
+</section>
+
+<section class="export-modal" id="execExportModal" aria-hidden="true">
+  <article class="export-card" id="execExportCard">
+    <div class="export-top">
+      <div>
+        <div class="eyebrow">Management Snapshot</div>
+        <h2>Executive Operational Summary</h2>
+        <div class="micro" id="execGeneratedMeta"></div>
+      </div>
+      <div class="export-controls" style="display:flex; gap:8px; flex-wrap:wrap;">
+        <button class="btn" id="execCopyBtn">Copy Email Brief</button>
+        <button class="btn" id="execMailBtn">Open Mail Draft</button>
+        <button class="btn" id="execPrintBtn">Print Summary</button>
+        <button class="btn secondary" id="closeExecModalBtn">Close</button>
+      </div>
+    </div>
+    <div class="export-layout">
+      <article class="card">
+        <h3>Overall Situation</h3>
+        <div id="exportOverall" class="micro"></div>
+        <h3 style="margin-top:10px;">Highest-Risk Presses</h3>
+        <div id="exportRiskList" class="risk-list"></div>
+        <h3 style="margin-top:10px;">Stable Areas</h3>
+        <div id="exportStableList" class="risk-list"></div>
+      </article>
+      <article class="card">
+        <h3>Main Drivers</h3>
+        <div id="exportDrivers" class="exec-pillars"></div>
+        <h3 style="margin-top:10px;">Recommended Immediate Focus</h3>
+        <ul id="exportFocus" class="focus-list"></ul>
+        <h3 style="margin-top:10px;">Email-Ready Brief</h3>
+        <div id="emailBrief" class="plain-block"></div>
+      </article>
+    </div>
+  </article>
+</section>
+
 <script>
 (() => {
   const REQUIRED_COLUMNS = [
@@ -325,19 +426,37 @@
     'Start Time','Duration','Recovery','Pre Error State','Subsystem','Error State','Version'
   ];
 
+  const COLUMN_MAP = {
+    'Press': 'press', 'Model': 'model', 'Name': 'name', 'Alert Message Title': 'alertTitle',
+    'Alert Message Body': 'alertBody', 'Alert Message Solution': 'alertSolution',
+    'Start Time': 'startTime', 'Duration': 'durationRaw', 'Recovery': 'recoveryTime',
+    'Pre Error State': 'preErrorState', 'Subsystem': 'subsystem', 'Error State': 'errorState', 'Version': 'version'
+  };
+
+  const DIMENSION_CONFIG = {
+    name: { label: 'Error Name', key: 'name' },
+    alertTitle: { label: 'Alert Title', key: 'alertTitle' },
+    subsystem: { label: 'Subsystem', key: 'subsystem' },
+    press: { label: 'Press', key: 'press' },
+    version: { label: 'Version', key: 'version' },
+    preErrorState: { label: 'Pre Error State', key: 'preErrorState' },
+    day: { label: 'Start Day', key: 'day' }
+  };
+
   const STATE = {
-    rawRows: [],
-    normalizedRows: [],
-    filteredRows: [],
-    activeTab: 'overview',
-    initialized: false,
-    listenersBound: false,
-    datasetName: '',
-    metricsHash: ''
+    rawRows: [], normalizedRows: [], filteredRows: [], activeTab: 'overview', initialized: false,
+    listenersBound: false, datasetName: '', metricsHash: '', managementMode: false,
+    drilldown: { context: null, rows: [], search: '', sortField: 'durationSeconds', sortDir: 'desc' }
   };
 
   const CHARTS = new Map();
   const CHART_COLORS = ['#7b8dff','#f09b4f','#51c285','#f25c54','#65c3ff','#a29bfe','#f2d35c','#6dd3ce','#ee84ff','#8f9bb1','#ffa76b','#9fd356'];
+
+  const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+  const metricCard = (k, v, d) => `<article class="kpi"><div class="k">${esc(k)}</div><div class="v">${esc(v)}</div><div class="d">${esc(d)}</div></article>`;
+  const topBy = (rows, key) => Object.entries(rows.reduce((acc, r) => {
+    const k = String(r[key] || 'Unspecified').trim() || 'Unspecified'; acc[k] = (acc[k] || 0) + 1; return acc;
+  }, {})).sort((a,b)=>b[1]-a[1])[0] || ['N/A', 0];
 
   function setStatus(message, kind = 'info') {
     const status = document.getElementById('intakeStatus');
@@ -356,34 +475,20 @@
     document.getElementById('dashboardScreen').classList.toggle('hidden', !showDashboard);
   }
 
-  function canonicalHeader(value) {
-    return String(value ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
-  }
-
-  function normalizeRowKeys(row) {
-    const out = {};
-    Object.entries(row || {}).forEach(([k, v]) => out[String(k).trim()] = v);
-    return out;
-  }
+  function canonicalHeader(value) { return String(value ?? '').trim().toLowerCase().replace(/\s+/g, ' '); }
+  function normalizeRowKeys(row) { const out = {}; Object.entries(row || {}).forEach(([k, v]) => out[String(k).trim()] = v); return out; }
 
   function detectDelimiter(text) {
     const candidates = [',', ';', '\t'];
     const lines = [];
-    let current = '';
-    let inQuotes = false;
+    let current = '', inQuotes = false;
     for (let i = 0; i < text.length && lines.length < 8; i++) {
       const ch = text[i];
-      if (ch === '"') {
-        if (inQuotes && text[i + 1] === '"') { current += '"'; i++; }
-        else inQuotes = !inQuotes;
-      } else if (!inQuotes && (ch === '\n' || ch === '\r')) {
-        if (current.trim()) lines.push(current);
-        current = '';
-        if (ch === '\r' && text[i + 1] === '\n') i++;
-      } else current += ch;
+      if (ch === '"') { if (inQuotes && text[i + 1] === '"') { current += '"'; i++; } else inQuotes = !inQuotes; }
+      else if (!inQuotes && (ch === '\n' || ch === '\r')) { if (current.trim()) lines.push(current); current = ''; if (ch === '\r' && text[i + 1] === '\n') i++; }
+      else current += ch;
     }
     if (current.trim()) lines.push(current);
-
     const score = (d) => lines.reduce((acc, line) => acc + (line.split(d).length - 1), 0);
     return candidates.map(d => ({ d, s: score(d) })).sort((a, b) => b.s - a.s)[0].d;
   }
@@ -392,31 +497,21 @@
     const src = String(text || '').replace(/^\uFEFF/, '');
     const delimiter = detectDelimiter(src);
     const rows = [];
-    let row = [];
-    let field = '';
-    let inQuotes = false;
+    let row = [], field = '', inQuotes = false;
 
     for (let i = 0; i < src.length; i++) {
       const ch = src[i];
       if (inQuotes) {
-        if (ch === '"') {
-          if (src[i + 1] === '"') { field += '"'; i++; }
-          else inQuotes = false;
-        } else field += ch;
-      } else if (ch === '"') {
-        inQuotes = true;
-      } else if (ch === delimiter) {
-        row.push(field);
-        field = '';
-      } else if (ch === '\n' || ch === '\r') {
-        row.push(field);
-        field = '';
+        if (ch === '"') { if (src[i + 1] === '"') { field += '"'; i++; } else inQuotes = false; }
+        else field += ch;
+      } else if (ch === '"') inQuotes = true;
+      else if (ch === delimiter) { row.push(field); field = ''; }
+      else if (ch === '\n' || ch === '\r') {
+        row.push(field); field = '';
         if (row.some(v => String(v).trim() !== '')) rows.push(row);
         row = [];
         if (ch === '\r' && src[i + 1] === '\n') i++;
-      } else {
-        field += ch;
-      }
+      } else field += ch;
     }
     if (field.length || row.length) {
       row.push(field);
@@ -500,11 +595,7 @@
     if (/^\d+(\.\d+)?$/.test(raw)) return Number(raw);
     const match = raw.match(/^(?:(\d+)\.)?(\d{1,2}):(\d{2}):(\d{2})(?:\.(\d+))?$/);
     if (!match) return 0;
-    const days = Number(match[1] || 0);
-    const hours = Number(match[2] || 0);
-    const minutes = Number(match[3] || 0);
-    const seconds = Number(match[4] || 0);
-    const frac = Number(`0.${match[5] || 0}`);
+    const days = Number(match[1] || 0), hours = Number(match[2] || 0), minutes = Number(match[3] || 0), seconds = Number(match[4] || 0), frac = Number(`0.${match[5] || 0}`);
     return (days * 86400) + (hours * 3600) + (minutes * 60) + seconds + frac;
   }
 
@@ -515,7 +606,6 @@
       const recoveryTime = parseDateSafe(get('Recovery'));
       const durationRaw = String(get('Duration') ?? '').trim();
       const durationSeconds = parseDurationSeconds(durationRaw);
-
       return {
         id: idx,
         press: String(get('Press')).trim(),
@@ -525,6 +615,7 @@
         alertBody: String(get('Alert Message Body')).trim(),
         alertSolution: String(get('Alert Message Solution')).trim(),
         startTime,
+        day: startTime ? startTime.toISOString().slice(0, 10) : '',
         recoveryTime,
         durationRaw,
         durationSeconds,
@@ -539,10 +630,7 @@
 
   function formatDuration(seconds) {
     if (!Number.isFinite(seconds) || seconds <= 0) return '0s';
-    const s = Math.round(seconds);
-    const h = Math.floor(s / 3600);
-    const m = Math.floor((s % 3600) / 60);
-    const sec = s % 60;
+    const s = Math.round(seconds), h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
     if (h) return `${h}h ${m}m ${sec}s`;
     if (m) return `${m}m ${sec}s`;
     return `${sec}s`;
@@ -609,6 +697,41 @@
     };
   }
 
+  function getFilteredRows() {
+    const press = document.getElementById('pressFilter').value;
+    const model = document.getElementById('modelFilter').value;
+    const subsystem = document.getElementById('subsystemFilter').value;
+    const errorState = document.getElementById('errorStateFilter').value;
+    const version = document.getElementById('versionFilter').value;
+    const startDate = document.getElementById('startDateFilter').value;
+    const endDate = document.getElementById('endDateFilter').value;
+    const search = document.getElementById('searchFilter').value.trim().toLowerCase();
+
+    return STATE.normalizedRows.filter((r) => {
+      const day = r.day;
+      const searchable = `${r.name} ${r.alertTitle} ${r.alertBody} ${r.alertSolution} ${r.press} ${r.subsystem} ${r.version}`.toLowerCase();
+      return (
+        (press === 'all' || r.press === press) &&
+        (model === 'all' || r.model === model) &&
+        (subsystem === 'all' || r.subsystem === subsystem) &&
+        (errorState === 'all' || r.errorState === errorState) &&
+        (version === 'all' || r.version === version) &&
+        (!startDate || (day && day >= startDate)) &&
+        (!endDate || (day && day <= endDate)) &&
+        (!search || searchable.includes(search))
+      );
+    });
+  }
+
+  function getSubsetRows(dimension, value, baseRows) {
+    const cfg = DIMENSION_CONFIG[dimension];
+    if (!cfg) return [];
+    return baseRows.filter((r) => {
+      const candidate = String((cfg.key === 'day' ? r.day : r[cfg.key]) || 'Unspecified').trim() || 'Unspecified';
+      return candidate === value;
+    });
+  }
+
   function baseOptions() {
     return {
       responsive: true,
@@ -617,11 +740,8 @@
       plugins: {
         legend: { labels: { color: '#c7d4ec' } },
         tooltip: {
-          backgroundColor: '#101625',
-          borderColor: 'rgba(255,255,255,.12)',
-          borderWidth: 1,
-          titleColor: '#e9efff',
-          bodyColor: '#c4d0e8'
+          backgroundColor: '#101625', borderColor: 'rgba(255,255,255,.12)', borderWidth: 1,
+          titleColor: '#e9efff', bodyColor: '#c4d0e8'
         }
       },
       scales: {
@@ -641,9 +761,27 @@
     CHARTS.set(id, new Chart(ctx, config));
   }
 
+  function registerChart(id, entries, dimension, sourceChart, config = {}) {
+    const labels = entries.map(([k]) => k);
+    const chartData = {
+      labels: labels.map(k => k.length > 34 ? `${k.slice(0, 33)}…` : k),
+      datasets: [{
+        label: config.datasetLabel || 'Events',
+        data: entries.map(([, v]) => v),
+        backgroundColor: entries.map((_, i) => CHART_COLORS[i % CHART_COLORS.length]),
+        borderRadius: 6
+      }]
+    };
+    const options = { ...baseOptions(), ...(config.options || {}) };
+    options.onClick = (_event, elements) => {
+      if (!elements?.length) return;
+      const idx = elements[0].index;
+      openDrilldown({ dimension, value: labels[idx], sourceChart, rows: getSubsetRows(dimension, labels[idx], STATE.filteredRows) });
+    };
+    replaceChart(id, { type: config.type || 'bar', data: chartData, options });
+  }
+
   function renderKpis(a) {
-    const strip = document.getElementById('kpiStrip');
-    strip.innerHTML = '';
     const cards = [
       ['Total events', a.totalEvents, 'Filtered events in scope'],
       ['Unique presses', a.uniquePresses, 'Distinct press assets'],
@@ -654,32 +792,157 @@
       ['Median duration', formatDuration(a.medianDuration), 'Middle event duration'],
       ['Time range', a.minDate && a.maxDate ? `${a.minDate.toISOString().slice(0,10)} → ${a.maxDate.toISOString().slice(0,10)}` : 'N/A', 'Coverage by Start Time']
     ];
-    cards.forEach(([k, v, d]) => {
-      const el = document.createElement('article');
-      el.className = 'kpi';
-      el.innerHTML = `<div class="k">${k}</div><div class="v">${v}</div><div class="d">${d}</div>`;
-      strip.appendChild(el);
-    });
+    document.getElementById('kpiStrip').innerHTML = cards.map(([k, v, d]) => metricCard(k, v, d)).join('');
   }
 
-  function barChartData(entries, label) {
+  function computeRiskScores(rows) {
+    const grouped = rows.reduce((acc, r) => {
+      const key = r.press || 'Unspecified';
+      (acc[key] ||= []).push(r);
+      return acc;
+    }, {});
+    const now = Date.now();
+
+    // Deterministic risk formula (0-100 scale): weighted normalized event volume, downtime, avg duration,
+    // recurrence concentration, repeated issue concentration, and recency activity in the last 7 days.
+    const allEventCounts = Object.values(grouped).map(items => items.length);
+    const allDowntimes = Object.values(grouped).map(items => items.reduce((s, r) => s + (r.durationSeconds || 0), 0));
+    const maxEvents = Math.max(...allEventCounts, 1);
+    const maxDowntime = Math.max(...allDowntimes, 1);
+
+    const scores = Object.entries(grouped).map(([press, items]) => {
+      const eventCount = items.length;
+      const totalDowntime = items.reduce((s, r) => s + (r.durationSeconds || 0), 0);
+      const avgDuration = eventCount ? totalDowntime / eventCount : 0;
+      const subsystemTop = topBy(items, 'subsystem');
+      const alertTop = topBy(items, 'alertTitle');
+      const nameTop = topBy(items, 'name');
+      const recurrenceRatio = eventCount ? subsystemTop[1] / eventCount : 0;
+      const repeatedIssueRatio = eventCount ? nameTop[1] / eventCount : 0;
+      const recentCount = items.filter(r => r.startTime && (now - r.startTime.getTime()) <= (7 * 24 * 3600 * 1000)).length;
+      const recencyWeight = eventCount ? recentCount / eventCount : 0;
+      const normalizedEvents = eventCount / maxEvents;
+      const normalizedDowntime = totalDowntime / maxDowntime;
+      const normalizedAvgDuration = Math.min(avgDuration / 7200, 1); // capped at 2h mean
+      const score = (
+        normalizedEvents * 30 +
+        normalizedDowntime * 30 +
+        normalizedAvgDuration * 14 +
+        recurrenceRatio * 12 +
+        repeatedIssueRatio * 8 +
+        recencyWeight * 6
+      );
+      const tier = score >= 70 ? 'High Risk' : score >= 52 ? 'Elevated Risk' : score >= 34 ? 'Watchlist' : 'Stable';
+      const badgeClass = tier === 'High Risk' ? 'high' : tier === 'Elevated Risk' ? 'elevated' : tier === 'Watchlist' ? 'watch' : 'stable';
+      const reasons = [];
+      if (normalizedDowntime > .55) reasons.push('high downtime load');
+      if (normalizedEvents > .55) reasons.push('high recurrence volume');
+      if (recurrenceRatio > .45) reasons.push(`subsystem concentration (${subsystemTop[0]})`);
+      if (repeatedIssueRatio > .4) reasons.push(`repeated issue (${nameTop[0]})`);
+      if (recencyWeight > .4) reasons.push('recent activity spike');
+      if (!reasons.length) reasons.push('low intensity, low recurrence');
+
+      return {
+        press,
+        eventCount,
+        totalDowntime,
+        avgDuration,
+        subsystemTop: subsystemTop[0],
+        alertTop: alertTop[0],
+        riskScore: Number(score.toFixed(1)),
+        tier,
+        badgeClass,
+        reasonText: reasons.slice(0, 3).join(' • ')
+      };
+    }).sort((a,b)=>b.riskScore-a.riskScore);
+
+    return scores;
+  }
+
+  function buildExecutiveSummary(rows) {
+    const analytics = computeAnalytics(rows);
+    const risk = computeRiskScores(rows);
+    const topRisk = risk.slice(0, Math.min(7, risk.length));
+    const stable = [...risk].reverse().slice(0, Math.min(4, risk.length));
+    const totalDowntime = analytics.totalDuration;
+    const top3Downtime = topRisk.slice(0, 3).reduce((sum, item) => sum + item.totalDowntime, 0);
+    const concentration = totalDowntime ? ((top3Downtime / totalDowntime) * 100).toFixed(1) : '0.0';
+    const highest = topRisk[0];
+    const stableTop = stable[0];
+    const mainSubsystem = analytics.topSubsystems[0] || ['N/A', 0];
+    const mainAlert = analytics.topAlerts[0] || ['N/A', 0];
+    const dominantVersion = analytics.topVersions[0] || ['N/A', 0];
+
+    const narrative = [
+      `Operational load is concentrated around top 3 presses accounting for ${concentration}% of downtime.`,
+      `${mainSubsystem[0]} is currently the dominant subsystem driver with ${mainSubsystem[1]} events.`,
+      `Version ${dominantVersion[0]} appears most exposed in current filtered scope.`
+    ];
+
+    const recommended = [
+      highest ? `Investigate ${highest.subsystemTop} failures on ${highest.press} first (risk score ${highest.riskScore}).` : 'No immediate concentration detected.',
+      mainAlert[0] !== 'N/A' ? `Review recurring alert pattern: ${mainAlert[0]}.` : 'Review top recurring alerts.',
+      dominantVersion[0] !== 'N/A' ? `Audit version cluster ${dominantVersion[0]} for repeat exposure.` : 'Audit currently active version cluster.'
+    ];
+
     return {
-      labels: entries.map(([k]) => k.length > 30 ? `${k.slice(0, 29)}…` : k),
-      datasets: [{
-        label,
-        data: entries.map(([, v]) => v),
-        backgroundColor: entries.map((_, i) => CHART_COLORS[i % CHART_COLORS.length]),
-        borderRadius: 6
-      }]
+      generatedAt: new Date(),
+      analytics,
+      risk,
+      topRisk,
+      stable,
+      narrative,
+      recommended,
+      pillars: {
+        mainDowntimeDriver: analytics.topDowntimeAlerts[0] ? `${analytics.topDowntimeAlerts[0][0]} (${formatDuration(analytics.topDowntimeAlerts[0][1])})` : 'N/A',
+        mostAffectedSubsystem: `${mainSubsystem[0]} (${mainSubsystem[1]} events)`,
+        mostRepeatedAlert: `${mainAlert[0]} (${mainAlert[1]} events)`,
+        highestRiskPress: highest ? `${highest.press} (${highest.riskScore})` : 'N/A',
+        mostStablePress: stableTop ? `${stableTop.press} (${stableTop.riskScore})` : 'N/A'
+      }
     };
   }
 
+  function renderExecutiveLayer(summary) {
+    const riskMarkup = summary.topRisk.map(item => `
+      <div class="risk-item">
+        <div class="risk-line">
+          <div><strong>${esc(item.press)}</strong> <span style="color:#b8c5dd;">| ${item.eventCount} events • ${formatDuration(item.totalDowntime)} downtime</span></div>
+          <span class="badge ${item.badgeClass}">${esc(item.tier)} • ${item.riskScore}</span>
+        </div>
+        <div class="risk-reason">Driven by ${esc(item.subsystemTop)} + ${esc(item.alertTop)}. Why risky: ${esc(item.reasonText)}.</div>
+      </div>
+    `).join('') || '<div class="micro">No rows in scope.</div>';
+
+    const stableMarkup = summary.stable.map(item => `
+      <div class="risk-item">
+        <div class="risk-line">
+          <div><strong>${esc(item.press)}</strong> <span style="color:#b8c5dd;">| ${item.eventCount} events • ${formatDuration(item.totalDowntime)} downtime</span></div>
+          <span class="badge stable">Stable • ${item.riskScore}</span>
+        </div>
+        <div class="risk-reason">Low concern profile: ${esc(item.reasonText)}.</div>
+      </div>
+    `).join('') || '<div class="micro">No stability candidates yet.</div>';
+
+    document.getElementById('riskRankedList').innerHTML = riskMarkup;
+    document.getElementById('stableList').innerHTML = stableMarkup;
+    document.getElementById('executiveNarrative').innerHTML = summary.narrative.map(line => `<p>${esc(line)}</p>`).join('');
+    document.getElementById('recommendedFocus').innerHTML = summary.recommended.map(line => `<li>${esc(line)}</li>`).join('');
+    document.getElementById('executivePillars').innerHTML = `
+      <div><strong>Main downtime driver:</strong> ${esc(summary.pillars.mainDowntimeDriver)}</div>
+      <div><strong>Most affected subsystem:</strong> ${esc(summary.pillars.mostAffectedSubsystem)}</div>
+      <div><strong>Most repeated alert:</strong> ${esc(summary.pillars.mostRepeatedAlert)}</div>
+      <div><strong>Highest-risk press:</strong> ${esc(summary.pillars.highestRiskPress)}</div>
+      <div><strong>Most stable active press:</strong> ${esc(summary.pillars.mostStablePress)}</div>
+    `;
+  }
+
   function renderCharts(a) {
-    replaceChart('nameChart', { type: 'bar', data: barChartData(a.topNames, 'Events'), options: { ...baseOptions(), plugins: { ...baseOptions().plugins, legend: { display: false } } } });
-    replaceChart('alertChart', { type: 'bar', data: barChartData(a.topAlerts, 'Events'), options: { ...baseOptions(), plugins: { ...baseOptions().plugins, legend: { display: false } } } });
-    replaceChart('subsystemChart', { type: 'bar', data: barChartData(a.topSubsystems, 'Events'), options: { ...baseOptions(), indexAxis: 'y', plugins: { ...baseOptions().plugins, legend: { display: false } } } });
-    replaceChart('pressChart', { type: 'bar', data: barChartData(a.topPresses, 'Events'), options: { ...baseOptions(), indexAxis: 'y', plugins: { ...baseOptions().plugins, legend: { display: false } } } });
-    replaceChart('versionChart', { type: 'bar', data: barChartData(a.topVersions, 'Events'), options: { ...baseOptions(), indexAxis: 'y', plugins: { ...baseOptions().plugins, legend: { display: false } } } });
+    registerChart('nameChart', a.topNames, 'name', 'Top Error Names');
+    registerChart('alertChart', a.topAlerts, 'alertTitle', 'Top Alert Titles');
+    registerChart('subsystemChart', a.topSubsystems, 'subsystem', 'Top Subsystems', { options: { ...baseOptions(), indexAxis: 'y', plugins: { ...baseOptions().plugins, legend: { display: false } } } });
+    registerChart('pressChart', a.topPresses, 'press', 'Top Presses', { options: { ...baseOptions(), indexAxis: 'y', plugins: { ...baseOptions().plugins, legend: { display: false } } } });
+    registerChart('versionChart', a.topVersions, 'version', 'Top Versions', { options: { ...baseOptions(), indexAxis: 'y', plugins: { ...baseOptions().plugins, legend: { display: false } } } });
 
     const dailyKeys = Object.keys(a.daily).sort();
     replaceChart('timeChart', {
@@ -688,11 +951,17 @@
         labels: dailyKeys,
         datasets: [
           { type: 'bar', label: 'Events', yAxisID: 'y', data: dailyKeys.map(k => a.daily[k].events), backgroundColor: 'rgba(123,141,255,0.7)' },
-          { type: 'line', label: 'Downtime (hours)', yAxisID: 'y1', data: dailyKeys.map(k => (a.daily[k].downtime / 3600).toFixed(2)), borderColor: '#f09b4f', backgroundColor: '#f09b4f', tension: .28, pointRadius: 2 }
+          { type: 'line', label: 'Downtime (hours)', yAxisID: 'y1', data: dailyKeys.map(k => Number((a.daily[k].downtime / 3600).toFixed(2))), borderColor: '#f09b4f', backgroundColor: '#f09b4f', tension: .28, pointRadius: 2 }
         ]
       },
       options: {
         ...baseOptions(),
+        onClick: (_event, elements) => {
+          if (!elements?.length) return;
+          const idx = elements[0].index;
+          const day = dailyKeys[idx];
+          openDrilldown({ dimension: 'day', value: day, sourceChart: 'Events & Downtime Over Time', rows: getSubsetRows('day', day, STATE.filteredRows) });
+        },
         scales: {
           x: { ticks: { color: '#bdc9df', maxRotation: 70, minRotation: 35 }, grid: { color: 'rgba(255,255,255,.08)' } },
           y: { beginAtZero: true, ticks: { color: '#bdc9df' }, grid: { color: 'rgba(255,255,255,.08)' }, title: { display: true, text: 'Events', color: '#bdc9df' } },
@@ -701,8 +970,8 @@
       }
     });
 
-    replaceChart('downtimeAlertChart', { type: 'bar', data: barChartData(a.topDowntimeAlerts.map(([k,v]) => [k, Number((v/3600).toFixed(2))]), 'Downtime (hours)'), options: { ...baseOptions(), plugins: { ...baseOptions().plugins, legend: { display: false } } } });
-    replaceChart('stateChart', { type: 'bar', data: barChartData(a.topPreStates, 'Events'), options: { ...baseOptions(), indexAxis: 'y', plugins: { ...baseOptions().plugins, legend: { display: false } } } });
+    registerChart('downtimeAlertChart', a.topDowntimeAlerts.map(([k,v]) => [k, Number((v/3600).toFixed(2))]), 'alertTitle', 'Downtime by Alert Title', { datasetLabel: 'Downtime (hours)' });
+    registerChart('stateChart', a.topPreStates, 'preErrorState', 'Pre-Error State Patterns', { options: { ...baseOptions(), indexAxis: 'y', plugins: { ...baseOptions().plugins, legend: { display: false } } } });
   }
 
   function renderInsightText(a) {
@@ -713,9 +982,9 @@
     const pareto = a.totalEvents ? ((top3 / a.totalEvents) * 100).toFixed(1) : '0.0';
 
     document.getElementById('insightText').innerHTML = `
-      <p><strong>Press concentration:</strong> ${topPress[0]} generates ${topPress[1]} events in the current scope.</p>
-      <p><strong>Subsystem driver:</strong> ${topSubsystem[0]} leads with ${topSubsystem[1]} events.</p>
-      <p><strong>Downtime alert:</strong> ${topDowntimeAlert[0]} accounts for ${formatDuration(topDowntimeAlert[1])}.</p>
+      <p><strong>Press concentration:</strong> ${esc(topPress[0])} generates ${topPress[1]} events in current scope.</p>
+      <p><strong>Subsystem driver:</strong> ${esc(topSubsystem[0])} leads with ${topSubsystem[1]} events.</p>
+      <p><strong>Downtime alert:</strong> ${esc(topDowntimeAlert[0])} accounts for ${formatDuration(topDowntimeAlert[1])}.</p>
       <p><strong>Pareto signal:</strong> top 3 error names account for ${pareto}% of events.</p>
     `;
   }
@@ -723,64 +992,33 @@
   function populateFilter(id, values, label) {
     const select = document.getElementById(id);
     const prev = select.value;
-    select.innerHTML = `<option value="all">All ${label}</option>${values.map(v => `<option value="${v}">${v}</option>`).join('')}`;
+    select.innerHTML = `<option value="all">All ${label}</option>${values.map(v => `<option value="${esc(v)}">${esc(v)}</option>`).join('')}`;
     if (values.includes(prev)) select.value = prev;
   }
 
   function applyFilters() {
-    const press = document.getElementById('pressFilter').value;
-    const model = document.getElementById('modelFilter').value;
-    const subsystem = document.getElementById('subsystemFilter').value;
-    const errorState = document.getElementById('errorStateFilter').value;
-    const version = document.getElementById('versionFilter').value;
-    const startDate = document.getElementById('startDateFilter').value;
-    const endDate = document.getElementById('endDateFilter').value;
-    const search = document.getElementById('searchFilter').value.trim().toLowerCase();
-
-    STATE.filteredRows = STATE.normalizedRows.filter((r) => {
-      const day = r.startTime ? r.startTime.toISOString().slice(0, 10) : '';
-      const searchable = `${r.name} ${r.alertTitle} ${r.alertBody} ${r.alertSolution} ${r.press} ${r.subsystem} ${r.version}`.toLowerCase();
-      return (
-        (press === 'all' || r.press === press) &&
-        (model === 'all' || r.model === model) &&
-        (subsystem === 'all' || r.subsystem === subsystem) &&
-        (errorState === 'all' || r.errorState === errorState) &&
-        (version === 'all' || r.version === version) &&
-        (!startDate || (day && day >= startDate)) &&
-        (!endDate || (day && day <= endDate)) &&
-        (!search || searchable.includes(search))
-      );
-    });
-
+    STATE.filteredRows = getFilteredRows();
     renderDashboard();
   }
 
-  function renderTable(rows) {
-    const table = document.getElementById('dataTable');
+  function valueForHeader(row, header) {
+    const key = COLUMN_MAP[header];
+    if (key === 'startTime') return row.startTime ? row.startTime.toISOString() : '';
+    if (key === 'recoveryTime') return row.recoveryTime ? row.recoveryTime.toISOString() : '';
+    return row[key] ?? '';
+  }
+
+  function renderTable(rows, tableId = 'dataTable', clickable = true, offset = 0) {
+    const table = document.getElementById(tableId);
+    if (!table) return;
     const headers = REQUIRED_COLUMNS;
     if (!rows.length) {
       table.innerHTML = '<tbody><tr><td>No rows match current filters.</td></tr></tbody>';
       return;
     }
-
-    table.innerHTML = `<thead><tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr></thead><tbody>${rows.slice(0, 500).map((r, i) => {
-      const get = {
-        'Press': r.press,
-        'Model': r.model,
-        'Name': r.name,
-        'Alert Message Title': r.alertTitle,
-        'Alert Message Body': r.alertBody,
-        'Alert Message Solution': r.alertSolution,
-        'Start Time': r.startTime ? r.startTime.toISOString() : '',
-        'Duration': r.durationRaw,
-        'Recovery': r.recoveryTime ? r.recoveryTime.toISOString() : '',
-        'Pre Error State': r.preErrorState,
-        'Subsystem': r.subsystem,
-        'Error State': r.errorState,
-        'Version': r.version
-      };
-      return `<tr class="row" data-idx="${i}">${headers.map(h => `<td>${String(get[h] ?? '')}</td>`).join('')}</tr>`;
-    }).join('')}</tbody>`;
+    table.innerHTML = `<thead><tr>${headers.map(h => `<th data-header="${esc(h)}">${esc(h)}</th>`).join('')}</tr></thead><tbody>${rows.slice(offset, offset + 500).map((r, i) => `
+      <tr class="${clickable ? 'row' : ''}" data-idx="${i}">${headers.map(h => `<td>${esc(valueForHeader(r, h))}</td>`).join('')}</tr>
+    `).join('')}</tbody>`;
   }
 
   function openDrawer(row) {
@@ -788,19 +1026,19 @@
     drawer.classList.add('open');
     drawer.setAttribute('aria-hidden', 'false');
     document.getElementById('drawerBody').innerHTML = `
-      <p><strong>Name:</strong> ${row.name}</p>
-      <p><strong>Alert Message Title:</strong> ${row.alertTitle}</p>
-      <p><strong>Alert Message Body:</strong> ${row.alertBody || '-'}</p>
-      <p><strong>Alert Message Solution:</strong> ${row.alertSolution || '-'}</p>
-      <p><strong>Press:</strong> ${row.press}</p>
-      <p><strong>Model:</strong> ${row.model}</p>
-      <p><strong>Start Time:</strong> ${row.startTime ? row.startTime.toISOString() : '-'}</p>
-      <p><strong>Recovery:</strong> ${row.recoveryTime ? row.recoveryTime.toISOString() : '-'}</p>
-      <p><strong>Duration:</strong> ${row.durationRaw || '-'} (${formatDuration(row.durationSeconds)})</p>
-      <p><strong>Subsystem:</strong> ${row.subsystem}</p>
-      <p><strong>Error State:</strong> ${row.errorState}</p>
-      <p><strong>Version:</strong> ${row.version}</p>
-      <p><strong>Pre Error State:</strong> ${row.preErrorState}</p>
+      <p><strong>Name:</strong> ${esc(row.name)}</p>
+      <p><strong>Alert Message Title:</strong> ${esc(row.alertTitle)}</p>
+      <p><strong>Alert Message Body:</strong> ${esc(row.alertBody || '-')}</p>
+      <p><strong>Alert Message Solution:</strong> ${esc(row.alertSolution || '-')}</p>
+      <p><strong>Press:</strong> ${esc(row.press)}</p>
+      <p><strong>Model:</strong> ${esc(row.model)}</p>
+      <p><strong>Start Time:</strong> ${esc(row.startTime ? row.startTime.toISOString() : '-')}</p>
+      <p><strong>Recovery:</strong> ${esc(row.recoveryTime ? row.recoveryTime.toISOString() : '-')}</p>
+      <p><strong>Duration:</strong> ${esc(row.durationRaw || '-')} (${formatDuration(row.durationSeconds)})</p>
+      <p><strong>Subsystem:</strong> ${esc(row.subsystem)}</p>
+      <p><strong>Error State:</strong> ${esc(row.errorState)}</p>
+      <p><strong>Version:</strong> ${esc(row.version)}</p>
+      <p><strong>Pre Error State:</strong> ${esc(row.preErrorState)}</p>
     `;
   }
 
@@ -810,22 +1048,201 @@
     drawer.setAttribute('aria-hidden', 'true');
   }
 
+  function exportRowsToCsv(rows, filename) {
+    if (!rows.length) return;
+    const headers = REQUIRED_COLUMNS;
+    const escape = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const lines = [headers.map(escape).join(',')];
+    rows.forEach((r) => {
+      const out = headers.map(h => valueForHeader(r, h));
+      lines.push(out.map(escape).join(','));
+    });
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  function summarizeDrilldownRows(rows) {
+    const total = rows.reduce((sum, r) => sum + (r.durationSeconds || 0), 0);
+    const avg = rows.length ? total / rows.length : 0;
+    const presses = new Set(rows.map(r => r.press).filter(Boolean));
+    const subsystems = new Set(rows.map(r => r.subsystem).filter(Boolean));
+    const versions = new Set(rows.map(r => r.version).filter(Boolean));
+    const dated = rows.filter(r => r.startTime).sort((a,b)=>a.startTime-b.startTime);
+    const mostSubsystem = topBy(rows, 'subsystem');
+    const mostAlert = topBy(rows, 'alertTitle');
+    return {
+      total,
+      avg,
+      presses: [...presses].slice(0, 6),
+      subsystems: [...subsystems].slice(0, 6),
+      versions: [...versions].slice(0, 6),
+      first: dated[0]?.startTime,
+      latest: dated[dated.length - 1]?.startTime,
+      mostSubsystem: mostSubsystem[0],
+      mostAlert: mostAlert[0]
+    };
+  }
+
+  function sortRows(rows, field, dir) {
+    const factor = dir === 'asc' ? 1 : -1;
+    return [...rows].sort((a,b) => {
+      const av = a[field], bv = b[field];
+      if (av == null) return 1;
+      if (bv == null) return -1;
+      if (av instanceof Date && bv instanceof Date) return factor * (av - bv);
+      if (typeof av === 'number' && typeof bv === 'number') return factor * (av - bv);
+      return factor * String(av).localeCompare(String(bv));
+    });
+  }
+
+  function renderDrilldownTable() {
+    const rows = STATE.drilldown.rows;
+    const query = STATE.drilldown.search.trim().toLowerCase();
+    const filtered = rows.filter(r => !query || `${r.press} ${r.model} ${r.name} ${r.alertTitle} ${r.alertBody} ${r.alertSolution} ${r.subsystem} ${r.errorState} ${r.version}`.toLowerCase().includes(query));
+    const sorted = sortRows(filtered, STATE.drilldown.sortField, STATE.drilldown.sortDir);
+    STATE.drilldown.currentRows = sorted;
+    renderTable(sorted, 'drillTable', false);
+  }
+
+  function openDrilldown({ dimension, value, sourceChart, rows }) {
+    const cfg = DIMENSION_CONFIG[dimension] || { label: dimension, key: dimension };
+    STATE.drilldown.context = { dimension, value, sourceChart, label: cfg.label };
+    STATE.drilldown.rows = rows;
+    STATE.drilldown.search = '';
+    STATE.drilldown.sortField = 'durationSeconds';
+    STATE.drilldown.sortDir = 'desc';
+    document.getElementById('drillSearch').value = '';
+
+    const summary = summarizeDrilldownRows(rows);
+    document.getElementById('drillTitle').textContent = `${cfg.label}: ${value}`;
+    document.getElementById('drillSubtitle').textContent = `${sourceChart} • ${rows.length} matching events`;
+    document.getElementById('drillChips').innerHTML = `
+      <span class="chip">Source: ${esc(sourceChart)}</span>
+      <span class="chip">Dimension: ${esc(cfg.label)}</span>
+      <span class="chip">Selected: ${esc(value)}</span>
+      <span class="chip">Global filters retained</span>
+    `;
+    document.getElementById('drillMetrics').innerHTML = `
+      <div class="metric"><div class="k">Matching events</div><div class="v">${rows.length}</div></div>
+      <div class="metric"><div class="k">Total downtime</div><div class="v">${formatDuration(summary.total)}</div></div>
+      <div class="metric"><div class="k">Average duration</div><div class="v">${formatDuration(summary.avg)}</div></div>
+      <div class="metric"><div class="k">Affected presses</div><div class="v">${summary.presses.length || 0}</div></div>
+      <div class="metric"><div class="k">Affected versions</div><div class="v">${summary.versions.length || 0}</div></div>
+    `;
+    document.getElementById('drillTrend').innerHTML = `Trend summary: first occurrence ${summary.first ? summary.first.toISOString() : 'N/A'}, latest occurrence ${summary.latest ? summary.latest.toISOString() : 'N/A'}, dominant subsystem ${esc(summary.mostSubsystem)}, dominant alert ${esc(summary.mostAlert)}.`;
+
+    const sortField = document.getElementById('drillSortField');
+    sortField.innerHTML = [
+      ['durationSeconds','Duration'], ['startTime','Start Time'], ['press','Press'], ['subsystem','Subsystem'], ['alertTitle','Alert Title'], ['version','Version']
+    ].map(([k, label]) => `<option value="${k}">${label}</option>`).join('');
+    sortField.value = STATE.drilldown.sortField;
+
+    renderDrilldownTable();
+    document.getElementById('drilldownShell').classList.add('open');
+    document.getElementById('drilldownShell').setAttribute('aria-hidden', 'false');
+  }
+
+  function closeDrilldown() {
+    document.getElementById('drilldownShell').classList.remove('open');
+    document.getElementById('drilldownShell').setAttribute('aria-hidden', 'true');
+  }
+
+  function buildFilterContextText() {
+    const ids = ['pressFilter','modelFilter','subsystemFilter','errorStateFilter','versionFilter'];
+    const fields = ids.map(id => {
+      const el = document.getElementById(id);
+      const label = id.replace('Filter','');
+      return `${label}: ${el.value}`;
+    });
+    const start = document.getElementById('startDateFilter').value || 'any';
+    const end = document.getElementById('endDateFilter').value || 'any';
+    const search = document.getElementById('searchFilter').value.trim() || 'none';
+    fields.push(`date: ${start} → ${end}`);
+    fields.push(`search: ${search}`);
+    return fields.join(' | ');
+  }
+
+  function buildEmailBrief(summary) {
+    const a = summary.analytics;
+    const topRisk = summary.topRisk.slice(0, 3).map(item => `${item.press} (${item.tier}, ${item.eventCount} events, ${formatDuration(item.totalDowntime)} downtime)`).join('; ') || 'No risk concentration detected';
+    return [
+      `Executive Operational Summary (${summary.generatedAt.toISOString()})`,
+      `Dataset: ${STATE.datasetName}`,
+      `Filter scope: ${buildFilterContextText()}`,
+      `Total events: ${a.totalEvents} | Total downtime: ${formatDuration(a.totalDuration)}`,
+      `Highest-risk presses: ${topRisk}`,
+      `Main driver: ${summary.pillars.mainDowntimeDriver}`,
+      `Most affected subsystem: ${summary.pillars.mostAffectedSubsystem}`,
+      `Most repeated alert: ${summary.pillars.mostRepeatedAlert}`,
+      `Narrative: ${summary.narrative.join(' ')}`,
+      `Immediate focus: ${summary.recommended.join(' ')}`
+    ].join('\n');
+  }
+
+  function exportExecutiveSnapshot(context) {
+    const { summary } = context;
+    document.getElementById('execGeneratedMeta').textContent = `Generated ${summary.generatedAt.toISOString()} • ${STATE.datasetName}`;
+    document.getElementById('exportOverall').innerHTML = `
+      <p><strong>Reporting scope:</strong> ${esc(buildFilterContextText())}</p>
+      <p><strong>Total events:</strong> ${summary.analytics.totalEvents.toLocaleString()}</p>
+      <p><strong>Total downtime:</strong> ${formatDuration(summary.analytics.totalDuration)}</p>
+      ${summary.narrative.map(line => `<p>${esc(line)}</p>`).join('')}
+    `;
+    document.getElementById('exportRiskList').innerHTML = summary.topRisk.slice(0, 7).map(item => `
+      <div class="risk-item">
+        <div class="risk-line"><strong>${esc(item.press)}</strong><span class="badge ${item.badgeClass}">${esc(item.tier)}</span></div>
+        <div class="risk-reason">${item.eventCount} events • ${formatDuration(item.totalDowntime)} downtime • ${esc(item.reasonText)}</div>
+      </div>
+    `).join('') || '<div class="micro">No risks identified.</div>';
+    document.getElementById('exportStableList').innerHTML = summary.stable.map(item => `
+      <div class="risk-item"><div class="risk-line"><strong>${esc(item.press)}</strong><span class="badge stable">Stable</span></div><div class="risk-reason">${item.eventCount} events • ${formatDuration(item.totalDowntime)}</div></div>
+    `).join('') || '<div class="micro">No stable entities identified.</div>';
+
+    document.getElementById('exportDrivers').innerHTML = `
+      <div><strong>Main downtime driver:</strong> ${esc(summary.pillars.mainDowntimeDriver)}</div>
+      <div><strong>Most affected subsystem:</strong> ${esc(summary.pillars.mostAffectedSubsystem)}</div>
+      <div><strong>Most repeated alert:</strong> ${esc(summary.pillars.mostRepeatedAlert)}</div>
+      <div><strong>Highest-risk press:</strong> ${esc(summary.pillars.highestRiskPress)}</div>
+      <div><strong>Most stable active press:</strong> ${esc(summary.pillars.mostStablePress)}</div>
+    `;
+    document.getElementById('exportFocus').innerHTML = summary.recommended.map(line => `<li>${esc(line)}</li>`).join('');
+    document.getElementById('emailBrief').textContent = buildEmailBrief(summary);
+
+    document.getElementById('execExportModal').classList.add('open');
+    document.getElementById('execExportModal').setAttribute('aria-hidden', 'false');
+  }
+
+  function closeExecutiveExportModal() {
+    document.getElementById('execExportModal').classList.remove('open');
+    document.getElementById('execExportModal').setAttribute('aria-hidden', 'true');
+  }
+
   function renderDashboard() {
     const analytics = computeAnalytics(STATE.filteredRows);
-    const nextHash = JSON.stringify([analytics.totalEvents, analytics.totalDuration, analytics.uniquePresses, analytics.minDate?.toISOString(), analytics.maxDate?.toISOString()]);
+    const nextHash = JSON.stringify([analytics.totalEvents, analytics.totalDuration, analytics.uniquePresses, analytics.minDate?.toISOString(), analytics.maxDate?.toISOString(), STATE.managementMode]);
     if (nextHash === STATE.metricsHash) return;
     STATE.metricsHash = nextHash;
 
+    const summary = buildExecutiveSummary(STATE.filteredRows);
+    renderExecutiveLayer(summary);
     renderKpis(analytics);
     renderCharts(analytics);
     renderInsightText(analytics);
     renderTable(STATE.filteredRows);
+
+    const compact = STATE.managementMode;
+    document.querySelectorAll('[data-content="time"], [data-content="insights"]').forEach(el => el.classList.toggle('hidden', compact));
+    document.getElementById('filterPanel').classList.toggle('hidden', compact);
+    document.getElementById('kpiStrip').classList.toggle('hidden', compact);
+    if (compact) switchTab('overview');
   }
 
   function resetFilters() {
-    ['pressFilter','modelFilter','subsystemFilter','errorStateFilter','versionFilter'].forEach((id) => {
-      document.getElementById(id).value = 'all';
-    });
+    ['pressFilter','modelFilter','subsystemFilter','errorStateFilter','versionFilter'].forEach((id) => { document.getElementById(id).value = 'all'; });
     document.getElementById('startDateFilter').value = '';
     document.getElementById('endDateFilter').value = '';
     document.getElementById('searchFilter').value = '';
@@ -876,28 +1293,6 @@
     document.querySelectorAll('.content').forEach(c => c.classList.toggle('active', c.dataset.content === tab));
   }
 
-  function exportFilteredCSV() {
-    if (!STATE.filteredRows.length) return;
-    const headers = REQUIRED_COLUMNS;
-    const escape = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-    const lines = [headers.map(escape).join(',')];
-    STATE.filteredRows.forEach((r) => {
-      const row = [
-        r.press, r.model, r.name, r.alertTitle, r.alertBody, r.alertSolution,
-        r.startTime ? r.startTime.toISOString() : '', r.durationRaw,
-        r.recoveryTime ? r.recoveryTime.toISOString() : '', r.preErrorState,
-        r.subsystem, r.errorState, r.version
-      ];
-      lines.push(row.map(escape).join(','));
-    });
-    const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = 'press-insight-filtered.csv';
-    a.click();
-    URL.revokeObjectURL(a.href);
-  }
-
   function bindListeners() {
     if (STATE.listenersBound) return;
     STATE.listenersBound = true;
@@ -910,10 +1305,15 @@
       setStatus('Select a replacement dataset to continue.', 'info');
     });
 
-    document.getElementById('exportBtn').addEventListener('click', exportFilteredCSV);
+    document.getElementById('exportBtn').addEventListener('click', () => exportRowsToCsv(STATE.filteredRows, 'press-insight-filtered.csv'));
     document.getElementById('tabs').addEventListener('click', (e) => {
       const btn = e.target.closest('[role="tab"]');
       if (btn) switchTab(btn.dataset.tab);
+    });
+    document.getElementById('managementModeToggle').addEventListener('change', (e) => {
+      STATE.managementMode = e.target.checked;
+      STATE.metricsHash = '';
+      renderDashboard();
     });
 
     ['pressFilter','modelFilter','subsystemFilter','errorStateFilter','versionFilter','startDateFilter','endDateFilter'].forEach((id) => {
@@ -929,19 +1329,38 @@
     });
     document.getElementById('closeDrawer').addEventListener('click', closeDrawer);
 
-    const zone = document.getElementById('dropZone');
-    ['dragenter', 'dragover'].forEach((name) => zone.addEventListener(name, (e) => {
-      e.preventDefault();
-      zone.classList.add('drag');
-    }));
-    ['dragleave', 'drop'].forEach((name) => zone.addEventListener(name, (e) => {
-      e.preventDefault();
-      zone.classList.remove('drag');
-    }));
-    zone.addEventListener('drop', (e) => {
-      const file = e.dataTransfer?.files?.[0];
-      processFile(file);
+    document.getElementById('closeDrilldownBtn').addEventListener('click', closeDrilldown);
+    document.getElementById('drillSearch').addEventListener('input', (e) => { STATE.drilldown.search = e.target.value; renderDrilldownTable(); });
+    document.getElementById('drillSortField').addEventListener('change', (e) => { STATE.drilldown.sortField = e.target.value; renderDrilldownTable(); });
+    document.getElementById('drillSortDir').addEventListener('click', (e) => {
+      STATE.drilldown.sortDir = STATE.drilldown.sortDir === 'asc' ? 'desc' : 'asc';
+      e.target.textContent = STATE.drilldown.sortDir === 'asc' ? 'Asc' : 'Desc';
+      renderDrilldownTable();
     });
+    document.getElementById('drillExportBtn').addEventListener('click', () => exportRowsToCsv(STATE.drilldown.currentRows || STATE.drilldown.rows, 'press-insight-drilldown.csv'));
+    document.getElementById('drillCopyBtn').addEventListener('click', async () => {
+      const c = STATE.drilldown.context;
+      const s = summarizeDrilldownRows(STATE.drilldown.currentRows || STATE.drilldown.rows);
+      const text = `${c.label}: ${c.value}\nSource chart: ${c.sourceChart}\nRows: ${(STATE.drilldown.currentRows || STATE.drilldown.rows).length}\nTotal downtime: ${formatDuration(s.total)}\nAvg duration: ${formatDuration(s.avg)}\nMost common subsystem: ${s.mostSubsystem}\nMost common alert: ${s.mostAlert}`;
+      try { await navigator.clipboard.writeText(text); } catch { /* ignore clipboard limitations */ }
+    });
+
+    document.getElementById('openExecExportBtn').addEventListener('click', () => exportExecutiveSnapshot({ summary: buildExecutiveSummary(STATE.filteredRows) }));
+    document.getElementById('closeExecModalBtn').addEventListener('click', closeExecutiveExportModal);
+    document.getElementById('execPrintBtn').addEventListener('click', () => window.print());
+    document.getElementById('execCopyBtn').addEventListener('click', async () => {
+      try { await navigator.clipboard.writeText(document.getElementById('emailBrief').textContent); } catch { /* clipboard unsupported */ }
+    });
+    document.getElementById('execMailBtn').addEventListener('click', () => {
+      const brief = document.getElementById('emailBrief').textContent;
+      const url = `mailto:?subject=${encodeURIComponent('Executive Operational Summary')}&body=${encodeURIComponent(brief)}`;
+      window.location.href = url;
+    });
+
+    const zone = document.getElementById('dropZone');
+    ['dragenter', 'dragover'].forEach((name) => zone.addEventListener(name, (e) => { e.preventDefault(); zone.classList.add('drag'); }));
+    ['dragleave', 'drop'].forEach((name) => zone.addEventListener(name, (e) => { e.preventDefault(); zone.classList.remove('drag'); }));
+    zone.addEventListener('drop', (e) => processFile(e.dataTransfer?.files?.[0]));
   }
 
   function bootstrap() {
