@@ -263,12 +263,16 @@
     if (isNaN(d)) return null;
     return d.toISOString().slice(0, 10);
   }
-  function buildKey({ press, model, date }) {
-    return [
-      normalizePress(press),
-      normalizeModel(model),
-      toDay(date)
-    ].join('|');
+  function buildKey({ canonicalPress, canonicalModel, day, press, model, date }) {
+    const pressToken = canonicalPress ?? press;
+    const modelToken = canonicalModel ?? model;
+    const dayToken = day || toDay(date);
+    return [normalizePress(pressToken), normalizeModel(modelToken), dayToken || ''].join('|');
+  }
+  function buildPressDayKey({ canonicalPress, day, press, date }) {
+    const pressToken = canonicalPress ?? press;
+    const dayToken = day || toDay(date);
+    return [normalizePress(pressToken), dayToken || ''].join('|');
   }
   const normalizeJoinToken = v => canonical(v) || 'unspecified';
   const normalizeTextLoose = v => String(v ?? '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -308,6 +312,15 @@
     const m = raw.match(/^(?:(\d+)\.)?(\d{1,2}):(\d{2}):(\d{2})/);
     if (m) return Number(m[1] || 0) * 86400 + Number(m[2]) * 3600 + Number(m[3]) * 60 + Number(m[4]);
     return 0;
+  };
+  const parsePercent = v => {
+    const raw = String(v ?? '').replace('%', '').trim();
+    if (!raw) return null;
+    const n = parseNumber(raw);
+    if (!Number.isFinite(n)) return null;
+    if (n >= 0 && n <= 1) return n * 100;
+    if (n >= 0 && n <= 100) return n;
+    return null;
   };
 
   const toDayBucket = d => (d ? toDay(d) : '');
@@ -405,6 +418,7 @@
       const r = rows[i];
       const startTime = parseDate(getField(r, ['Start Time', 'Start', 'Event Time', 'Timestamp', 'Date']));
       const { canonicalPress, pressCode } = canonicalizePressName(getField(r, ['Press', 'Machine', 'Printer']));
+      const model = String(getField(r, ['Model'])).trim() || 'Unspecified';
       out.push({
         id: i,
         customer: String(getField(r, ['Customer', 'Account', 'Client'])).trim() || 'Unspecified',
@@ -412,7 +426,8 @@
         press: canonicalPress,
         canonicalPress,
         pressCode,
-        model: String(getField(r, ['Model'])).trim() || 'Unspecified',
+        model,
+        canonicalModel: model,
         name: String(getField(r, ['Name', 'Alert Name'])).trim() || 'Unspecified',
         alertTitle: String(getField(r, ['Alert Message Title', 'Alert Title', 'Name'])).trim() || 'Unspecified',
         alertBody: String(getField(r, ['Alert Message Body', 'Alert Body', 'Description'])).trim(),
@@ -426,7 +441,15 @@
         day: toDayBucket(startTime),
         durationSeconds: parseDurationSeconds(getField(r, ['Duration', 'Duration (sec)', 'DurationSeconds'])),
       });
-      out[out.length - 1].key = buildKey({ press: out[out.length - 1].press, model: out[out.length - 1].model, date: out[out.length - 1].startTime });
+      out[out.length - 1].key = buildKey({
+        canonicalPress: out[out.length - 1].canonicalPress,
+        canonicalModel: out[out.length - 1].canonicalModel,
+        day: out[out.length - 1].day
+      });
+      out[out.length - 1].fallbackKey = buildPressDayKey({
+        canonicalPress: out[out.length - 1].canonicalPress,
+        day: out[out.length - 1].day
+      });
       if (i % 3000 === 0) await shortYield();
     }
     const hasMinimum = out.some(r => r.press !== 'Unspecified' && (r.name !== 'Unspecified' || r.alertTitle !== 'Unspecified') && r.startTime);
@@ -436,121 +459,83 @@
 
   async function normalizeAvailabilityRows(rows) {
     const out = [];
-    let sourceRows = 0;
+    let sourceRowsUsed = 0;
+    let normalizedRowsCreated = 0;
     let invalidAvailabilityPct = 0;
-    const byPressModelDay = new Map();
-
     const readSeconds = (r, aliases) => parseDurationSeconds(getField(r, aliases));
-    const readAvailabilityPct = r => {
-      const raw = parseNumber(getField(r, ['Availability', 'Availability %', 'Avail']));
-      if (!Number.isFinite(raw)) return null;
-      if (raw >= 0 && raw <= 1) return raw * 100;
-      if (raw >= 0 && raw <= 100) return raw;
-      invalidAvailabilityPct += 1;
-      return null;
-    };
 
     for (let i = 0; i < rows.length; i++) {
       const r = rows[i];
-      const dayDate = parseDate(getField(r, ['Date', 'Day', 'Report Date']));
-      const day = toDayBucket(dayDate);
+      const day = toDayBucket(parseDate(getField(r, ['Date', 'Day', 'Report Date'])));
       const { canonicalPress, pressCode } = canonicalizePressName(getField(r, ['Press', 'Machine', 'Printer']));
-      const model = String(getField(r, ['Model'])).trim() || 'Unspecified';
+      const canonicalModel = String(getField(r, ['Model'])).trim() || 'Unspecified';
       if (canonicalPress === 'Unspecified' || !day) continue;
 
-      sourceRows += 1;
-      const sourcePrintSeconds = readSeconds(r, ['Print']);
-      const sourceAvailableWithoutPrintSeconds = readSeconds(r, ['Available Without Print']);
-      const sourcePreventiveMaintenanceSeconds = readSeconds(r, ['Preventive Maintenance']);
-      const sourceOnJobMaintenanceSeconds = readSeconds(r, ['On Job Maintenance']);
-      const sourceRecoverySeconds = readSeconds(r, ['Recovery']);
-      const sourceJamsSeconds = readSeconds(r, ['Jams']);
-      const runtimeSeconds = sourcePrintSeconds + sourceAvailableWithoutPrintSeconds;
-      const plannedDowntimeSeconds = sourcePreventiveMaintenanceSeconds;
-      const serviceDowntimeSeconds = sourceOnJobMaintenanceSeconds;
-      const unplannedDowntimeSeconds = sourceRecoverySeconds + sourceJamsSeconds;
-      const providedAvailabilityPct = readAvailabilityPct(r);
-      const availabilityDenominator = runtimeSeconds + unplannedDowntimeSeconds;
-      const derivedAvailabilityPct = availabilityDenominator > 0 ? (runtimeSeconds / availabilityDenominator) * 100 : null;
-      const availabilityPct = providedAvailabilityPct ?? derivedAvailabilityPct;
-      const sourcePrintVolume = parseNumber(getField(r, ['Print Volume']));
+      sourceRowsUsed += 1;
+      const printSeconds = readSeconds(r, ['Print']);
+      const availableWithoutPrintSeconds = readSeconds(r, ['Available Without Print']);
+      const preventiveMaintenanceSeconds = readSeconds(r, ['Preventive Maintenance']);
+      const onJobMaintenanceSeconds = readSeconds(r, ['On Job Maintenance']);
+      const recoverySeconds = readSeconds(r, ['Recovery']);
+      const jamsSeconds = readSeconds(r, ['Jams']);
+      const runtimeSeconds = printSeconds + availableWithoutPrintSeconds;
+      const plannedDowntimeSeconds = preventiveMaintenanceSeconds;
+      const unplannedDowntimeSeconds = recoverySeconds + jamsSeconds;
+      const serviceDowntimeSeconds = onJobMaintenanceSeconds;
 
-      const key = buildKey({ press: canonicalPress, model, date: dayDate });
-      if (!byPressModelDay.has(key)) {
-        byPressModelDay.set(key, {
-          canonicalPress,
-          press: canonicalPress,
-          pressCode,
-          model,
-          day,
-          key,
-          customer: 'Unspecified',
-          site: 'Unspecified',
-          runtimeSeconds: 0,
-          plannedDowntimeSeconds: 0,
-          unplannedDowntimeSeconds: 0,
-          serviceDowntimeSeconds: 0,
-          sourcePrintSeconds: 0,
-          sourceAvailableWithoutPrintSeconds: 0,
-          sourcePreventiveMaintenanceSeconds: 0,
-          sourceOnJobMaintenanceSeconds: 0,
-          sourceRecoverySeconds: 0,
-          sourceJamsSeconds: 0,
-          sourcePrintVolume: 0,
-          availabilityPctAccumulator: 0,
-          availabilityPctContribCount: 0,
-          sourceRows: 0,
-        });
+      let availabilityPct = parsePercent(getField(r, ['Availability', 'Availability %', 'Avail']));
+      if (availabilityPct == null && String(getField(r, ['Availability', 'Availability %', 'Avail'])).trim()) invalidAvailabilityPct += 1;
+      if (availabilityPct == null) {
+        const denom = runtimeSeconds + plannedDowntimeSeconds + unplannedDowntimeSeconds + serviceDowntimeSeconds;
+        availabilityPct = denom > 0 ? (runtimeSeconds / denom) * 100 : null;
       }
 
-      const slot = byPressModelDay.get(key);
-      slot.runtimeSeconds += runtimeSeconds;
-      slot.plannedDowntimeSeconds += plannedDowntimeSeconds;
-      slot.unplannedDowntimeSeconds += unplannedDowntimeSeconds;
-      slot.serviceDowntimeSeconds += serviceDowntimeSeconds;
-      slot.sourcePrintSeconds += sourcePrintSeconds;
-      slot.sourceAvailableWithoutPrintSeconds += sourceAvailableWithoutPrintSeconds;
-      slot.sourcePreventiveMaintenanceSeconds += sourcePreventiveMaintenanceSeconds;
-      slot.sourceOnJobMaintenanceSeconds += sourceOnJobMaintenanceSeconds;
-      slot.sourceRecoverySeconds += sourceRecoverySeconds;
-      slot.sourceJamsSeconds += sourceJamsSeconds;
-      slot.sourcePrintVolume += Number.isFinite(sourcePrintVolume) ? sourcePrintVolume : 0;
-      slot.sourceRows += 1;
-      if (availabilityPct != null) {
-        slot.availabilityPctAccumulator += availabilityPct;
-        slot.availabilityPctContribCount += 1;
-      }
+      out.push({
+        canonicalPress,
+        canonicalModel,
+        press: canonicalPress,
+        model: canonicalModel,
+        pressCode,
+        day,
+        key: buildKey({ canonicalPress, canonicalModel, day }),
+        fallbackKey: buildPressDayKey({ canonicalPress, day }),
+        availabilityPct,
+        printSeconds,
+        availableWithoutPrintSeconds,
+        preventiveMaintenanceSeconds,
+        onJobMaintenanceSeconds,
+        recoverySeconds,
+        jamsSeconds,
+        runtimeSeconds,
+        plannedDowntimeSeconds,
+        unplannedDowntimeSeconds,
+        serviceDowntimeSeconds,
+        raw: r
+      });
+      normalizedRowsCreated += 1;
       if (i % 3000 === 0) await shortYield();
     }
-
-    byPressModelDay.forEach(slot => {
-      out.push({
-        ...slot,
-        availabilityPct: slot.availabilityPctContribCount ? (slot.availabilityPctAccumulator / slot.availabilityPctContribCount) : null,
-      });
-    });
 
     return {
       rows: out,
       diagnostics: {
         parsedRows: rows.length,
-        sourceRowsUsed: sourceRows,
-        aggregatedRowsCreated: out.length,
+        sourceRowsUsed,
+        normalizedRowsCreated,
+        aggregatedRowsCreated: 0,
         invalidAvailabilityPct,
       },
     };
   }
 
   async function normalizeVolumeRows(rows) {
-    const out = [];
     const jobs = [];
-    const byPressModelDay = new Map();
-    let sourceRows = 0;
+    let sourceRowsUsed = 0;
 
     const classifyMaintenance = row => {
       const jobType = String(getField(row, ['Job Type'])).toLowerCase();
       const pressMode = String(getField(row, ['Press Mode', 'Mode'])).toLowerCase();
-      return /maintenance|service|repair|pm/.test(jobType) || /maintenance|service|repair/.test(pressMode);
+      return /maintenance|service|repair|pm/.test(jobType) || /maintenance|service|repair|pm/.test(pressMode);
     };
 
     for (let i = 0; i < rows.length; i++) {
@@ -558,10 +543,10 @@
       const printStart = parseDate(getField(r, ['Print Start', 'Start Time', 'Start', 'Date']));
       const day = toDayBucket(printStart);
       const { canonicalPress, pressCode } = canonicalizePressName(getField(r, ['Press', 'Machine', 'Printer']));
-      const model = String(getField(r, ['Model'])).trim() || 'Unspecified';
+      const canonicalModel = String(getField(r, ['Model'])).trim() || 'Unspecified';
       if (canonicalPress === 'Unspecified' || !day) continue;
 
-      sourceRows += 1;
+      sourceRowsUsed += 1;
       const printedSheets = parseNumber(getField(r, ['Printed Sheets']));
       const printedFlats = parseNumber(getField(r, ['Printed Flats']));
       const preferredVolume = Number.isFinite(printedSheets) ? printedSheets : (Number.isFinite(printedFlats) ? printedFlats : 0);
@@ -571,95 +556,62 @@
       const jobType = String(getField(r, ['Job Type'])).trim() || 'Unspecified';
       const jobStatus = String(getField(r, ['Job Status'])).trim() || 'Unspecified';
       const pressMode = String(getField(r, ['Press Mode', 'Mode'])).trim() || 'Unspecified';
-      const printDurationSeconds = parseDurationSeconds(getField(r, ['Print Duration']));
-
-      const key = buildKey({ press: canonicalPress, model, date: printStart });
-      if (!byPressModelDay.has(key)) {
-        byPressModelDay.set(key, {
-          canonicalPress,
-          press: canonicalPress,
-          pressCode,
-          model,
-          day,
-          key,
-          customer,
-          site,
-          productionVolume: 0,
-          maintenanceVolume: 0,
-          totalVolume: 0,
-          printedSheets: 0,
-          printedFlats: 0,
-          printDurationSeconds: 0,
-          sourceRows: 0,
-          sampleJobTypes: new Set(),
-          samplePressModes: new Set(),
-          sampleStatuses: new Set(),
-        });
-      }
-      const slot = byPressModelDay.get(key);
-      if (maintenance) slot.maintenanceVolume += preferredVolume;
-      else slot.productionVolume += preferredVolume;
-      slot.totalVolume += preferredVolume;
-      slot.printedSheets += Number.isFinite(printedSheets) ? printedSheets : 0;
-      slot.printedFlats += Number.isFinite(printedFlats) ? printedFlats : 0;
-      slot.printDurationSeconds += printDurationSeconds;
-      slot.sourceRows += 1;
-      slot.sampleJobTypes.add(jobType);
-      slot.samplePressModes.add(pressMode);
-      slot.sampleStatuses.add(jobStatus);
+      const key = buildKey({ canonicalPress, canonicalModel, day });
       jobs.push({
         key,
+        fallbackKey: buildPressDayKey({ canonicalPress, day }),
+        canonicalPress,
+        canonicalModel,
         customer,
         site,
         press: canonicalPress,
-        model,
+        model: canonicalModel,
+        pressCode,
         day,
-        volume: preferredVolume,
-        maintenance,
         productionVolume: maintenance ? 0 : preferredVolume,
         maintenanceVolume: maintenance ? preferredVolume : 0,
         totalVolume: preferredVolume,
+        printedSheets: Number.isFinite(printedSheets) ? printedSheets : 0,
+        printedFlats: Number.isFinite(printedFlats) ? printedFlats : 0,
+        maintenance,
         jobType,
         jobStatus,
         pressMode,
+        raw: r
       });
 
       if (i % 3000 === 0) await shortYield();
     }
 
-    byPressModelDay.forEach(slot => {
-      out.push({
-        ...slot,
-        sampleJobTypes: [...slot.sampleJobTypes].slice(0, 6),
-        samplePressModes: [...slot.samplePressModes].slice(0, 6),
-        sampleStatuses: [...slot.sampleStatuses].slice(0, 6),
-      });
-    });
-
     return {
-      rows: out,
+      rows: jobs,
       jobs,
-      diagnostics: { parsedRows: rows.length, sourceRowsUsed: sourceRows, aggregatedRowsCreated: out.length },
+      diagnostics: { parsedRows: rows.length, sourceRowsUsed, normalizedRowsCreated: jobs.length, aggregatedRowsCreated: 0 },
     };
   }
 
-  function mergeOperationalData(events, availability, volume, diagnostics = {}) {
-    const availabilityMap = new Map();
-    const volumeMap = new Map();
+  function mergeOperationalData(events, availabilityRows, volumeRows, diagnostics = {}) {
+    const availabilityByPressModelDay = new Map();
+    const volumeByPressModelDay = new Map();
+    const errorsByPressModelDay = new Map();
+    const availabilityByPressDay = new Map();
+    const volumeByPressDay = new Map();
     const mergedByPMD = new Map();
     const errorKeys = new Set();
     const availabilityKeys = new Set();
     const volumeKeys = new Set();
 
-    const addToMap = (map, key, base) => {
-      if (!map.has(key)) map.set(key, base());
-      return map.get(key);
-    };
-
-    availability.forEach(r => {
-      const key = r.key || buildKey({ press: r.press, model: r.model, date: r.day });
+    const foldAvailability = (map, row) => {
+      const key = row.key || buildKey({ canonicalPress: row.canonicalPress || row.press, canonicalModel: row.canonicalModel || row.model, day: row.day });
+      const fallbackKey = row.fallbackKey || buildPressDayKey({ canonicalPress: row.canonicalPress || row.press, day: row.day });
       availabilityKeys.add(key);
-      const slot = addToMap(availabilityMap, key, () => ({
+      if (!map.has(key)) map.set(key, {
+        key, fallbackKey,
+        canonicalPress: row.canonicalPress || row.press || 'Unspecified',
+        canonicalModel: row.canonicalModel || row.model || 'Unspecified',
+        day: row.day || '',
+        printSeconds: 0,
+        availableWithoutPrintSeconds: 0,
         runtimeSeconds: 0,
         plannedDowntimeSeconds: 0,
         unplannedDowntimeSeconds: 0,
@@ -667,26 +619,55 @@
         availabilityPctAccumulator: 0,
         availabilityPctContribCount: 0,
         sourceRows: 0,
-      }));
-      slot.runtimeSeconds += r.runtimeSeconds || 0;
-      slot.plannedDowntimeSeconds += r.plannedDowntimeSeconds || 0;
-      slot.unplannedDowntimeSeconds += r.unplannedDowntimeSeconds || 0;
-      slot.serviceDowntimeSeconds += r.serviceDowntimeSeconds || 0;
-      if (r.availabilityPct != null) {
-        slot.availabilityPctAccumulator += r.availabilityPct;
+      });
+      const slot = map.get(key);
+      slot.printSeconds += row.printSeconds || 0;
+      slot.availableWithoutPrintSeconds += row.availableWithoutPrintSeconds || 0;
+      slot.runtimeSeconds += row.runtimeSeconds || 0;
+      slot.plannedDowntimeSeconds += row.plannedDowntimeSeconds || 0;
+      slot.unplannedDowntimeSeconds += row.unplannedDowntimeSeconds || 0;
+      slot.serviceDowntimeSeconds += row.serviceDowntimeSeconds || 0;
+      if (row.availabilityPct != null) {
+        slot.availabilityPctAccumulator += row.availabilityPct;
         slot.availabilityPctContribCount += 1;
       }
-      slot.sourceRows += r.sourceRows || 1;
-    });
+      slot.sourceRows += 1;
+    };
 
-    volume.forEach(r => {
-      const key = r.key || buildKey({ press: r.press, model: r.model, date: r.day });
+    const foldVolume = (map, row) => {
+      const key = row.key || buildKey({ canonicalPress: row.canonicalPress || row.press, canonicalModel: row.canonicalModel || row.model, day: row.day });
+      const fallbackKey = row.fallbackKey || buildPressDayKey({ canonicalPress: row.canonicalPress || row.press, day: row.day });
       volumeKeys.add(key);
-      const slot = addToMap(volumeMap, key, () => ({ productionVolume: 0, maintenanceVolume: 0, totalVolume: 0, sourceRows: 0 }));
-      slot.productionVolume += r.productionVolume || 0;
-      slot.maintenanceVolume += r.maintenanceVolume || 0;
-      slot.totalVolume += r.totalVolume || 0;
-      slot.sourceRows += r.sourceRows || 1;
+      if (!map.has(key)) map.set(key, {
+        key, fallbackKey,
+        canonicalPress: row.canonicalPress || row.press || 'Unspecified',
+        canonicalModel: row.canonicalModel || row.model || 'Unspecified',
+        day: row.day || '',
+        productionVolume: 0,
+        maintenanceVolume: 0,
+        totalVolume: 0,
+        printedSheets: 0,
+        printedFlats: 0,
+        sourceRows: 0,
+      });
+      const slot = map.get(key);
+      slot.productionVolume += row.productionVolume || 0;
+      slot.maintenanceVolume += row.maintenanceVolume || 0;
+      slot.totalVolume += row.totalVolume || 0;
+      slot.printedSheets += row.printedSheets || 0;
+      slot.printedFlats += row.printedFlats || 0;
+      slot.sourceRows += 1;
+    };
+
+    availabilityRows.forEach(r => foldAvailability(availabilityByPressModelDay, r));
+    volumeRows.forEach(r => foldVolume(volumeByPressModelDay, r));
+    availabilityByPressModelDay.forEach((r, key) => {
+      if (!availabilityByPressDay.has(r.fallbackKey)) availabilityByPressDay.set(r.fallbackKey, r);
+      else if ((availabilityByPressDay.get(r.fallbackKey).sourceRows || 0) < (r.sourceRows || 0)) availabilityByPressDay.set(r.fallbackKey, r);
+    });
+    volumeByPressModelDay.forEach((r, key) => {
+      if (!volumeByPressDay.has(r.fallbackKey)) volumeByPressDay.set(r.fallbackKey, r);
+      else if ((volumeByPressDay.get(r.fallbackKey).sourceRows || 0) < (r.sourceRows || 0)) volumeByPressDay.set(r.fallbackKey, r);
     });
 
     const stats = {
@@ -694,8 +675,10 @@
         errorsParsed: events.length,
         availabilityParsed: diagnostics.availabilityParsedRows || 0,
         volumeParsed: diagnostics.volumeParsedRows || 0,
-        availabilityAggregated: availability.length,
-        volumeAggregated: volume.length,
+        availabilityNormalized: diagnostics.availabilityNormalizedRows || availabilityRows.length,
+        volumeNormalized: diagnostics.volumeNormalizedRows || volumeRows.length,
+        availabilityAggregated: availabilityByPressModelDay.size,
+        volumeAggregated: volumeByPressModelDay.size,
       },
       matches: {
         availability: { matched: 0, none: 0 },
@@ -708,11 +691,20 @@
       },
     };
 
+    events.forEach(ev => {
+      const rowKey = ev.key || buildKey({ canonicalPress: ev.canonicalPress || ev.press, canonicalModel: ev.canonicalModel || ev.model, day: ev.day || toDay(ev.startTime) });
+      if (!errorsByPressModelDay.has(rowKey)) errorsByPressModelDay.set(rowKey, { totalEvents: 0, totalErrorDurationSeconds: 0 });
+      const bucket = errorsByPressModelDay.get(rowKey);
+      bucket.totalEvents += 1;
+      bucket.totalErrorDurationSeconds += ev.durationSeconds || 0;
+    });
+
     const mergedEvents = events.map(ev => {
-      const rowKey = ev.key || buildKey({ press: ev.press, model: ev.model, date: ev.startTime || ev.day });
+      const rowKey = ev.key || buildKey({ canonicalPress: ev.canonicalPress || ev.press, canonicalModel: ev.canonicalModel || ev.model, day: ev.day || toDay(ev.startTime) });
+      const rowFallbackKey = ev.fallbackKey || buildPressDayKey({ canonicalPress: ev.canonicalPress || ev.press, day: ev.day || toDay(ev.startTime) });
       errorKeys.add(rowKey);
-      const avMatch = availabilityMap.get(rowKey) || null;
-      const volMatch = volumeMap.get(rowKey) || null;
+      const avMatch = availabilityByPressModelDay.get(rowKey) || availabilityByPressDay.get(rowFallbackKey) || null;
+      const volMatch = volumeByPressModelDay.get(rowKey) || volumeByPressDay.get(rowFallbackKey) || null;
       if (avMatch) stats.matches.availability.matched += 1;
       else stats.matches.availability.none += 1;
       if (volMatch) stats.matches.volume.matched += 1;
@@ -729,7 +721,9 @@
           site: ev.site,
           key: rowKey,
           totalEvents: 0,
-          totalErrorDuration: 0,
+          totalErrorDurationSeconds: 0,
+          printSeconds: 0,
+          availableWithoutPrintSeconds: 0,
           runtimeSeconds: 0,
           plannedDowntimeSeconds: 0,
           unplannedDowntimeSeconds: 0,
@@ -744,9 +738,11 @@
       }
       const slot = mergedByPMD.get(rowKey);
       slot.totalEvents += 1;
-      slot.totalErrorDuration += ev.durationSeconds || 0;
+      slot.totalErrorDurationSeconds += ev.durationSeconds || 0;
 
       if (avMatch && slot.matchedAvailabilityRows === 0) {
+        slot.printSeconds += avMatch.printSeconds || 0;
+        slot.availableWithoutPrintSeconds += avMatch.availableWithoutPrintSeconds || 0;
         slot.runtimeSeconds += avMatch.runtimeSeconds;
         slot.plannedDowntimeSeconds += avMatch.plannedDowntimeSeconds;
         slot.unplannedDowntimeSeconds += avMatch.unplannedDowntimeSeconds;
@@ -764,8 +760,13 @@
 
       return {
         ...ev,
-        mergeContext: { key: rowKey, availabilityKeyUsed: avMatch ? 'key' : null, volumeKeyUsed: volMatch ? 'key' : null },
-        availability: avMatch || { runtimeSeconds: 0, plannedDowntimeSeconds: 0, unplannedDowntimeSeconds: 0, serviceDowntimeSeconds: 0 },
+        mergeContext: {
+          key: rowKey,
+          fallbackKey: rowFallbackKey,
+          availabilityKeyUsed: avMatch ? (availabilityByPressModelDay.has(rowKey) ? 'primary' : 'fallback') : null,
+          volumeKeyUsed: volMatch ? (volumeByPressModelDay.has(rowKey) ? 'primary' : 'fallback') : null
+        },
+        availability: avMatch || { printSeconds: 0, availableWithoutPrintSeconds: 0, runtimeSeconds: 0, plannedDowntimeSeconds: 0, unplannedDowntimeSeconds: 0, serviceDowntimeSeconds: 0 },
         volume: volMatch || { productionVolume: 0, maintenanceVolume: 0, totalVolume: 0 },
       };
     });
@@ -777,6 +778,7 @@
       availability: [...availabilityKeys],
       volume: [...volumeKeys],
     };
+    stats.rows.errorsAggregated = errorsByPressModelDay.size;
     stats.coverage.kpiSourceCoverage = {
       eventsRowsWithErrors: mergedRows.filter(r => r.totalEvents > 0).length,
       rowsWithAvailability: mergedRows.filter(r => r.matchedAvailabilityRows > 0).length,
@@ -789,7 +791,7 @@
 
   function computeOperationalMetrics(filteredEvents, filteredMergedRows) {
     const totalEvents = filteredMergedRows.reduce((a, r) => a + r.totalEvents, 0);
-    const errorDowntime = filteredMergedRows.reduce((a, r) => a + (r.totalErrorDuration || 0), 0);
+    const errorDowntime = filteredMergedRows.reduce((a, r) => a + (r.totalErrorDurationSeconds || 0), 0);
     const totals = {
       planned: filteredMergedRows.reduce((a, r) => a + (r.plannedDowntimeSeconds || 0), 0),
       unplanned: filteredMergedRows.reduce((a, r) => a + (r.unplannedDowntimeSeconds || 0), 0),
@@ -1201,6 +1203,7 @@
     const kpiCoverage = coverage.kpiSourceCoverage || {};
     document.getElementById('mergeDebug').textContent =
       `Parsed rows E/A/V: ${rows.errorsParsed || 0}/${rows.availabilityParsed || 0}/${rows.volumeParsed || 0} • ` +
+      `Normalized A/V: ${rows.availabilityNormalized || 0}/${rows.volumeNormalized || 0} • ` +
       `Aggregated A/V: ${rows.availabilityAggregated || 0}/${rows.volumeAggregated || 0} • ` +
       `Merged rows: ${rows.mergedRowsCreated || 0} • ` +
       `Err→Avail matched/none: ${av.matched || 0}/${av.none || 0} • ` +
@@ -1288,6 +1291,8 @@
       const merged = mergeOperationalData(errors, availabilityResult.rows, volumeResult.rows, {
         availabilityParsedRows: availabilityResult.diagnostics.parsedRows,
         volumeParsedRows: volumeResult.diagnostics.parsedRows,
+        availabilityNormalizedRows: availabilityResult.diagnostics.normalizedRowsCreated,
+        volumeNormalizedRows: volumeResult.diagnostics.normalizedRowsCreated,
       });
       const errorKeys = new Set(merged.stats?.keys?.errors || []);
       const availabilityKeys = new Set(merged.stats?.keys?.availability || []);
@@ -1298,23 +1303,36 @@
       await phase('Computing KPIs…');
       if (runId !== STATE.analysisRunId) return;
 
+      if (availabilityRaw.length > 0 && availabilityResult.rows.length === 0) {
+        throw new Error('Availability parser produced 0 normalized rows. Check that file uses Press/Model/Date and duration columns.');
+      }
+      if (volumeRaw.length > 0 && volumeResult.rows.length === 0) {
+        throw new Error('Print Volume parser produced 0 normalized rows. Check that file uses Press/Model/Print Start/Printed Sheets columns.');
+      }
       if (availabilityResult.rows.length && merged.stats.coverage.errorsMatchedToAvailability === 0) {
         const errorOnly = [...errorKeys].filter(k => !availabilityKeys.has(k)).slice(0, 20);
         const availabilityOnly = [...availabilityKeys].filter(k => !errorKeys.has(k)).slice(0, 20);
         console.error('UNMATCHED ERROR KEYS:', errorOnly);
         console.error('UNMATCHED AVAILABILITY KEYS:', availabilityOnly);
-        throw new Error('Join key mismatch: errors did not match any availability rows.');
+        throw new Error('Availability rows were normalized, but no error rows matched (primary/fallback keys). See console diagnostics for unmatched keys.');
       }
-      if (volumeResult.rows.length && merged.stats.coverage.errorsMatchedToVolume === 0) throw new Error('Join key mismatch: errors did not match any print volume rows.');
+      if (volumeResult.rows.length && merged.stats.coverage.errorsMatchedToVolume === 0) {
+        console.warn('Print Volume rows were normalized but none matched error rows via primary/fallback keys.');
+      }
+      if (merged.stats.rows.mergedRowsCreated === 0) {
+        throw new Error('Merged operational table is empty after normalization and aggregation.');
+      }
 
       STATE.normalized = { events: errors, availability: availabilityResult.rows, volume: volumeResult.rows, volumeJobs: volumeResult.jobs || [] };
       STATE.merged = merged;
       console.info('[dataset-debug]', {
         errorsRowsParsed: errorsRaw.length,
         availabilityRowsParsed: availabilityResult.diagnostics.parsedRows,
+        availabilityNormalizedRowsCreated: availabilityResult.diagnostics.normalizedRowsCreated,
         volumeRowsParsed: volumeResult.diagnostics.parsedRows,
-        availabilityAggregatedRowsCreated: availabilityResult.diagnostics.aggregatedRowsCreated,
-        volumeAggregatedRowsCreated: volumeResult.diagnostics.aggregatedRowsCreated,
+        volumeNormalizedRowsCreated: volumeResult.diagnostics.normalizedRowsCreated,
+        availabilityAggregatedRowsCreated: merged.stats.rows.availabilityAggregated,
+        volumeAggregatedRowsCreated: merged.stats.rows.volumeAggregated,
         mergedRowsCreated: merged.stats.rows.mergedRowsCreated,
         errorsRowsMatchedToAvailability: merged.stats.coverage.errorsMatchedToAvailability,
         errorsRowsMatchedToPrintVolume: merged.stats.coverage.errorsMatchedToVolume,
