@@ -4,228 +4,114 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Press Insight Intelligence Platform</title>
-  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%230d1420'/%3E%3Cpath d='M12 44h8V28h-8v16Zm16 0h8V20h-8v24Zm16 0h8V12h-8v32Z' fill='%237b8dff'/%3E%3Ccircle cx='48' cy='16' r='7' fill='%23f25c54'/%3E%3C/svg%3E">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <style>
     :root {
-      --bg: #0e1117;
-      --panel: #141a24;
-      --panel-soft: #161d2b;
-      --panel-elev: #1a2233;
-      --text: #e6ebf4;
-      --muted: #9eabc0;
-      --border: rgba(255,255,255,0.1);
-      --focus: #77b6ff;
-      --critical: #f25c54;
-      --high: #f2954f;
-      --medium: #f2d35c;
-      --ok: #51c285;
-      --info: #7b8dff;
-      --shadow: 0 8px 28px rgba(0,0,0,.32);
+      --bg: #0c1119; --panel: #141c2a; --panel-soft: #192336; --text: #e9eef8; --muted: #97a7c2;
+      --border: rgba(255,255,255,.12); --radius: 14px; --shadow: 0 14px 36px rgba(0,0,0,.35);
+      --info: #7b8dff; --ok: #57c98a; --warn: #f0b165; --danger: #f36b63;
     }
     * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      min-height: 100vh;
-      font-family: Inter, "Segoe UI", Roboto, Arial, sans-serif;
-      color: var(--text);
-      background: radial-gradient(1300px 500px at 10% -10%, #1a2230 0%, transparent 55%), var(--bg);
-    }
-    .app { max-width: 1540px; margin: 0 auto; padding: 22px; }
-    .hidden { display: none !important; }
-    .eyebrow { color: var(--muted); font-size: .82rem; text-transform: uppercase; letter-spacing: .13em; }
-    h1, h2, h3 { margin: 0; }
-
-    .intake-shell { min-height: calc(100vh - 44px); display: grid; place-items: center; padding: 20px 0; }
-    .intake-card {
-      width: min(860px, 100%);
-      background: linear-gradient(180deg, rgba(255,255,255,.035), rgba(255,255,255,.012));
-      border: 1px solid rgba(255,255,255,.12);
-      border-radius: 20px;
-      box-shadow: 0 14px 36px rgba(0,0,0,.34);
-      padding: clamp(20px, 3vw, 34px);
-    }
-    .intake-content { width: min(720px, 100%); margin: 0 auto; display: grid; gap: 14px; }
-    .intake-title { margin-top: 8px; font-size: clamp(1.45rem, 3vw, 1.9rem); line-height: 1.2; }
-    .subtitle { margin-top: 8px; color: var(--muted); max-width: 760px; line-height: 1.5; }
-    .format-badges { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-    .format-badges span {
-      border: 1px solid rgba(255,255,255,.14);
-      border-radius: 999px;
-      padding: 5px 11px;
-      font-size: .78rem;
-      color: #cad6eb;
-      background: rgba(255,255,255,.04);
-    }
-    .dropzone {
-      display: flex; flex-direction: column; justify-content: center; align-items: center;
-      width: 100%; min-height: 220px; border: 1.5px dashed rgba(123,141,255,.55);
-      border-radius: 14px; background: rgba(123,141,255,.06); padding: clamp(24px, 4vw, 42px);
-      text-align: center; transition: all .18s ease; cursor: pointer;
-    }
-    .dropzone:hover { border-color: rgba(139,157,255,.82); background: rgba(123,141,255,.12); }
-    .dropzone.drag { border-color: #9bb1ff; background: rgba(123,141,255,.14); }
-    .dropzone-sub,.microcopy { color: var(--muted); margin-top: 8px; }
-    .microcopy { font-size: .86rem; max-width: 52ch; }
-    .status { margin-top: 2px; border-radius: 10px; padding: 10px 12px; font-size: .9rem; display: none; }
-    .status.show { display: block; }
-    .status.info { border: 1px solid rgba(123,141,255,.4); background: rgba(123,141,255,.12); color: #cfdaff; }
-    .status.error { border: 1px solid rgba(242,92,84,.35); background: rgba(242,92,84,.13); color: #ffc5c2; }
-    .status.ok { border: 1px solid rgba(81,194,133,.35); background: rgba(81,194,133,.13); color: #c7ffdf; }
-
-    .topbar {
-      display: grid; grid-template-columns: 1fr auto; gap: 14px; align-items: start;
-      background: linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.015));
-      border: 1px solid var(--border); border-radius: 16px; padding: 20px; box-shadow: var(--shadow); margin-bottom: 14px;
-    }
-    .dashboard-title { font-size: 1.28rem; }
-    .controls { display: flex; gap: 10px; flex-wrap: wrap; }
-    .btn, select, input {
-      border: 1px solid var(--border); background: var(--panel-soft); color: var(--text);
-      border-radius: 10px; padding: 8px 12px; font-size: .9rem;
-    }
-    .btn { cursor: pointer; }
-    .btn:hover { background: #212a3d; }
+    body { margin:0; min-height:100vh; font-family: Inter,Segoe UI,Roboto,Arial,sans-serif; color:var(--text); background: radial-gradient(1200px 500px at 5% -10%, #1f2b3f 0%, transparent 55%), var(--bg); }
+    .app { max-width: 1480px; margin: 0 auto; padding: 24px; }
+    .hidden{display:none!important}
+    .eyebrow { color: var(--muted); text-transform: uppercase; letter-spacing: .14em; font-size: .78rem; }
+    .subtitle { color: var(--muted); line-height: 1.45; margin: 8px 0 0; }
+    .btn,.select,input { border:1px solid var(--border); border-radius:10px; background:var(--panel-soft); color:var(--text); padding:9px 12px; }
+    .btn { cursor:pointer; font-weight:600; }
+    .btn:hover { background:#24324a; }
+    .btn.primary { background: linear-gradient(160deg, #7388ff, #6479f2); border-color: rgba(125,146,255,.8); }
     .btn.secondary { background: transparent; }
-    .btn:focus-visible, input:focus-visible, select:focus-visible, [role="tab"]:focus-visible {
-      outline: 2px solid var(--focus); outline-offset: 2px;
-    }
-    .filters { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
-    .kpis { display: grid; grid-template-columns: repeat(4, minmax(140px, 1fr)); gap: 10px; margin-bottom: 14px; }
-    .kpi { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 12px; }
-    .k { color: var(--muted); font-size: .74rem; letter-spacing: .08em; text-transform: uppercase; }
-    .v { font-size: 1.2rem; margin-top: 6px; font-weight: 640; }
-    .d { color: var(--muted); font-size: .82rem; margin-top: 4px; }
+    .btn:disabled { opacity:.45; cursor:not-allowed; }
 
-    .exec-section { margin: 14px 0; }
-    .exec-header { display:flex; justify-content:space-between; align-items:flex-end; gap:14px; margin-bottom:10px; }
-    .exec-grid { display:grid; grid-template-columns: 2fr 1.2fr; gap:12px; }
-    .card { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 12px; }
-    .risk-list { display:grid; gap:10px; }
-    .risk-item { border:1px solid rgba(255,255,255,.08); background:rgba(255,255,255,.02); border-radius:12px; padding:10px; }
-    .risk-line { display:flex; justify-content:space-between; gap:10px; align-items:flex-start; }
-    .risk-reason { color: var(--muted); font-size:.84rem; margin-top:6px; }
-    .badge { border-radius:999px; padding:4px 10px; font-size:.74rem; font-weight:600; border:1px solid transparent; white-space:nowrap; }
-    .badge.critical { color:#ffd3d1; background: rgba(242,92,84,.18); border-color:rgba(242,92,84,.4); }
-    .badge.high { color:#ffe4cc; background: rgba(242,149,79,.18); border-color:rgba(242,149,79,.4); }
-    .badge.medium { color:#fff1bf; background: rgba(242,211,92,.17); border-color:rgba(242,211,92,.4); }
-    .badge.stable { color:#cbffe0; background: rgba(81,194,133,.16); border-color:rgba(81,194,133,.38); }
-    .status-strip { border-radius:12px; padding:10px 12px; margin-bottom:12px; border:1px solid var(--border); background: rgba(123,141,255,.1); }
-    .signal-grid { display:grid; grid-template-columns: repeat(5, minmax(140px,1fr)); gap:10px; margin:12px 0; }
-    .signal-card { border:1px solid rgba(255,255,255,.09); border-radius:10px; padding:10px; background:rgba(255,255,255,.02); }
-    .risk-distribution { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px; }
-    .risk-pill { border-radius:999px; padding:5px 10px; font-size:.78rem; border:1px solid; }
-    .risk-group { margin-top:12px; }
-    .risk-group h4 { margin:0 0 6px; }
-    .risk-meta { color:#b8c5dd; font-size:.8rem; margin-top:5px; }
-    .exec-pillars { display:grid; gap:8px; margin-top:10px; }
-    .exec-pillars div { border:1px solid rgba(123,141,255,.25); border-radius:10px; padding:8px; background:rgba(123,141,255,.08); font-size:.86rem; }
-    .focus-list { margin:10px 0 0; padding-left:18px; color:#d5dded; }
-    .focus-list li { margin: 4px 0; }
-    .mode-toggle { display:flex; align-items:center; gap:8px; color:var(--muted); font-size:.84rem; }
+    .intake-shell { min-height: calc(100vh - 48px); display:grid; place-items:center; }
+    .intake-card { width:min(920px,100%); background:linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02)); border:1px solid var(--border); border-radius:20px; box-shadow:var(--shadow); padding:clamp(20px,2.8vw,34px); }
+    .intake-grid { display:grid; gap:16px; }
+    .format-pills { display:flex; gap:8px; flex-wrap:wrap; }
+    .format-pills span { border:1px solid var(--border); border-radius:999px; padding:4px 10px; color:#cdd8eb; font-size:.78rem; background:rgba(255,255,255,.04); }
+    .dropzone { border:1.5px dashed rgba(123,141,255,.6); border-radius: var(--radius); padding:28px; text-align:center; background:rgba(123,141,255,.08); cursor:pointer; }
+    .dropzone.drag { background:rgba(123,141,255,.16); border-color:#9cb0ff; }
+    .assignment { border:1px solid var(--border); border-radius: var(--radius); overflow:hidden; }
+    .file-row { display:grid; grid-template-columns: 190px 1fr auto; gap:12px; align-items:center; padding:12px 14px; background:rgba(255,255,255,.02); border-bottom:1px solid rgba(255,255,255,.06); }
+    .file-row:last-child { border-bottom:none; }
+    .file-label strong{display:block}
+    .file-label small{color:var(--muted)}
+    .file-state { display:flex; gap:10px; align-items:center; justify-content:flex-end; }
+    .file-name { color:#c9d7f0; font-size:.85rem; max-width:300px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .badge { border-radius:999px; padding:4px 10px; font-size:.74rem; border:1px solid; }
+    .missing{color:#ffcbc8;background:rgba(243,107,99,.15);border-color:rgba(243,107,99,.45)}
+    .loaded{color:#ffe5c7;background:rgba(240,177,101,.16);border-color:rgba(240,177,101,.45)}
+    .validated{color:#d2ffe8;background:rgba(87,201,138,.15);border-color:rgba(87,201,138,.45)}
+    .optional{color:#d8e3ff;background:rgba(123,141,255,.14);border-color:rgba(123,141,255,.45)}
+    .intake-actions { display:flex; gap:10px; justify-content:flex-end; }
+    .status { border-radius: 10px; border:1px solid; padding:10px 12px; display:none; }
+    .status.show{display:block}
+    .status.info{border-color:rgba(123,141,255,.45);background:rgba(123,141,255,.15);color:#dae3ff}
+    .status.ok{border-color:rgba(87,201,138,.45);background:rgba(87,201,138,.16);color:#d8ffea}
+    .status.error{border-color:rgba(243,107,99,.45);background:rgba(243,107,99,.16);color:#ffd2cf}
 
-    .tabs { display: flex; gap: 8px; margin: 14px 0; }
-    [role="tab"] {
-      padding: 8px 12px; border-radius: 10px; border: 1px solid var(--border);
-      background: transparent; color: var(--muted); cursor: pointer;
-    }
-    [role="tab"][aria-selected="true"] { background: #1a2540; color: #dfe8ff; border-color: rgba(123,141,255,.5); }
-    .content { display: none; }
-    .content.active { display: block; }
-    .grid { display: grid; gap: 12px; grid-template-columns: repeat(12, minmax(0,1fr)); }
-    .span-4 { grid-column: span 4; }
-    .span-6 { grid-column: span 6; }
-    .span-8 { grid-column: span 8; }
-    .span-12 { grid-column: span 12; }
-    .micro { color: var(--muted); font-size: .82rem; margin-bottom: 8px; }
-    .chart-area { position: relative; min-height: 280px; height: 280px; }
-    .chart-area.wide { min-height: 340px; height: 340px; }
-    canvas { width: 100% !important; height: 100% !important; }
-    .chart-click-hint { color: #8ea1be; font-size:.75rem; margin-top:5px; }
+    .topbar,.card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow)}
+    .topbar { display:grid; grid-template-columns:1fr auto; gap:12px; align-items:start; padding:16px; margin-bottom:12px; }
+    .controls { display:flex; gap:8px; flex-wrap:wrap; }
+    .kpis { display:grid; grid-template-columns: repeat(6,minmax(120px,1fr)); gap:10px; margin-bottom:12px; }
+    .kpi { padding:11px; border:1px solid var(--border); border-radius:12px; background:rgba(255,255,255,.02); }
+    .k { color:var(--muted); font-size:.72rem; text-transform:uppercase; letter-spacing:.08em; }
+    .v { font-size:1.18rem; margin-top:5px; font-weight:650; }
+    .d { color:var(--muted); font-size:.8rem; margin-top:4px; }
+    .filters { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; }
+    .grid { display:grid; grid-template-columns:repeat(12,minmax(0,1fr)); gap:10px; }
+    .span-6{grid-column:span 6}.span-12{grid-column:span 12}
+    .card { padding:12px; }
+    .chart-head { display:flex; justify-content:space-between; align-items:center; gap:8px; }
+    .chart-tools { display:flex; gap:8px; }
+    .chart-area{position:relative;height:300px;min-height:300px}
+    .micro { color:var(--muted); font-size:.82rem; margin:6px 0 8px; }
+    table { width:100%; border-collapse:collapse; font-size:.86rem; }
+    th,td { border-bottom:1px solid rgba(255,255,255,.08); padding:8px; text-align:left; }
+    th { position:sticky; top:0; background:#1b2537; }
+    .table-wrap{max-height:420px;overflow:auto;border:1px solid var(--border);border-radius:10px}
 
-    .table-wrap { max-height: 470px; overflow: auto; border: 1px solid var(--border); border-radius: 10px; }
-    table { width: 100%; border-collapse: collapse; font-size: .86rem; }
-    th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid rgba(255,255,255,.06); }
-    th { position: sticky; top: 0; background: #151c2c; z-index: 2; cursor: pointer; }
-    tr.row { cursor: pointer; }
-    tr.row:hover { background: rgba(255,255,255,.03); }
-
-    .drawer {
-      position: fixed; right: -500px; top: 0; width: 470px; height: 100vh; overflow: auto;
-      background: #111722; border-left: 1px solid var(--border); transition: right .22s ease; padding: 16px; z-index: 20;
-      box-shadow: -12px 0 28px rgba(0,0,0,.38);
-    }
-    .drawer.open { right: 0; }
-
-    .drill-shell { position:fixed; inset:0; background: rgba(5,8,14,.68); display:none; z-index:40; }
-    .drill-shell.open { display:block; }
-    .drill-panel {
-      position:absolute; right:0; top:0; height:100%; width:min(1100px, 94vw); background:#0f1520;
-      border-left:1px solid var(--border); box-shadow:-20px 0 44px rgba(0,0,0,.45); padding:16px; overflow:auto;
-    }
-    .drill-header { display:flex; justify-content:space-between; align-items:flex-start; gap:14px; margin-bottom:10px; }
-    .chips { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px; }
-    .chip { border:1px solid rgba(123,141,255,.35); background:rgba(123,141,255,.12); color:#d2dcff; border-radius:999px; padding:4px 10px; font-size:.76rem; }
-    .metric-strip { display:grid; gap:10px; grid-template-columns: repeat(5, minmax(120px, 1fr)); margin-bottom:12px; }
-    .metric { border:1px solid rgba(255,255,255,.09); border-radius:10px; padding:8px; background:rgba(255,255,255,.02); }
-    .drill-actions { display:flex; flex-wrap:wrap; gap:8px; margin-bottom:10px; }
-    .drill-toolbar { display:grid; grid-template-columns: 1fr auto auto; gap:8px; margin-bottom:8px; }
-
-    .export-modal { position:fixed; inset:0; background:rgba(5,8,14,.72); display:none; z-index:55; }
-    .export-modal.open { display:grid; place-items:center; padding:22px; }
-    .export-card {
-      width:min(980px, 95vw); max-height:92vh; overflow:auto; background:#0f1520; border:1px solid var(--border);
-      border-radius:16px; padding:18px;
-    }
-    .export-top { display:flex; justify-content:space-between; gap:14px; align-items:flex-start; margin-bottom:12px; }
-    .export-layout { display:grid; gap:12px; grid-template-columns: 1.4fr 1fr; }
-    .plain-block { white-space:pre-wrap; background:#111a2a; border:1px solid rgba(255,255,255,.08); border-radius:10px; padding:10px; }
-
-    @media print {
-      body { background: #fff !important; color:#000 !important; }
-      .app, .drill-shell, .drawer, .export-controls, .topbar .controls, .tabs, #filterPanel, #kpiStrip, .exec-section, .content { display:none !important; }
-      .export-modal { display:block !important; position: static; background: #fff; }
-      .export-card { width:100%; max-height:none; overflow:visible; border:none; border-radius:0; color:#000; background:#fff; }
-      .card, .risk-item, .metric, .plain-block { border-color:#ddd; background:#fff; color:#000; }
-    }
-
-    @media (max-width: 1200px) {
-      .exec-grid, .export-layout { grid-template-columns: 1fr; }
-      .metric-strip, .signal-grid { grid-template-columns: repeat(2, minmax(120px, 1fr)); }
-    }
-    @media (max-width: 1100px) {
-      .kpis { grid-template-columns: 1fr 1fr; }
-      .span-4, .span-6, .span-8 { grid-column: span 12; }
-      .topbar { grid-template-columns: 1fr; }
-    }
-    @media (max-width: 700px) {
-      .app { padding: 14px; }
-      .intake-shell { min-height: calc(100vh - 28px); }
-      .dropzone { min-height: 200px; }
-      .drill-toolbar { grid-template-columns:1fr; }
-    }
+    @media(max-width:1000px){ .kpis{grid-template-columns:repeat(2,minmax(140px,1fr));}.topbar{grid-template-columns:1fr}.span-6{grid-column:span 12}.file-row{grid-template-columns:1fr} .file-state{justify-content:flex-start} }
   </style>
 </head>
 <body>
-<div class="app" id="appRoot">
+<div class="app">
   <section id="intakeScreen" class="intake-shell">
     <article class="intake-card">
-      <div class="intake-content">
-        <div class="eyebrow">Press Intelligence</div>
-        <h1 class="intake-title">Operational Error-Event Intelligence</h1>
-        <p class="subtitle">Load all three data layers (Errors, Availability, Print Volume) to generate explainable risk, production-normalized KPI intelligence, and executive output.</p>
-        <div class="format-badges"><span>CSV</span><span>Excel (.xlsx / .xls)</span><span>JSON (array of objects)</span></div>
-        <label class="dropzone" id="dropZone" for="errorsInput">
-          <div class="dropzone-title">Drop files here or click to browse</div>
-          <div class="dropzone-sub">Assign files below if names are ambiguous. Dashboard opens after Errors file is valid.</div>
-          <div class="microcopy">Your file is analyzed locally in-browser. No server upload required.</div>
+      <div class="intake-grid">
+        <div class="eyebrow">Landa Insight Intelligence</div>
+        <h1 style="margin:0; font-size:clamp(1.5rem,3vw,2rem);">Merged Operational Intelligence Intake</h1>
+        <p class="subtitle">Upload Errors (required), Availability (recommended), and Print Volume (recommended) to build a unified operational model across customer, site, press, subsystem, version, and time.</p>
+        <div class="format-pills"><span>CSV</span><span>Excel (.xlsx/.xls)</span><span>JSON array</span><span>Local browser processing</span></div>
+
+        <label id="dropZone" class="dropzone" for="bulkInput">
+          <strong>Drop one or more files here</strong>
+          <div class="subtitle" style="margin-top:6px;">Files are auto-detected by name and schema, then validated before analysis.</div>
         </label>
-        <input id="errorsInput" type="file" accept=".csv,.xlsx,.xls,.json" class="hidden" />
-        <div class="filters" style="margin:0;">
-          <label>Errors <input id="errorsPicker" type="file" accept=".csv,.xlsx,.xls,.json" /></label>
-          <label>Availability <input id="availabilityPicker" type="file" accept=".csv,.xlsx,.xls,.json" /></label>
-          <label>Print Volume <input id="volumePicker" type="file" accept=".csv,.xlsx,.xls,.json" /></label>
+        <input id="bulkInput" class="hidden" type="file" accept=".csv,.xlsx,.xls,.json" multiple />
+
+        <section class="assignment">
+          <div class="file-row">
+            <div class="file-label"><strong>Errors file</strong><small>Required</small></div>
+            <input id="errorsPicker" type="file" accept=".csv,.xlsx,.xls,.json" />
+            <div class="file-state"><span id="errorsName" class="file-name">Not assigned</span><span id="errorsBadge" class="badge missing">missing</span></div>
+          </div>
+          <div class="file-row">
+            <div class="file-label"><strong>Availability file</strong><small>Optional · strongly recommended</small></div>
+            <input id="availabilityPicker" type="file" accept=".csv,.xlsx,.xls,.json" />
+            <div class="file-state"><span id="availabilityName" class="file-name">Not assigned</span><span id="availabilityBadge" class="badge optional">optional</span></div>
+          </div>
+          <div class="file-row">
+            <div class="file-label"><strong>Print Volume file</strong><small>Optional · recommended for normalized KPIs</small></div>
+            <input id="volumePicker" type="file" accept=".csv,.xlsx,.xls,.json" />
+            <div class="file-state"><span id="volumeName" class="file-name">Not assigned</span><span id="volumeBadge" class="badge optional">optional</span></div>
+          </div>
+        </section>
+
+        <div class="intake-actions">
+          <button id="clearBtn" class="btn secondary">Clear Files</button>
+          <button id="runBtn" class="btn primary" disabled>Run Analysis</button>
         </div>
         <div id="intakeStatus" class="status" role="alert" aria-live="polite"></div>
       </div>
@@ -235,378 +121,386 @@
   <section id="dashboardScreen" class="hidden">
     <header class="topbar">
       <div>
-        <h2 class="dashboard-title">Press Insight Intelligence Platform</h2>
-        <div class="subtitle" id="datasetMeta">Dataset not loaded.</div>
+        <div class="eyebrow">Operational Dashboard</div>
+        <h2 style="margin:4px 0 0;">Press Insight Intelligence Platform</h2>
+        <p id="datasetMeta" class="subtitle">Dataset not loaded</p>
       </div>
       <div class="controls">
-        <label class="mode-toggle"><input type="checkbox" id="managementModeToggle" /> Executive Mode</label>
-        <button class="btn" id="replaceBtn">Replace dataset</button>
-        <button class="btn" id="exportBtn">Export filtered CSV</button>
-        <button class="btn" id="openExecExportBtn">Export Executive Summary</button>
+        <button id="replaceBtn" class="btn">Load new dataset</button>
+        <button id="exportBtn" class="btn secondary">Export filtered CSV</button>
       </div>
     </header>
 
-    <section class="kpis" id="kpiStrip"></section>
+    <section id="kpiStrip" class="kpis"></section>
 
-    <section class="filters" id="filterPanel">
-      <select id="pressFilter"><option value="all">All presses</option></select>
-      <select id="modelFilter"><option value="all">All models</option></select>
-      <select id="subsystemFilter"><option value="all">All subsystems</option></select>
-      <select id="errorStateFilter"><option value="all">All error states</option></select>
-      <select id="versionFilter"><option value="all">All versions</option></select>
+    <section class="filters">
+      <select id="customerFilter" class="select"><option value="all">All customers</option></select>
+      <select id="siteFilter" class="select"><option value="all">All sites</option></select>
+      <select id="pressFilter" class="select"><option value="all">All presses</option></select>
+      <select id="subsystemFilter" class="select"><option value="all">All subsystems</option></select>
+      <select id="versionFilter" class="select"><option value="all">All versions</option></select>
       <input id="startDateFilter" type="date" />
       <input id="endDateFilter" type="date" />
-      <input id="searchFilter" placeholder="Search name, alert text, press, subsystem, version" />
+      <input id="searchFilter" placeholder="Search alert, press, subsystem, version" />
     </section>
 
-    <nav class="tabs" id="tabs" role="tablist" aria-label="Dashboard tabs">
-      <button role="tab" aria-selected="true" data-tab="overview">Overview</button>
-      <button role="tab" aria-selected="false" data-tab="time">Time Analysis</button>
-      <button role="tab" aria-selected="false" data-tab="insights">Operational Insight</button>
-      <button role="tab" aria-selected="false" data-tab="table">Event Explorer</button>
-    </nav>
+    <main class="grid">
+      <article class="card span-6" data-rank-card="press">
+        <div class="chart-head"><h3>Top Presses</h3><div class="chart-tools"><select data-metric="press" class="select"><option value="risk">Risk score</option><option value="events">Events</option><option value="downtime">Downtime</option><option value="normalized">Event / volume</option></select><button class="btn secondary" data-expand="press">Show all</button></div></div>
+        <div class="micro">Press ranking from merged event + downtime + volume signals.</div><div class="chart-area"><canvas id="pressChart"></canvas></div>
+      </article>
 
-    <main>
-      <section class="content active" data-content="overview">
-        <div class="grid">
-          <article class="card span-6">
-            <h3>Top Error Names</h3>
-            <div class="micro">Most frequent Name values across filtered events.</div>
-            <div class="chart-area"><canvas id="nameChart"></canvas></div>
-            <div class="chart-click-hint">Click any bar to drill into matching events.</div>
-          </article>
-          <article class="card span-6">
-            <h3>Top Alert Titles</h3>
-            <div class="micro">Leading alert titles by event volume.</div>
-            <div class="chart-area"><canvas id="alertChart"></canvas></div>
-            <div class="chart-click-hint">Click any bar to drill into matching events.</div>
-          </article>
-          <article class="card span-4">
-            <h3>Top Subsystems</h3>
-            <div class="chart-area"><canvas id="subsystemChart"></canvas></div>
-            <div class="chart-click-hint">Click any bar to drill into matching events.</div>
-          </article>
-          <article class="card span-4">
-            <h3>Top Presses</h3>
-            <div class="chart-area"><canvas id="pressChart"></canvas></div>
-            <div class="chart-click-hint">Click any bar to drill into matching events.</div>
-          </article>
-          <article class="card span-4">
-            <h3>Top Versions</h3>
-            <div class="chart-area"><canvas id="versionChart"></canvas></div>
-            <div class="chart-click-hint">Click any bar to drill into matching events.</div>
-          </article>
-        </div>
-      </section>
+      <article class="card span-6" data-rank-card="subsystem">
+        <div class="chart-head"><h3>Top Subsystems</h3><div class="chart-tools"><select data-metric="subsystem" class="select"><option value="risk">Risk score</option><option value="events">Events</option><option value="downtime">Downtime</option><option value="normalized">Event / volume</option></select><button class="btn secondary" data-expand="subsystem">Show all</button></div></div>
+        <div class="micro">Subsystem contribution weighted by operational impact.</div><div class="chart-area"><canvas id="subsystemChart"></canvas></div>
+      </article>
 
-      <section class="content" data-content="time">
-        <div class="grid">
-          <article class="card span-12">
-            <h3>Events and Downtime Over Time (Daily)</h3>
-            <div class="micro">Daily aggregation by Start Time.</div>
-            <div class="chart-area wide"><canvas id="timeChart"></canvas></div>
-            <div class="chart-click-hint">Click any date to drill into daily events.</div>
-          </article>
-        </div>
-      </section>
+      <article class="card span-6" data-rank-card="alert">
+        <div class="chart-head"><h3>Top Alert Names</h3><div class="chart-tools"><select data-metric="alert" class="select"><option value="risk">Risk score</option><option value="events">Events</option><option value="downtime">Downtime</option><option value="normalized">Event / volume</option></select><button class="btn secondary" data-expand="alert">Show all</button></div></div>
+        <div class="micro">Alert ranking uses Name first, then Alert Title fallback.</div><div class="chart-area"><canvas id="alertChart"></canvas></div>
+      </article>
 
-      <section class="content" data-content="insights">
-        <div class="grid">
-          <article class="card span-8">
-            <h3>Downtime by Alert Title (Top 12)</h3>
-            <div class="micro">Used to prioritize high-impact alert patterns.</div>
-            <div class="chart-area"><canvas id="downtimeAlertChart"></canvas></div>
-            <div class="chart-click-hint">Click any bar to drill into matching events.</div>
-          </article>
-          <article class="card span-4">
-            <h3>Operational Brief</h3>
-            <div class="micro">Pareto and state-pattern summary based on filters.</div>
-            <div id="insightText"></div>
-          </article>
-          <article class="card span-12">
-            <h3>Pre-Error State Patterns</h3>
-            <div class="chart-area"><canvas id="stateChart"></canvas></div>
-            <div class="chart-click-hint">Click any bar to drill into matching events.</div>
-          </article>
-        </div>
-      </section>
+      <article class="card span-6" data-rank-card="version">
+        <div class="chart-head"><h3>Top Versions</h3><div class="chart-tools"><select data-metric="version" class="select"><option value="risk">Risk score</option><option value="events">Events</option><option value="downtime">Downtime</option><option value="normalized">Event / volume</option></select><button class="btn secondary" data-expand="version">Show all</button></div></div>
+        <div class="micro">Version exposure with workload-normalized context.</div><div class="chart-area"><canvas id="versionChart"></canvas></div>
+      </article>
 
-      <section class="content" data-content="table">
-        <article class="card">
-          <h3>Event Table</h3>
-          <div class="micro">Search and filterable view of original records. Click a row for details.</div>
-          <div class="table-wrap"><table id="dataTable"></table></div>
-        </article>
-      </section>
+      <article class="card span-12">
+        <h3>Merged Event Explorer</h3>
+        <div class="micro">Rows are enriched with availability and volume context where keys match.</div>
+        <div class="table-wrap"><table id="eventTable"></table></div>
+      </article>
     </main>
-
-    <section class="exec-section card" id="executiveSection">
-      <h3>Executive Situation Overview</h3>
-      <div class="status-strip" id="overallStatusBar"></div>
-      <div class="signal-grid" id="executiveSignals"></div>
-      <div class="risk-distribution" id="riskDistribution"></div>
-      <div class="micro" id="insightLine"></div>
-    </section>
-
-    <section class="exec-section card" id="riskSection">
-      <h3>Operational Risk Breakdown</h3>
-      <div class="risk-group"><h4>[ CRITICAL ]</h4><div id="criticalRiskList" class="risk-list"></div></div>
-      <div class="risk-group"><h4>[ HIGH RISK ]</h4><div id="highRiskList" class="risk-list"></div></div>
-      <div class="risk-group"><h4>[ MEDIUM RISK ]</h4><div id="mediumRiskList" class="risk-list"></div></div>
-      <div class="risk-group"><h4>[ STABLE / LOW CONCERN ]</h4><div id="stableList" class="risk-list"></div></div>
-    </section>
   </section>
 </div>
-
-<aside class="drawer" id="drawer" aria-hidden="true">
-  <h3>Event Detail</h3>
-  <div id="drawerBody"></div>
-  <button class="btn" id="closeDrawer">Close</button>
-</aside>
-
-<section class="drill-shell" id="drilldownShell" aria-hidden="true">
-  <article class="drill-panel">
-    <div class="drill-header">
-      <div>
-        <h3 id="drillTitle">Drilldown</h3>
-        <div class="micro" id="drillSubtitle"></div>
-      </div>
-      <button class="btn secondary" id="closeDrilldownBtn">Close</button>
-    </div>
-    <div class="chips" id="drillChips"></div>
-    <div class="metric-strip" id="drillMetrics"></div>
-    <div class="micro" id="drillTrend"></div>
-    <div class="drill-actions">
-      <button class="btn" id="drillExportBtn">Export selected subset CSV</button>
-      <button class="btn" id="drillCopyBtn">Copy summary</button>
-    </div>
-    <div class="drill-toolbar">
-      <input id="drillSearch" placeholder="Search inside drilldown subset" />
-      <select id="drillSortField"></select>
-      <button class="btn secondary" id="drillSortDir">Desc</button>
-    </div>
-    <div class="table-wrap"><table id="drillTable"></table></div>
-  </article>
-</section>
-
-<section class="export-modal" id="execExportModal" aria-hidden="true">
-  <article class="export-card" id="execExportCard">
-    <div class="export-top">
-      <div>
-        <div class="eyebrow">Management Snapshot</div>
-        <h2>Operational Performance Snapshot</h2>
-        <div class="micro" id="execGeneratedMeta"></div>
-      </div>
-      <div class="export-controls" style="display:flex; gap:8px; flex-wrap:wrap;">
-        <button class="btn" id="execCopyBtn">Copy Email Brief</button>
-        <button class="btn" id="execMailBtn">Open Mail Draft</button>
-        <button class="btn" id="execPrintBtn">Print Summary</button>
-        <button class="btn secondary" id="closeExecModalBtn">Close</button>
-      </div>
-    </div>
-    <div class="export-layout">
-      <article class="card" id="exportPrimary"></article>
-      <article class="card" id="exportSecondary"></article>
-    </div>
-  </article>
-</section>
-
 <script>
 (() => {
-  const REQUIRED_ERROR_COLUMNS = [
-    'Press','Model','Name','Alert Message Title','Alert Message Body','Alert Message Solution',
-    'Start Time','Duration','Recovery','Pre Error State','Subsystem','Error State','Version'
-  ];
-  const COLUMN_MAP = {
-    'Press': 'press', 'Model': 'model', 'Name': 'name', 'Alert Message Title': 'alertTitle',
-    'Alert Message Body': 'alertBody', 'Alert Message Solution': 'alertSolution',
-    'Start Time': 'startTime', 'Duration': 'durationRaw', 'Recovery': 'recoveryTime',
-    'Pre Error State': 'preErrorState', 'Subsystem': 'subsystem', 'Error State': 'errorState', 'Version': 'version'
+  const REQUIRED_ERROR_FIELDS = ['press','name','start_time'];
+  const STATE = {
+    files:{errors:null,availability:null,volume:null},
+    validation:{errors:false,availability:false,volume:false},
+    rows:{errors:[],availability:[],volume:[]},
+    normalized:{events:[],availability:[],volume:[]},
+    merged:[], filtered:[], kpis:null, mode:'',
+    expand:{press:false,subsystem:false,alert:false,version:false},
+    metricByChart:{press:'risk',subsystem:'risk',alert:'risk',version:'risk'}
   };
-  const DIMENSION_CONFIG = {
-    name: { label: 'Error Name', key: 'name' }, alertTitle: { label: 'Alert Title', key: 'alertTitle' },
-    subsystem: { label: 'Subsystem', key: 'subsystem' }, press: { label: 'Press', key: 'press' },
-    version: { label: 'Version', key: 'version' }, preErrorState: { label: 'Pre Error State', key: 'preErrorState' }, day: { label: 'Start Day', key: 'day' }
-  };
-  const STATE = { rawRows: [], normalizedRows: [], filteredRows: [], datasetName: '', metricsHash: '', initialized: false, listenersBound: false, activeTab: 'overview', managementMode: false,
-    files:{errors:null,availability:null,volume:null}, availabilityRows:[], volumeRows:[], drilldown:{context:null, rows:[], search:'', sortField:'durationSeconds', sortDir:'desc'} };
   const CHARTS = new Map();
-  const CHART_COLORS = ['#7b8dff','#f09b4f','#51c285','#f25c54','#65c3ff','#a29bfe','#f2d35c','#6dd3ce','#ee84ff'];
-  const esc = (v)=> String(v??'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const COLORS = ['#7b8dff','#51c285','#f0b165','#f36b63','#66bfff','#a39cfe','#f3d95e','#7be0ca'];
 
-  function setStatus(message, kind='info'){ const el=document.getElementById('intakeStatus'); el.className=`status show ${kind}`; el.textContent=message; }
-  function clearStatus(){ const el=document.getElementById('intakeStatus'); el.className='status'; el.textContent=''; }
-  function toggleScreens(show){ document.getElementById('intakeScreen').classList.toggle('hidden', show); document.getElementById('dashboardScreen').classList.toggle('hidden', !show); }
-  const canonicalHeader=(v)=>String(v??'').trim().toLowerCase().replace(/\s+/g,' ');
-  const normalizeRowKeys=(row)=>Object.fromEntries(Object.entries(row||{}).map(([k,v])=>[String(k).trim(),v]));
-  function detectDelimiter(text){ const c=[',',';','\t']; const l=text.split(/\r?\n/).slice(0,8); return c.map(d=>({d,s:l.reduce((a,x)=>a+(x.split(d).length-1),0)})).sort((a,b)=>b.s-a.s)[0].d; }
-  function parseCSV(text){
-    const src = String(text || '').replace(/^\uFEFF/, '');
-    const d = detectDelimiter(src);
-    const rows = [];
-    let row = [], f = '', q = false;
-    for (let i = 0; i < src.length; i++) {
-      const ch = src[i];
-      if (q) {
-        if (ch === '"') { if (src[i + 1] === '"') { f += '"'; i++; } else q = false; }
-        else f += ch;
-      } else if (ch === '"') q = true;
-      else if (ch === d) { row.push(f); f = ''; }
-      else if (ch === '\n' || ch === '\r') {
-        row.push(f); f = '';
-        if (row.some(v => String(v).trim() !== '')) rows.push(row);
-        row = [];
-        if (ch === '\r' && src[i + 1] === '\n') i++;
-      } else f += ch;
-    }
-    if (f.length || row.length) { row.push(f); if (row.some(v => String(v).trim() !== '')) rows.push(row); }
-    const headers = (rows[0] || []).map(x => String(x).trim());
-    return rows.slice(1).map(cells => Object.fromEntries(headers.map((h, i) => [h, cells[i] ?? ''])));
+  const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const canonical = v => String(v ?? '').trim().toLowerCase().replace(/[_\-]+/g,' ').replace(/\s+/g,' ');
+  const getField = (row, aliases) => {
+    const entries = Object.entries(row||{});
+    for (const [k,v] of entries){ const ck = canonical(k); if (aliases.some(a => ck === canonical(a))) return v; }
+    return '';
+  };
+
+  function setStatus(msg, kind='info'){ const el=document.getElementById('intakeStatus'); el.className=`status show ${kind}`; el.textContent=msg; }
+  function setFileUI(key, label){ const file = STATE.files[key]; document.getElementById(`${key}Name`).textContent = file ? file.name : 'Not assigned'; const badge=document.getElementById(`${key}Badge`);
+    const valid = STATE.validation[key];
+    if (!file){ badge.className = `badge ${key==='errors'?'missing':'optional'}`; badge.textContent = key==='errors' ? 'missing' : 'optional'; }
+    else if (valid){ badge.className='badge validated'; badge.textContent='validated'; }
+    else { badge.className='badge loaded'; badge.textContent='loaded'; }
+    document.getElementById('runBtn').disabled = !STATE.validation.errors;
   }
-  function excelSerialToDate(serial){ if(typeof serial!=='number'||!Number.isFinite(serial)) return null; const days=Math.floor(serial-25569),frac=serial-Math.floor(serial); return new Date((days*86400+Math.round(frac*86400))*1000); }
-  async function parseExcel(file){ const wb=XLSX.read(await file.arrayBuffer(),{type:'array',cellDates:true,raw:true}); const sheet=wb.Sheets[wb.SheetNames[0]]; return XLSX.utils.sheet_to_json(sheet,{defval:'',raw:true,blankrows:false}).map(normalizeRowKeys); }
-  function parseJSON(text){ const d=JSON.parse(text); if(!Array.isArray(d)) throw new Error('JSON must be array of objects.'); return d.map(normalizeRowKeys); }
-  async function loadRowsFromFile(file){ const ext=file.name.toLowerCase().split('.').pop(); if(ext==='csv') return parseCSV(await file.text()); if(ext==='xlsx'||ext==='xls') return parseExcel(file); if(ext==='json') return parseJSON(await file.text()); throw new Error('Unsupported type'); }
-  function parseDateSafe(v){ if(!v&&v!==0) return null; if(v instanceof Date&&!Number.isNaN(v.getTime())) return v; if(typeof v==='number'){ const d=excelSerialToDate(v); if(d) return d; } const d=new Date(String(v).trim()); return Number.isNaN(d.getTime())?null:d; }
-  function parseDurationSeconds(v){ const raw=String(v??'').trim(); if(!raw) return 0; if(/^\d+(\.\d+)?$/.test(raw)) return Number(raw); const m=raw.match(/^(?:(\d+)\.)?(\d{1,2}):(\d{2}):(\d{2})(?:\.(\d+))?$/); if(!m) return 0; return Number(m[1]||0)*86400+Number(m[2]||0)*3600+Number(m[3]||0)*60+Number(m[4]||0); }
+
+  function detectDelimiter(text){ const lines = String(text).split(/\r?\n/).slice(0,6); return [',',';','\t'].map(d=>({d,s:lines.reduce((a,l)=>a+(l.split(d).length-1),0)})).sort((a,b)=>b.s-a.s)[0].d; }
+  function parseCSV(text){ const src=String(text||'').replace(/^\uFEFF/,''); const delim=detectDelimiter(src); const rows=[]; let row=[],field='',inQ=false;
+    for(let i=0;i<src.length;i++){ const ch=src[i]; if(inQ){ if(ch==='"'){ if(src[i+1]==='"'){field+='"';i++;} else inQ=false; } else field+=ch; }
+      else if(ch==='"') inQ=true; else if(ch===delim){row.push(field); field='';}
+      else if(ch==='\n'||ch==='\r'){ row.push(field); field=''; if(row.some(v=>String(v).trim())) rows.push(row); row=[]; if(ch==='\r'&&src[i+1]==='\n') i++; }
+      else field+=ch;
+    }
+    if(field.length||row.length){ row.push(field); if(row.some(v=>String(v).trim())) rows.push(row); }
+    const headers=(rows[0]||[]).map(h=>String(h).trim());
+    return rows.slice(1).map(cells=>Object.fromEntries(headers.map((h,i)=>[h,cells[i]??''])));
+  }
+  async function parseExcel(file){ const wb=XLSX.read(await file.arrayBuffer(),{type:'array',cellDates:true,raw:true}); const sheet=wb.Sheets[wb.SheetNames[0]]; return XLSX.utils.sheet_to_json(sheet,{defval:'',raw:true,blankrows:false}); }
+  function parseJSON(text){ const data=JSON.parse(text); if(!Array.isArray(data)) throw new Error('JSON must be an array of objects.'); return data; }
+
+  async function parseErrorsFile(file){ return loadRowsFromFile(file); }
+  async function parseAvailabilityFile(file){ return loadRowsFromFile(file); }
+  async function parsePrintVolumeFile(file){ return loadRowsFromFile(file); }
+  async function loadRowsFromFile(file){ const ext=file.name.toLowerCase().split('.').pop(); if(ext==='csv') return parseCSV(await file.text()); if(ext==='xlsx'||ext==='xls') return parseExcel(file); if(ext==='json') return parseJSON(await file.text()); throw new Error(`Unsupported file type: ${ext}`); }
+
+  const parseDate = v => { if(!v&&v!==0) return null; if(v instanceof Date && !Number.isNaN(v.getTime())) return v; if(typeof v==='number'){ const d=new Date((v-25569)*86400*1000); if(!Number.isNaN(d.getTime())) return d; } const d=new Date(String(v).trim()); return Number.isNaN(d.getTime())?null:d; };
+  const parseDurationSeconds = v => { const raw=String(v??'').trim(); if(!raw) return 0; if(/^\d+(\.\d+)?$/.test(raw)) return Number(raw); const m=raw.match(/^(?:(\d+)\.)?(\d{1,2}):(\d{2}):(\d{2})/); return m ? Number(m[1]||0)*86400 + Number(m[2])*3600 + Number(m[3])*60 + Number(m[4]) : 0; };
+
+  function validateInputFiles(){
+    if (!STATE.files.errors) return {ok:false,message:'Errors file is required.'};
+    return {ok:true};
+  }
+
+  function normalizeErrorsRows(rows){
+    const normalized = rows.map((r,idx)=>{
+      const start = parseDate(getField(r,['Start Time','Start','Event Time','Timestamp']));
+      return {
+        id: idx,
+        customer: String(getField(r,['Customer','Account','Client'])).trim() || 'Unspecified',
+        site: String(getField(r,['Site','Location','Plant'])).trim() || 'Unspecified',
+        press: String(getField(r,['Press','Machine','Printer'])).trim() || 'Unspecified',
+        model: String(getField(r,['Model'])).trim() || 'Unspecified',
+        version: String(getField(r,['Version','SW Version','Firmware'])).trim() || 'Unspecified',
+        subsystem: String(getField(r,['Subsystem','Module'])).trim() || 'Unspecified',
+        alertName: String(getField(r,['Name','Alert Name','Alert Message Title','Alert Title'])).trim() || 'Unspecified',
+        alertTitle: String(getField(r,['Alert Message Title','Alert Title','Name'])).trim() || 'Unspecified',
+        errorState: String(getField(r,['Error State','State'])).trim() || 'Unspecified',
+        startTime: start,
+        day: start ? start.toISOString().slice(0,10) : '',
+        durationSeconds: parseDurationSeconds(getField(r,['Duration','Duration (sec)','DurationSeconds'])),
+        raw:r
+      };
+    });
+    const hasMinimum = normalized.some(r => r.press !== 'Unspecified' && r.alertName !== 'Unspecified' && r.startTime);
+    if (!hasMinimum) throw new Error('Errors schema invalid: expected fields for press, alert/name, and start time.');
+    return normalized;
+  }
+
+  function normalizeAvailabilityRows(rows){
+    return rows.map(r=>{
+      const start=parseDate(getField(r,['Start Time','Start']));
+      const end=parseDate(getField(r,['End Time','End']));
+      const state=String(getField(r,['State','Category','Machine State'])).toLowerCase();
+      const duration = Number(getField(r,['DurationSeconds','Duration (sec)','Duration'])) || (start&&end?Math.max(0,(end-start)/1000):0);
+      const planned = /planned|maintenance|break|setup/.test(state);
+      const production = !/maintenance|planned|weekend|break|idle|non production|non-production/.test(state);
+      return {
+        customer:String(getField(r,['Customer','Account','Client'])).trim() || 'Unspecified',
+        site:String(getField(r,['Site','Location','Plant'])).trim() || 'Unspecified',
+        press:String(getField(r,['Press','Machine','Printer'])).trim() || 'Unspecified',
+        model:String(getField(r,['Model'])).trim() || 'Unspecified',
+        version:String(getField(r,['Version','SW Version'])).trim() || 'Unspecified',
+        day:start?start.toISOString().slice(0,10):'',
+        durationSeconds:Number.isFinite(duration)?duration:0,
+        planned, production, state
+      };
+    }).filter(r=>r.durationSeconds>0);
+  }
+
+  function normalizeVolumeRows(rows){
+    return rows.map(r=>{
+      const start=parseDate(getField(r,['Date','Start Time','Timestamp']));
+      const category=String(getField(r,['Category','Workload Type','Mode'])).toLowerCase();
+      const production = !/maintenance|service|repair/.test(category);
+      return {
+        customer:String(getField(r,['Customer','Account','Client'])).trim() || 'Unspecified',
+        site:String(getField(r,['Site','Location','Plant'])).trim() || 'Unspecified',
+        press:String(getField(r,['Press','Machine','Printer'])).trim() || 'Unspecified',
+        model:String(getField(r,['Model'])).trim() || 'Unspecified',
+        version:String(getField(r,['Version','SW Version'])).trim() || 'Unspecified',
+        day:start?start.toISOString().slice(0,10):'',
+        units:Number(getField(r,['Volume','Print Volume','Impressions','Units'])) || 0,
+        production
+      };
+    }).filter(r=>r.units>0);
+  }
+
+  function mergeOperationalData(events, availability, volume){
+    const keyFor = r => [r.customer,r.site,r.press,r.day,r.model,r.version].join('|');
+    const availabilityByKey = new Map();
+    const volumeByKey = new Map();
+
+    availability.forEach(r=>{
+      const key=keyFor(r); const slot=availabilityByKey.get(key) || {planned:0,unplanned:0,operating:0,total:0};
+      slot.total += r.durationSeconds; if(r.planned) slot.planned += r.durationSeconds; else slot.unplanned += r.durationSeconds; if(r.production) slot.operating += r.durationSeconds;
+      availabilityByKey.set(key,slot);
+    });
+
+    volume.forEach(r=>{
+      const key=keyFor(r); const slot=volumeByKey.get(key) || {production:0,maintenance:0,total:0};
+      slot.total += r.units; if(r.production) slot.production += r.units; else slot.maintenance += r.units;
+      volumeByKey.set(key,slot);
+    });
+
+    return events.map(ev=>{
+      const key=keyFor(ev);
+      const pressFallback=[ev.customer,ev.site,ev.press,'',ev.model,ev.version].join('|');
+      const availabilitySlot = availabilityByKey.get(key) || availabilityByKey.get(pressFallback) || {planned:0,unplanned:0,operating:0,total:0};
+      const volumeSlot = volumeByKey.get(key) || volumeByKey.get(pressFallback) || {production:0,maintenance:0,total:0};
+      const eventPerProdVol = volumeSlot.production ? 1/volumeSlot.production : null;
+      return {...ev, availability:availabilitySlot, volume:volumeSlot, eventPerProdVol};
+    });
+  }
+
+  function computeOperationalMetrics(rows){
+    const totalEvents=rows.length;
+    const totalDowntime=rows.reduce((a,r)=>a+r.durationSeconds,0);
+    const totalUnplanned=rows.reduce((a,r)=>a+r.availability.unplanned,0);
+    const totalPlanned=rows.reduce((a,r)=>a+r.availability.planned,0);
+    const totalOperating=rows.reduce((a,r)=>a+r.availability.operating,0);
+    const totalProdVolume=rows.reduce((a,r)=>a+r.volume.production,0);
+    const mttr=totalEvents?totalDowntime/totalEvents:0;
+    const mtbf=totalEvents?Math.max(0,totalOperating-totalDowntime)/totalEvents:0;
+    const availabilityPct=(totalOperating+totalUnplanned)?(Math.max(0,totalOperating-totalUnplanned)/(totalOperating+1e-9))*100:0;
+    return { totalEvents,totalDowntime,totalUnplanned,totalPlanned,totalOperating,totalProdVolume,mttr,mtbf,availabilityPct,
+      downtimePerVolume: totalProdVolume?totalDowntime/totalProdVolume:null,
+      eventPerVolume: totalProdVolume?totalEvents/totalProdVolume:null };
+  }
+
+  function buildOverviewCharts(rows){
+    const groups = {
+      press: aggregate(rows, r=>r.press),
+      subsystem: aggregate(rows, r=>r.subsystem),
+      alert: aggregate(rows, r=>r.alertName || r.alertTitle),
+      version: aggregate(rows, r=>r.version)
+    };
+    return groups;
+  }
+
+  function aggregate(rows,keyFn){
+    const map={};
+    rows.forEach(r=>{
+      const key=keyFn(r)||'Unspecified';
+      const slot = map[key] || {events:0,downtime:0,volume:0};
+      slot.events += 1; slot.downtime += r.durationSeconds; slot.volume += r.volume.production;
+      map[key]=slot;
+    });
+    const arr = Object.entries(map).map(([name,m])=>{
+      const normalized = m.volume ? m.events/m.volume : m.events;
+      const risk = m.events*1.2 + (m.downtime/3600)*2 + normalized*100;
+      return {name,...m,normalized,risk};
+    });
+    return arr;
+  }
+
+  function rankForMetric(items, metric){ return [...items].sort((a,b)=>(b[metric]||0)-(a[metric]||0)); }
   function formatDuration(sec){ if(!Number.isFinite(sec)||sec<=0) return '0s'; const s=Math.round(sec),h=Math.floor(s/3600),m=Math.floor((s%3600)/60),x=s%60; return h?`${h}h ${m}m ${x}s`:m?`${m}m ${x}s`:`${x}s`; }
 
-  function validateErrorRows(rows){ if(!rows.length) throw new Error('Errors dataset empty.'); const map=new Map(Object.keys(rows[0]).map(h=>[canonicalHeader(h),h])); const missing=REQUIRED_ERROR_COLUMNS.filter(c=>!map.has(canonicalHeader(c))); if(missing.length) throw new Error(`Errors missing columns: ${missing.join(', ')}`); return map; }
-  function normalizeErrorRows(rows,headerMap){ return rows.map((raw,idx)=>{ const get=(n)=>raw[headerMap.get(canonicalHeader(n))]??''; const start=parseDateSafe(get('Start Time')); const rec=parseDateSafe(get('Recovery')); const dur=parseDurationSeconds(get('Duration')); return { id:idx, press:String(get('Press')).trim(), model:String(get('Model')).trim(), name:String(get('Name')).trim(), alertTitle:String(get('Alert Message Title')).trim(), alertBody:String(get('Alert Message Body')).trim(), alertSolution:String(get('Alert Message Solution')).trim(), startTime:start, day:start?start.toISOString().slice(0,10):'', recoveryTime:rec, durationRaw:String(get('Duration')??'').trim(), durationSeconds:dur, preErrorState:String(get('Pre Error State')).trim(), subsystem:String(get('Subsystem')).trim(), errorState:String(get('Error State')).trim(), version:String(get('Version')).trim(), raw:normalizeRowKeys(raw)}; }); }
-
-  function getAvailabilityMap(){ const map={}; STATE.availabilityRows.forEach(r=>{ const press=String(r.Press||r.press||'').trim(); if(!press) return; const state=String(r.State||r.state||r.Category||r.category||'').toLowerCase(); const start=parseDateSafe(r['Start Time']||r.startTime||r.Start||r.start); const end=parseDateSafe(r['End Time']||r.endTime||r.End||r.end); const duration=Number(r.DurationSeconds||r['Duration (sec)']||parseDurationSeconds(r.Duration||'')) || (start&&end?Math.max(0,(end-start)/1000):0); if(!duration) return;
-      const planned = /planned|maintenance|break|idle|setup/.test(state);
-      const productive = !/weekend|break|maintenance|planned|non-production|non production|idle/.test(state);
-      const slot=(map[press] ||= {planned:0,unplanned:0,operating:0,total:0});
-      slot.total += duration; if(planned) slot.planned += duration; else slot.unplanned += duration; if(productive) slot.operating += duration;
-  }); return map; }
-  function getVolumeMap(){ const map={}; STATE.volumeRows.forEach(r=>{ const press=String(r.Press||r.press||'').trim(); const v=Number(r.Volume||r['Print Volume']||r.Impressions||r.Units||0); if(!press||!Number.isFinite(v)) return; map[press]=(map[press]||0)+v; }); return map; }
-
-  function getFilteredRows(){ const ids=['press','model','subsystem','errorState','version']; const values=Object.fromEntries(ids.map(x=>[x,document.getElementById(`${x}Filter`).value]));
-    const sd=document.getElementById('startDateFilter').value, ed=document.getElementById('endDateFilter').value, q=document.getElementById('searchFilter').value.trim().toLowerCase();
-    return STATE.normalizedRows.filter(r=> (values.press==='all'||r.press===values.press) && (values.model==='all'||r.model===values.model) && (values.subsystem==='all'||r.subsystem===values.subsystem) && (values.errorState==='all'||r.errorState===values.errorState) && (values.version==='all'||r.version===values.version) && (!sd||(r.day&&r.day>=sd)) && (!ed||(r.day&&r.day<=ed)) && (!q||`${r.name} ${r.alertTitle} ${r.press} ${r.subsystem} ${r.version}`.toLowerCase().includes(q))); }
-
-  function computeAnalytics(rows){ const daily={}; rows.forEach(r=>{ if(!r.day) return; daily[r.day] ||= {events:0,downtime:0}; daily[r.day].events+=1; daily[r.day].downtime+=r.durationSeconds||0;}); const durations=rows.map(r=>r.durationSeconds||0); const total=durations.reduce((a,b)=>a+b,0); const top=(k,n=10)=>Object.entries(rows.reduce((a,r)=>{const x=String(r[k]||'Unspecified').trim()||'Unspecified';a[x]=(a[x]||0)+1;return a;},{})).sort((a,b)=>b[1]-a[1]).slice(0,n);
-    const topDown=(k,n=10)=>Object.entries(rows.reduce((a,r)=>{const x=String(r[k]||'Unspecified').trim()||'Unspecified';a[x]=(a[x]||0)+(r.durationSeconds||0);return a;},{})).sort((a,b)=>b[1]-a[1]).slice(0,n);
-    return { totalEvents:rows.length, totalDuration:total, avgDuration:rows.length?total/rows.length:0, uniquePresses:new Set(rows.map(r=>r.press).filter(Boolean)).size, uniqueSubsystems:new Set(rows.map(r=>r.subsystem).filter(Boolean)).size, topNames:top('name'), topAlerts:top('alertTitle'), topSubsystems:top('subsystem'), topPresses:top('press'), topVersions:top('version'), topPreStates:top('preErrorState'), topDowntimeAlerts:topDown('alertTitle',12), daily}; }
-
-  function computeKpis(rows){ const availability=getAvailabilityMap(), volume=getVolumeMap(); const totalEvents=rows.length; const totalDowntime=rows.reduce((s,r)=>s+(r.durationSeconds||0),0); const byPress={}; rows.forEach(r=>{(byPress[r.press] ||= []).push(r);});
-    const mttr = totalEvents ? totalDowntime / totalEvents : 0;
-    let failures=0, operating=0, planned=0, unplanned=0, vol=0;
-    Object.entries(byPress).forEach(([press,items])=>{failures += items.length; const a=availability[press]||{operating:0,planned:0,unplanned:0,total:0}; operating += a.operating; planned += a.planned; unplanned += a.unplanned; vol += volume[press]||0;});
-    const mtbf = failures ? Math.max(0, operating-totalDowntime)/failures : 0;
-    const availabilityPct = (operating+unplanned) ? ((Math.max(0,operating-unplanned)/operating)*100) : 0;
-    return { mttr, mtbf, availabilityPct, planned, unplanned, totalDowntime, downtimePerVolume: vol? totalDowntime/vol:0, eventsPerVolume: vol? totalEvents/vol:0 };
+  function renderKpis(k){
+    const cards = [
+      ['Total events',k.totalEvents,'Merged event records'], ['Total downtime',formatDuration(k.totalDowntime),'From error durations'],
+      ['Unplanned DT',formatDuration(k.totalUnplanned),'Availability model'], ['Planned DT',formatDuration(k.totalPlanned),'Maintenance/break model'],
+      ['MTTR',formatDuration(k.mttr),'Mean time to repair'], ['MTBF',formatDuration(k.mtbf),'Operating-time based'],
+      ['Availability',`${k.availabilityPct.toFixed(1)}%`,'Excluding planned windows'], ['Prod volume',k.totalProdVolume.toLocaleString(),'Production-only denominator'],
+      ['Downtime / volume',k.downtimePerVolume==null?'N/A':k.downtimePerVolume.toFixed(4),'seconds per production unit'], ['Events / volume',k.eventPerVolume==null?'N/A':k.eventPerVolume.toFixed(4),'events per production unit']
+    ];
+    document.getElementById('kpiStrip').innerHTML = cards.map(([a,b,c])=>`<article class="kpi"><div class="k">${a}</div><div class="v">${b}</div><div class="d">${c}</div></article>`).join('');
   }
 
-  function computeRiskScores(rows){ const vol=getVolumeMap(); const now=Date.now(); const grouped=rows.reduce((a,r)=>{(a[r.press||'Unspecified'] ||= []).push(r); return a;},{}); const downtimes=Object.values(grouped).map(items=>items.reduce((s,r)=>s+(r.durationSeconds||0),0)); const events=Object.values(grouped).map(items=>items.length); const maxD=Math.max(...downtimes,1), maxE=Math.max(...events,1);
-    return Object.entries(grouped).map(([press,items])=>{ const eventCount=items.length; const totalDowntime=items.reduce((s,r)=>s+(r.durationSeconds||0),0); const avgDuration=eventCount?totalDowntime/eventCount:0;
-      const alerts={}; const subs={}; items.forEach(r=>{alerts[r.alertTitle||'Unspecified']=(alerts[r.alertTitle||'Unspecified']||0)+1; subs[r.subsystem||'Unspecified']=(subs[r.subsystem||'Unspecified']||0)+1;});
-      const topAlert=Object.entries(alerts).sort((a,b)=>b[1]-a[1])[0]||['N/A',0]; const topSubsystem=Object.entries(subs).sort((a,b)=>b[1]-a[1])[0]||['N/A',0];
-      const recurrence=eventCount?topAlert[1]/eventCount:0; const concentration=eventCount?topSubsystem[1]/eventCount:0; const recent=items.filter(r=>r.startTime && now-r.startTime.getTime()<=7*86400000).length/(eventCount||1);
-      const volume=vol[press]||0; const eventsPerVolume=volume?eventCount/volume:eventCount; const downtimePerVolume=volume?totalDowntime/volume:totalDowntime;
-      const score=(eventCount/maxE)*15 + (totalDowntime/maxD)*28 + Math.min(avgDuration/7200,1)*10 + recurrence*15 + concentration*12 + recent*10 + Math.min(eventsPerVolume/0.02,1)*5 + Math.min(downtimePerVolume/4,1)*5;
-      const bounded=Math.max(0,Math.min(100,score));
-      const level=bounded>=75?'Critical':bounded>=58?'High Risk':bounded>=38?'Medium Risk':'Stable';
-      const badge=level==='Critical'?'critical':level==='High Risk'?'high':level==='Medium Risk'?'medium':'stable';
-      const explanation=[ totalDowntime/maxD>0.45?'High downtime':'Low impact downtime', recurrence>0.4?'repeated same alert':'diverse alert mix', concentration>0.45?`concentrated in ${topSubsystem[0]}`:'distributed subsystems' ].join(' + ');
-      const confidence=Math.min(100,Math.round((Math.min(1,eventCount/12)*0.6 + Math.min(1,(vol[press]||0)/20000)*0.2 + Math.min(1,totalDowntime/maxD)*0.2)*100));
-      return {press,eventCount,totalDowntime,avgDuration,topAlert:topAlert[0],topSubsystem:topSubsystem[0],eventsPerVolume,downtimePerVolume,riskScore:Number(bounded.toFixed(1)),riskLevel:level,badgeClass:badge,explanation,confidence};
-    }).sort((a,b)=>b.riskScore-a.riskScore);
+  function replaceChart(id,config){ if(CHARTS.has(id)){ CHARTS.get(id).destroy(); } CHARTS.set(id,new Chart(document.getElementById(id).getContext('2d'),config)); }
+  function baseOptions(){ return {responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{ticks:{color:'#c6d3ea'},grid:{color:'rgba(255,255,255,.08)'}},y:{ticks:{color:'#c6d3ea'},grid:{color:'rgba(255,255,255,.08)'},beginAtZero:true}}}; }
+
+  function renderRankingChart(key, items){
+    const metric = STATE.metricByChart[key];
+    const expanded = STATE.expand[key];
+    const sorted = rankForMetric(items, metric);
+    const view = expanded ? sorted : sorted.slice(0,8);
+    const labels = view.map(x=>x.name);
+    const data = view.map(x=>metric==='downtime'?x.downtime/3600:x[metric]);
+    const metricLabel = metric==='events'?'Events':metric==='downtime'?'Downtime (hours)':metric==='normalized'?'Events / volume':'Risk score';
+    replaceChart(`${key}Chart`, {type:'bar',data:{labels,datasets:[{data,backgroundColor:view.map((_,i)=>COLORS[i%COLORS.length]),borderRadius:6}]},options:baseOptions()});
+    document.querySelector(`[data-rank-card="${key}"] .micro`).textContent = `${expanded?'Full ranking':'Top 8'} by ${metricLabel.toLowerCase()}.`;
+    const btn = document.querySelector(`[data-expand="${key}"]`); btn.textContent = expanded ? 'Collapse' : 'Show all';
   }
 
-  function buildExecutiveSummary(rows){ const analytics=computeAnalytics(rows); const risk=computeRiskScores(rows); const kpis=computeKpis(rows); const critical=risk.filter(r=>r.riskLevel==='Critical').slice(0,5); const high=risk.filter(r=>r.riskLevel==='High Risk').slice(0,10); const medium=risk.filter(r=>r.riskLevel==='Medium Risk'); const stable=risk.filter(r=>r.riskLevel==='Stable').slice(0,6);
-    const status = critical.length? 'High Risk Concentration Detected' : high.length? 'Moderate Risk Environment' : 'Stable Risk Environment';
-    const topDowntime=analytics.topDowntimeAlerts[0]||['N/A',0], topSubsystem=analytics.topSubsystems[0]||['N/A',0], topAlert=analytics.topAlerts[0]||['N/A',0];
-    const insight = risk.length ? `Operational risk is concentrated in ${Math.max(1,critical.length||high.length)} presses responsible for ${Math.round((risk.slice(0,2).reduce((s,r)=>s+r.totalDowntime,0)/(analytics.totalDuration||1))*100)}% of downtime.` : 'No events in current filter scope.';
-    return { generatedAt:new Date(), analytics, risk, kpis, critical, high, medium, stable, status, signals:{
-      mainDowntimeDriver:`${topDowntime[0]} (${formatDuration(topDowntime[1])})`, mostAffectedSubsystem:`${topSubsystem[0]} (${topSubsystem[1]} events)`, mostRepeatedAlert:`${topAlert[0]} (${topAlert[1]} events)`, highestRiskPress:risk[0]?`${risk[0].press} (${risk[0].riskLevel})`:'N/A', mostStablePress:stable[0]?`${stable[0].press} (Stable)`:'N/A'
-    }, distribution:{critical:critical.length,high:high.length,medium:medium.length,stable:risk.filter(r=>r.riskLevel==='Stable').length}, insight,
-      recommendations:[ 'Contain top critical press with focused root-cause team within 24h.', 'Prioritize repeated alert elimination in dominant subsystem.', 'Review maintenance/break schedules to reduce unplanned overlap.', 'Apply version hardening plan on presses with high recurrence.' ] };
+  function renderTable(rows){
+    const table = document.getElementById('eventTable');
+    if(!rows.length){ table.innerHTML='<tbody><tr><td>No rows in current scope.</td></tr></tbody>'; return; }
+    table.innerHTML = `<thead><tr><th>Customer</th><th>Site</th><th>Press</th><th>Subsystem</th><th>Alert Name</th><th>Version</th><th>Start</th><th>Duration</th><th>Prod Vol</th></tr></thead><tbody>${rows.slice(0,800).map(r=>`<tr><td>${esc(r.customer)}</td><td>${esc(r.site)}</td><td>${esc(r.press)}</td><td>${esc(r.subsystem)}</td><td>${esc(r.alertName)}</td><td>${esc(r.version)}</td><td>${esc(r.startTime?.toISOString()||'')}</td><td>${esc(formatDuration(r.durationSeconds))}</td><td>${esc(r.volume.production||0)}</td></tr>`).join('')}</tbody>`;
   }
 
-  function riskItem(item){ return `<div class="risk-item"><div class="risk-line"><div><strong>${esc(item.press)}</strong><div class="risk-meta">${item.eventCount} events • ${formatDuration(item.totalDowntime)} downtime • ${item.eventsPerVolume.toFixed(4)} evt/vol</div></div><span class="badge ${item.badgeClass}">${esc(item.riskLevel)} <small>${item.riskScore}</small></span></div><div class="risk-reason">Dominant issue: ${esc(item.topSubsystem)} / ${esc(item.topAlert)}. ${esc(item.explanation)}. Confidence ${item.confidence}%.</div></div>`; }
-  function renderExecutiveLayer(summary){
-    document.getElementById('overallStatusBar').innerHTML = `<strong>${esc(summary.status)}</strong> • Availability ${summary.kpis.availabilityPct.toFixed(1)}% • MTTR ${formatDuration(summary.kpis.mttr)} • MTBF ${formatDuration(summary.kpis.mtbf)}`;
-    document.getElementById('executiveSignals').innerHTML = Object.entries({ 'Main Downtime Driver':summary.signals.mainDowntimeDriver, 'Most Affected Subsystem':summary.signals.mostAffectedSubsystem, 'Most Repeated Alert':summary.signals.mostRepeatedAlert, 'Highest Risk Press':summary.signals.highestRiskPress, 'Most Stable Press':summary.signals.mostStablePress }).map(([k,v])=>`<div class="signal-card"><div class="k">${esc(k)}</div><div style="margin-top:6px;">${esc(v)}</div></div>`).join('');
-    document.getElementById('riskDistribution').innerHTML = `<span class="risk-pill" style="color:#ffd3d1;border-color:rgba(242,92,84,.5);">Critical: ${summary.distribution.critical}</span><span class="risk-pill" style="color:#ffe4cc;border-color:rgba(242,149,79,.5);">High: ${summary.distribution.high}</span><span class="risk-pill" style="color:#fff1bf;border-color:rgba(242,211,92,.5);">Medium: ${summary.distribution.medium}</span><span class="risk-pill" style="color:#cbffe0;border-color:rgba(81,194,133,.5);">Stable: ${summary.distribution.stable}</span>`;
-    document.getElementById('insightLine').textContent=summary.insight;
-    document.getElementById('criticalRiskList').innerHTML = summary.critical.map(riskItem).join('') || '<div class="micro">No critical presses.</div>';
-    document.getElementById('highRiskList').innerHTML = summary.high.map(riskItem).join('') || '<div class="micro">No high-risk presses.</div>';
-    document.getElementById('mediumRiskList').innerHTML = summary.medium.map(riskItem).join('') || '<div class="micro">No medium-risk presses.</div>';
-    document.getElementById('stableList').innerHTML = summary.stable.map(riskItem).join('') || '<div class="micro">No stable presses.</div>';
+  function populateFilter(id, values, label){ const el=document.getElementById(id); const prev=el.value; el.innerHTML=`<option value="all">All ${label}</option>`+values.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join(''); if(values.includes(prev)) el.value=prev; }
+  function filteredRows(){
+    const vals = {customer:customerFilter.value,site:siteFilter.value,press:pressFilter.value,subsystem:subsystemFilter.value,version:versionFilter.value};
+    const sd=startDateFilter.value, ed=endDateFilter.value, q=searchFilter.value.trim().toLowerCase();
+    return STATE.merged.filter(r=>
+      (vals.customer==='all'||r.customer===vals.customer) && (vals.site==='all'||r.site===vals.site) && (vals.press==='all'||r.press===vals.press) &&
+      (vals.subsystem==='all'||r.subsystem===vals.subsystem) && (vals.version==='all'||r.version===vals.version) &&
+      (!sd || (r.day && r.day>=sd)) && (!ed || (r.day && r.day<=ed)) &&
+      (!q || `${r.alertName} ${r.press} ${r.subsystem} ${r.version} ${r.customer} ${r.site}`.toLowerCase().includes(q))
+    );
   }
 
-  function metricCard(k,v,d){ return `<article class="kpi"><div class="k">${esc(k)}</div><div class="v">${esc(v)}</div><div class="d">${esc(d)}</div></article>`; }
-  function renderKpis(a,k){ document.getElementById('kpiStrip').innerHTML=[['Total events',a.totalEvents,'Current filter scope'],['Total downtime',formatDuration(a.totalDuration),'Error durations'],['MTTR',formatDuration(k.mttr),'Mean time to repair'],['MTBF',formatDuration(k.mtbf),'Operating-time based'],['Availability',`${k.availabilityPct.toFixed(1)}%`,'Excluding planned downtime'],['Planned DT',formatDuration(k.planned),'Maintenance/break windows'],['Unplanned DT',formatDuration(k.unplanned),'Operational losses'],['Downtime / Volume',k.downtimePerVolume.toFixed(4),'Seconds per produced unit']].map(x=>metricCard(...x)).join(''); }
-
-  function baseOptions(){ return {responsive:true,maintainAspectRatio:false,animation:false,plugins:{legend:{labels:{color:'#c7d4ec'}},tooltip:{backgroundColor:'#101625',borderColor:'rgba(255,255,255,.12)',borderWidth:1,titleColor:'#e9efff',bodyColor:'#c4d0e8'}},scales:{x:{ticks:{color:'#bdc9df'},grid:{color:'rgba(255,255,255,.08)'}},y:{ticks:{color:'#bdc9df'},grid:{color:'rgba(255,255,255,.08)'},beginAtZero:true}}}; }
-  function replaceChart(id,config){ if(CHARTS.has(id)){CHARTS.get(id).destroy(); CHARTS.delete(id);} const ctx=document.getElementById(id)?.getContext('2d'); if(!ctx) return; CHARTS.set(id,new Chart(ctx,config)); }
-  function getSubsetRows(dimension,value,baseRows){ const cfg=DIMENSION_CONFIG[dimension]; if(!cfg) return []; return baseRows.filter(r=>String((cfg.key==='day'?r.day:r[cfg.key])||'Unspecified').trim()===value); }
-  function registerChart(id,entries,dimension,sourceChart,config={}){ const labels=entries.map(([k])=>k); const options={...baseOptions(),...(config.options||{})}; options.onClick=(_e,els)=>{ if(!els?.length) return; const idx=els[0].index; openDrilldown({dimension,value:labels[idx],sourceChart,rows:getSubsetRows(dimension,labels[idx],STATE.filteredRows)}); }; replaceChart(id,{type:config.type||'bar',data:{labels,datasets:[{label:config.datasetLabel||'Events',data:entries.map(([,v])=>v),backgroundColor:entries.map((_,i)=>CHART_COLORS[i%CHART_COLORS.length]),borderRadius:6}]},options}); }
-  function renderCharts(a){ registerChart('nameChart',a.topNames,'name','Top Error Names'); registerChart('alertChart',a.topAlerts,'alertTitle','Top Alert Titles'); registerChart('subsystemChart',a.topSubsystems,'subsystem','Top Subsystems',{options:{...baseOptions(),indexAxis:'y',plugins:{...baseOptions().plugins,legend:{display:false}}}}); registerChart('pressChart',a.topPresses,'press','Top Presses',{options:{...baseOptions(),indexAxis:'y',plugins:{...baseOptions().plugins,legend:{display:false}}}}); registerChart('versionChart',a.topVersions,'version','Top Versions',{options:{...baseOptions(),indexAxis:'y',plugins:{...baseOptions().plugins,legend:{display:false}}}});
-    const keys=Object.keys(a.daily).sort(); replaceChart('timeChart',{type:'bar',data:{labels:keys,datasets:[{type:'bar',label:'Events',yAxisID:'y',data:keys.map(k=>a.daily[k].events),backgroundColor:'rgba(123,141,255,0.7)'},{type:'line',label:'Downtime (hours)',yAxisID:'y1',data:keys.map(k=>Number((a.daily[k].downtime/3600).toFixed(2))),borderColor:'#f09b4f',backgroundColor:'#f09b4f',tension:.3}]},options:{...baseOptions(),onClick:(_e,els)=>{if(!els?.length)return; const day=keys[els[0].index]; openDrilldown({dimension:'day',value:day,sourceChart:'Events and Downtime Over Time',rows:getSubsetRows('day',day,STATE.filteredRows)});},scales:{x:{ticks:{color:'#bdc9df'},grid:{color:'rgba(255,255,255,.08)'}},y:{beginAtZero:true,ticks:{color:'#bdc9df'},grid:{color:'rgba(255,255,255,.08)'}},y1:{beginAtZero:true,position:'right',ticks:{color:'#ffd6a9'},grid:{drawOnChartArea:false}}}}});
-    registerChart('downtimeAlertChart',a.topDowntimeAlerts.map(([k,v])=>[k,Number((v/3600).toFixed(2))]),'alertTitle','Downtime by Alert Title',{datasetLabel:'Downtime (hours)'}); registerChart('stateChart',a.topPreStates,'preErrorState','Pre-Error State Patterns',{options:{...baseOptions(),indexAxis:'y',plugins:{...baseOptions().plugins,legend:{display:false}}}});
+  function renderDashboard(){
+    STATE.filtered = filteredRows();
+    const kpis = computeOperationalMetrics(STATE.filtered); STATE.kpis=kpis; renderKpis(kpis);
+    const rankings = buildOverviewCharts(STATE.filtered);
+    renderRankingChart('press', rankings.press); renderRankingChart('subsystem', rankings.subsystem); renderRankingChart('alert', rankings.alert); renderRankingChart('version', rankings.version);
+    renderTable(STATE.filtered);
   }
 
-  function valueForHeader(row,header){ const key=COLUMN_MAP[header]; if(key==='startTime') return row.startTime?row.startTime.toISOString():''; if(key==='recoveryTime') return row.recoveryTime?row.recoveryTime.toISOString():''; return row[key]??''; }
-  function renderTable(rows,tableId='dataTable',clickable=true){ const headers=REQUIRED_ERROR_COLUMNS, table=document.getElementById(tableId); if(!rows.length){ table.innerHTML='<tbody><tr><td>No rows match current filters.</td></tr></tbody>'; return; } table.innerHTML=`<thead><tr>${headers.map(h=>`<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${rows.slice(0,500).map((r,i)=>`<tr class="${clickable?'row':''}" data-idx="${i}">${headers.map(h=>`<td>${esc(valueForHeader(r,h))}</td>`).join('')}</tr>`).join('')}</tbody>`; }
-  function exportRowsToCsv(rows,filename){ if(!rows.length) return; const headers=REQUIRED_ERROR_COLUMNS; const q=(v)=>`"${String(v??'').replace(/"/g,'""')}"`; const lines=[headers.map(q).join(',')]; rows.forEach(r=>lines.push(headers.map(h=>q(valueForHeader(r,h))).join(','))); const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([lines.join('\n')],{type:'text/csv'})); a.download=filename; a.click(); URL.revokeObjectURL(a.href); }
-
-  function summarizeDrilldownRows(rows){ const total=rows.reduce((s,r)=>s+(r.durationSeconds||0),0); return {total,avg:rows.length?total/rows.length:0, mostSubsystem:(Object.entries(rows.reduce((a,r)=>{a[r.subsystem||'Unspecified']=(a[r.subsystem||'Unspecified']||0)+1;return a;},{})).sort((a,b)=>b[1]-a[1])[0]||['N/A'])[0], mostAlert:(Object.entries(rows.reduce((a,r)=>{a[r.alertTitle||'Unspecified']=(a[r.alertTitle||'Unspecified']||0)+1;return a;},{})).sort((a,b)=>b[1]-a[1])[0]||['N/A'])[0]}; }
-  function sortRows(rows,field,dir){ const f=dir==='asc'?1:-1; return [...rows].sort((a,b)=>{const av=a[field],bv=b[field]; if(av==null) return 1; if(bv==null) return -1; if(av instanceof Date&&bv instanceof Date) return f*(av-bv); if(typeof av==='number'&&typeof bv==='number') return f*(av-bv); return f*String(av).localeCompare(String(bv));}); }
-  function renderDrilldownTable(){ const q=STATE.drilldown.search.trim().toLowerCase(); const filtered=STATE.drilldown.rows.filter(r=>!q||`${r.press} ${r.model} ${r.name} ${r.alertTitle} ${r.subsystem} ${r.version}`.toLowerCase().includes(q)); const sorted=sortRows(filtered,STATE.drilldown.sortField,STATE.drilldown.sortDir); STATE.drilldown.currentRows=sorted; renderTable(sorted,'drillTable',false); }
-  function openDrilldown({dimension,value,sourceChart,rows}){ const cfg=DIMENSION_CONFIG[dimension]||{label:dimension}; STATE.drilldown={...STATE.drilldown,context:{dimension,value,sourceChart,label:cfg.label},rows,search:'',sortField:'durationSeconds',sortDir:'desc'}; const s=summarizeDrilldownRows(rows); document.getElementById('drillTitle').textContent=`${cfg.label}: ${value}`; document.getElementById('drillSubtitle').textContent=`${sourceChart} • ${rows.length} matching events`; document.getElementById('drillChips').innerHTML=`<span class="chip">Source: ${esc(sourceChart)}</span><span class="chip">Selected: ${esc(value)}</span>`; document.getElementById('drillMetrics').innerHTML=`<div class="metric"><div class="k">Matching events</div><div class="v">${rows.length}</div></div><div class="metric"><div class="k">Total downtime</div><div class="v">${formatDuration(s.total)}</div></div><div class="metric"><div class="k">Average duration</div><div class="v">${formatDuration(s.avg)}</div></div><div class="metric"><div class="k">Dominant subsystem</div><div class="v">${esc(s.mostSubsystem)}</div></div><div class="metric"><div class="k">Dominant alert</div><div class="v">${esc(s.mostAlert)}</div></div>`;
-    document.getElementById('drillTrend').textContent=`Premium drilldown summary: dominant subsystem ${s.mostSubsystem}, dominant alert ${s.mostAlert}.`; document.getElementById('drillSortField').innerHTML=[['durationSeconds','Duration'],['startTime','Start Time'],['press','Press'],['subsystem','Subsystem'],['alertTitle','Alert Title'],['version','Version']].map(([k,l])=>`<option value="${k}">${l}</option>`).join(''); renderDrilldownTable(); document.getElementById('drilldownShell').classList.add('open'); }
-  function closeDrilldown(){ document.getElementById('drilldownShell').classList.remove('open'); }
-
-  function populateFilter(id,values,label){ const el=document.getElementById(id); const prev=el.value; el.innerHTML=`<option value="all">All ${label}</option>${values.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join('')}`; if(values.includes(prev)) el.value=prev; }
-  function renderInsightText(a){ const p=a.topPresses[0]||['N/A',0], s=a.topSubsystems[0]||['N/A',0], d=a.topDowntimeAlerts[0]||['N/A',0]; document.getElementById('insightText').innerHTML=`<p><strong>Press concentration:</strong> ${esc(p[0])} (${p[1]} events).</p><p><strong>Subsystem driver:</strong> ${esc(s[0])} (${s[1]} events).</p><p><strong>Downtime alert:</strong> ${esc(d[0])} (${formatDuration(d[1])}).</p>`; }
-
-  function buildFilterContextText(){ return ['pressFilter','modelFilter','subsystemFilter','errorStateFilter','versionFilter'].map(id=>`${id.replace('Filter','')}: ${document.getElementById(id).value}`).join(' | '); }
-  function buildEmailBrief(summary){ return [ `Operational Performance Snapshot (${summary.generatedAt.toISOString()})`, `Dataset: ${STATE.datasetName}`, `Filter scope: ${buildFilterContextText()}`, `Overall status: ${summary.status}`, `Critical presses: ${summary.critical.map(r=>`${r.press} (${r.riskScore})`).join('; ')||'None'}`, `Key metrics: MTTR ${formatDuration(summary.kpis.mttr)}, MTBF ${formatDuration(summary.kpis.mtbf)}, Availability ${summary.kpis.availabilityPct.toFixed(1)}%`, `Key insights: ${summary.insight}`, `Recommended actions: ${summary.recommendations.join(' ')}` ].join('\n'); }
-  function exportExecutiveSnapshot({summary}){ document.getElementById('execGeneratedMeta').textContent=`Generated ${summary.generatedAt.toISOString()} • ${STATE.datasetName}`;
-    document.getElementById('exportPrimary').innerHTML=`<h3>1. Overall Status</h3><div class="status-strip"><strong>${esc(summary.status)}</strong></div><h3>2. Critical Presses</h3><div class="risk-list">${summary.critical.map(riskItem).join('')||'<div class="micro">No critical presses.</div>'}</div><h3>3. Critical Issues</h3><ul class="focus-list">${summary.analytics.topDowntimeAlerts.slice(0,5).map(([n,v])=>`<li>${esc(n)} • ${formatDuration(v)}</li>`).join('')}</ul><h3>4. Critical Subsystems</h3><ul class="focus-list">${summary.analytics.topSubsystems.slice(0,5).map(([n,v])=>`<li>${esc(n)} • ${v} events</li>`).join('')}</ul>`;
-    document.getElementById('exportSecondary').innerHTML=`<h3>5. Stability Overview</h3><div class="risk-list">${summary.stable.map(riskItem).join('')||'<div class="micro">No stable entities.</div>'}</div><h3>6. Key Metrics</h3><ul class="focus-list"><li>MTTR: ${formatDuration(summary.kpis.mttr)}</li><li>MTBF: ${formatDuration(summary.kpis.mtbf)}</li><li>Availability: ${summary.kpis.availabilityPct.toFixed(1)}%</li><li>Total downtime: ${formatDuration(summary.kpis.totalDowntime)}</li></ul><h3>7. Key Insights</h3><ul class="focus-list"><li>${esc(summary.insight)}</li></ul><h3>8. Recommended Actions</h3><ul class="focus-list">${summary.recommendations.slice(0,5).map(x=>`<li>${esc(x)}</li>`).join('')}</ul><h3 style="margin-top:10px;">Email-Ready Brief</h3><div id="emailBrief" class="plain-block">${esc(buildEmailBrief(summary))}</div>`;
-    document.getElementById('execExportModal').classList.add('open');
+  function exportRowsToCsv(rows){ if(!rows.length) return; const headers=['customer','site','press','model','subsystem','version','alertName','day','durationSeconds','productionVolume'];
+    const quote=v=>`"${String(v??'').replace(/"/g,'""')}"`; const lines=[headers.map(quote).join(',')];
+    rows.forEach(r=>lines.push([r.customer,r.site,r.press,r.model,r.subsystem,r.version,r.alertName,r.day,r.durationSeconds,r.volume.production].map(quote).join(',')));
+    const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([lines.join('\n')],{type:'text/csv'})); a.download='merged-operational-export.csv'; a.click(); URL.revokeObjectURL(a.href);
   }
 
-  function renderDashboard(){ const a=computeAnalytics(STATE.filteredRows); const summary=buildExecutiveSummary(STATE.filteredRows); const hash=JSON.stringify([a.totalEvents,a.totalDuration,STATE.managementMode,summary.status]); if(hash===STATE.metricsHash) return; STATE.metricsHash=hash; renderExecutiveLayer(summary); renderKpis(a,summary.kpis); renderCharts(a); renderInsightText(a); renderTable(STATE.filteredRows); const compact=STATE.managementMode; document.querySelectorAll('[data-content="time"], [data-content="insights"], [data-content="table"]').forEach(el=>el.classList.toggle('hidden',compact)); document.getElementById('filterPanel').classList.toggle('hidden',compact); if(compact) switchTab('overview'); }
-  function applyFilters(){ STATE.filteredRows=getFilteredRows(); STATE.metricsHash=''; renderDashboard(); }
-  function resetFilters(){ ['pressFilter','modelFilter','subsystemFilter','errorStateFilter','versionFilter'].forEach(id=>document.getElementById(id).value='all'); document.getElementById('startDateFilter').value=''; document.getElementById('endDateFilter').value=''; document.getElementById('searchFilter').value=''; }
-  function commitDataset(name,raw,normalized){ STATE.datasetName=name; STATE.rawRows=raw; STATE.normalizedRows=normalized; STATE.filteredRows=normalized; STATE.metricsHash=''; populateFilter('pressFilter',[...new Set(normalized.map(r=>r.press).filter(Boolean))].sort(),'presses'); populateFilter('modelFilter',[...new Set(normalized.map(r=>r.model).filter(Boolean))].sort(),'models'); populateFilter('subsystemFilter',[...new Set(normalized.map(r=>r.subsystem).filter(Boolean))].sort(),'subsystems'); populateFilter('errorStateFilter',[...new Set(normalized.map(r=>r.errorState).filter(Boolean))].sort(),'error states'); populateFilter('versionFilter',[...new Set(normalized.map(r=>r.version).filter(Boolean))].sort(),'versions'); resetFilters(); document.getElementById('datasetMeta').textContent=`${name} • ${normalized.length.toLocaleString()} error rows loaded`; toggleScreens(true); renderDashboard(); }
+  async function runAnalysisFlow(){
+    const check = validateInputFiles(); if(!check.ok){ setStatus(check.message,'error'); return; }
+    const steps = ['Validating files…','Merging datasets…','Computing KPIs…','Building dashboard…'];
+    let i=0; const tick=()=>setStatus(steps[Math.min(i,steps.length-1)],'info'); tick();
+    try{
+      const errorsRaw = await parseErrorsFile(STATE.files.errors); i=1; tick();
+      const availabilityRaw = STATE.files.availability ? await parseAvailabilityFile(STATE.files.availability) : [];
+      const volumeRaw = STATE.files.volume ? await parsePrintVolumeFile(STATE.files.volume) : [];
+      const errors = normalizeErrorsRows(errorsRaw);
+      const availability = normalizeAvailabilityRows(availabilityRaw);
+      const volume = normalizeVolumeRows(volumeRaw);
+      const merged = mergeOperationalData(errors,availability,volume);
+      i=2; tick();
+      STATE.rows={errors:errorsRaw,availability:availabilityRaw,volume:volumeRaw};
+      STATE.normalized={events:errors,availability,volume};
+      STATE.merged=merged;
+      const mode = !availability.length && !volume.length ? 'Errors only' : availability.length && volume.length ? 'Full mode: Errors + Availability + Print Volume' : `Errors + ${availability.length?'Availability':'Print Volume'}`;
+      STATE.mode = mode;
+      i=3; tick();
 
-  async function processFileBundle(files){ clearStatus(); setStatus('Parsing file bundle...', 'info');
-    try{ if(!files.errors) throw new Error('Errors dataset is required.'); const raw=await loadRowsFromFile(files.errors); const map=validateErrorRows(raw); const normalized=normalizeErrorRows(raw,map); STATE.availabilityRows = files.availability ? await loadRowsFromFile(files.availability) : []; STATE.volumeRows = files.volume ? await loadRowsFromFile(files.volume) : []; commitDataset(files.errors.name, raw, normalized); setStatus('Operational intelligence layers loaded successfully.', 'ok'); }
-    catch(e){ setStatus(e.message || 'Failed to parse files.', 'error'); toggleScreens(false); }
+      populateFilter('customerFilter',[...new Set(merged.map(r=>r.customer))].sort(),'customers');
+      populateFilter('siteFilter',[...new Set(merged.map(r=>r.site))].sort(),'sites');
+      populateFilter('pressFilter',[...new Set(merged.map(r=>r.press))].sort(),'presses');
+      populateFilter('subsystemFilter',[...new Set(merged.map(r=>r.subsystem))].sort(),'subsystems');
+      populateFilter('versionFilter',[...new Set(merged.map(r=>r.version))].sort(),'versions');
+      document.getElementById('datasetMeta').textContent = `${STATE.files.errors.name} • ${merged.length.toLocaleString()} merged events • ${mode}`;
+      setStatus('Analysis complete. Launching dashboard…','ok');
+      document.getElementById('intakeScreen').classList.add('hidden');
+      document.getElementById('dashboardScreen').classList.remove('hidden');
+      renderDashboard();
+    } catch (e){ setStatus(e.message || 'Failed to run analysis.','error'); }
   }
 
-  function switchTab(tab){ STATE.activeTab=tab; document.querySelectorAll('[role="tab"]').forEach(btn=>btn.setAttribute('aria-selected',String(btn.dataset.tab===tab))); document.querySelectorAll('.content').forEach(c=>c.classList.toggle('active',c.dataset.content===tab)); }
+  function assignFileByDetection(file){ const n=file.name.toLowerCase(); if(/avail|uptime|state/.test(n)) STATE.files.availability=file; else if(/volume|print|impression|workload/.test(n)) STATE.files.volume=file; else STATE.files.errors=file; }
+  function clearFiles(){ STATE.files={errors:null,availability:null,volume:null}; STATE.validation={errors:false,availability:false,volume:false}; setFileUI('errors'); setFileUI('availability'); setFileUI('volume'); setStatus('Files cleared. Assign a valid Errors file to continue.','info'); }
 
-  function bindListeners(){ if(STATE.listenersBound) return; STATE.listenersBound=true;
-    document.getElementById('errorsPicker').addEventListener('change', e=>STATE.files.errors=e.target.files?.[0]||null);
-    document.getElementById('availabilityPicker').addEventListener('change', e=>STATE.files.availability=e.target.files?.[0]||null);
-    document.getElementById('volumePicker').addEventListener('change', e=>STATE.files.volume=e.target.files?.[0]||null);
-    document.getElementById('errorsInput').addEventListener('change', async (e)=>{ const picked=[...(e.target.files||[])]; picked.forEach(f=>{ const n=f.name.toLowerCase(); if(n.includes('avail')) STATE.files.availability=f; else if(n.includes('volume')||n.includes('print')) STATE.files.volume=f; else STATE.files.errors=f; }); await processFileBundle(STATE.files); });
-    document.getElementById('replaceBtn').addEventListener('click',()=>{toggleScreens(false); setStatus('Load Errors + Availability + Print Volume files.', 'info');});
-    document.getElementById('exportBtn').addEventListener('click',()=>exportRowsToCsv(STATE.filteredRows,'press-insight-filtered.csv'));
-    document.getElementById('openExecExportBtn').addEventListener('click',()=>exportExecutiveSnapshot({summary:buildExecutiveSummary(STATE.filteredRows)}));
-    document.getElementById('tabs').addEventListener('click',e=>{const btn=e.target.closest('[role="tab"]'); if(btn) switchTab(btn.dataset.tab);});
-    document.getElementById('managementModeToggle').addEventListener('change',e=>{STATE.managementMode=e.target.checked; STATE.metricsHash=''; renderDashboard();});
-    ['pressFilter','modelFilter','subsystemFilter','errorStateFilter','versionFilter','startDateFilter','endDateFilter'].forEach(id=>document.getElementById(id).addEventListener('change',applyFilters)); document.getElementById('searchFilter').addEventListener('input',applyFilters);
-    document.getElementById('dataTable').addEventListener('click',e=>{const tr=e.target.closest('tr[data-idx]'); if(!tr) return; const r=STATE.filteredRows[Number(tr.dataset.idx)]; if(!r) return; document.getElementById('drawer').classList.add('open'); document.getElementById('drawerBody').innerHTML=`<p><strong>Name:</strong> ${esc(r.name)}</p><p><strong>Press:</strong> ${esc(r.press)}</p><p><strong>Subsystem:</strong> ${esc(r.subsystem)}</p><p><strong>Alert:</strong> ${esc(r.alertTitle)}</p><p><strong>Duration:</strong> ${formatDuration(r.durationSeconds)}</p>`;});
-    document.getElementById('closeDrawer').addEventListener('click',()=>document.getElementById('drawer').classList.remove('open'));
-    document.getElementById('closeDrilldownBtn').addEventListener('click',closeDrilldown); document.getElementById('drillSearch').addEventListener('input',e=>{STATE.drilldown.search=e.target.value; renderDrilldownTable();}); document.getElementById('drillSortField').addEventListener('change',e=>{STATE.drilldown.sortField=e.target.value; renderDrilldownTable();}); document.getElementById('drillSortDir').addEventListener('click',e=>{STATE.drilldown.sortDir=STATE.drilldown.sortDir==='asc'?'desc':'asc'; e.target.textContent=STATE.drilldown.sortDir==='asc'?'Asc':'Desc'; renderDrilldownTable();});
-    document.getElementById('drillExportBtn').addEventListener('click',()=>exportRowsToCsv(STATE.drilldown.currentRows||STATE.drilldown.rows,'press-insight-drilldown.csv'));
-    document.getElementById('drillCopyBtn').addEventListener('click',async()=>{const c=STATE.drilldown.context,s=summarizeDrilldownRows(STATE.drilldown.currentRows||STATE.drilldown.rows); try{await navigator.clipboard.writeText(`${c.label}: ${c.value}
-Rows: ${(STATE.drilldown.currentRows||STATE.drilldown.rows).length}
-Total downtime: ${formatDuration(s.total)}`);}catch{}});
-    document.getElementById('closeExecModalBtn').addEventListener('click',()=>document.getElementById('execExportModal').classList.remove('open')); document.getElementById('execPrintBtn').addEventListener('click',()=>window.print()); document.getElementById('execCopyBtn').addEventListener('click',async()=>{try{await navigator.clipboard.writeText(document.getElementById('emailBrief')?.textContent||'');}catch{}}); document.getElementById('execMailBtn').addEventListener('click',()=>{const brief=document.getElementById('emailBrief')?.textContent||''; window.location.href=`mailto:?subject=${encodeURIComponent('Operational Performance Snapshot')}&body=${encodeURIComponent(brief)}`;});
-    const zone=document.getElementById('dropZone'); ['dragenter','dragover'].forEach(n=>zone.addEventListener(n,e=>{e.preventDefault(); zone.classList.add('drag');})); ['dragleave','drop'].forEach(n=>zone.addEventListener(n,e=>{e.preventDefault(); zone.classList.remove('drag');})); zone.addEventListener('drop',async e=>{ const files=[...(e.dataTransfer?.files||[])]; files.forEach(f=>{ const n=f.name.toLowerCase(); if(n.includes('avail')) STATE.files.availability=f; else if(n.includes('volume')||n.includes('print')) STATE.files.volume=f; else STATE.files.errors=f; }); await processFileBundle(STATE.files); });
+  async function validateSingleFile(key){
+    const file=STATE.files[key]; if(!file){ STATE.validation[key]=false; setFileUI(key); return; }
+    try {
+      const rows = await loadRowsFromFile(file);
+      if(key==='errors') normalizeErrorsRows(rows.slice(0,Math.min(rows.length,100)));
+      if(key==='availability') normalizeAvailabilityRows(rows.slice(0,Math.min(rows.length,100)));
+      if(key==='volume') normalizeVolumeRows(rows.slice(0,Math.min(rows.length,100)));
+      STATE.validation[key]=true;
+    } catch {
+      STATE.validation[key]=false;
+      if(key==='errors') setStatus('Errors file schema is invalid. Expected press/name/start-time compatible columns.','error');
+    }
+    setFileUI(key);
   }
 
-  function bootstrap(){ if(STATE.initialized) return; STATE.initialized=true; toggleScreens(false); setStatus('Load errors, availability, and print volume files to begin.', 'info'); bindListeners(); }
-  bootstrap();
+  function bind(){
+    ['errors','availability','volume'].forEach(key=>setFileUI(key));
+    setStatus('Assign files and run analysis. Errors file is required.','info');
+
+    errorsPicker.addEventListener('change',async e=>{ STATE.files.errors=e.target.files?.[0]||null; await validateSingleFile('errors'); });
+    availabilityPicker.addEventListener('change',async e=>{ STATE.files.availability=e.target.files?.[0]||null; await validateSingleFile('availability'); });
+    volumePicker.addEventListener('change',async e=>{ STATE.files.volume=e.target.files?.[0]||null; await validateSingleFile('volume'); });
+
+    bulkInput.addEventListener('change',async e=>{ for(const f of [...(e.target.files||[])]) assignFileByDetection(f); await validateSingleFile('errors'); await validateSingleFile('availability'); await validateSingleFile('volume'); });
+    const dropZone = document.getElementById('dropZone'); ['dragenter','dragover'].forEach(ev=>dropZone.addEventListener(ev,e=>{e.preventDefault();dropZone.classList.add('drag');})); ['dragleave','drop'].forEach(ev=>dropZone.addEventListener(ev,e=>{e.preventDefault();dropZone.classList.remove('drag');}));
+    dropZone.addEventListener('drop', async e=>{ for(const f of [...(e.dataTransfer?.files||[])]) assignFileByDetection(f); await validateSingleFile('errors'); await validateSingleFile('availability'); await validateSingleFile('volume'); });
+
+    clearBtn.addEventListener('click',clearFiles);
+    runBtn.addEventListener('click',runAnalysisFlow);
+    replaceBtn.addEventListener('click',()=>{ document.getElementById('dashboardScreen').classList.add('hidden'); document.getElementById('intakeScreen').classList.remove('hidden'); setStatus('Load new files and run analysis.','info'); });
+    exportBtn.addEventListener('click',()=>exportRowsToCsv(STATE.filtered));
+
+    document.querySelectorAll('[data-expand]').forEach(btn=>btn.addEventListener('click',()=>{ const key=btn.dataset.expand; STATE.expand[key]=!STATE.expand[key]; renderDashboard(); }));
+    document.querySelectorAll('[data-metric]').forEach(sel=>sel.addEventListener('change',e=>{ STATE.metricByChart[e.target.dataset.metric]=e.target.value; renderDashboard(); }));
+    ['customerFilter','siteFilter','pressFilter','subsystemFilter','versionFilter','startDateFilter','endDateFilter'].forEach(id=>document.getElementById(id).addEventListener('change',renderDashboard));
+    searchFilter.addEventListener('input',renderDashboard);
+  }
+
+  bind();
 })();
 </script>
 </body>
