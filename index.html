@@ -14,38 +14,91 @@
       --panel-elev: #1a2233;
       --text: #e6ebf4;
       --muted: #9eabc0;
-      --border: rgba(255,255,255,0.09);
+      --border: rgba(255,255,255,0.1);
       --focus: #77b6ff;
       --critical: #f25c54;
-      --high: #f09b4f;
-      --medium: #f2d35c;
-      --healthy: #51c285;
       --info: #7b8dff;
+      --ok: #51c285;
       --shadow: 0 8px 28px rgba(0,0,0,.32);
     }
     * { box-sizing: border-box; }
     body {
       margin: 0;
+      min-height: 100vh;
       font-family: Inter, "Segoe UI", Roboto, Arial, sans-serif;
-      background: radial-gradient(1300px 500px at 10% -10%, #1a2230 0%, transparent 55%), var(--bg);
       color: var(--text);
-      line-height: 1.45;
+      background: radial-gradient(1300px 500px at 10% -10%, #1a2230 0%, transparent 55%), var(--bg);
     }
-    .app { max-width: 1500px; margin: 0 auto; padding: 20px 20px 32px; }
+    .app { max-width: 1520px; margin: 0 auto; padding: 22px; }
+    .hidden { display: none !important; }
+
+    .intake-shell {
+      min-height: calc(100vh - 44px);
+      display: grid;
+      place-items: center;
+    }
+    .intake-card {
+      width: min(900px, 100%);
+      background: linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.01));
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      box-shadow: var(--shadow);
+      padding: 28px;
+    }
+    .eyebrow { color: var(--muted); font-size: .82rem; text-transform: uppercase; letter-spacing: .13em; }
+    h1, h2, h3 { margin: 0; }
+    .intake-title { margin-top: 8px; font-size: 1.6rem; }
+    .subtitle { margin-top: 8px; color: var(--muted); max-width: 760px; }
+    .format-badges { margin-top: 14px; display: flex; gap: 8px; flex-wrap: wrap; }
+    .format-badges span {
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 4px 10px;
+      font-size: .78rem;
+      color: #cad6eb;
+      background: rgba(255,255,255,.03);
+    }
+    .dropzone {
+      margin-top: 18px;
+      border: 1.5px dashed rgba(123,141,255,.55);
+      border-radius: 14px;
+      background: rgba(123,141,255,.06);
+      padding: 34px;
+      text-align: center;
+      transition: all .18s ease;
+      cursor: pointer;
+    }
+    .dropzone.drag { border-color: #9bb1ff; background: rgba(123,141,255,.14); }
+    .dropzone-title { font-weight: 600; }
+    .dropzone-sub { color: var(--muted); margin-top: 8px; }
+    .microcopy { color: #9fb0cc; margin-top: 10px; font-size: .86rem; }
+    .status {
+      margin-top: 14px;
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: .9rem;
+      display: none;
+    }
+    .status.show { display: block; }
+    .status.info { border: 1px solid rgba(123,141,255,.4); background: rgba(123,141,255,.12); color: #cfdaff; }
+    .status.error { border: 1px solid rgba(242,92,84,.35); background: rgba(242,92,84,.13); color: #ffc5c2; }
+    .status.ok { border: 1px solid rgba(81,194,133,.35); background: rgba(81,194,133,.13); color: #c7ffdf; }
+
     .topbar {
-      display: grid; gap: 14px; align-items: start;
+      display: grid;
       grid-template-columns: 1fr auto;
+      gap: 14px;
+      align-items: start;
       background: linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.015));
       border: 1px solid var(--border);
       border-radius: 16px;
       padding: 20px;
       box-shadow: var(--shadow);
-      margin-bottom: 16px;
+      margin-bottom: 14px;
     }
-    h1 { margin: 0; font-size: 1.35rem; letter-spacing: .2px; }
-    .subtitle { color: var(--muted); font-size: .95rem; margin-top: 6px; }
-    .controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
-    .btn, .file {
+    .dashboard-title { font-size: 1.28rem; }
+    .controls { display: flex; gap: 10px; flex-wrap: wrap; }
+    .btn, select, input {
       border: 1px solid var(--border);
       background: var(--panel-soft);
       color: var(--text);
@@ -55,370 +108,480 @@
     }
     .btn { cursor: pointer; }
     .btn:hover { background: #212a3d; }
-    .helper-text { color: var(--muted); font-size: .8rem; margin-top: 8px; }
-    .format-badges { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
-    .format-badges span {
-      border: 1px solid var(--border);
-      background: rgba(255,255,255,.03);
-      border-radius: 999px;
-      padding: 3px 8px;
-      font-size: .74rem;
-      color: #cad6eb;
-    }
-    .paste-box { display: none; margin-top: 10px; width: 100%; }
-    .paste-box.open { display: block; }
-    #pasteInput { width: 100%; min-height: 110px; resize: vertical; }
-    .error-msg {
-      margin-top: 8px;
-      background: rgba(242,92,84,.12);
-      border: 1px solid rgba(242,92,84,.35);
-      color: #ffc4c0;
-      border-radius: 8px;
-      padding: 8px 10px;
-      font-size: .83rem;
-      display: none;
-    }
-    .btn:focus-visible, select:focus-visible, input:focus-visible, [role="tab"]:focus-visible {
+    .btn:focus-visible, input:focus-visible, select:focus-visible, [role="tab"]:focus-visible {
       outline: 2px solid var(--focus);
       outline-offset: 2px;
     }
-    .banner {
-      display: grid; grid-template-columns: 1fr 1fr 1fr;
-      gap: 12px; margin-bottom: 16px;
-    }
-    .signal {
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 14px;
-      min-height: 86px;
-    }
-    .signal .label { font-size: .74rem; text-transform: uppercase; letter-spacing: .11em; color: var(--muted); }
-    .signal .value { font-size: 1.05rem; margin-top: 6px; font-weight: 620; }
-    .signal .hint { font-size: .83rem; color: var(--muted); margin-top: 4px; }
-    .tabs {
-      display: flex; gap: 8px; margin: 14px 0;
-    }
+    .filters { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+    .kpis { display: grid; grid-template-columns: repeat(4, minmax(140px, 1fr)); gap: 10px; margin-bottom: 14px; }
+    .kpi { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 12px; }
+    .k { color: var(--muted); font-size: .74rem; letter-spacing: .08em; text-transform: uppercase; }
+    .v { font-size: 1.2rem; margin-top: 6px; font-weight: 640; }
+    .d { color: var(--muted); font-size: .82rem; margin-top: 4px; }
+    .tabs { display: flex; gap: 8px; margin: 14px 0; }
     [role="tab"] {
-      padding: 8px 12px; border-radius: 10px;
-      border: 1px solid var(--border); background: transparent; color: var(--muted); cursor: pointer;
+      padding: 8px 12px;
+      border-radius: 10px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
     }
     [role="tab"][aria-selected="true"] { background: #1a2540; color: #dfe8ff; border-color: rgba(123,141,255,.5); }
-    .kpis { display: grid; grid-template-columns: repeat(5, minmax(140px, 1fr)); gap: 10px; margin-bottom: 14px; }
-    .kpi {
-      background: linear-gradient(180deg, rgba(255,255,255,.02), rgba(255,255,255,.01));
-      border: 1px solid var(--border); border-radius: 12px; padding: 12px;
-    }
-    .kpi .k { font-size: .75rem; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
-    .kpi .v { font-size: 1.25rem; font-weight: 650; margin-top: 6px; }
-    .kpi .d { color: var(--muted); font-size: .82rem; margin-top: 4px; }
     .content { display: none; }
     .content.active { display: block; }
-    .grid { display: grid; gap: 12px; grid-template-columns: repeat(12, minmax(0, 1fr)); }
-    .card {
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      padding: 12px;
-      min-height: 120px;
-    }
+    .grid { display: grid; gap: 12px; grid-template-columns: repeat(12, minmax(0,1fr)); }
+    .card { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 12px; }
     .span-4 { grid-column: span 4; }
     .span-6 { grid-column: span 6; }
     .span-8 { grid-column: span 8; }
     .span-12 { grid-column: span 12; }
-    .card h3 { margin: 2px 0 2px; font-size: 1rem; font-weight: 590; }
     .micro { color: var(--muted); font-size: .82rem; margin-bottom: 8px; }
-    .chart-area { position: relative; width: 100%; min-height: 260px; height: 260px; }
-    .chart-area.wide { min-height: 320px; height: 320px; }
-    .chart-area.matrix { min-height: 360px; height: 360px; }
-    canvas { display: block; width: 100% !important; height: 100% !important; }
-    .filters { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 12px; }
-    select, input { background: var(--panel-soft); color: var(--text); border: 1px solid var(--border); border-radius: 9px; padding: 7px 10px; }
-    .heatmap { display: grid; grid-template-columns: repeat(7, minmax(0,1fr)); gap: 6px; }
-    .cell { border-radius: 7px; padding: 8px; text-align: center; font-size: .8rem; background: #1a2130; }
-    .table-wrap { max-height: 420px; overflow: auto; border: 1px solid var(--border); border-radius: 10px; }
-    table { width: 100%; border-collapse: collapse; font-size: .88rem; }
-    th, td { padding: 8px 10px; border-bottom: 1px solid rgba(255,255,255,.06); text-align: left; white-space: nowrap; }
-    th { position: sticky; top: 0; background: #151c2c; }
+    .chart-area { position: relative; min-height: 280px; height: 280px; }
+    .chart-area.wide { min-height: 340px; height: 340px; }
+    canvas { width: 100% !important; height: 100% !important; }
+    .table-wrap { max-height: 470px; overflow: auto; border: 1px solid var(--border); border-radius: 10px; }
+    table { width: 100%; border-collapse: collapse; font-size: .86rem; }
+    th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid rgba(255,255,255,.06); }
+    th { position: sticky; top: 0; background: #151c2c; z-index: 2; }
+    tr.row { cursor: pointer; }
+    tr.row:hover { background: rgba(255,255,255,.03); }
+
     .drawer {
-      position: fixed; right: -420px; top: 0; width: 400px; height: 100vh;
-      background: #111722; border-left: 1px solid var(--border); transition: right .24s ease;
-      padding: 16px; z-index: 20; box-shadow: -12px 0 28px rgba(0,0,0,.38);
+      position: fixed;
+      right: -450px;
+      top: 0;
+      width: 420px;
+      height: 100vh;
+      overflow: auto;
+      background: #111722;
+      border-left: 1px solid var(--border);
+      transition: right .2s ease;
+      padding: 16px;
+      z-index: 20;
+      box-shadow: -12px 0 28px rgba(0,0,0,.38);
     }
     .drawer.open { right: 0; }
-    .chip { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: .74rem; }
-    .danger { background: rgba(242,92,84,.18); color: #ffb0ab; }
-    .warn { background: rgba(240,155,79,.2); color: #ffd4ad; }
-    .ok { background: rgba(81,194,133,.2); color: #b7ffd8; }
+
     @media (max-width: 1100px) {
-      .kpis, .banner { grid-template-columns: 1fr 1fr; }
+      .kpis { grid-template-columns: 1fr 1fr; }
       .span-4, .span-6, .span-8 { grid-column: span 12; }
+      .topbar { grid-template-columns: 1fr; }
     }
   </style>
 </head>
 <body>
 <div class="app" id="appRoot">
-  <header class="topbar">
-    <div>
-      <h1>Press Insight Intelligence Platform</h1>
-      <div class="subtitle">Executive operational intelligence for downtime, risk concentration, and reliability signals.</div>
-      <div class="helper-text">Upload or Paste Data</div>
-      <div class="format-badges"><span>CSV</span><span>Excel (.xlsx/.xls)</span><span>JSON</span><span>Pasted table</span></div>
-    </div>
-    <div class="controls">
-      <label class="file">Upload file <input id="fileInput" type="file" accept=".csv,.xlsx,.xls,.json" /></label>
-      <button class="btn" id="togglePasteBtn">Paste Data</button>
-      <button class="btn" id="resetBtn">Replace File</button>
-      <button class="btn" id="exportBtn">Export Filtered CSV</button>
-    </div>
-    <div class="paste-box" id="pasteBox">
-      <textarea id="pasteInput" placeholder="Paste CSV/TSV/semicolon-delimited data with headers in the first row..."></textarea>
-      <div style="display:flex;gap:8px;margin-top:8px;">
-        <button class="btn" id="loadPasteBtn">Load Pasted Data</button>
-      </div>
-      <div class="helper-text">Delimiter is auto-detected (tab, comma, semicolon).</div>
-    </div>
-    <div class="error-msg" id="errorMsg" role="alert" aria-live="polite"></div>
-  </header>
-
-  <section class="filters" id="filterPanel">
-    <select id="plantFilter"><option value="all">All plants</option></select>
-    <select id="severityFilter"><option value="all">All severities</option></select>
-    <select id="lineFilter"><option value="all">All lines</option></select>
-    <input id="searchFilter" placeholder="Search issue/equipment" />
+  <section id="intakeScreen" class="intake-shell">
+    <article class="intake-card">
+      <div class="eyebrow">Press Intelligence</div>
+      <h1 class="intake-title">Operational Error-Event Intelligence</h1>
+      <p class="subtitle">Upload your event file to validate, normalize, and analyze error behavior across presses, models, subsystems, states, and versions.</p>
+      <div class="format-badges"><span>CSV</span><span>Excel (.xlsx / .xls)</span><span>JSON (array of objects)</span></div>
+      <label class="dropzone" id="dropZone" for="fileInput">
+        <div class="dropzone-title">Drop file here or click to browse</div>
+        <div class="dropzone-sub">Required schema validation runs before the dashboard opens.</div>
+        <div class="microcopy">Your file is analyzed locally in-browser. No server upload required.</div>
+      </label>
+      <input id="fileInput" type="file" accept=".csv,.xlsx,.xls,.json" class="hidden" />
+      <div id="intakeStatus" class="status" role="alert" aria-live="polite"></div>
+    </article>
   </section>
 
-  <section class="banner" id="situationBanner"></section>
-  <section class="kpis" id="kpiStrip"></section>
-
-  <nav class="tabs" id="tabs" role="tablist" aria-label="Dashboard tabs">
-    <button role="tab" aria-selected="true" data-tab="overview">Overview</button>
-    <button role="tab" aria-selected="false" data-tab="insights">Insights</button>
-    <button role="tab" aria-selected="false" data-tab="heatmap">Heatmap</button>
-    <button role="tab" aria-selected="false" data-tab="table">Table Explorer</button>
-  </nav>
-
-  <main>
-    <section class="content active" data-content="overview">
-      <div class="grid">
-        <article class="card span-6">
-          <h3>Downtime by Severity</h3>
-          <div class="micro">Fast risk posture check across critical/high/medium/healthy events.</div>
-          <div class="chart-area" id="severityWrap"><canvas id="severityChart"></canvas></div>
-        </article>
-        <article class="card span-6">
-          <h3>Top Downtime Drivers</h3>
-          <div class="micro">Largest contributors to lost minutes. Use to prioritize root-cause actions.</div>
-          <div class="chart-area" id="driversWrap"><canvas id="driversChart"></canvas></div>
-        </article>
-        <article class="card span-12">
-          <h3>Pareto Concentration</h3>
-          <div class="micro">Concentration curve shows how much downtime is concentrated in the top causes.</div>
-          <div class="chart-area wide" id="paretoWrap"><canvas id="paretoChart"></canvas></div>
-        </article>
+  <section id="dashboardScreen" class="hidden">
+    <header class="topbar">
+      <div>
+        <h2 class="dashboard-title">Press Insight Intelligence Platform</h2>
+        <div class="subtitle" id="datasetMeta">Dataset not loaded.</div>
       </div>
-    </section>
-
-    <section class="content" data-content="insights">
-      <div class="grid">
-        <article class="card span-8">
-          <h3>Line Risk Scatter</h3>
-          <div class="micro">Bubble size reflects event count; farther top-right means higher risk and downtime.</div>
-          <div class="chart-area matrix"><canvas id="scatterChart"></canvas></div>
-        </article>
-        <article class="card span-4">
-          <h3>AI-style Operational Brief</h3>
-          <div class="micro">Concise signal summary from current filters.</div>
-          <div id="insightText"></div>
-        </article>
+      <div class="controls">
+        <button class="btn" id="replaceBtn">Replace dataset</button>
+        <button class="btn" id="exportBtn">Export filtered CSV</button>
       </div>
+    </header>
+
+    <section class="kpis" id="kpiStrip"></section>
+
+    <section class="filters" id="filterPanel">
+      <select id="pressFilter"><option value="all">All presses</option></select>
+      <select id="modelFilter"><option value="all">All models</option></select>
+      <select id="subsystemFilter"><option value="all">All subsystems</option></select>
+      <select id="errorStateFilter"><option value="all">All error states</option></select>
+      <select id="versionFilter"><option value="all">All versions</option></select>
+      <input id="startDateFilter" type="date" />
+      <input id="endDateFilter" type="date" />
+      <input id="searchFilter" placeholder="Search name, alert text, press, subsystem, version" />
     </section>
 
-    <section class="content" data-content="heatmap">
-      <article class="card">
-        <h3>Day × Hour Downtime Heatmap</h3>
-        <div class="micro">Identifies timing clusters for staffing and maintenance planning.</div>
-        <div class="heatmap" id="heatmapGrid"></div>
-      </article>
-    </section>
+    <nav class="tabs" id="tabs" role="tablist" aria-label="Dashboard tabs">
+      <button role="tab" aria-selected="true" data-tab="overview">Overview</button>
+      <button role="tab" aria-selected="false" data-tab="time">Time Analysis</button>
+      <button role="tab" aria-selected="false" data-tab="insights">Operational Insight</button>
+      <button role="tab" aria-selected="false" data-tab="table">Event Explorer</button>
+    </nav>
 
-    <section class="content" data-content="table">
-      <article class="card">
-        <h3>Event Explorer</h3>
-        <div class="micro">Click a row for drilldown details.</div>
-        <div class="table-wrap"><table id="dataTable"></table></div>
-      </article>
-    </section>
-  </main>
+    <main>
+      <section class="content active" data-content="overview">
+        <div class="grid">
+          <article class="card span-6">
+            <h3>Top Error Names</h3>
+            <div class="micro">Most frequent Name values across filtered events.</div>
+            <div class="chart-area"><canvas id="nameChart"></canvas></div>
+          </article>
+          <article class="card span-6">
+            <h3>Top Alert Titles</h3>
+            <div class="micro">Leading alert titles by event volume.</div>
+            <div class="chart-area"><canvas id="alertChart"></canvas></div>
+          </article>
+          <article class="card span-4">
+            <h3>Top Subsystems</h3>
+            <div class="chart-area"><canvas id="subsystemChart"></canvas></div>
+          </article>
+          <article class="card span-4">
+            <h3>Top Presses</h3>
+            <div class="chart-area"><canvas id="pressChart"></canvas></div>
+          </article>
+          <article class="card span-4">
+            <h3>Top Versions</h3>
+            <div class="chart-area"><canvas id="versionChart"></canvas></div>
+          </article>
+        </div>
+      </section>
+
+      <section class="content" data-content="time">
+        <div class="grid">
+          <article class="card span-12">
+            <h3>Events and Downtime Over Time (Daily)</h3>
+            <div class="micro">Daily aggregation by Start Time.</div>
+            <div class="chart-area wide"><canvas id="timeChart"></canvas></div>
+          </article>
+        </div>
+      </section>
+
+      <section class="content" data-content="insights">
+        <div class="grid">
+          <article class="card span-8">
+            <h3>Downtime by Alert Title (Top 12)</h3>
+            <div class="micro">Used to prioritize high-impact alert patterns.</div>
+            <div class="chart-area"><canvas id="downtimeAlertChart"></canvas></div>
+          </article>
+          <article class="card span-4">
+            <h3>Operational Brief</h3>
+            <div class="micro">Pareto and state-pattern summary based on filters.</div>
+            <div id="insightText"></div>
+          </article>
+          <article class="card span-12">
+            <h3>Pre-Error State Patterns</h3>
+            <div class="chart-area"><canvas id="stateChart"></canvas></div>
+          </article>
+        </div>
+      </section>
+
+      <section class="content" data-content="table">
+        <article class="card">
+          <h3>Event Table</h3>
+          <div class="micro">Search and filterable view of original records. Click a row for details.</div>
+          <div class="table-wrap"><table id="dataTable"></table></div>
+        </article>
+      </section>
+    </main>
+  </section>
 </div>
 
 <aside class="drawer" id="drawer" aria-hidden="true">
-  <h3>Event Drilldown</h3>
+  <h3>Event Detail</h3>
   <div id="drawerBody"></div>
   <button class="btn" id="closeDrawer">Close</button>
 </aside>
 
 <script>
 (() => {
+  const REQUIRED_COLUMNS = [
+    'Press','Model','Name','Alert Message Title','Alert Message Body','Alert Message Solution',
+    'Start Time','Duration','Recovery','Pre Error State','Subsystem','Error State','Version'
+  ];
+
   const STATE = {
-    raw: [], filtered: [], activeTab: 'overview', initialized: false, listenersBound: false,
-    metricsHash: '', tableInit: false
+    rawRows: [],
+    normalizedRows: [],
+    filteredRows: [],
+    activeTab: 'overview',
+    initialized: false,
+    listenersBound: false,
+    datasetName: '',
+    metricsHash: ''
   };
 
-  const CHART_THEME = {
-    font: { family: 'Inter, Segoe UI, sans-serif', size: 12 },
-    grid: { color: 'rgba(255,255,255,0.08)', drawBorder: false },
-    ticks: { color: '#bdc9df', padding: 6 },
-    tooltip: {
-      backgroundColor: '#101625', borderColor: 'rgba(255,255,255,0.12)', borderWidth: 1,
-      titleColor: '#e9efff', bodyColor: '#c4d0e8', padding: 10, displayColors: true
-    },
-    palette: {
-      critical: '#f25c54', high: '#f09b4f', medium: '#f2d35c', healthy: '#51c285', info: '#7b8dff', neutral: '#8f9bb1'
-    }
-  };
+  const CHARTS = new Map();
+  const CHART_COLORS = ['#7b8dff','#f09b4f','#51c285','#f25c54','#65c3ff','#a29bfe','#f2d35c','#6dd3ce','#ee84ff','#8f9bb1','#ffa76b','#9fd356'];
 
-  const CHARTS = (() => {
-    const map = new Map();
-    function getOrCreateChart(id, configFactory) {
-      const existing = map.get(id);
-      if (existing) return existing;
-      const canvas = document.getElementById(id);
-      if (!canvas) return null;
-      const chart = new Chart(canvas.getContext('2d'), configFactory());
-      map.set(id, chart);
-      return chart;
-    }
-    function updateChartData(id, nextData, nextOptions) {
-      const chart = map.get(id);
-      if (!chart) return;
-      chart.data = nextData;
-      if (nextOptions) chart.options = { ...chart.options, ...nextOptions };
-      chart.update('none');
-    }
-    function replaceChart(id, configFactory) {
-      if (map.has(id)) { map.get(id).destroy(); map.delete(id); }
-      return getOrCreateChart(id, configFactory);
-    }
-    function destroyAllCharts() {
-      map.forEach(c => c.destroy());
-      map.clear();
-    }
-    return { getOrCreateChart, updateChartData, replaceChart, destroyAllCharts };
-  })();
-
-  function parseDelimitedText(text, delimiter = ',') {
-    const trimmed = (text || '').trim();
-    if (!trimmed) return [];
-    const rows = trimmed.split(/\r?\n/).filter(Boolean);
-    if (rows.length < 2) return [];
-    const headers = rows[0].split(delimiter).map(h => h.trim()).filter(Boolean);
-    if (!headers.length) return [];
-    return rows.slice(1).map(line => {
-      const cells = line.split(delimiter);
-      const row = {};
-      headers.forEach((h, i) => row[h] = (cells[i] || '').trim());
-      return row;
-    }).filter(r => Object.values(r).some(v => v !== ''));
+  function setStatus(message, kind = 'info') {
+    const status = document.getElementById('intakeStatus');
+    status.className = `status show ${kind}`;
+    status.textContent = message;
   }
 
-  function parseCSV(text) {
-    return parseDelimitedText(text, ',');
+  function clearStatus() {
+    const status = document.getElementById('intakeStatus');
+    status.className = 'status';
+    status.textContent = '';
+  }
+
+  function toggleScreens(showDashboard) {
+    document.getElementById('intakeScreen').classList.toggle('hidden', showDashboard);
+    document.getElementById('dashboardScreen').classList.toggle('hidden', !showDashboard);
+  }
+
+  function canonicalHeader(value) {
+    return String(value ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
+  }
+
+  function normalizeRowKeys(row) {
+    const out = {};
+    Object.entries(row || {}).forEach(([k, v]) => out[String(k).trim()] = v);
+    return out;
   }
 
   function detectDelimiter(text) {
-    const firstLine = (text || '').trim().split(/\r?\n/)[0] || '';
-    const candidates = ['\t', ',', ';'];
-    const scored = candidates.map(d => ({ d, count: firstLine.split(d).length }));
-    return scored.sort((a, b) => b.count - a.count)[0].d;
-  }
-
-  async function normalizeRows(rows) {
-    const normalized = [];
-    for (let i = 0; i < rows.length; i++) {
-      const row = rows[i] || {};
-      normalized.push({
-        ...row,
-        minutes: Number(row.minutes || row.downtime_minutes || 0),
-        severity: String(row.severity || 'medium').toLowerCase(),
-        plant: row.plant || 'Plant A',
-        line: row.line || 'Line 1',
-        cause: row.cause || row.issue || 'Unspecified',
-        ts: new Date(row.timestamp || row.ts || Date.now())
-      });
-      if (i % 2000 === 0) await new Promise(resolve => setTimeout(resolve, 0));
+    const candidates = [',', ';', '\t'];
+    const lines = [];
+    let current = '';
+    let inQuotes = false;
+    for (let i = 0; i < text.length && lines.length < 8; i++) {
+      const ch = text[i];
+      if (ch === '"') {
+        if (inQuotes && text[i + 1] === '"') { current += '"'; i++; }
+        else inQuotes = !inQuotes;
+      } else if (!inQuotes && (ch === '\n' || ch === '\r')) {
+        if (current.trim()) lines.push(current);
+        current = '';
+        if (ch === '\r' && text[i + 1] === '\n') i++;
+      } else current += ch;
     }
-    return normalized;
+    if (current.trim()) lines.push(current);
+
+    const score = (d) => lines.reduce((acc, line) => acc + (line.split(d).length - 1), 0);
+    return candidates.map(d => ({ d, s: score(d) })).sort((a, b) => b.s - a.s)[0].d;
   }
 
-  function normalizeJsonKeys(row = {}) {
-    const normalized = {};
-    Object.entries(row).forEach(([k, v]) => {
-      normalized[k.trim().toLowerCase().replace(/\s+/g, '_')] = v;
+  function parseCSV(text) {
+    const src = String(text || '').replace(/^\uFEFF/, '');
+    const delimiter = detectDelimiter(src);
+    const rows = [];
+    let row = [];
+    let field = '';
+    let inQuotes = false;
+
+    for (let i = 0; i < src.length; i++) {
+      const ch = src[i];
+      if (inQuotes) {
+        if (ch === '"') {
+          if (src[i + 1] === '"') { field += '"'; i++; }
+          else inQuotes = false;
+        } else field += ch;
+      } else if (ch === '"') {
+        inQuotes = true;
+      } else if (ch === delimiter) {
+        row.push(field);
+        field = '';
+      } else if (ch === '\n' || ch === '\r') {
+        row.push(field);
+        field = '';
+        if (row.some(v => String(v).trim() !== '')) rows.push(row);
+        row = [];
+        if (ch === '\r' && src[i + 1] === '\n') i++;
+      } else {
+        field += ch;
+      }
+    }
+    if (field.length || row.length) {
+      row.push(field);
+      if (row.some(v => String(v).trim() !== '')) rows.push(row);
+    }
+    if (inQuotes) throw new Error('CSV parse failed: unmatched quote in file.');
+    if (!rows.length) return [];
+
+    const headers = rows[0].map(h => String(h).trim());
+    return rows.slice(1).map((cells) => {
+      const obj = {};
+      headers.forEach((h, idx) => { obj[h] = cells[idx] ?? ''; });
+      return obj;
     });
-    return normalized;
   }
 
-  function showError(message) {
-    const el = document.getElementById('errorMsg');
-    el.textContent = message;
-    el.style.display = 'block';
+  function excelSerialToDate(serial) {
+    if (typeof serial !== 'number' || !Number.isFinite(serial)) return null;
+    const utcDays = Math.floor(serial - 25569);
+    const utcValue = utcDays * 86400;
+    const fraction = serial - Math.floor(serial);
+    return new Date((utcValue + Math.round(fraction * 86400)) * 1000);
   }
 
-  function clearError() {
-    const el = document.getElementById('errorMsg');
-    el.textContent = '';
-    el.style.display = 'none';
-  }
-
-  async function parseExcelFile(file) {
+  async function parseExcel(file) {
     const buffer = await file.arrayBuffer();
-    const workbook = XLSX.read(buffer, { type: 'array' });
+    const workbook = XLSX.read(buffer, { type: 'array', cellDates: true, raw: true });
     const sheetName = workbook.SheetNames[0];
-    if (!sheetName) return [];
+    if (!sheetName) throw new Error('Excel parse failed: no sheet found.');
     const sheet = workbook.Sheets[sheetName];
-    return XLSX.utils.sheet_to_json(sheet, { defval: '' });
-  }
-
-  function parseJsonText(text) {
-    const parsed = JSON.parse(text);
-    if (!Array.isArray(parsed)) {
-      throw new Error('JSON must be an array of objects.');
-    }
-    if (!parsed.every(item => item && typeof item === 'object' && !Array.isArray(item))) {
-      throw new Error('JSON array must contain objects only.');
-    }
-    return parsed.map(normalizeJsonKeys);
-  }
-
-  function metrics(rows) {
-    const sum = rows.reduce((a, b) => a + b.minutes, 0);
-    const sev = { critical:0, high:0, medium:0, low:0 };
-    const byCause = {};
-    const byLine = {};
-    rows.forEach(r => {
-      sev[r.severity] = (sev[r.severity] || 0) + r.minutes;
-      byCause[r.cause] = (byCause[r.cause] || 0) + r.minutes;
-      byLine[r.line] = (byLine[r.line] || 0) + r.minutes;
+    const rows = XLSX.utils.sheet_to_json(sheet, { defval: '', raw: true, blankrows: false });
+    return rows.map((row) => {
+      const out = {};
+      Object.entries(row).forEach(([k, v]) => {
+        if (typeof v === 'number' && /time|date/i.test(k)) {
+          const asDate = excelSerialToDate(v);
+          out[k] = asDate || v;
+        } else out[k] = v;
+      });
+      return out;
     });
-    const topCause = Object.entries(byCause).sort((a,b)=>b[1]-a[1])[0] || ['N/A',0];
-    const topLine = Object.entries(byLine).sort((a,b)=>b[1]-a[1])[0] || ['N/A',0];
-    const criticalPct = sum ? (100 * (sev.critical || 0) / sum) : 0;
-    return { sum, sev, byCause, byLine, topCause, topLine, criticalPct, count: rows.length };
   }
 
-  function hashMetrics(m) {
-    return JSON.stringify([m.sum, m.count, m.topCause[0], m.topCause[1], m.topLine[0], m.criticalPct.toFixed(1)]);
+  function parseJSON(text) {
+    const data = JSON.parse(text);
+    if (!Array.isArray(data)) throw new Error('JSON must be an array of objects.');
+    return data.map(item => normalizeRowKeys(item));
   }
 
-  function safeLabel(label, len=20) {
-    return label.length > len ? `${label.slice(0, len-1)}…` : label;
+  async function loadRowsFromFile(file) {
+    const ext = file.name.toLowerCase().split('.').pop();
+    if (ext === 'csv') return parseCSV(await file.text());
+    if (ext === 'xlsx' || ext === 'xls') return parseExcel(file);
+    if (ext === 'json') return parseJSON(await file.text());
+    throw new Error('Unsupported file type. Use .csv, .xlsx, .xls, or .json.');
   }
 
-  function baseScales(xTitle, yTitle) {
+  function validateRows(rows) {
+    if (!rows.length) throw new Error('File appears empty.');
+    const headerMap = new Map();
+    Object.keys(rows[0]).forEach((h) => headerMap.set(canonicalHeader(h), h));
+    const missing = REQUIRED_COLUMNS.filter((required) => !headerMap.has(canonicalHeader(required)));
+    if (missing.length) throw new Error(`Missing required columns: ${missing.join(', ')}`);
+    return headerMap;
+  }
+
+  function parseDateSafe(value) {
+    if (!value && value !== 0) return null;
+    if (value instanceof Date && !Number.isNaN(value.getTime())) return value;
+    if (typeof value === 'number') {
+      const excelDate = excelSerialToDate(value);
+      if (excelDate && !Number.isNaN(excelDate.getTime())) return excelDate;
+    }
+    const d = new Date(String(value).trim());
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+
+  function parseDurationSeconds(value) {
+    const raw = String(value ?? '').trim();
+    if (!raw) return 0;
+    if (/^\d+(\.\d+)?$/.test(raw)) return Number(raw);
+    const match = raw.match(/^(?:(\d+)\.)?(\d{1,2}):(\d{2}):(\d{2})(?:\.(\d+))?$/);
+    if (!match) return 0;
+    const days = Number(match[1] || 0);
+    const hours = Number(match[2] || 0);
+    const minutes = Number(match[3] || 0);
+    const seconds = Number(match[4] || 0);
+    const frac = Number(`0.${match[5] || 0}`);
+    return (days * 86400) + (hours * 3600) + (minutes * 60) + seconds + frac;
+  }
+
+  function normalizeRows(rows, headerMap) {
+    return rows.map((rawRow, idx) => {
+      const get = (name) => rawRow[headerMap.get(canonicalHeader(name))] ?? '';
+      const startTime = parseDateSafe(get('Start Time'));
+      const recoveryTime = parseDateSafe(get('Recovery'));
+      const durationRaw = String(get('Duration') ?? '').trim();
+      const durationSeconds = parseDurationSeconds(durationRaw);
+
+      return {
+        id: idx,
+        press: String(get('Press')).trim(),
+        model: String(get('Model')).trim(),
+        name: String(get('Name')).trim(),
+        alertTitle: String(get('Alert Message Title')).trim(),
+        alertBody: String(get('Alert Message Body')).trim(),
+        alertSolution: String(get('Alert Message Solution')).trim(),
+        startTime,
+        recoveryTime,
+        durationRaw,
+        durationSeconds,
+        preErrorState: String(get('Pre Error State')).trim(),
+        subsystem: String(get('Subsystem')).trim(),
+        errorState: String(get('Error State')).trim(),
+        version: String(get('Version')).trim(),
+        raw: normalizeRowKeys(rawRow)
+      };
+    });
+  }
+
+  function formatDuration(seconds) {
+    if (!Number.isFinite(seconds) || seconds <= 0) return '0s';
+    const s = Math.round(seconds);
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    const sec = s % 60;
+    if (h) return `${h}h ${m}m ${sec}s`;
+    if (m) return `${m}m ${sec}s`;
+    return `${sec}s`;
+  }
+
+  function topN(rows, key, n = 10) {
+    const map = {};
+    rows.forEach(r => {
+      const k = String(r[key] || 'Unspecified').trim() || 'Unspecified';
+      map[k] = (map[k] || 0) + 1;
+    });
+    return Object.entries(map).sort((a, b) => b[1] - a[1]).slice(0, n);
+  }
+
+  function topDowntimeBy(rows, key, n = 10) {
+    const map = {};
+    rows.forEach(r => {
+      const k = String(r[key] || 'Unspecified').trim() || 'Unspecified';
+      map[k] = (map[k] || 0) + (r.durationSeconds || 0);
+    });
+    return Object.entries(map).sort((a, b) => b[1] - a[1]).slice(0, n);
+  }
+
+  function median(values) {
+    const arr = values.filter(v => Number.isFinite(v) && v > 0).sort((a, b) => a - b);
+    if (!arr.length) return 0;
+    const mid = Math.floor(arr.length / 2);
+    return arr.length % 2 ? arr[mid] : (arr[mid - 1] + arr[mid]) / 2;
+  }
+
+  function computeAnalytics(rows) {
+    const dates = rows.map(r => r.startTime).filter(Boolean).sort((a, b) => a - b);
+    const durations = rows.map(r => r.durationSeconds || 0);
+    const totalDuration = durations.reduce((a, b) => a + b, 0);
+    const daily = {};
+    rows.forEach((r) => {
+      if (!r.startTime) return;
+      const key = r.startTime.toISOString().slice(0, 10);
+      daily[key] = daily[key] || { events: 0, downtime: 0 };
+      daily[key].events += 1;
+      daily[key].downtime += r.durationSeconds || 0;
+    });
+
     return {
-      x: { grid: CHART_THEME.grid, ticks: CHART_THEME.ticks, title: { display: true, text: xTitle, color: '#9fb0cc' } },
-      y: { grid: CHART_THEME.grid, ticks: CHART_THEME.ticks, title: { display: true, text: yTitle, color: '#9fb0cc' }, beginAtZero: true }
+      totalEvents: rows.length,
+      uniquePresses: new Set(rows.map(r => r.press).filter(Boolean)).size,
+      uniqueModels: new Set(rows.map(r => r.model).filter(Boolean)).size,
+      uniqueSubsystems: new Set(rows.map(r => r.subsystem).filter(Boolean)).size,
+      totalDuration,
+      avgDuration: rows.length ? totalDuration / rows.length : 0,
+      medianDuration: median(durations),
+      minDate: dates[0] || null,
+      maxDate: dates[dates.length - 1] || null,
+      topNames: topN(rows, 'name', 10),
+      topAlerts: topN(rows, 'alertTitle', 10),
+      topSubsystems: topN(rows, 'subsystem', 10),
+      topPresses: topN(rows, 'press', 10),
+      topModels: topN(rows, 'model', 10),
+      topErrorStates: topN(rows, 'errorState', 10),
+      topPreStates: topN(rows, 'preErrorState', 10),
+      topVersions: topN(rows, 'version', 10),
+      topDowntimeAlerts: topDowntimeBy(rows, 'alertTitle', 12),
+      daily
     };
   }
 
@@ -426,147 +589,195 @@
     return {
       responsive: true,
       maintainAspectRatio: false,
-      resizeDelay: 120,
       animation: false,
       plugins: {
-        legend: { labels: { color: '#c7d4ec', font: CHART_THEME.font } },
-        tooltip: CHART_THEME.tooltip
+        legend: { labels: { color: '#c7d4ec' } },
+        tooltip: {
+          backgroundColor: '#101625',
+          borderColor: 'rgba(255,255,255,.12)',
+          borderWidth: 1,
+          titleColor: '#e9efff',
+          bodyColor: '#c4d0e8'
+        }
+      },
+      scales: {
+        x: { ticks: { color: '#bdc9df' }, grid: { color: 'rgba(255,255,255,.08)' } },
+        y: { ticks: { color: '#bdc9df' }, grid: { color: 'rgba(255,255,255,.08)' }, beginAtZero: true }
       }
     };
   }
 
-  function renderKpis(m) {
+  function replaceChart(id, config) {
+    if (CHARTS.has(id)) {
+      CHARTS.get(id).destroy();
+      CHARTS.delete(id);
+    }
+    const ctx = document.getElementById(id)?.getContext('2d');
+    if (!ctx) return;
+    CHARTS.set(id, new Chart(ctx, config));
+  }
+
+  function renderKpis(a) {
     const strip = document.getElementById('kpiStrip');
     strip.innerHTML = '';
-    const items = [
-      ['Total Downtime', `${Math.round(m.sum)} min`, 'Current filtered scope'],
-      ['Event Count', m.count, 'Logged events'],
-      ['Critical Share', `${m.criticalPct.toFixed(1)}%`, 'High urgency workload'],
-      ['Top Driver', safeLabel(m.topCause[0], 18), `${Math.round(m.topCause[1])} min`],
-      ['Highest Risk Line', m.topLine[0], `${Math.round(m.topLine[1])} min`]
+    const cards = [
+      ['Total events', a.totalEvents, 'Filtered events in scope'],
+      ['Unique presses', a.uniquePresses, 'Distinct press assets'],
+      ['Unique models', a.uniqueModels, 'Distinct model values'],
+      ['Unique subsystems', a.uniqueSubsystems, 'Distinct subsystem values'],
+      ['Total downtime', formatDuration(a.totalDuration), 'From parsed Duration'],
+      ['Average duration', formatDuration(a.avgDuration), 'Mean event duration'],
+      ['Median duration', formatDuration(a.medianDuration), 'Middle event duration'],
+      ['Time range', a.minDate && a.maxDate ? `${a.minDate.toISOString().slice(0,10)} → ${a.maxDate.toISOString().slice(0,10)}` : 'N/A', 'Coverage by Start Time']
     ];
-    items.forEach(([k,v,d]) => {
-      const card = document.createElement('div');
-      card.className = 'kpi';
-      card.innerHTML = `<div class="k">${k}</div><div class="v">${v}</div><div class="d">${d}</div>`;
-      strip.appendChild(card);
+    cards.forEach(([k, v, d]) => {
+      const el = document.createElement('article');
+      el.className = 'kpi';
+      el.innerHTML = `<div class="k">${k}</div><div class="v">${v}</div><div class="d">${d}</div>`;
+      strip.appendChild(el);
     });
   }
 
-  function renderSituation(m) {
-    const n = document.getElementById('situationBanner');
-    const entries = Object.entries(m.byCause).sort((a,b)=>b[1]-a[1]);
-    const top3 = entries.slice(0,3).reduce((a,b)=>a+b[1],0);
-    const pareto = m.sum ? (100 * top3 / m.sum) : 0;
-    n.innerHTML = `
-      <article class="signal"><div class="label">Strongest risk signal</div><div class="value">${m.criticalPct.toFixed(1)}% critical-load mix</div><div class="hint">Escalation burden is ${m.criticalPct > 20 ? 'elevated' : 'contained'}.</div></article>
-      <article class="signal"><div class="label">Biggest downtime driver</div><div class="value">${m.topCause[0]} <span class="chip ${m.topCause[1] > m.sum * .25 ? 'danger':'warn'}">${Math.round(m.topCause[1])} min</span></div><div class="hint">Primary bottleneck under current filters.</div></article>
-      <article class="signal"><div class="label">Concentration (Pareto)</div><div class="value">Top 3 causes = ${pareto.toFixed(1)}%</div><div class="hint">${pareto > 70 ? 'Risk is highly concentrated.' : 'Risk is distributed across multiple causes.'}</div></article>
-    `;
+  function barChartData(entries, label) {
+    return {
+      labels: entries.map(([k]) => k.length > 30 ? `${k.slice(0, 29)}…` : k),
+      datasets: [{
+        label,
+        data: entries.map(([, v]) => v),
+        backgroundColor: entries.map((_, i) => CHART_COLORS[i % CHART_COLORS.length]),
+        borderRadius: 6
+      }]
+    };
   }
 
-  function renderCharts(m) {
-    const sevData = {
-      labels: ['Critical', 'High', 'Medium', 'Low'],
-      datasets: [{ data: [m.sev.critical || 0, m.sev.high || 0, m.sev.medium || 0, m.sev.low || 0], backgroundColor: [CHART_THEME.palette.critical, CHART_THEME.palette.high, CHART_THEME.palette.medium, CHART_THEME.palette.healthy], borderWidth: 0 }]
-    };
-    const byCause = Object.entries(m.byCause).sort((a,b)=>b[1]-a[1]).slice(0,10);
-    const driverData = {
-      labels: byCause.map(x => safeLabel(x[0])),
-      datasets: [{ data: byCause.map(x=>x[1]), backgroundColor: CHART_THEME.palette.info, borderRadius: 6 }]
-    };
+  function renderCharts(a) {
+    replaceChart('nameChart', { type: 'bar', data: barChartData(a.topNames, 'Events'), options: { ...baseOptions(), plugins: { ...baseOptions().plugins, legend: { display: false } } } });
+    replaceChart('alertChart', { type: 'bar', data: barChartData(a.topAlerts, 'Events'), options: { ...baseOptions(), plugins: { ...baseOptions().plugins, legend: { display: false } } } });
+    replaceChart('subsystemChart', { type: 'bar', data: barChartData(a.topSubsystems, 'Events'), options: { ...baseOptions(), indexAxis: 'y', plugins: { ...baseOptions().plugins, legend: { display: false } } } });
+    replaceChart('pressChart', { type: 'bar', data: barChartData(a.topPresses, 'Events'), options: { ...baseOptions(), indexAxis: 'y', plugins: { ...baseOptions().plugins, legend: { display: false } } } });
+    replaceChart('versionChart', { type: 'bar', data: barChartData(a.topVersions, 'Events'), options: { ...baseOptions(), indexAxis: 'y', plugins: { ...baseOptions().plugins, legend: { display: false } } } });
 
-    const paretoSorted = Object.entries(m.byCause).sort((a,b)=>b[1]-a[1]);
-    const cumulative = [];
-    let run = 0;
-    paretoSorted.forEach(([_, v]) => { run += v; cumulative.push(m.sum ? 100*run/m.sum : 0); });
-    const paretoData = {
-      labels: paretoSorted.map(([k]) => safeLabel(k, 24)),
-      datasets: [
-        { type: 'bar', label: 'Downtime minutes', data: paretoSorted.map(x=>x[1]), backgroundColor: '#5f77ff', yAxisID: 'y' },
-        { type: 'line', label: 'Cumulative %', data: cumulative, borderColor: CHART_THEME.palette.high, backgroundColor: CHART_THEME.palette.high, pointRadius: 2, yAxisID: 'y1', tension: .25 }
-      ]
-    };
+    const dailyKeys = Object.keys(a.daily).sort();
+    replaceChart('timeChart', {
+      type: 'bar',
+      data: {
+        labels: dailyKeys,
+        datasets: [
+          { type: 'bar', label: 'Events', yAxisID: 'y', data: dailyKeys.map(k => a.daily[k].events), backgroundColor: 'rgba(123,141,255,0.7)' },
+          { type: 'line', label: 'Downtime (hours)', yAxisID: 'y1', data: dailyKeys.map(k => (a.daily[k].downtime / 3600).toFixed(2)), borderColor: '#f09b4f', backgroundColor: '#f09b4f', tension: .28, pointRadius: 2 }
+        ]
+      },
+      options: {
+        ...baseOptions(),
+        scales: {
+          x: { ticks: { color: '#bdc9df', maxRotation: 70, minRotation: 35 }, grid: { color: 'rgba(255,255,255,.08)' } },
+          y: { beginAtZero: true, ticks: { color: '#bdc9df' }, grid: { color: 'rgba(255,255,255,.08)' }, title: { display: true, text: 'Events', color: '#bdc9df' } },
+          y1: { beginAtZero: true, position: 'right', ticks: { color: '#ffd6a9' }, grid: { drawOnChartArea: false }, title: { display: true, text: 'Downtime (hours)', color: '#ffd6a9' } }
+        }
+      }
+    });
 
-    CHARTS.getOrCreateChart('severityChart', () => ({ type: 'doughnut', data: sevData, options: { ...baseOptions(), plugins: { ...baseOptions().plugins, legend: { position: 'bottom', labels: { color: '#c7d4ec' } } } } }));
-    CHARTS.updateChartData('severityChart', sevData);
-
-    CHARTS.getOrCreateChart('driversChart', () => ({ type: 'bar', data: driverData, options: { ...baseOptions(), scales: baseScales('Cause', 'Minutes'), plugins: { ...baseOptions().plugins, legend: { display: false } } } }));
-    CHARTS.updateChartData('driversChart', driverData);
-
-    CHARTS.getOrCreateChart('paretoChart', () => ({ type: 'bar', data: paretoData, options: { ...baseOptions(), scales: { y: { ...baseScales('Cause', 'Minutes').y }, y1: { position: 'right', min: 0, max: 100, grid: { display: false }, ticks: { color: '#ffd9bd', callback: (v)=> `${v}%` }, title: { display: true, text: 'Cumulative %', color: '#ffd9bd' } }, x: { ...baseScales('Cause', 'Minutes').x } } } }));
-    CHARTS.updateChartData('paretoChart', paretoData);
+    replaceChart('downtimeAlertChart', { type: 'bar', data: barChartData(a.topDowntimeAlerts.map(([k,v]) => [k, Number((v/3600).toFixed(2))]), 'Downtime (hours)'), options: { ...baseOptions(), plugins: { ...baseOptions().plugins, legend: { display: false } } } });
+    replaceChart('stateChart', { type: 'bar', data: barChartData(a.topPreStates, 'Events'), options: { ...baseOptions(), indexAxis: 'y', plugins: { ...baseOptions().plugins, legend: { display: false } } } });
   }
 
-  function renderInsights(m) {
-    const lines = Object.entries(m.byLine).map(([line, minutes]) => ({
-      x: Math.max(1, Object.values(STATE.filtered).length / Math.max(1, Object.keys(m.byLine).length)),
-      y: minutes,
-      r: Math.max(6, Math.min(20, Math.round(minutes / 20))),
-      label: line
-    }));
-    const scatterData = { datasets: [{ label: 'Line risk profile', data: lines, backgroundColor: 'rgba(123,141,255,.45)', borderColor: '#7b8dff' }] };
-    CHARTS.getOrCreateChart('scatterChart', () => ({
-      type: 'bubble', data: scatterData,
-      options: { ...baseOptions(), scales: baseScales('Relative event load', 'Downtime minutes'), plugins: { ...baseOptions().plugins, tooltip: { ...CHART_THEME.tooltip, callbacks: { label: (ctx) => `${lines[ctx.dataIndex].label}: ${ctx.raw.y.toFixed(0)} min` } } } }
-    }));
-    CHARTS.updateChartData('scatterChart', scatterData);
+  function renderInsightText(a) {
+    const topPress = a.topPresses[0] || ['N/A', 0];
+    const topSubsystem = a.topSubsystems[0] || ['N/A', 0];
+    const topDowntimeAlert = a.topDowntimeAlerts[0] || ['N/A', 0];
+    const top3 = a.topNames.slice(0, 3).reduce((sum, [, count]) => sum + count, 0);
+    const pareto = a.totalEvents ? ((top3 / a.totalEvents) * 100).toFixed(1) : '0.0';
 
     document.getElementById('insightText').innerHTML = `
-      <p><strong>Operational readout:</strong> ${m.criticalPct > 20 ? 'Risk posture is elevated' : 'Risk posture is moderate'} with <strong>${Math.round(m.sum)} minutes</strong> downtime in scope.</p>
-      <p><strong>Primary driver:</strong> ${m.topCause[0]} (${Math.round(m.topCause[1])} min).</p>
-      <p><strong>Action focus:</strong> Stabilize ${m.topLine[0]} first, then target top 3 causes for fastest impact.</p>
+      <p><strong>Press concentration:</strong> ${topPress[0]} generates ${topPress[1]} events in the current scope.</p>
+      <p><strong>Subsystem driver:</strong> ${topSubsystem[0]} leads with ${topSubsystem[1]} events.</p>
+      <p><strong>Downtime alert:</strong> ${topDowntimeAlert[0]} accounts for ${formatDuration(topDowntimeAlert[1])}.</p>
+      <p><strong>Pareto signal:</strong> top 3 error names account for ${pareto}% of events.</p>
     `;
   }
 
-  function renderHeatmap(rows) {
-    const grid = document.getElementById('heatmapGrid');
-    grid.innerHTML = '';
-    const buckets = Array.from({ length: 7*24 }, () => 0);
-    rows.forEach(r => {
-      const d = r.ts.getDay();
-      const h = r.ts.getHours();
-      buckets[d*24+h] += r.minutes;
-    });
-    const max = Math.max(...buckets, 1);
-    buckets.forEach(v => {
-      const ratio = v / max;
-      const cell = document.createElement('div');
-      const alpha = Math.max(.12, ratio * .9);
-      cell.className = 'cell';
-      cell.style.background = `rgba(240,155,79,${alpha})`;
-      cell.textContent = Math.round(v);
-      cell.title = `${Math.round(v)} min`;
-      grid.appendChild(cell);
-    });
+  function populateFilter(id, values, label) {
+    const select = document.getElementById(id);
+    const prev = select.value;
+    select.innerHTML = `<option value="all">All ${label}</option>${values.map(v => `<option value="${v}">${v}</option>`).join('')}`;
+    if (values.includes(prev)) select.value = prev;
   }
 
-  const TABLE = {
-    init() {
-      if (STATE.tableInit) return;
-      STATE.tableInit = true;
-      const table = document.getElementById('dataTable');
-      table.addEventListener('click', (e) => {
-        const tr = e.target.closest('tr[data-idx]');
-        if (!tr) return;
-        const row = STATE.filtered[Number(tr.dataset.idx)];
-        if (!row) return;
-        openDrawer(row);
-      });
-    },
-    render(rows) {
-      const table = document.getElementById('dataTable');
-      if (!rows.length) { table.innerHTML = '<tr><td>No data.</td></tr>'; return; }
-      const headers = Object.keys(rows[0]).filter(k => !['ts'].includes(k));
-      table.innerHTML = `<thead><tr>${headers.map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>${rows.slice(0,400).map((r,i)=>`<tr data-idx="${i}">${headers.map(h=>`<td>${r[h]}</td>`).join('')}</tr>`).join('')}</tbody>`;
+  function applyFilters() {
+    const press = document.getElementById('pressFilter').value;
+    const model = document.getElementById('modelFilter').value;
+    const subsystem = document.getElementById('subsystemFilter').value;
+    const errorState = document.getElementById('errorStateFilter').value;
+    const version = document.getElementById('versionFilter').value;
+    const startDate = document.getElementById('startDateFilter').value;
+    const endDate = document.getElementById('endDateFilter').value;
+    const search = document.getElementById('searchFilter').value.trim().toLowerCase();
+
+    STATE.filteredRows = STATE.normalizedRows.filter((r) => {
+      const day = r.startTime ? r.startTime.toISOString().slice(0, 10) : '';
+      const searchable = `${r.name} ${r.alertTitle} ${r.alertBody} ${r.alertSolution} ${r.press} ${r.subsystem} ${r.version}`.toLowerCase();
+      return (
+        (press === 'all' || r.press === press) &&
+        (model === 'all' || r.model === model) &&
+        (subsystem === 'all' || r.subsystem === subsystem) &&
+        (errorState === 'all' || r.errorState === errorState) &&
+        (version === 'all' || r.version === version) &&
+        (!startDate || (day && day >= startDate)) &&
+        (!endDate || (day && day <= endDate)) &&
+        (!search || searchable.includes(search))
+      );
+    });
+
+    renderDashboard();
+  }
+
+  function renderTable(rows) {
+    const table = document.getElementById('dataTable');
+    const headers = REQUIRED_COLUMNS;
+    if (!rows.length) {
+      table.innerHTML = '<tbody><tr><td>No rows match current filters.</td></tr></tbody>';
+      return;
     }
-  };
+
+    table.innerHTML = `<thead><tr>${headers.map(h => `<th>${h}</th>`).join('')}</tr></thead><tbody>${rows.slice(0, 500).map((r, i) => {
+      const get = {
+        'Press': r.press,
+        'Model': r.model,
+        'Name': r.name,
+        'Alert Message Title': r.alertTitle,
+        'Alert Message Body': r.alertBody,
+        'Alert Message Solution': r.alertSolution,
+        'Start Time': r.startTime ? r.startTime.toISOString() : '',
+        'Duration': r.durationRaw,
+        'Recovery': r.recoveryTime ? r.recoveryTime.toISOString() : '',
+        'Pre Error State': r.preErrorState,
+        'Subsystem': r.subsystem,
+        'Error State': r.errorState,
+        'Version': r.version
+      };
+      return `<tr class="row" data-idx="${i}">${headers.map(h => `<td>${String(get[h] ?? '')}</td>`).join('')}</tr>`;
+    }).join('')}</tbody>`;
+  }
 
   function openDrawer(row) {
     const drawer = document.getElementById('drawer');
     drawer.classList.add('open');
     drawer.setAttribute('aria-hidden', 'false');
-    document.getElementById('drawerBody').innerHTML = Object.entries(row).map(([k,v]) => `<p><strong>${k}:</strong> ${v}</p>`).join('');
+    document.getElementById('drawerBody').innerHTML = `
+      <p><strong>Name:</strong> ${row.name}</p>
+      <p><strong>Alert Message Title:</strong> ${row.alertTitle}</p>
+      <p><strong>Alert Message Body:</strong> ${row.alertBody || '-'}</p>
+      <p><strong>Alert Message Solution:</strong> ${row.alertSolution || '-'}</p>
+      <p><strong>Press:</strong> ${row.press}</p>
+      <p><strong>Model:</strong> ${row.model}</p>
+      <p><strong>Start Time:</strong> ${row.startTime ? row.startTime.toISOString() : '-'}</p>
+      <p><strong>Recovery:</strong> ${row.recoveryTime ? row.recoveryTime.toISOString() : '-'}</p>
+      <p><strong>Duration:</strong> ${row.durationRaw || '-'} (${formatDuration(row.durationSeconds)})</p>
+      <p><strong>Subsystem:</strong> ${row.subsystem}</p>
+      <p><strong>Error State:</strong> ${row.errorState}</p>
+      <p><strong>Version:</strong> ${row.version}</p>
+      <p><strong>Pre Error State:</strong> ${row.preErrorState}</p>
+    `;
   }
 
   function closeDrawer() {
@@ -575,43 +786,63 @@
     drawer.setAttribute('aria-hidden', 'true');
   }
 
-  function applyFilters() {
-    const plant = document.getElementById('plantFilter').value;
-    const sev = document.getElementById('severityFilter').value;
-    const line = document.getElementById('lineFilter').value;
-    const q = document.getElementById('searchFilter').value.toLowerCase();
-    STATE.filtered = STATE.raw.filter(r =>
-      (plant === 'all' || r.plant === plant) &&
-      (sev === 'all' || r.severity === sev) &&
-      (line === 'all' || r.line === line) &&
-      (!q || (`${r.cause} ${r.issue || ''} ${r.line}`.toLowerCase().includes(q)))
-    );
-    renderAll(false);
-  }
-
-  function populateFilters() {
-    const tuples = [['plantFilter', 'plant'], ['severityFilter', 'severity'], ['lineFilter', 'line']];
-    tuples.forEach(([id, key]) => {
-      const el = document.getElementById(id);
-      const prev = el.value;
-      const set = [...new Set(STATE.raw.map(r => r[key]))].filter(Boolean);
-      el.innerHTML = `<option value="all">All ${key}s</option>${set.map(v => `<option value="${v}">${v}</option>`).join('')}`;
-      if (set.includes(prev)) el.value = prev;
-    });
-  }
-
-  function renderAll(force = false) {
-    const m = metrics(STATE.filtered);
-    const nextHash = hashMetrics(m);
-    const changed = force || nextHash !== STATE.metricsHash;
-    if (!changed) return;
+  function renderDashboard() {
+    const analytics = computeAnalytics(STATE.filteredRows);
+    const nextHash = JSON.stringify([analytics.totalEvents, analytics.totalDuration, analytics.uniquePresses, analytics.minDate?.toISOString(), analytics.maxDate?.toISOString()]);
+    if (nextHash === STATE.metricsHash) return;
     STATE.metricsHash = nextHash;
-    renderKpis(m);
-    renderSituation(m);
-    renderCharts(m);
-    renderInsights(m);
-    renderHeatmap(STATE.filtered);
-    TABLE.render(STATE.filtered);
+
+    renderKpis(analytics);
+    renderCharts(analytics);
+    renderInsightText(analytics);
+    renderTable(STATE.filteredRows);
+  }
+
+  function resetFilters() {
+    ['pressFilter','modelFilter','subsystemFilter','errorStateFilter','versionFilter'].forEach((id) => {
+      document.getElementById(id).value = 'all';
+    });
+    document.getElementById('startDateFilter').value = '';
+    document.getElementById('endDateFilter').value = '';
+    document.getElementById('searchFilter').value = '';
+  }
+
+  function commitDataset(fileName, rawRows, normalizedRows) {
+    STATE.datasetName = fileName;
+    STATE.rawRows = rawRows;
+    STATE.normalizedRows = normalizedRows;
+    STATE.filteredRows = normalizedRows;
+    STATE.metricsHash = '';
+
+    populateFilter('pressFilter', [...new Set(normalizedRows.map(r => r.press).filter(Boolean))].sort(), 'presses');
+    populateFilter('modelFilter', [...new Set(normalizedRows.map(r => r.model).filter(Boolean))].sort(), 'models');
+    populateFilter('subsystemFilter', [...new Set(normalizedRows.map(r => r.subsystem).filter(Boolean))].sort(), 'subsystems');
+    populateFilter('errorStateFilter', [...new Set(normalizedRows.map(r => r.errorState).filter(Boolean))].sort(), 'error states');
+    populateFilter('versionFilter', [...new Set(normalizedRows.map(r => r.version).filter(Boolean))].sort(), 'versions');
+    resetFilters();
+
+    document.getElementById('datasetMeta').textContent = `${fileName} • ${normalizedRows.length.toLocaleString()} rows loaded`;
+    toggleScreens(true);
+    renderDashboard();
+    setStatus('Dataset loaded and analyzed successfully.', 'ok');
+  }
+
+  async function processFile(file) {
+    if (!file) return;
+    clearStatus();
+    setStatus('Validating and parsing file…', 'info');
+    try {
+      const rawRows = await loadRowsFromFile(file);
+      setStatus('Validating schema…', 'info');
+      const headerMap = validateRows(rawRows);
+      setStatus('Normalizing records and computing analytics…', 'info');
+      const normalizedRows = normalizeRows(rawRows, headerMap);
+      if (!normalizedRows.length) throw new Error('Dataset has no valid rows after normalization.');
+      commitDataset(file.name, rawRows, normalizedRows);
+    } catch (err) {
+      setStatus(err.message || 'Failed to ingest dataset.', 'error');
+      toggleScreens(false);
+    }
   }
 
   function switchTab(tab) {
@@ -619,127 +850,82 @@
     STATE.activeTab = tab;
     document.querySelectorAll('[role="tab"]').forEach(btn => btn.setAttribute('aria-selected', String(btn.dataset.tab === tab)));
     document.querySelectorAll('.content').forEach(c => c.classList.toggle('active', c.dataset.content === tab));
-    if (tab === 'table') TABLE.render(STATE.filtered);
   }
 
-  function initTabs() {
-    if (document.getElementById('tabs').dataset.bound === '1') return;
-    document.getElementById('tabs').dataset.bound = '1';
-    document.getElementById('tabs').addEventListener('click', (e) => {
-      const btn = e.target.closest('[role="tab"]');
-      if (!btn) return;
-      switchTab(btn.dataset.tab);
+  function exportFilteredCSV() {
+    if (!STATE.filteredRows.length) return;
+    const headers = REQUIRED_COLUMNS;
+    const escape = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const lines = [headers.map(escape).join(',')];
+    STATE.filteredRows.forEach((r) => {
+      const row = [
+        r.press, r.model, r.name, r.alertTitle, r.alertBody, r.alertSolution,
+        r.startTime ? r.startTime.toISOString() : '', r.durationRaw,
+        r.recoveryTime ? r.recoveryTime.toISOString() : '', r.preErrorState,
+        r.subsystem, r.errorState, r.version
+      ];
+      lines.push(row.map(escape).join(','));
     });
-  }
-
-  function initFilterListeners() {
-    if (STATE.listenersBound) return;
-    STATE.listenersBound = true;
-    ['plantFilter', 'severityFilter', 'lineFilter'].forEach(id => {
-      document.getElementById(id).addEventListener('change', applyFilters);
-    });
-    document.getElementById('searchFilter').addEventListener('input', applyFilters);
-    document.getElementById('closeDrawer').addEventListener('click', closeDrawer);
-    document.getElementById('resetBtn').addEventListener('click', resetState);
-    document.getElementById('exportBtn').addEventListener('click', exportCSV);
-    document.getElementById('togglePasteBtn').addEventListener('click', () => {
-      document.getElementById('pasteBox').classList.toggle('open');
-    });
-    document.getElementById('loadPasteBtn').addEventListener('click', async () => {
-      const text = document.getElementById('pasteInput').value;
-      await loadData({ type: 'pasted', text });
-    });
-  }
-
-  function exportCSV() {
-    if (!STATE.filtered.length) return;
-    const headers = Object.keys(STATE.filtered[0]).filter(k => k !== 'ts');
-    const csv = [headers.join(',')].concat(STATE.filtered.map(r => headers.map(h => JSON.stringify(r[h] ?? '')).join(','))).join('\n');
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
     const a = document.createElement('a');
-    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+    a.href = URL.createObjectURL(blob);
     a.download = 'press-insight-filtered.csv';
     a.click();
     URL.revokeObjectURL(a.href);
   }
 
-  function resetState() {
-    STATE.raw = [];
-    STATE.filtered = [];
-    STATE.metricsHash = '';
-    document.getElementById('kpiStrip').innerHTML = '';
-    document.getElementById('situationBanner').innerHTML = '';
-    document.getElementById('heatmapGrid').innerHTML = '';
-    document.getElementById('insightText').innerHTML = '';
-    document.getElementById('dataTable').innerHTML = '';
-    CHARTS.destroyAllCharts();
-    document.getElementById('fileInput').value = '';
-    clearError();
-  }
+  function bindListeners() {
+    if (STATE.listenersBound) return;
+    STATE.listenersBound = true;
 
-  function commitData(rows) {
-    STATE.raw = rows;
-    populateFilters();
-    STATE.filtered = rows;
-    renderAll(true);
-  }
+    document.getElementById('fileInput').addEventListener('change', (e) => processFile(e.target.files?.[0]));
+    document.getElementById('replaceBtn').addEventListener('click', () => {
+      toggleScreens(false);
+      document.getElementById('fileInput').value = '';
+      clearStatus();
+      setStatus('Select a replacement dataset to continue.', 'info');
+    });
 
-  async function loadData(input) {
-    try {
-      clearError();
-      let parsedRows = [];
-      if (input instanceof File) {
-        const name = input.name.toLowerCase();
-        if (name.endsWith('.csv')) {
-          parsedRows = parseCSV(await input.text());
-        } else if (name.endsWith('.xlsx') || name.endsWith('.xls')) {
-          parsedRows = await parseExcelFile(input);
-        } else if (name.endsWith('.json')) {
-          parsedRows = parseJsonText(await input.text());
-        } else {
-          throw new Error('Invalid format. Use CSV, Excel, or JSON.');
-        }
-      } else if (input?.type === 'pasted') {
-        const delimiter = detectDelimiter(input.text);
-        parsedRows = parseDelimitedText(input.text, delimiter);
-      } else if (Array.isArray(input)) {
-        parsedRows = input;
-      } else {
-        throw new Error('Unsupported structure.');
-      }
+    document.getElementById('exportBtn').addEventListener('click', exportFilteredCSV);
+    document.getElementById('tabs').addEventListener('click', (e) => {
+      const btn = e.target.closest('[role="tab"]');
+      if (btn) switchTab(btn.dataset.tab);
+    });
 
-      if (!parsedRows.length) throw new Error('Input appears empty or invalid.');
-      const normalizedRows = await normalizeRows(parsedRows);
-      commitData(normalizedRows);
-    } catch (err) {
-      showError(err.message || 'Unable to load data. Please check input format.');
-    }
+    ['pressFilter','modelFilter','subsystemFilter','errorStateFilter','versionFilter','startDateFilter','endDateFilter'].forEach((id) => {
+      document.getElementById(id).addEventListener('change', applyFilters);
+    });
+    document.getElementById('searchFilter').addEventListener('input', applyFilters);
+
+    document.getElementById('dataTable').addEventListener('click', (e) => {
+      const tr = e.target.closest('tr[data-idx]');
+      if (!tr) return;
+      const row = STATE.filteredRows[Number(tr.dataset.idx)];
+      if (row) openDrawer(row);
+    });
+    document.getElementById('closeDrawer').addEventListener('click', closeDrawer);
+
+    const zone = document.getElementById('dropZone');
+    ['dragenter', 'dragover'].forEach((name) => zone.addEventListener(name, (e) => {
+      e.preventDefault();
+      zone.classList.add('drag');
+    }));
+    ['dragleave', 'drop'].forEach((name) => zone.addEventListener(name, (e) => {
+      e.preventDefault();
+      zone.classList.remove('drag');
+    }));
+    zone.addEventListener('drop', (e) => {
+      const file = e.dataTransfer?.files?.[0];
+      processFile(file);
+    });
   }
 
   function bootstrap() {
     if (STATE.initialized) return;
     STATE.initialized = true;
-    initTabs();
-    initFilterListeners();
-    TABLE.init();
-    document.getElementById('fileInput').addEventListener('change', async (e) => {
-      const file = e.target.files?.[0];
-      if (!file) return;
-      resetState();
-      await loadData(file);
-    });
-
-    // fallback sample to keep dashboard functional before upload
-    loadData(parseCSV(`timestamp,plant,line,cause,severity,minutes
-2026-03-21T08:00:00Z,Plant A,Line 1,Hydraulic Leak,critical,120
-2026-03-21T09:20:00Z,Plant A,Line 1,Sensor Fault,high,62
-2026-03-21T10:00:00Z,Plant B,Line 3,Feed Jam,medium,35
-2026-03-21T11:30:00Z,Plant B,Line 3,Feed Jam,high,70
-2026-03-22T12:20:00Z,Plant C,Line 2,Motor Overheat,critical,95
-2026-03-22T13:10:00Z,Plant A,Line 4,Power Dip,low,12
-2026-03-22T16:00:00Z,Plant C,Line 2,Hydraulic Leak,high,42
-2026-03-23T08:30:00Z,Plant A,Line 1,Hydraulic Leak,critical,110
-2026-03-23T09:00:00Z,Plant B,Line 3,Control Fault,medium,30
-2026-03-23T14:00:00Z,Plant C,Line 5,Calibration Drift,medium,28`));
+    toggleScreens(false);
+    setStatus('Select a CSV or Excel file to begin.', 'info');
+    bindListeners();
   }
 
   bootstrap();
