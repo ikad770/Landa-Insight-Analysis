@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Press Insight Intelligence Platform</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <style>
     :root {
       --bg: #0e1117;
@@ -54,6 +55,29 @@
     }
     .btn { cursor: pointer; }
     .btn:hover { background: #212a3d; }
+    .helper-text { color: var(--muted); font-size: .8rem; margin-top: 8px; }
+    .format-badges { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+    .format-badges span {
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,.03);
+      border-radius: 999px;
+      padding: 3px 8px;
+      font-size: .74rem;
+      color: #cad6eb;
+    }
+    .paste-box { display: none; margin-top: 10px; width: 100%; }
+    .paste-box.open { display: block; }
+    #pasteInput { width: 100%; min-height: 110px; resize: vertical; }
+    .error-msg {
+      margin-top: 8px;
+      background: rgba(242,92,84,.12);
+      border: 1px solid rgba(242,92,84,.35);
+      color: #ffc4c0;
+      border-radius: 8px;
+      padding: 8px 10px;
+      font-size: .83rem;
+      display: none;
+    }
     .btn:focus-visible, select:focus-visible, input:focus-visible, [role="tab"]:focus-visible {
       outline: 2px solid var(--focus);
       outline-offset: 2px;
@@ -138,12 +162,23 @@
     <div>
       <h1>Press Insight Intelligence Platform</h1>
       <div class="subtitle">Executive operational intelligence for downtime, risk concentration, and reliability signals.</div>
+      <div class="helper-text">Upload or Paste Data</div>
+      <div class="format-badges"><span>CSV</span><span>Excel (.xlsx/.xls)</span><span>JSON</span><span>Pasted table</span></div>
     </div>
     <div class="controls">
-      <label class="file">Upload CSV <input id="fileInput" type="file" accept=".csv" /></label>
+      <label class="file">Upload file <input id="fileInput" type="file" accept=".csv,.xlsx,.xls,.json" /></label>
+      <button class="btn" id="togglePasteBtn">Paste Data</button>
       <button class="btn" id="resetBtn">Replace File</button>
       <button class="btn" id="exportBtn">Export Filtered CSV</button>
     </div>
+    <div class="paste-box" id="pasteBox">
+      <textarea id="pasteInput" placeholder="Paste CSV/TSV/semicolon-delimited data with headers in the first row..."></textarea>
+      <div style="display:flex;gap:8px;margin-top:8px;">
+        <button class="btn" id="loadPasteBtn">Load Pasted Data</button>
+      </div>
+      <div class="helper-text">Delimiter is auto-detected (tab, comma, semicolon).</div>
+    </div>
+    <div class="error-msg" id="errorMsg" role="alert" aria-live="polite"></div>
   </header>
 
   <section class="filters" id="filterPanel">
@@ -272,21 +307,88 @@
     return { getOrCreateChart, updateChartData, replaceChart, destroyAllCharts };
   })();
 
-  function parseCSV(text) {
-    const rows = text.trim().split(/\r?\n/);
-    const headers = rows[0].split(',').map(h => h.trim());
+  function parseDelimitedText(text, delimiter = ',') {
+    const trimmed = (text || '').trim();
+    if (!trimmed) return [];
+    const rows = trimmed.split(/\r?\n/).filter(Boolean);
+    if (rows.length < 2) return [];
+    const headers = rows[0].split(delimiter).map(h => h.trim()).filter(Boolean);
+    if (!headers.length) return [];
     return rows.slice(1).map(line => {
-      const cells = line.split(',');
+      const cells = line.split(delimiter);
       const row = {};
       headers.forEach((h, i) => row[h] = (cells[i] || '').trim());
-      row.minutes = Number(row.minutes || row.downtime_minutes || 0);
-      row.severity = (row.severity || 'medium').toLowerCase();
-      row.plant = row.plant || 'Plant A';
-      row.line = row.line || 'Line 1';
-      row.cause = row.cause || row.issue || 'Unspecified';
-      row.ts = new Date(row.timestamp || row.ts || Date.now());
       return row;
+    }).filter(r => Object.values(r).some(v => v !== ''));
+  }
+
+  function parseCSV(text) {
+    return parseDelimitedText(text, ',');
+  }
+
+  function detectDelimiter(text) {
+    const firstLine = (text || '').trim().split(/\r?\n/)[0] || '';
+    const candidates = ['\t', ',', ';'];
+    const scored = candidates.map(d => ({ d, count: firstLine.split(d).length }));
+    return scored.sort((a, b) => b.count - a.count)[0].d;
+  }
+
+  async function normalizeRows(rows) {
+    const normalized = [];
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i] || {};
+      normalized.push({
+        ...row,
+        minutes: Number(row.minutes || row.downtime_minutes || 0),
+        severity: String(row.severity || 'medium').toLowerCase(),
+        plant: row.plant || 'Plant A',
+        line: row.line || 'Line 1',
+        cause: row.cause || row.issue || 'Unspecified',
+        ts: new Date(row.timestamp || row.ts || Date.now())
+      });
+      if (i % 2000 === 0) await new Promise(resolve => setTimeout(resolve, 0));
+    }
+    return normalized;
+  }
+
+  function normalizeJsonKeys(row = {}) {
+    const normalized = {};
+    Object.entries(row).forEach(([k, v]) => {
+      normalized[k.trim().toLowerCase().replace(/\s+/g, '_')] = v;
     });
+    return normalized;
+  }
+
+  function showError(message) {
+    const el = document.getElementById('errorMsg');
+    el.textContent = message;
+    el.style.display = 'block';
+  }
+
+  function clearError() {
+    const el = document.getElementById('errorMsg');
+    el.textContent = '';
+    el.style.display = 'none';
+  }
+
+  async function parseExcelFile(file) {
+    const buffer = await file.arrayBuffer();
+    const workbook = XLSX.read(buffer, { type: 'array' });
+    const sheetName = workbook.SheetNames[0];
+    if (!sheetName) return [];
+    const sheet = workbook.Sheets[sheetName];
+    return XLSX.utils.sheet_to_json(sheet, { defval: '' });
+  }
+
+  function parseJsonText(text) {
+    const parsed = JSON.parse(text);
+    if (!Array.isArray(parsed)) {
+      throw new Error('JSON must be an array of objects.');
+    }
+    if (!parsed.every(item => item && typeof item === 'object' && !Array.isArray(item))) {
+      throw new Error('JSON array must contain objects only.');
+    }
+    return parsed.map(normalizeJsonKeys);
   }
 
   function metrics(rows) {
@@ -540,6 +642,13 @@
     document.getElementById('closeDrawer').addEventListener('click', closeDrawer);
     document.getElementById('resetBtn').addEventListener('click', resetState);
     document.getElementById('exportBtn').addEventListener('click', exportCSV);
+    document.getElementById('togglePasteBtn').addEventListener('click', () => {
+      document.getElementById('pasteBox').classList.toggle('open');
+    });
+    document.getElementById('loadPasteBtn').addEventListener('click', async () => {
+      const text = document.getElementById('pasteInput').value;
+      await loadData({ type: 'pasted', text });
+    });
   }
 
   function exportCSV() {
@@ -564,13 +673,46 @@
     document.getElementById('dataTable').innerHTML = '';
     CHARTS.destroyAllCharts();
     document.getElementById('fileInput').value = '';
+    clearError();
   }
 
-  function loadData(rows) {
+  function commitData(rows) {
     STATE.raw = rows;
     populateFilters();
     STATE.filtered = rows;
     renderAll(true);
+  }
+
+  async function loadData(input) {
+    try {
+      clearError();
+      let parsedRows = [];
+      if (input instanceof File) {
+        const name = input.name.toLowerCase();
+        if (name.endsWith('.csv')) {
+          parsedRows = parseCSV(await input.text());
+        } else if (name.endsWith('.xlsx') || name.endsWith('.xls')) {
+          parsedRows = await parseExcelFile(input);
+        } else if (name.endsWith('.json')) {
+          parsedRows = parseJsonText(await input.text());
+        } else {
+          throw new Error('Invalid format. Use CSV, Excel, or JSON.');
+        }
+      } else if (input?.type === 'pasted') {
+        const delimiter = detectDelimiter(input.text);
+        parsedRows = parseDelimitedText(input.text, delimiter);
+      } else if (Array.isArray(input)) {
+        parsedRows = input;
+      } else {
+        throw new Error('Unsupported structure.');
+      }
+
+      if (!parsedRows.length) throw new Error('Input appears empty or invalid.');
+      const normalizedRows = await normalizeRows(parsedRows);
+      commitData(normalizedRows);
+    } catch (err) {
+      showError(err.message || 'Unable to load data. Please check input format.');
+    }
   }
 
   function bootstrap() {
@@ -582,9 +724,8 @@
     document.getElementById('fileInput').addEventListener('change', async (e) => {
       const file = e.target.files?.[0];
       if (!file) return;
-      const text = await file.text();
       resetState();
-      loadData(parseCSV(text));
+      await loadData(file);
     });
 
     // fallback sample to keep dashboard functional before upload
