@@ -139,6 +139,7 @@
         <div class="eyebrow">Operational Dashboard</div>
         <h2 style="margin:4px 0 0;">Press Insight Intelligence Platform</h2>
         <p id="datasetMeta" class="subtitle">Dataset not loaded</p>
+        <div id="mergeDebug" class="micro" style="margin-top:6px;"></div>
       </div>
       <div class="controls">
         <button id="replaceBtn" class="btn">Load new dataset</button>
@@ -210,20 +211,23 @@
   const STATE = {
     files:{errors:null,availability:null,volume:null},
     validation:{errors:false,availability:false,volume:false},
+    cachedRaw:{errors:null,availability:null,volume:null},
     rows:{errors:[],availability:[],volume:[]},
     normalized:{events:[],availability:[],volume:[]},
-    merged:{events:[],buckets:new Map(),pressRisk:[]},
-    filtered:[], filteredBuckets:new Map(), kpis:null, mode:'',
+    merged:{events:[],buckets:new Map(),pressRisk:[],stats:{}},
+    filtered:[], kpis:null, mode:'',
     expand:{press:false,subsystem:false,alert:false,version:false},
     metricByChart:{press:'risk',subsystem:'risk',alert:'risk',version:'risk'},
     rankings:null,
-    drilldown:{dimension:'',value:'',rows:[],search:''}
+    drilldown:{dimension:'',value:'',rows:[],search:''},
+    renderQueued:false
   };
   const CHARTS = new Map();
   const COLORS = ['#7b8dff','#51c285','#f0b165','#f36b63','#66bfff','#a39cfe','#f3d95e','#7be0ca'];
 
   const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const canonical = v => String(v ?? '').trim().toLowerCase().replace(/[_\-]+/g,' ').replace(/\s+/g,' ');
+  const normalizeJoinToken = v => canonical(v) || 'unspecified';
   const getField = (row, aliases) => {
     const entries = Object.entries(row||{});
     for (const [k,v] of entries){ const ck = canonical(k); if (aliases.some(a => ck === canonical(a))) return v; }
@@ -379,11 +383,23 @@
     return out;
   }
 
-  const keyFor = r => [r.customer,r.site,r.press,r.day,r.model,r.version].join('|');
-  const broadKeyFor = r => [r.customer,r.site,r.press,r.model,r.version].join('|');
+  function buildJoinKeys(r){
+    const exact = [r.customer,r.site,r.press,r.day,r.model,r.version].map(normalizeJoinToken).join('|');
+    const broad = [r.customer,r.site,r.press,r.model,r.version].map(normalizeJoinToken).join('|');
+    return {exact, broad};
+  }
+  const keyFor = r => buildJoinKeys(r).exact;
+  const broadKeyFor = r => buildJoinKeys(r).broad;
 
   function mergeOperationalData(events, availability, volume){
     const buckets = new Map();
+    const availabilityBroad = new Map();
+    const volumeBroad = new Map();
+    const stats = {
+      matches:{availability:{exact:0,broad:0,none:0},volume:{exact:0,broad:0,none:0}},
+      rows:{errors:events.length,availability:availability.length,volume:volume.length}
+    };
+
     const ensureBucket = (obj) => {
       const key = keyFor(obj);
       if(!buckets.has(key)) buckets.set(key, {
@@ -395,95 +411,129 @@
     };
 
     availability.forEach(r=>{
-      const b = ensureBucket(r);
-      if(r.planned) b.plannedDowntimeSeconds += r.durationSeconds;
-      else if(!r.productive) b.unplannedDowntimeSeconds += r.durationSeconds;
-      if(r.productive) b.runtimeSeconds += r.durationSeconds;
-      if(!r.productive) b.downtimeSeconds += r.durationSeconds;
+      const exact = ensureBucket(r);
+      if(r.planned) exact.plannedDowntimeSeconds += r.durationSeconds;
+      else if(!r.productive) exact.unplannedDowntimeSeconds += r.durationSeconds;
+      if(r.productive) exact.runtimeSeconds += r.durationSeconds;
+      if(!r.productive) exact.downtimeSeconds += r.durationSeconds;
+
+      const broadKey = broadKeyFor(r);
+      const broad = availabilityBroad.get(broadKey) || {plannedDowntimeSeconds:0,unplannedDowntimeSeconds:0,runtimeSeconds:0,downtimeSeconds:0};
+      if(r.planned) broad.plannedDowntimeSeconds += r.durationSeconds;
+      else if(!r.productive) broad.unplannedDowntimeSeconds += r.durationSeconds;
+      if(r.productive) broad.runtimeSeconds += r.durationSeconds;
+      if(!r.productive) broad.downtimeSeconds += r.durationSeconds;
+      availabilityBroad.set(broadKey,broad);
     });
 
     volume.forEach(r=>{
-      const b = ensureBucket(r);
-      if(r.production) b.productionVolume += r.units;
-      else b.maintenanceVolume += r.units;
-    });
+      const exact = ensureBucket(r);
+      if(r.production) exact.productionVolume += r.units;
+      else exact.maintenanceVolume += r.units;
 
-    const fallbackAvailability = new Map();
-    availability.forEach(r=>{
-      const key = broadKeyFor(r);
-      const slot = fallbackAvailability.get(key) || {plannedDowntimeSeconds:0,unplannedDowntimeSeconds:0,runtimeSeconds:0,downtimeSeconds:0};
-      if(r.planned) slot.plannedDowntimeSeconds += r.durationSeconds;
-      else if(!r.productive) slot.unplannedDowntimeSeconds += r.durationSeconds;
-      if(r.productive) slot.runtimeSeconds += r.durationSeconds;
-      if(!r.productive) slot.downtimeSeconds += r.durationSeconds;
-      fallbackAvailability.set(key,slot);
-    });
-    const fallbackVolume = new Map();
-    volume.forEach(r=>{
-      const key = broadKeyFor(r);
-      const slot = fallbackVolume.get(key) || {productionVolume:0,maintenanceVolume:0};
-      if(r.production) slot.productionVolume += r.units;
-      else slot.maintenanceVolume += r.units;
-      fallbackVolume.set(key,slot);
+      const broadKey = broadKeyFor(r);
+      const broad = volumeBroad.get(broadKey) || {productionVolume:0,maintenanceVolume:0};
+      if(r.production) broad.productionVolume += r.units;
+      else broad.maintenanceVolume += r.units;
+      volumeBroad.set(broadKey,broad);
     });
 
     const mergedEvents = events.map(ev=>{
-      const exact = buckets.get(keyFor(ev));
-      const fallbackKey = broadKeyFor(ev);
-      const av = exact || fallbackAvailability.get(fallbackKey) || {plannedDowntimeSeconds:0,unplannedDowntimeSeconds:0,runtimeSeconds:0,downtimeSeconds:0};
-      const vol = exact || fallbackVolume.get(fallbackKey) || {productionVolume:0,maintenanceVolume:0};
+      const {exact:exactKey,broad:broadKey} = buildJoinKeys(ev);
+      const exact = buckets.get(exactKey);
+      const av = exact && (exact.runtimeSeconds || exact.downtimeSeconds || exact.plannedDowntimeSeconds || exact.unplannedDowntimeSeconds)
+        ? exact
+        : availabilityBroad.get(broadKey);
+      const vol = exact && (exact.productionVolume || exact.maintenanceVolume)
+        ? exact
+        : volumeBroad.get(broadKey);
+      if(av) stats.matches.availability[exact===av ? 'exact' : 'broad'] += 1;
+      else stats.matches.availability.none += 1;
+      if(vol) stats.matches.volume[exact===vol ? 'exact' : 'broad'] += 1;
+      else stats.matches.volume.none += 1;
       return {
         ...ev,
+        mergeContext:{
+          exactKey,
+          broadKey,
+          availabilityKey: av ? (exact===av ? `exact:${exactKey}` : `broad:${broadKey}`) : null,
+          volumeKey: vol ? (exact===vol ? `exact:${exactKey}` : `broad:${broadKey}`) : null
+        },
         availability:{
-          planned:av.plannedDowntimeSeconds||0,
-          unplanned:av.unplannedDowntimeSeconds||0,
-          runtime:av.runtimeSeconds||0,
-          totalDowntime:av.downtimeSeconds||0
+          planned:av?.plannedDowntimeSeconds||0,
+          unplanned:av?.unplannedDowntimeSeconds||0,
+          runtime:av?.runtimeSeconds||0,
+          totalDowntime:av?.downtimeSeconds||0
         },
         volume:{
-          production:vol.productionVolume||0,
-          maintenance:vol.maintenanceVolume||0
+          production:vol?.productionVolume||0,
+          maintenance:vol?.maintenanceVolume||0
         }
       };
     });
 
-    return {events:mergedEvents, buckets};
+    return {events:mergedEvents, buckets, availabilityBroad, volumeBroad, stats};
   }
 
-  function computeOperationalMetrics(filteredEvents, filteredBuckets){
+  function uniqueContextTotals(rows){
+    const availabilitySeen = new Set();
+    const volumeSeen = new Set();
+    let planned=0, unplanned=0, runtime=0, totalAvailDowntime=0, productionVolume=0;
+
+    rows.forEach(r=>{
+      const avKey = r.mergeContext?.availabilityKey;
+      if(avKey && !availabilitySeen.has(avKey)){
+        availabilitySeen.add(avKey);
+        planned += r.availability.planned || 0;
+        unplanned += r.availability.unplanned || 0;
+        runtime += r.availability.runtime || 0;
+        totalAvailDowntime += r.availability.totalDowntime || 0;
+      }
+      const volKey = r.mergeContext?.volumeKey;
+      if(volKey && !volumeSeen.has(volKey)){
+        volumeSeen.add(volKey);
+        productionVolume += r.volume.production || 0;
+      }
+    });
+
+    return {planned,unplanned,runtime,totalAvailDowntime,productionVolume,availabilityCount:availabilitySeen.size,volumeCount:volumeSeen.size};
+  }
+
+  function computeOperationalMetrics(filteredEvents){
     const totalEvents = filteredEvents.length;
-    const totalDowntime = filteredEvents.reduce((acc, r) => acc + (r.durationSeconds || 0), 0);
-    const totalProdVolume = [...filteredBuckets.values()].reduce((acc, b) => acc + b.productionVolume, 0);
-    const plannedDT = [...filteredBuckets.values()].reduce((acc, b) => acc + b.plannedDowntimeSeconds, 0);
-    const unplannedDT = [...filteredBuckets.values()].reduce((acc, b) => acc + b.unplannedDowntimeSeconds, 0);
-    const runtime = [...filteredBuckets.values()].reduce((acc, b) => acc + b.runtimeSeconds, 0);
+    const errorDowntime = filteredEvents.reduce((acc, r) => acc + (r.durationSeconds || 0), 0);
+    const totals = uniqueContextTotals(filteredEvents);
+    const totalDowntime = totals.availabilityCount ? (totals.totalAvailDowntime || (totals.unplanned + totals.planned)) : errorDowntime;
 
     const mttr = totalEvents ? totalDowntime / totalEvents : null;
-    const mtbf = totalEvents ? runtime / totalEvents : null;
-    const availabilityBase = runtime + unplannedDT;
-    const availabilityPct = availabilityBase > 0 ? (runtime / availabilityBase) * 100 : null;
+    const mtbf = totalEvents ? totals.runtime / totalEvents : null;
+    const availabilityBase = totals.runtime + totals.unplanned;
+    const availabilityPct = availabilityBase > 0 ? (totals.runtime / availabilityBase) * 100 : null;
 
     const reasons = [];
-    if (!filteredBuckets.size) reasons.push('No availability/volume buckets match current filter scope.');
-    if (!totalProdVolume) reasons.push('Print volume data is missing in selected scope; normalized KPIs are unavailable.');
-    if (!runtime && !unplannedDT) reasons.push('Availability windows are missing in selected scope; time-based availability KPI is unavailable.');
+    if (!totals.availabilityCount) reasons.push('No availability rows were matched to filtered error rows.');
+    if (!totals.volumeCount) reasons.push('No print-volume rows were matched to filtered error rows; normalized KPIs are unavailable.');
+    if (!totals.runtime && !totals.unplanned) reasons.push('Availability rows were matched but no runtime/unplanned values were found.');
 
     return {
-      totalEvents,totalDowntime,totalUnplanned:unplannedDT,totalPlanned:plannedDT,totalOperating:runtime,totalProdVolume,mttr,mtbf,availabilityPct,
-      downtimePerVolume: totalProdVolume ? totalDowntime/totalProdVolume : null,
-      eventPerVolume: totalProdVolume ? totalEvents/totalProdVolume : null,
+      totalEvents,totalDowntime,errorDowntime,totalUnplanned:totals.unplanned,totalPlanned:totals.planned,totalOperating:totals.runtime,totalProdVolume:totals.productionVolume,mttr,mtbf,availabilityPct,
+      downtimePerVolume: totals.productionVolume ? totalDowntime/totals.productionVolume : null,
+      eventPerVolume: totals.productionVolume ? totalEvents/totals.productionVolume : null,
       reasons
     };
   }
-
   function aggregate(rows,keyFn){
     const map = new Map();
     rows.forEach(r=>{
       const key = keyFn(r) || 'Unspecified';
-      const slot = map.get(key) || {name:key,events:0,downtime:0,volume:0,recent:0,subsystems:new Set()};
+      const slot = map.get(key) || {name:key,events:0,downtime:0,volume:0,recent:0,subsystems:new Set(),volumeKeys:new Set()};
       slot.events += 1;
       slot.downtime += r.durationSeconds || 0;
-      slot.volume += r.volume.production || 0;
+      const vKey = r.mergeContext?.volumeKey;
+      if(vKey && !slot.volumeKeys.has(vKey)){
+        slot.volumeKeys.add(vKey);
+        slot.volume += r.volume.production || 0;
+      }
       slot.subsystems.add(r.subsystem);
       const ageDays = r.startTime ? ((Date.now() - r.startTime.getTime()) / 86400000) : 999;
       if (ageDays <= 7) slot.recent += 1;
@@ -570,7 +620,7 @@
     const na = 'N/A';
     const cards = [
       ['Total Events',k.totalEvents.toLocaleString(),'Merged error events'],
-      ['Total Downtime',formatDuration(k.totalDowntime),'From error durations'],
+      ['Total Downtime',formatDuration(k.totalDowntime),k.totalUnplanned || k.totalPlanned ? 'From availability states' : 'From error durations'],
       ['Unplanned DT',formatDuration(k.totalUnplanned),'From availability states'],
       ['Planned DT',formatDuration(k.totalPlanned),'Maintenance/break windows'],
       ['MTTR',k.mttr == null ? na : formatDuration(k.mttr),'Mean time to repair'],
@@ -662,13 +712,6 @@
     );
   }
 
-  function filteredBucketMap(rows){
-    const keys = new Set(rows.map(r => keyFor(r)));
-    const map = new Map();
-    keys.forEach(k => { if (STATE.merged.buckets.has(k)) map.set(k, STATE.merged.buckets.get(k)); });
-    return map;
-  }
-
   function openDrilldown(dimension, value){
     const mapping = {press:'press',subsystem:'subsystem',alert:'alert',version:'version'};
     const field = mapping[dimension];
@@ -699,8 +742,7 @@
 
   function renderDashboard(){
     STATE.filtered = filteredRows();
-    STATE.filteredBuckets = filteredBucketMap(STATE.filtered);
-    const kpis = computeOperationalMetrics(STATE.filtered, STATE.filteredBuckets);
+    const kpis = computeOperationalMetrics(STATE.filtered);
     STATE.kpis=kpis;
     renderKpis(kpis);
     const rankings = buildOverviewCharts(STATE.filtered);
@@ -715,7 +757,21 @@
     const summary = buildExecutiveSummary(STATE.filtered, riskRows, kpis);
     STATE.merged.summary = summary;
     renderExecutiveSummaryCard(summary);
+    renderMergeDebug();
     renderTable(STATE.filtered);
+  }
+
+  function renderMergeDebug(){
+    const stats = STATE.merged.stats || {};
+    const match = stats.matches || {};
+    const av = match.availability || {exact:0,broad:0,none:0};
+    const vol = match.volume || {exact:0,broad:0,none:0};
+    const rowStats = stats.rows || {errors:0,availability:0,volume:0};
+    document.getElementById('mergeDebug').textContent =
+      `Rows parsed — E:${rowStats.errors.toLocaleString()} A:${rowStats.availability.toLocaleString()} V:${rowStats.volume.toLocaleString()} • ` +
+      `Availability matches (exact/broad/unmatched): ${av.exact}/${av.broad}/${av.none} • ` +
+      `Volume matches (exact/broad/unmatched): ${vol.exact}/${vol.broad}/${vol.none}`;
+    console.info('[merge-debug]', {rows:rowStats, availability:av, volume:vol});
   }
 
   function exportRowsToCsv(rows){ if(!rows.length) return; const headers=['customer','site','press','model','subsystem','version','name','alertTitle','day','durationSeconds','productionVolume'];
@@ -729,18 +785,21 @@
     const phase = async msg => { setStatus(msg,'info'); await shortYield(); };
 
     try{
+      const t0 = performance.now();
       await phase('Validating files…');
       await phase('Parsing errors…');
-      const errorsRaw = await parseErrorsFile(STATE.files.errors);
+      const errorsRaw = STATE.cachedRaw.errors || await parseErrorsFile(STATE.files.errors);
       await phase('Parsing availability…');
-      const availabilityRaw = STATE.files.availability ? await parseAvailabilityFile(STATE.files.availability) : [];
+      const availabilityRaw = STATE.files.availability ? (STATE.cachedRaw.availability || await parseAvailabilityFile(STATE.files.availability)) : [];
       await phase('Parsing print volume…');
-      const volumeRaw = STATE.files.volume ? await parsePrintVolumeFile(STATE.files.volume) : [];
+      const volumeRaw = STATE.files.volume ? (STATE.cachedRaw.volume || await parsePrintVolumeFile(STATE.files.volume)) : [];
 
       await phase('Merging datasets…');
-      const errors = await normalizeErrorsRows(errorsRaw);
-      const availability = await normalizeAvailabilityRows(availabilityRaw);
-      const volume = await normalizeVolumeRows(volumeRaw);
+      const [errors, availability, volume] = await Promise.all([
+        normalizeErrorsRows(errorsRaw),
+        normalizeAvailabilityRows(availabilityRaw),
+        normalizeVolumeRows(volumeRaw)
+      ]);
       const merged = mergeOperationalData(errors,availability,volume);
 
       await phase('Computing KPIs…');
@@ -751,27 +810,30 @@
       const mode = !availability.length && !volume.length ? 'Errors only' : availability.length && volume.length ? 'Full mode: Errors + Availability + Print Volume' : `Partial mode: Errors + ${availability.length?'Availability':'Print Volume'}`;
       STATE.mode = mode;
 
-      await phase('Building dashboard…');
+      await phase('Building charts…');
       populateFilter('customerFilter',[...new Set(merged.events.map(r=>r.customer))].sort(),'customers');
       populateFilter('siteFilter',[...new Set(merged.events.map(r=>r.site))].sort(),'sites');
       populateFilter('pressFilter',[...new Set(merged.events.map(r=>r.press))].sort(),'presses');
       populateFilter('subsystemFilter',[...new Set(merged.events.map(r=>r.subsystem))].sort(),'subsystems');
       populateFilter('versionFilter',[...new Set(merged.events.map(r=>r.version))].sort(),'software versions');
       document.getElementById('datasetMeta').textContent = `${STATE.files.errors.name} • ${merged.events.length.toLocaleString()} merged events • ${mode}`;
+      await phase('Finalizing dashboard…');
       setStatus('Analysis complete. Launching dashboard…','ok');
       document.getElementById('intakeScreen').classList.add('hidden');
       document.getElementById('dashboardScreen').classList.remove('hidden');
       renderDashboard();
+      console.info(`[analysis-timing] ${(performance.now()-t0).toFixed(0)}ms total`);
     } catch (e){ setStatus(e.message || 'Failed to run analysis.','error'); }
   }
 
   function assignFileByDetection(file){ const n=file.name.toLowerCase(); if(/avail|uptime|state/.test(n)) STATE.files.availability=file; else if(/volume|print|impression|workload/.test(n)) STATE.files.volume=file; else STATE.files.errors=file; }
-  function clearFiles(){ STATE.files={errors:null,availability:null,volume:null}; STATE.validation={errors:false,availability:false,volume:false}; setFileUI('errors'); setFileUI('availability'); setFileUI('volume'); setStatus('Files cleared. Select datasets to continue.','info'); }
+  function clearFiles(){ STATE.files={errors:null,availability:null,volume:null}; STATE.cachedRaw={errors:null,availability:null,volume:null}; STATE.validation={errors:false,availability:false,volume:false}; setFileUI('errors'); setFileUI('availability'); setFileUI('volume'); setStatus('Files cleared. Select datasets to continue.','info'); }
 
   async function validateSingleFile(key){
     const file=STATE.files[key]; if(!file){ STATE.validation[key]=false; setFileUI(key); return; }
     try {
       const rows = await loadRowsFromFile(file);
+      STATE.cachedRaw[key] = rows;
       if(key==='errors') await normalizeErrorsRows(rows.slice(0,Math.min(rows.length,120)));
       if(key==='availability') await normalizeAvailabilityRows(rows.slice(0,Math.min(rows.length,120)));
       if(key==='volume') await normalizeVolumeRows(rows.slice(0,Math.min(rows.length,120)));
@@ -792,9 +854,9 @@
     availabilityPicker.addEventListener('change',async e=>{ STATE.files.availability=e.target.files?.[0]||null; await validateSingleFile('availability'); });
     volumePicker.addEventListener('change',async e=>{ STATE.files.volume=e.target.files?.[0]||null; await validateSingleFile('volume'); });
 
-    bulkInput.addEventListener('change',async e=>{ for(const f of [...(e.target.files||[])]) assignFileByDetection(f); await validateSingleFile('errors'); await validateSingleFile('availability'); await validateSingleFile('volume'); });
+    bulkInput.addEventListener('change',async e=>{ for(const f of [...(e.target.files||[])]) assignFileByDetection(f); await Promise.all([validateSingleFile('errors'), validateSingleFile('availability'), validateSingleFile('volume')]); });
     const dropZone = document.getElementById('dropZone'); ['dragenter','dragover'].forEach(ev=>dropZone.addEventListener(ev,e=>{e.preventDefault();dropZone.classList.add('drag');})); ['dragleave','drop'].forEach(ev=>dropZone.addEventListener(ev,e=>{e.preventDefault();dropZone.classList.remove('drag');}));
-    dropZone.addEventListener('drop', async e=>{ for(const f of [...(e.dataTransfer?.files||[])]) assignFileByDetection(f); await validateSingleFile('errors'); await validateSingleFile('availability'); await validateSingleFile('volume'); });
+    dropZone.addEventListener('drop', async e=>{ for(const f of [...(e.dataTransfer?.files||[])]) assignFileByDetection(f); await Promise.all([validateSingleFile('errors'), validateSingleFile('availability'), validateSingleFile('volume')]); });
 
     clearBtn.addEventListener('click',clearFiles);
     runBtn.addEventListener('click',runAnalysisFlow);
@@ -808,8 +870,13 @@
 
     document.querySelectorAll('[data-expand]').forEach(btn=>btn.addEventListener('click',()=>{ const key=btn.dataset.expand; STATE.expand[key]=!STATE.expand[key]; renderDashboard(); }));
     document.querySelectorAll('[data-metric]').forEach(sel=>sel.addEventListener('change',e=>{ STATE.metricByChart[e.target.dataset.metric]=e.target.value; renderDashboard(); }));
-    ['customerFilter','siteFilter','pressFilter','subsystemFilter','versionFilter','startDateFilter','endDateFilter'].forEach(id=>document.getElementById(id).addEventListener('change',renderDashboard));
-    searchFilter.addEventListener('input',renderDashboard);
+    const scheduleRender = ()=> {
+      if(STATE.renderQueued) return;
+      STATE.renderQueued = true;
+      requestAnimationFrame(()=>{ STATE.renderQueued=false; renderDashboard(); });
+    };
+    ['customerFilter','siteFilter','pressFilter','subsystemFilter','versionFilter','startDateFilter','endDateFilter'].forEach(id=>document.getElementById(id).addEventListener('change',scheduleRender));
+    searchFilter.addEventListener('input',scheduleRender);
 
     closeDrilldown.addEventListener('click',()=>drilldownDrawer.classList.remove('show'));
     drilldownDrawer.addEventListener('click',(e)=>{ if(e.target.id === 'drilldownDrawer') drilldownDrawer.classList.remove('show'); });
