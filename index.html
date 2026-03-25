@@ -36,44 +36,59 @@
       min-height: calc(100vh - 44px);
       display: grid;
       place-items: center;
+      padding: 20px 0;
     }
     .intake-card {
-      width: min(900px, 100%);
-      background: linear-gradient(180deg, rgba(255,255,255,.03), rgba(255,255,255,.01));
-      border: 1px solid var(--border);
-      border-radius: 18px;
-      box-shadow: var(--shadow);
-      padding: 28px;
+      width: min(860px, 100%);
+      background: linear-gradient(180deg, rgba(255,255,255,.035), rgba(255,255,255,.012));
+      border: 1px solid rgba(255,255,255,.12);
+      border-radius: 20px;
+      box-shadow: 0 14px 36px rgba(0,0,0,.34);
+      padding: clamp(20px, 3vw, 34px);
+    }
+    .intake-content {
+      width: min(720px, 100%);
+      margin: 0 auto;
+      display: grid;
+      gap: 14px;
     }
     .eyebrow { color: var(--muted); font-size: .82rem; text-transform: uppercase; letter-spacing: .13em; }
     h1, h2, h3 { margin: 0; }
-    .intake-title { margin-top: 8px; font-size: 1.6rem; }
-    .subtitle { margin-top: 8px; color: var(--muted); max-width: 760px; }
-    .format-badges { margin-top: 14px; display: flex; gap: 8px; flex-wrap: wrap; }
+    .intake-title { margin-top: 8px; font-size: clamp(1.45rem, 3vw, 1.9rem); line-height: 1.2; }
+    .subtitle { margin-top: 8px; color: var(--muted); max-width: 760px; line-height: 1.5; }
+    .format-badges { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
     .format-badges span {
-      border: 1px solid var(--border);
+      border: 1px solid rgba(255,255,255,.14);
       border-radius: 999px;
-      padding: 4px 10px;
+      padding: 5px 11px;
       font-size: .78rem;
       color: #cad6eb;
-      background: rgba(255,255,255,.03);
+      background: rgba(255,255,255,.04);
+      line-height: 1.2;
+      white-space: nowrap;
     }
     .dropzone {
-      margin-top: 18px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      width: 100%;
+      min-height: 220px;
       border: 1.5px dashed rgba(123,141,255,.55);
       border-radius: 14px;
       background: rgba(123,141,255,.06);
-      padding: 34px;
+      padding: clamp(24px, 4vw, 42px);
       text-align: center;
       transition: all .18s ease;
       cursor: pointer;
     }
+    .dropzone:hover { border-color: rgba(139,157,255,.82); background: rgba(123,141,255,.12); }
     .dropzone.drag { border-color: #9bb1ff; background: rgba(123,141,255,.14); }
     .dropzone-title { font-weight: 600; }
     .dropzone-sub { color: var(--muted); margin-top: 8px; }
-    .microcopy { color: #9fb0cc; margin-top: 10px; font-size: .86rem; }
+    .microcopy { color: #9fb0cc; margin-top: 10px; font-size: .86rem; max-width: 52ch; }
     .status {
-      margin-top: 14px;
+      margin-top: 2px;
       border-radius: 10px;
       padding: 10px 12px;
       font-size: .9rem;
@@ -168,23 +183,32 @@
       .span-4, .span-6, .span-8 { grid-column: span 12; }
       .topbar { grid-template-columns: 1fr; }
     }
+    @media (max-width: 700px) {
+      .app { padding: 14px; }
+      .intake-shell { min-height: calc(100vh - 28px); }
+      .intake-content { gap: 12px; }
+      .format-badges { gap: 6px; }
+      .dropzone { min-height: 200px; }
+    }
   </style>
 </head>
 <body>
 <div class="app" id="appRoot">
   <section id="intakeScreen" class="intake-shell">
     <article class="intake-card">
-      <div class="eyebrow">Press Intelligence</div>
-      <h1 class="intake-title">Operational Error-Event Intelligence</h1>
-      <p class="subtitle">Upload your event file to validate, normalize, and analyze error behavior across presses, models, subsystems, states, and versions.</p>
-      <div class="format-badges"><span>CSV</span><span>Excel (.xlsx / .xls)</span><span>JSON (array of objects)</span></div>
-      <label class="dropzone" id="dropZone" for="fileInput">
-        <div class="dropzone-title">Drop file here or click to browse</div>
-        <div class="dropzone-sub">Required schema validation runs before the dashboard opens.</div>
-        <div class="microcopy">Your file is analyzed locally in-browser. No server upload required.</div>
-      </label>
-      <input id="fileInput" type="file" accept=".csv,.xlsx,.xls,.json" class="hidden" />
-      <div id="intakeStatus" class="status" role="alert" aria-live="polite"></div>
+      <div class="intake-content">
+        <div class="eyebrow">Press Intelligence</div>
+        <h1 class="intake-title">Operational Error-Event Intelligence</h1>
+        <p class="subtitle">Upload your event file to validate, normalize, and analyze error behavior across presses, models, subsystems, states, and versions.</p>
+        <div class="format-badges"><span>CSV</span><span>Excel (.xlsx / .xls)</span><span>JSON (array of objects)</span></div>
+        <label class="dropzone" id="dropZone" for="fileInput">
+          <div class="dropzone-title">Drop file here or click to browse</div>
+          <div class="dropzone-sub">Required schema validation runs before the dashboard opens.</div>
+          <div class="microcopy">Your file is analyzed locally in-browser. No server upload required.</div>
+        </label>
+        <input id="fileInput" type="file" accept=".csv,.xlsx,.xls,.json" class="hidden" />
+        <div id="intakeStatus" class="status" role="alert" aria-live="polite"></div>
+      </div>
     </article>
   </section>
 
