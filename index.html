@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Press Insight Intelligence Platform</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%230d1420'/%3E%3Cpath d='M12 44h8V28h-8v16Zm16 0h8V20h-8v24Zm16 0h8V12h-8v32Z' fill='%237b8dff'/%3E%3Ccircle cx='48' cy='16' r='7' fill='%23f25c54'/%3E%3C/svg%3E">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <style>
@@ -17,8 +18,8 @@
       --border: rgba(255,255,255,0.1);
       --focus: #77b6ff;
       --critical: #f25c54;
-      --elevated: #f2954f;
-      --watch: #f2d35c;
+      --high: #f2954f;
+      --medium: #f2d35c;
       --ok: #51c285;
       --info: #7b8dff;
       --shadow: 0 8px 28px rgba(0,0,0,.32);
@@ -97,7 +98,7 @@
     .v { font-size: 1.2rem; margin-top: 6px; font-weight: 640; }
     .d { color: var(--muted); font-size: .82rem; margin-top: 4px; }
 
-    .exec-section { margin-bottom: 14px; }
+    .exec-section { margin: 14px 0; }
     .exec-header { display:flex; justify-content:space-between; align-items:flex-end; gap:14px; margin-bottom:10px; }
     .exec-grid { display:grid; grid-template-columns: 2fr 1.2fr; gap:12px; }
     .card { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 12px; }
@@ -106,10 +107,18 @@
     .risk-line { display:flex; justify-content:space-between; gap:10px; align-items:flex-start; }
     .risk-reason { color: var(--muted); font-size:.84rem; margin-top:6px; }
     .badge { border-radius:999px; padding:4px 10px; font-size:.74rem; font-weight:600; border:1px solid transparent; white-space:nowrap; }
-    .badge.high { color:#ffd3d1; background: rgba(242,92,84,.18); border-color:rgba(242,92,84,.4); }
-    .badge.elevated { color:#ffe4cc; background: rgba(242,149,79,.18); border-color:rgba(242,149,79,.4); }
-    .badge.watch { color:#fff1bf; background: rgba(242,211,92,.17); border-color:rgba(242,211,92,.4); }
+    .badge.critical { color:#ffd3d1; background: rgba(242,92,84,.18); border-color:rgba(242,92,84,.4); }
+    .badge.high { color:#ffe4cc; background: rgba(242,149,79,.18); border-color:rgba(242,149,79,.4); }
+    .badge.medium { color:#fff1bf; background: rgba(242,211,92,.17); border-color:rgba(242,211,92,.4); }
     .badge.stable { color:#cbffe0; background: rgba(81,194,133,.16); border-color:rgba(81,194,133,.38); }
+    .status-strip { border-radius:12px; padding:10px 12px; margin-bottom:12px; border:1px solid var(--border); background: rgba(123,141,255,.1); }
+    .signal-grid { display:grid; grid-template-columns: repeat(5, minmax(140px,1fr)); gap:10px; margin:12px 0; }
+    .signal-card { border:1px solid rgba(255,255,255,.09); border-radius:10px; padding:10px; background:rgba(255,255,255,.02); }
+    .risk-distribution { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px; }
+    .risk-pill { border-radius:999px; padding:5px 10px; font-size:.78rem; border:1px solid; }
+    .risk-group { margin-top:12px; }
+    .risk-group h4 { margin:0 0 6px; }
+    .risk-meta { color:#b8c5dd; font-size:.8rem; margin-top:5px; }
     .exec-pillars { display:grid; gap:8px; margin-top:10px; }
     .exec-pillars div { border:1px solid rgba(123,141,255,.25); border-radius:10px; padding:8px; background:rgba(123,141,255,.08); font-size:.86rem; }
     .focus-list { margin:10px 0 0; padding-left:18px; color:#d5dded; }
@@ -183,7 +192,7 @@
 
     @media (max-width: 1200px) {
       .exec-grid, .export-layout { grid-template-columns: 1fr; }
-      .metric-strip { grid-template-columns: repeat(2, minmax(120px, 1fr)); }
+      .metric-strip, .signal-grid { grid-template-columns: repeat(2, minmax(120px, 1fr)); }
     }
     @media (max-width: 1100px) {
       .kpis { grid-template-columns: 1fr 1fr; }
@@ -205,14 +214,19 @@
       <div class="intake-content">
         <div class="eyebrow">Press Intelligence</div>
         <h1 class="intake-title">Operational Error-Event Intelligence</h1>
-        <p class="subtitle">Upload your event file to validate, normalize, and analyze error behavior across presses, models, subsystems, states, and versions.</p>
+        <p class="subtitle">Load all three data layers (Errors, Availability, Print Volume) to generate explainable risk, production-normalized KPI intelligence, and executive output.</p>
         <div class="format-badges"><span>CSV</span><span>Excel (.xlsx / .xls)</span><span>JSON (array of objects)</span></div>
-        <label class="dropzone" id="dropZone" for="fileInput">
-          <div class="dropzone-title">Drop file here or click to browse</div>
-          <div class="dropzone-sub">Required schema validation runs before the dashboard opens.</div>
+        <label class="dropzone" id="dropZone" for="errorsInput">
+          <div class="dropzone-title">Drop files here or click to browse</div>
+          <div class="dropzone-sub">Assign files below if names are ambiguous. Dashboard opens after Errors file is valid.</div>
           <div class="microcopy">Your file is analyzed locally in-browser. No server upload required.</div>
         </label>
-        <input id="fileInput" type="file" accept=".csv,.xlsx,.xls,.json" class="hidden" />
+        <input id="errorsInput" type="file" accept=".csv,.xlsx,.xls,.json" class="hidden" />
+        <div class="filters" style="margin:0;">
+          <label>Errors <input id="errorsPicker" type="file" accept=".csv,.xlsx,.xls,.json" /></label>
+          <label>Availability <input id="availabilityPicker" type="file" accept=".csv,.xlsx,.xls,.json" /></label>
+          <label>Print Volume <input id="volumePicker" type="file" accept=".csv,.xlsx,.xls,.json" /></label>
+        </div>
         <div id="intakeStatus" class="status" role="alert" aria-live="polite"></div>
       </div>
     </article>
@@ -225,36 +239,12 @@
         <div class="subtitle" id="datasetMeta">Dataset not loaded.</div>
       </div>
       <div class="controls">
-        <label class="mode-toggle"><input type="checkbox" id="managementModeToggle" /> Executive view</label>
+        <label class="mode-toggle"><input type="checkbox" id="managementModeToggle" /> Executive Mode</label>
         <button class="btn" id="replaceBtn">Replace dataset</button>
         <button class="btn" id="exportBtn">Export filtered CSV</button>
         <button class="btn" id="openExecExportBtn">Export Executive Summary</button>
       </div>
     </header>
-
-    <section class="exec-section card" id="executiveSection">
-      <div class="exec-header">
-        <div>
-          <h3>Executive Risk Snapshot</h3>
-          <div class="micro">Operational status layer for leadership: top risks, stabilizing entities, and immediate focus areas.</div>
-        </div>
-      </div>
-      <div class="exec-grid">
-        <article class="card">
-          <h3>Highest-Risk Presses</h3>
-          <div id="riskRankedList" class="risk-list"></div>
-          <h3 style="margin-top:12px;">Stable / Lowest Concern</h3>
-          <div id="stableList" class="risk-list"></div>
-        </article>
-        <article class="card">
-          <h3>Situation Summary</h3>
-          <div id="executiveNarrative" class="micro" style="margin-top:8px;"></div>
-          <div class="exec-pillars" id="executivePillars"></div>
-          <h3 style="margin-top:12px;">Recommended Immediate Focus</h3>
-          <ul id="recommendedFocus" class="focus-list"></ul>
-        </article>
-      </div>
-    </section>
 
     <section class="kpis" id="kpiStrip"></section>
 
@@ -349,6 +339,22 @@
         </article>
       </section>
     </main>
+
+    <section class="exec-section card" id="executiveSection">
+      <h3>Executive Situation Overview</h3>
+      <div class="status-strip" id="overallStatusBar"></div>
+      <div class="signal-grid" id="executiveSignals"></div>
+      <div class="risk-distribution" id="riskDistribution"></div>
+      <div class="micro" id="insightLine"></div>
+    </section>
+
+    <section class="exec-section card" id="riskSection">
+      <h3>Operational Risk Breakdown</h3>
+      <div class="risk-group"><h4>[ CRITICAL ]</h4><div id="criticalRiskList" class="risk-list"></div></div>
+      <div class="risk-group"><h4>[ HIGH RISK ]</h4><div id="highRiskList" class="risk-list"></div></div>
+      <div class="risk-group"><h4>[ MEDIUM RISK ]</h4><div id="mediumRiskList" class="risk-list"></div></div>
+      <div class="risk-group"><h4>[ STABLE / LOW CONCERN ]</h4><div id="stableList" class="risk-list"></div></div>
+    </section>
   </section>
 </div>
 
@@ -388,7 +394,7 @@
     <div class="export-top">
       <div>
         <div class="eyebrow">Management Snapshot</div>
-        <h2>Executive Operational Summary</h2>
+        <h2>Operational Performance Snapshot</h2>
         <div class="micro" id="execGeneratedMeta"></div>
       </div>
       <div class="export-controls" style="display:flex; gap:8px; flex-wrap:wrap;">
@@ -399,978 +405,207 @@
       </div>
     </div>
     <div class="export-layout">
-      <article class="card">
-        <h3>Overall Situation</h3>
-        <div id="exportOverall" class="micro"></div>
-        <h3 style="margin-top:10px;">Highest-Risk Presses</h3>
-        <div id="exportRiskList" class="risk-list"></div>
-        <h3 style="margin-top:10px;">Stable Areas</h3>
-        <div id="exportStableList" class="risk-list"></div>
-      </article>
-      <article class="card">
-        <h3>Main Drivers</h3>
-        <div id="exportDrivers" class="exec-pillars"></div>
-        <h3 style="margin-top:10px;">Recommended Immediate Focus</h3>
-        <ul id="exportFocus" class="focus-list"></ul>
-        <h3 style="margin-top:10px;">Email-Ready Brief</h3>
-        <div id="emailBrief" class="plain-block"></div>
-      </article>
+      <article class="card" id="exportPrimary"></article>
+      <article class="card" id="exportSecondary"></article>
     </div>
   </article>
 </section>
 
 <script>
 (() => {
-  const REQUIRED_COLUMNS = [
+  const REQUIRED_ERROR_COLUMNS = [
     'Press','Model','Name','Alert Message Title','Alert Message Body','Alert Message Solution',
     'Start Time','Duration','Recovery','Pre Error State','Subsystem','Error State','Version'
   ];
-
   const COLUMN_MAP = {
     'Press': 'press', 'Model': 'model', 'Name': 'name', 'Alert Message Title': 'alertTitle',
     'Alert Message Body': 'alertBody', 'Alert Message Solution': 'alertSolution',
     'Start Time': 'startTime', 'Duration': 'durationRaw', 'Recovery': 'recoveryTime',
     'Pre Error State': 'preErrorState', 'Subsystem': 'subsystem', 'Error State': 'errorState', 'Version': 'version'
   };
-
   const DIMENSION_CONFIG = {
-    name: { label: 'Error Name', key: 'name' },
-    alertTitle: { label: 'Alert Title', key: 'alertTitle' },
-    subsystem: { label: 'Subsystem', key: 'subsystem' },
-    press: { label: 'Press', key: 'press' },
-    version: { label: 'Version', key: 'version' },
-    preErrorState: { label: 'Pre Error State', key: 'preErrorState' },
-    day: { label: 'Start Day', key: 'day' }
+    name: { label: 'Error Name', key: 'name' }, alertTitle: { label: 'Alert Title', key: 'alertTitle' },
+    subsystem: { label: 'Subsystem', key: 'subsystem' }, press: { label: 'Press', key: 'press' },
+    version: { label: 'Version', key: 'version' }, preErrorState: { label: 'Pre Error State', key: 'preErrorState' }, day: { label: 'Start Day', key: 'day' }
   };
-
-  const STATE = {
-    rawRows: [], normalizedRows: [], filteredRows: [], activeTab: 'overview', initialized: false,
-    listenersBound: false, datasetName: '', metricsHash: '', managementMode: false,
-    drilldown: { context: null, rows: [], search: '', sortField: 'durationSeconds', sortDir: 'desc' }
-  };
-
+  const STATE = { rawRows: [], normalizedRows: [], filteredRows: [], datasetName: '', metricsHash: '', initialized: false, listenersBound: false, activeTab: 'overview', managementMode: false,
+    files:{errors:null,availability:null,volume:null}, availabilityRows:[], volumeRows:[], drilldown:{context:null, rows:[], search:'', sortField:'durationSeconds', sortDir:'desc'} };
   const CHARTS = new Map();
-  const CHART_COLORS = ['#7b8dff','#f09b4f','#51c285','#f25c54','#65c3ff','#a29bfe','#f2d35c','#6dd3ce','#ee84ff','#8f9bb1','#ffa76b','#9fd356'];
+  const CHART_COLORS = ['#7b8dff','#f09b4f','#51c285','#f25c54','#65c3ff','#a29bfe','#f2d35c','#6dd3ce','#ee84ff'];
+  const esc = (v)=> String(v??'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 
-  const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (c) => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
-  const metricCard = (k, v, d) => `<article class="kpi"><div class="k">${esc(k)}</div><div class="v">${esc(v)}</div><div class="d">${esc(d)}</div></article>`;
-  const topBy = (rows, key) => Object.entries(rows.reduce((acc, r) => {
-    const k = String(r[key] || 'Unspecified').trim() || 'Unspecified'; acc[k] = (acc[k] || 0) + 1; return acc;
-  }, {})).sort((a,b)=>b[1]-a[1])[0] || ['N/A', 0];
-
-  function setStatus(message, kind = 'info') {
-    const status = document.getElementById('intakeStatus');
-    status.className = `status show ${kind}`;
-    status.textContent = message;
-  }
-
-  function clearStatus() {
-    const status = document.getElementById('intakeStatus');
-    status.className = 'status';
-    status.textContent = '';
-  }
-
-  function toggleScreens(showDashboard) {
-    document.getElementById('intakeScreen').classList.toggle('hidden', showDashboard);
-    document.getElementById('dashboardScreen').classList.toggle('hidden', !showDashboard);
-  }
-
-  function canonicalHeader(value) { return String(value ?? '').trim().toLowerCase().replace(/\s+/g, ' '); }
-  function normalizeRowKeys(row) { const out = {}; Object.entries(row || {}).forEach(([k, v]) => out[String(k).trim()] = v); return out; }
-
-  function detectDelimiter(text) {
-    const candidates = [',', ';', '\t'];
-    const lines = [];
-    let current = '', inQuotes = false;
-    for (let i = 0; i < text.length && lines.length < 8; i++) {
-      const ch = text[i];
-      if (ch === '"') { if (inQuotes && text[i + 1] === '"') { current += '"'; i++; } else inQuotes = !inQuotes; }
-      else if (!inQuotes && (ch === '\n' || ch === '\r')) { if (current.trim()) lines.push(current); current = ''; if (ch === '\r' && text[i + 1] === '\n') i++; }
-      else current += ch;
-    }
-    if (current.trim()) lines.push(current);
-    const score = (d) => lines.reduce((acc, line) => acc + (line.split(d).length - 1), 0);
-    return candidates.map(d => ({ d, s: score(d) })).sort((a, b) => b.s - a.s)[0].d;
-  }
-
-  function parseCSV(text) {
+  function setStatus(message, kind='info'){ const el=document.getElementById('intakeStatus'); el.className=`status show ${kind}`; el.textContent=message; }
+  function clearStatus(){ const el=document.getElementById('intakeStatus'); el.className='status'; el.textContent=''; }
+  function toggleScreens(show){ document.getElementById('intakeScreen').classList.toggle('hidden', show); document.getElementById('dashboardScreen').classList.toggle('hidden', !show); }
+  const canonicalHeader=(v)=>String(v??'').trim().toLowerCase().replace(/\s+/g,' ');
+  const normalizeRowKeys=(row)=>Object.fromEntries(Object.entries(row||{}).map(([k,v])=>[String(k).trim(),v]));
+  function detectDelimiter(text){ const c=[',',';','\t']; const l=text.split(/\r?\n/).slice(0,8); return c.map(d=>({d,s:l.reduce((a,x)=>a+(x.split(d).length-1),0)})).sort((a,b)=>b.s-a.s)[0].d; }
+  function parseCSV(text){
     const src = String(text || '').replace(/^\uFEFF/, '');
-    const delimiter = detectDelimiter(src);
+    const d = detectDelimiter(src);
     const rows = [];
-    let row = [], field = '', inQuotes = false;
-
+    let row = [], f = '', q = false;
     for (let i = 0; i < src.length; i++) {
       const ch = src[i];
-      if (inQuotes) {
-        if (ch === '"') { if (src[i + 1] === '"') { field += '"'; i++; } else inQuotes = false; }
-        else field += ch;
-      } else if (ch === '"') inQuotes = true;
-      else if (ch === delimiter) { row.push(field); field = ''; }
+      if (q) {
+        if (ch === '"') { if (src[i + 1] === '"') { f += '"'; i++; } else q = false; }
+        else f += ch;
+      } else if (ch === '"') q = true;
+      else if (ch === d) { row.push(f); f = ''; }
       else if (ch === '\n' || ch === '\r') {
-        row.push(field); field = '';
+        row.push(f); f = '';
         if (row.some(v => String(v).trim() !== '')) rows.push(row);
         row = [];
         if (ch === '\r' && src[i + 1] === '\n') i++;
-      } else field += ch;
+      } else f += ch;
     }
-    if (field.length || row.length) {
-      row.push(field);
-      if (row.some(v => String(v).trim() !== '')) rows.push(row);
-    }
-    if (inQuotes) throw new Error('CSV parse failed: unmatched quote in file.');
-    if (!rows.length) return [];
+    if (f.length || row.length) { row.push(f); if (row.some(v => String(v).trim() !== '')) rows.push(row); }
+    const headers = (rows[0] || []).map(x => String(x).trim());
+    return rows.slice(1).map(cells => Object.fromEntries(headers.map((h, i) => [h, cells[i] ?? ''])));
+  }
+  function excelSerialToDate(serial){ if(typeof serial!=='number'||!Number.isFinite(serial)) return null; const days=Math.floor(serial-25569),frac=serial-Math.floor(serial); return new Date((days*86400+Math.round(frac*86400))*1000); }
+  async function parseExcel(file){ const wb=XLSX.read(await file.arrayBuffer(),{type:'array',cellDates:true,raw:true}); const sheet=wb.Sheets[wb.SheetNames[0]]; return XLSX.utils.sheet_to_json(sheet,{defval:'',raw:true,blankrows:false}).map(normalizeRowKeys); }
+  function parseJSON(text){ const d=JSON.parse(text); if(!Array.isArray(d)) throw new Error('JSON must be array of objects.'); return d.map(normalizeRowKeys); }
+  async function loadRowsFromFile(file){ const ext=file.name.toLowerCase().split('.').pop(); if(ext==='csv') return parseCSV(await file.text()); if(ext==='xlsx'||ext==='xls') return parseExcel(file); if(ext==='json') return parseJSON(await file.text()); throw new Error('Unsupported type'); }
+  function parseDateSafe(v){ if(!v&&v!==0) return null; if(v instanceof Date&&!Number.isNaN(v.getTime())) return v; if(typeof v==='number'){ const d=excelSerialToDate(v); if(d) return d; } const d=new Date(String(v).trim()); return Number.isNaN(d.getTime())?null:d; }
+  function parseDurationSeconds(v){ const raw=String(v??'').trim(); if(!raw) return 0; if(/^\d+(\.\d+)?$/.test(raw)) return Number(raw); const m=raw.match(/^(?:(\d+)\.)?(\d{1,2}):(\d{2}):(\d{2})(?:\.(\d+))?$/); if(!m) return 0; return Number(m[1]||0)*86400+Number(m[2]||0)*3600+Number(m[3]||0)*60+Number(m[4]||0); }
+  function formatDuration(sec){ if(!Number.isFinite(sec)||sec<=0) return '0s'; const s=Math.round(sec),h=Math.floor(s/3600),m=Math.floor((s%3600)/60),x=s%60; return h?`${h}h ${m}m ${x}s`:m?`${m}m ${x}s`:`${x}s`; }
 
-    const headers = rows[0].map(h => String(h).trim());
-    return rows.slice(1).map((cells) => {
-      const obj = {};
-      headers.forEach((h, idx) => { obj[h] = cells[idx] ?? ''; });
-      return obj;
-    });
+  function validateErrorRows(rows){ if(!rows.length) throw new Error('Errors dataset empty.'); const map=new Map(Object.keys(rows[0]).map(h=>[canonicalHeader(h),h])); const missing=REQUIRED_ERROR_COLUMNS.filter(c=>!map.has(canonicalHeader(c))); if(missing.length) throw new Error(`Errors missing columns: ${missing.join(', ')}`); return map; }
+  function normalizeErrorRows(rows,headerMap){ return rows.map((raw,idx)=>{ const get=(n)=>raw[headerMap.get(canonicalHeader(n))]??''; const start=parseDateSafe(get('Start Time')); const rec=parseDateSafe(get('Recovery')); const dur=parseDurationSeconds(get('Duration')); return { id:idx, press:String(get('Press')).trim(), model:String(get('Model')).trim(), name:String(get('Name')).trim(), alertTitle:String(get('Alert Message Title')).trim(), alertBody:String(get('Alert Message Body')).trim(), alertSolution:String(get('Alert Message Solution')).trim(), startTime:start, day:start?start.toISOString().slice(0,10):'', recoveryTime:rec, durationRaw:String(get('Duration')??'').trim(), durationSeconds:dur, preErrorState:String(get('Pre Error State')).trim(), subsystem:String(get('Subsystem')).trim(), errorState:String(get('Error State')).trim(), version:String(get('Version')).trim(), raw:normalizeRowKeys(raw)}; }); }
+
+  function getAvailabilityMap(){ const map={}; STATE.availabilityRows.forEach(r=>{ const press=String(r.Press||r.press||'').trim(); if(!press) return; const state=String(r.State||r.state||r.Category||r.category||'').toLowerCase(); const start=parseDateSafe(r['Start Time']||r.startTime||r.Start||r.start); const end=parseDateSafe(r['End Time']||r.endTime||r.End||r.end); const duration=Number(r.DurationSeconds||r['Duration (sec)']||parseDurationSeconds(r.Duration||'')) || (start&&end?Math.max(0,(end-start)/1000):0); if(!duration) return;
+      const planned = /planned|maintenance|break|idle|setup/.test(state);
+      const productive = !/weekend|break|maintenance|planned|non-production|non production|idle/.test(state);
+      const slot=(map[press] ||= {planned:0,unplanned:0,operating:0,total:0});
+      slot.total += duration; if(planned) slot.planned += duration; else slot.unplanned += duration; if(productive) slot.operating += duration;
+  }); return map; }
+  function getVolumeMap(){ const map={}; STATE.volumeRows.forEach(r=>{ const press=String(r.Press||r.press||'').trim(); const v=Number(r.Volume||r['Print Volume']||r.Impressions||r.Units||0); if(!press||!Number.isFinite(v)) return; map[press]=(map[press]||0)+v; }); return map; }
+
+  function getFilteredRows(){ const ids=['press','model','subsystem','errorState','version']; const values=Object.fromEntries(ids.map(x=>[x,document.getElementById(`${x}Filter`).value]));
+    const sd=document.getElementById('startDateFilter').value, ed=document.getElementById('endDateFilter').value, q=document.getElementById('searchFilter').value.trim().toLowerCase();
+    return STATE.normalizedRows.filter(r=> (values.press==='all'||r.press===values.press) && (values.model==='all'||r.model===values.model) && (values.subsystem==='all'||r.subsystem===values.subsystem) && (values.errorState==='all'||r.errorState===values.errorState) && (values.version==='all'||r.version===values.version) && (!sd||(r.day&&r.day>=sd)) && (!ed||(r.day&&r.day<=ed)) && (!q||`${r.name} ${r.alertTitle} ${r.press} ${r.subsystem} ${r.version}`.toLowerCase().includes(q))); }
+
+  function computeAnalytics(rows){ const daily={}; rows.forEach(r=>{ if(!r.day) return; daily[r.day] ||= {events:0,downtime:0}; daily[r.day].events+=1; daily[r.day].downtime+=r.durationSeconds||0;}); const durations=rows.map(r=>r.durationSeconds||0); const total=durations.reduce((a,b)=>a+b,0); const top=(k,n=10)=>Object.entries(rows.reduce((a,r)=>{const x=String(r[k]||'Unspecified').trim()||'Unspecified';a[x]=(a[x]||0)+1;return a;},{})).sort((a,b)=>b[1]-a[1]).slice(0,n);
+    const topDown=(k,n=10)=>Object.entries(rows.reduce((a,r)=>{const x=String(r[k]||'Unspecified').trim()||'Unspecified';a[x]=(a[x]||0)+(r.durationSeconds||0);return a;},{})).sort((a,b)=>b[1]-a[1]).slice(0,n);
+    return { totalEvents:rows.length, totalDuration:total, avgDuration:rows.length?total/rows.length:0, uniquePresses:new Set(rows.map(r=>r.press).filter(Boolean)).size, uniqueSubsystems:new Set(rows.map(r=>r.subsystem).filter(Boolean)).size, topNames:top('name'), topAlerts:top('alertTitle'), topSubsystems:top('subsystem'), topPresses:top('press'), topVersions:top('version'), topPreStates:top('preErrorState'), topDowntimeAlerts:topDown('alertTitle',12), daily}; }
+
+  function computeKpis(rows){ const availability=getAvailabilityMap(), volume=getVolumeMap(); const totalEvents=rows.length; const totalDowntime=rows.reduce((s,r)=>s+(r.durationSeconds||0),0); const byPress={}; rows.forEach(r=>{(byPress[r.press] ||= []).push(r);});
+    const mttr = totalEvents ? totalDowntime / totalEvents : 0;
+    let failures=0, operating=0, planned=0, unplanned=0, vol=0;
+    Object.entries(byPress).forEach(([press,items])=>{failures += items.length; const a=availability[press]||{operating:0,planned:0,unplanned:0,total:0}; operating += a.operating; planned += a.planned; unplanned += a.unplanned; vol += volume[press]||0;});
+    const mtbf = failures ? Math.max(0, operating-totalDowntime)/failures : 0;
+    const availabilityPct = (operating+unplanned) ? ((Math.max(0,operating-unplanned)/operating)*100) : 0;
+    return { mttr, mtbf, availabilityPct, planned, unplanned, totalDowntime, downtimePerVolume: vol? totalDowntime/vol:0, eventsPerVolume: vol? totalEvents/vol:0 };
   }
 
-  function excelSerialToDate(serial) {
-    if (typeof serial !== 'number' || !Number.isFinite(serial)) return null;
-    const utcDays = Math.floor(serial - 25569);
-    const utcValue = utcDays * 86400;
-    const fraction = serial - Math.floor(serial);
-    return new Date((utcValue + Math.round(fraction * 86400)) * 1000);
-  }
-
-  async function parseExcel(file) {
-    const buffer = await file.arrayBuffer();
-    const workbook = XLSX.read(buffer, { type: 'array', cellDates: true, raw: true });
-    const sheetName = workbook.SheetNames[0];
-    if (!sheetName) throw new Error('Excel parse failed: no sheet found.');
-    const sheet = workbook.Sheets[sheetName];
-    const rows = XLSX.utils.sheet_to_json(sheet, { defval: '', raw: true, blankrows: false });
-    return rows.map((row) => {
-      const out = {};
-      Object.entries(row).forEach(([k, v]) => {
-        if (typeof v === 'number' && /time|date/i.test(k)) {
-          const asDate = excelSerialToDate(v);
-          out[k] = asDate || v;
-        } else out[k] = v;
-      });
-      return out;
-    });
-  }
-
-  function parseJSON(text) {
-    const data = JSON.parse(text);
-    if (!Array.isArray(data)) throw new Error('JSON must be an array of objects.');
-    return data.map(item => normalizeRowKeys(item));
-  }
-
-  async function loadRowsFromFile(file) {
-    const ext = file.name.toLowerCase().split('.').pop();
-    if (ext === 'csv') return parseCSV(await file.text());
-    if (ext === 'xlsx' || ext === 'xls') return parseExcel(file);
-    if (ext === 'json') return parseJSON(await file.text());
-    throw new Error('Unsupported file type. Use .csv, .xlsx, .xls, or .json.');
-  }
-
-  function validateRows(rows) {
-    if (!rows.length) throw new Error('File appears empty.');
-    const headerMap = new Map();
-    Object.keys(rows[0]).forEach((h) => headerMap.set(canonicalHeader(h), h));
-    const missing = REQUIRED_COLUMNS.filter((required) => !headerMap.has(canonicalHeader(required)));
-    if (missing.length) throw new Error(`Missing required columns: ${missing.join(', ')}`);
-    return headerMap;
-  }
-
-  function parseDateSafe(value) {
-    if (!value && value !== 0) return null;
-    if (value instanceof Date && !Number.isNaN(value.getTime())) return value;
-    if (typeof value === 'number') {
-      const excelDate = excelSerialToDate(value);
-      if (excelDate && !Number.isNaN(excelDate.getTime())) return excelDate;
-    }
-    const d = new Date(String(value).trim());
-    return Number.isNaN(d.getTime()) ? null : d;
-  }
-
-  function parseDurationSeconds(value) {
-    const raw = String(value ?? '').trim();
-    if (!raw) return 0;
-    if (/^\d+(\.\d+)?$/.test(raw)) return Number(raw);
-    const match = raw.match(/^(?:(\d+)\.)?(\d{1,2}):(\d{2}):(\d{2})(?:\.(\d+))?$/);
-    if (!match) return 0;
-    const days = Number(match[1] || 0), hours = Number(match[2] || 0), minutes = Number(match[3] || 0), seconds = Number(match[4] || 0), frac = Number(`0.${match[5] || 0}`);
-    return (days * 86400) + (hours * 3600) + (minutes * 60) + seconds + frac;
-  }
-
-  function normalizeRows(rows, headerMap) {
-    return rows.map((rawRow, idx) => {
-      const get = (name) => rawRow[headerMap.get(canonicalHeader(name))] ?? '';
-      const startTime = parseDateSafe(get('Start Time'));
-      const recoveryTime = parseDateSafe(get('Recovery'));
-      const durationRaw = String(get('Duration') ?? '').trim();
-      const durationSeconds = parseDurationSeconds(durationRaw);
-      return {
-        id: idx,
-        press: String(get('Press')).trim(),
-        model: String(get('Model')).trim(),
-        name: String(get('Name')).trim(),
-        alertTitle: String(get('Alert Message Title')).trim(),
-        alertBody: String(get('Alert Message Body')).trim(),
-        alertSolution: String(get('Alert Message Solution')).trim(),
-        startTime,
-        day: startTime ? startTime.toISOString().slice(0, 10) : '',
-        recoveryTime,
-        durationRaw,
-        durationSeconds,
-        preErrorState: String(get('Pre Error State')).trim(),
-        subsystem: String(get('Subsystem')).trim(),
-        errorState: String(get('Error State')).trim(),
-        version: String(get('Version')).trim(),
-        raw: normalizeRowKeys(rawRow)
-      };
-    });
-  }
-
-  function formatDuration(seconds) {
-    if (!Number.isFinite(seconds) || seconds <= 0) return '0s';
-    const s = Math.round(seconds), h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
-    if (h) return `${h}h ${m}m ${sec}s`;
-    if (m) return `${m}m ${sec}s`;
-    return `${sec}s`;
-  }
-
-  function topN(rows, key, n = 10) {
-    const map = {};
-    rows.forEach(r => {
-      const k = String(r[key] || 'Unspecified').trim() || 'Unspecified';
-      map[k] = (map[k] || 0) + 1;
-    });
-    return Object.entries(map).sort((a, b) => b[1] - a[1]).slice(0, n);
-  }
-
-  function topDowntimeBy(rows, key, n = 10) {
-    const map = {};
-    rows.forEach(r => {
-      const k = String(r[key] || 'Unspecified').trim() || 'Unspecified';
-      map[k] = (map[k] || 0) + (r.durationSeconds || 0);
-    });
-    return Object.entries(map).sort((a, b) => b[1] - a[1]).slice(0, n);
-  }
-
-  function median(values) {
-    const arr = values.filter(v => Number.isFinite(v) && v > 0).sort((a, b) => a - b);
-    if (!arr.length) return 0;
-    const mid = Math.floor(arr.length / 2);
-    return arr.length % 2 ? arr[mid] : (arr[mid - 1] + arr[mid]) / 2;
-  }
-
-  function computeAnalytics(rows) {
-    const dates = rows.map(r => r.startTime).filter(Boolean).sort((a, b) => a - b);
-    const durations = rows.map(r => r.durationSeconds || 0);
-    const totalDuration = durations.reduce((a, b) => a + b, 0);
-    const daily = {};
-    rows.forEach((r) => {
-      if (!r.startTime) return;
-      const key = r.startTime.toISOString().slice(0, 10);
-      daily[key] = daily[key] || { events: 0, downtime: 0 };
-      daily[key].events += 1;
-      daily[key].downtime += r.durationSeconds || 0;
-    });
-
-    return {
-      totalEvents: rows.length,
-      uniquePresses: new Set(rows.map(r => r.press).filter(Boolean)).size,
-      uniqueModels: new Set(rows.map(r => r.model).filter(Boolean)).size,
-      uniqueSubsystems: new Set(rows.map(r => r.subsystem).filter(Boolean)).size,
-      totalDuration,
-      avgDuration: rows.length ? totalDuration / rows.length : 0,
-      medianDuration: median(durations),
-      minDate: dates[0] || null,
-      maxDate: dates[dates.length - 1] || null,
-      topNames: topN(rows, 'name', 10),
-      topAlerts: topN(rows, 'alertTitle', 10),
-      topSubsystems: topN(rows, 'subsystem', 10),
-      topPresses: topN(rows, 'press', 10),
-      topModels: topN(rows, 'model', 10),
-      topErrorStates: topN(rows, 'errorState', 10),
-      topPreStates: topN(rows, 'preErrorState', 10),
-      topVersions: topN(rows, 'version', 10),
-      topDowntimeAlerts: topDowntimeBy(rows, 'alertTitle', 12),
-      daily
-    };
-  }
-
-  function getFilteredRows() {
-    const press = document.getElementById('pressFilter').value;
-    const model = document.getElementById('modelFilter').value;
-    const subsystem = document.getElementById('subsystemFilter').value;
-    const errorState = document.getElementById('errorStateFilter').value;
-    const version = document.getElementById('versionFilter').value;
-    const startDate = document.getElementById('startDateFilter').value;
-    const endDate = document.getElementById('endDateFilter').value;
-    const search = document.getElementById('searchFilter').value.trim().toLowerCase();
-
-    return STATE.normalizedRows.filter((r) => {
-      const day = r.day;
-      const searchable = `${r.name} ${r.alertTitle} ${r.alertBody} ${r.alertSolution} ${r.press} ${r.subsystem} ${r.version}`.toLowerCase();
-      return (
-        (press === 'all' || r.press === press) &&
-        (model === 'all' || r.model === model) &&
-        (subsystem === 'all' || r.subsystem === subsystem) &&
-        (errorState === 'all' || r.errorState === errorState) &&
-        (version === 'all' || r.version === version) &&
-        (!startDate || (day && day >= startDate)) &&
-        (!endDate || (day && day <= endDate)) &&
-        (!search || searchable.includes(search))
-      );
-    });
-  }
-
-  function getSubsetRows(dimension, value, baseRows) {
-    const cfg = DIMENSION_CONFIG[dimension];
-    if (!cfg) return [];
-    return baseRows.filter((r) => {
-      const candidate = String((cfg.key === 'day' ? r.day : r[cfg.key]) || 'Unspecified').trim() || 'Unspecified';
-      return candidate === value;
-    });
-  }
-
-  function baseOptions() {
-    return {
-      responsive: true,
-      maintainAspectRatio: false,
-      animation: false,
-      plugins: {
-        legend: { labels: { color: '#c7d4ec' } },
-        tooltip: {
-          backgroundColor: '#101625', borderColor: 'rgba(255,255,255,.12)', borderWidth: 1,
-          titleColor: '#e9efff', bodyColor: '#c4d0e8'
-        }
-      },
-      scales: {
-        x: { ticks: { color: '#bdc9df' }, grid: { color: 'rgba(255,255,255,.08)' } },
-        y: { ticks: { color: '#bdc9df' }, grid: { color: 'rgba(255,255,255,.08)' }, beginAtZero: true }
-      }
-    };
-  }
-
-  function replaceChart(id, config) {
-    if (CHARTS.has(id)) {
-      CHARTS.get(id).destroy();
-      CHARTS.delete(id);
-    }
-    const ctx = document.getElementById(id)?.getContext('2d');
-    if (!ctx) return;
-    CHARTS.set(id, new Chart(ctx, config));
-  }
-
-  function registerChart(id, entries, dimension, sourceChart, config = {}) {
-    const labels = entries.map(([k]) => k);
-    const chartData = {
-      labels: labels.map(k => k.length > 34 ? `${k.slice(0, 33)}…` : k),
-      datasets: [{
-        label: config.datasetLabel || 'Events',
-        data: entries.map(([, v]) => v),
-        backgroundColor: entries.map((_, i) => CHART_COLORS[i % CHART_COLORS.length]),
-        borderRadius: 6
-      }]
-    };
-    const options = { ...baseOptions(), ...(config.options || {}) };
-    options.onClick = (_event, elements) => {
-      if (!elements?.length) return;
-      const idx = elements[0].index;
-      openDrilldown({ dimension, value: labels[idx], sourceChart, rows: getSubsetRows(dimension, labels[idx], STATE.filteredRows) });
-    };
-    replaceChart(id, { type: config.type || 'bar', data: chartData, options });
-  }
-
-  function renderKpis(a) {
-    const cards = [
-      ['Total events', a.totalEvents, 'Filtered events in scope'],
-      ['Unique presses', a.uniquePresses, 'Distinct press assets'],
-      ['Unique models', a.uniqueModels, 'Distinct model values'],
-      ['Unique subsystems', a.uniqueSubsystems, 'Distinct subsystem values'],
-      ['Total downtime', formatDuration(a.totalDuration), 'From parsed Duration'],
-      ['Average duration', formatDuration(a.avgDuration), 'Mean event duration'],
-      ['Median duration', formatDuration(a.medianDuration), 'Middle event duration'],
-      ['Time range', a.minDate && a.maxDate ? `${a.minDate.toISOString().slice(0,10)} → ${a.maxDate.toISOString().slice(0,10)}` : 'N/A', 'Coverage by Start Time']
-    ];
-    document.getElementById('kpiStrip').innerHTML = cards.map(([k, v, d]) => metricCard(k, v, d)).join('');
-  }
-
-  function computeRiskScores(rows) {
-    const grouped = rows.reduce((acc, r) => {
-      const key = r.press || 'Unspecified';
-      (acc[key] ||= []).push(r);
-      return acc;
-    }, {});
-    const now = Date.now();
-
-    // Deterministic risk formula (0-100 scale): weighted normalized event volume, downtime, avg duration,
-    // recurrence concentration, repeated issue concentration, and recency activity in the last 7 days.
-    const allEventCounts = Object.values(grouped).map(items => items.length);
-    const allDowntimes = Object.values(grouped).map(items => items.reduce((s, r) => s + (r.durationSeconds || 0), 0));
-    const maxEvents = Math.max(...allEventCounts, 1);
-    const maxDowntime = Math.max(...allDowntimes, 1);
-
-    const scores = Object.entries(grouped).map(([press, items]) => {
-      const eventCount = items.length;
-      const totalDowntime = items.reduce((s, r) => s + (r.durationSeconds || 0), 0);
-      const avgDuration = eventCount ? totalDowntime / eventCount : 0;
-      const subsystemTop = topBy(items, 'subsystem');
-      const alertTop = topBy(items, 'alertTitle');
-      const nameTop = topBy(items, 'name');
-      const recurrenceRatio = eventCount ? subsystemTop[1] / eventCount : 0;
-      const repeatedIssueRatio = eventCount ? nameTop[1] / eventCount : 0;
-      const recentCount = items.filter(r => r.startTime && (now - r.startTime.getTime()) <= (7 * 24 * 3600 * 1000)).length;
-      const recencyWeight = eventCount ? recentCount / eventCount : 0;
-      const normalizedEvents = eventCount / maxEvents;
-      const normalizedDowntime = totalDowntime / maxDowntime;
-      const normalizedAvgDuration = Math.min(avgDuration / 7200, 1); // capped at 2h mean
-      const score = (
-        normalizedEvents * 30 +
-        normalizedDowntime * 30 +
-        normalizedAvgDuration * 14 +
-        recurrenceRatio * 12 +
-        repeatedIssueRatio * 8 +
-        recencyWeight * 6
-      );
-      const tier = score >= 70 ? 'High Risk' : score >= 52 ? 'Elevated Risk' : score >= 34 ? 'Watchlist' : 'Stable';
-      const badgeClass = tier === 'High Risk' ? 'high' : tier === 'Elevated Risk' ? 'elevated' : tier === 'Watchlist' ? 'watch' : 'stable';
-      const reasons = [];
-      if (normalizedDowntime > .55) reasons.push('high downtime load');
-      if (normalizedEvents > .55) reasons.push('high recurrence volume');
-      if (recurrenceRatio > .45) reasons.push(`subsystem concentration (${subsystemTop[0]})`);
-      if (repeatedIssueRatio > .4) reasons.push(`repeated issue (${nameTop[0]})`);
-      if (recencyWeight > .4) reasons.push('recent activity spike');
-      if (!reasons.length) reasons.push('low intensity, low recurrence');
-
-      return {
-        press,
-        eventCount,
-        totalDowntime,
-        avgDuration,
-        subsystemTop: subsystemTop[0],
-        alertTop: alertTop[0],
-        riskScore: Number(score.toFixed(1)),
-        tier,
-        badgeClass,
-        reasonText: reasons.slice(0, 3).join(' • ')
-      };
+  function computeRiskScores(rows){ const vol=getVolumeMap(); const now=Date.now(); const grouped=rows.reduce((a,r)=>{(a[r.press||'Unspecified'] ||= []).push(r); return a;},{}); const downtimes=Object.values(grouped).map(items=>items.reduce((s,r)=>s+(r.durationSeconds||0),0)); const events=Object.values(grouped).map(items=>items.length); const maxD=Math.max(...downtimes,1), maxE=Math.max(...events,1);
+    return Object.entries(grouped).map(([press,items])=>{ const eventCount=items.length; const totalDowntime=items.reduce((s,r)=>s+(r.durationSeconds||0),0); const avgDuration=eventCount?totalDowntime/eventCount:0;
+      const alerts={}; const subs={}; items.forEach(r=>{alerts[r.alertTitle||'Unspecified']=(alerts[r.alertTitle||'Unspecified']||0)+1; subs[r.subsystem||'Unspecified']=(subs[r.subsystem||'Unspecified']||0)+1;});
+      const topAlert=Object.entries(alerts).sort((a,b)=>b[1]-a[1])[0]||['N/A',0]; const topSubsystem=Object.entries(subs).sort((a,b)=>b[1]-a[1])[0]||['N/A',0];
+      const recurrence=eventCount?topAlert[1]/eventCount:0; const concentration=eventCount?topSubsystem[1]/eventCount:0; const recent=items.filter(r=>r.startTime && now-r.startTime.getTime()<=7*86400000).length/(eventCount||1);
+      const volume=vol[press]||0; const eventsPerVolume=volume?eventCount/volume:eventCount; const downtimePerVolume=volume?totalDowntime/volume:totalDowntime;
+      const score=(eventCount/maxE)*15 + (totalDowntime/maxD)*28 + Math.min(avgDuration/7200,1)*10 + recurrence*15 + concentration*12 + recent*10 + Math.min(eventsPerVolume/0.02,1)*5 + Math.min(downtimePerVolume/4,1)*5;
+      const bounded=Math.max(0,Math.min(100,score));
+      const level=bounded>=75?'Critical':bounded>=58?'High Risk':bounded>=38?'Medium Risk':'Stable';
+      const badge=level==='Critical'?'critical':level==='High Risk'?'high':level==='Medium Risk'?'medium':'stable';
+      const explanation=[ totalDowntime/maxD>0.45?'High downtime':'Low impact downtime', recurrence>0.4?'repeated same alert':'diverse alert mix', concentration>0.45?`concentrated in ${topSubsystem[0]}`:'distributed subsystems' ].join(' + ');
+      const confidence=Math.min(100,Math.round((Math.min(1,eventCount/12)*0.6 + Math.min(1,(vol[press]||0)/20000)*0.2 + Math.min(1,totalDowntime/maxD)*0.2)*100));
+      return {press,eventCount,totalDowntime,avgDuration,topAlert:topAlert[0],topSubsystem:topSubsystem[0],eventsPerVolume,downtimePerVolume,riskScore:Number(bounded.toFixed(1)),riskLevel:level,badgeClass:badge,explanation,confidence};
     }).sort((a,b)=>b.riskScore-a.riskScore);
-
-    return scores;
   }
 
-  function buildExecutiveSummary(rows) {
-    const analytics = computeAnalytics(rows);
-    const risk = computeRiskScores(rows);
-    const topRisk = risk.slice(0, Math.min(7, risk.length));
-    const stable = [...risk].reverse().slice(0, Math.min(4, risk.length));
-    const totalDowntime = analytics.totalDuration;
-    const top3Downtime = topRisk.slice(0, 3).reduce((sum, item) => sum + item.totalDowntime, 0);
-    const concentration = totalDowntime ? ((top3Downtime / totalDowntime) * 100).toFixed(1) : '0.0';
-    const highest = topRisk[0];
-    const stableTop = stable[0];
-    const mainSubsystem = analytics.topSubsystems[0] || ['N/A', 0];
-    const mainAlert = analytics.topAlerts[0] || ['N/A', 0];
-    const dominantVersion = analytics.topVersions[0] || ['N/A', 0];
-
-    const narrative = [
-      `Operational load is concentrated around top 3 presses accounting for ${concentration}% of downtime.`,
-      `${mainSubsystem[0]} is currently the dominant subsystem driver with ${mainSubsystem[1]} events.`,
-      `Version ${dominantVersion[0]} appears most exposed in current filtered scope.`
-    ];
-
-    const recommended = [
-      highest ? `Investigate ${highest.subsystemTop} failures on ${highest.press} first (risk score ${highest.riskScore}).` : 'No immediate concentration detected.',
-      mainAlert[0] !== 'N/A' ? `Review recurring alert pattern: ${mainAlert[0]}.` : 'Review top recurring alerts.',
-      dominantVersion[0] !== 'N/A' ? `Audit version cluster ${dominantVersion[0]} for repeat exposure.` : 'Audit currently active version cluster.'
-    ];
-
-    return {
-      generatedAt: new Date(),
-      analytics,
-      risk,
-      topRisk,
-      stable,
-      narrative,
-      recommended,
-      pillars: {
-        mainDowntimeDriver: analytics.topDowntimeAlerts[0] ? `${analytics.topDowntimeAlerts[0][0]} (${formatDuration(analytics.topDowntimeAlerts[0][1])})` : 'N/A',
-        mostAffectedSubsystem: `${mainSubsystem[0]} (${mainSubsystem[1]} events)`,
-        mostRepeatedAlert: `${mainAlert[0]} (${mainAlert[1]} events)`,
-        highestRiskPress: highest ? `${highest.press} (${highest.riskScore})` : 'N/A',
-        mostStablePress: stableTop ? `${stableTop.press} (${stableTop.riskScore})` : 'N/A'
-      }
-    };
+  function buildExecutiveSummary(rows){ const analytics=computeAnalytics(rows); const risk=computeRiskScores(rows); const kpis=computeKpis(rows); const critical=risk.filter(r=>r.riskLevel==='Critical').slice(0,5); const high=risk.filter(r=>r.riskLevel==='High Risk').slice(0,10); const medium=risk.filter(r=>r.riskLevel==='Medium Risk'); const stable=risk.filter(r=>r.riskLevel==='Stable').slice(0,6);
+    const status = critical.length? 'High Risk Concentration Detected' : high.length? 'Moderate Risk Environment' : 'Stable Risk Environment';
+    const topDowntime=analytics.topDowntimeAlerts[0]||['N/A',0], topSubsystem=analytics.topSubsystems[0]||['N/A',0], topAlert=analytics.topAlerts[0]||['N/A',0];
+    const insight = risk.length ? `Operational risk is concentrated in ${Math.max(1,critical.length||high.length)} presses responsible for ${Math.round((risk.slice(0,2).reduce((s,r)=>s+r.totalDowntime,0)/(analytics.totalDuration||1))*100)}% of downtime.` : 'No events in current filter scope.';
+    return { generatedAt:new Date(), analytics, risk, kpis, critical, high, medium, stable, status, signals:{
+      mainDowntimeDriver:`${topDowntime[0]} (${formatDuration(topDowntime[1])})`, mostAffectedSubsystem:`${topSubsystem[0]} (${topSubsystem[1]} events)`, mostRepeatedAlert:`${topAlert[0]} (${topAlert[1]} events)`, highestRiskPress:risk[0]?`${risk[0].press} (${risk[0].riskLevel})`:'N/A', mostStablePress:stable[0]?`${stable[0].press} (Stable)`:'N/A'
+    }, distribution:{critical:critical.length,high:high.length,medium:medium.length,stable:risk.filter(r=>r.riskLevel==='Stable').length}, insight,
+      recommendations:[ 'Contain top critical press with focused root-cause team within 24h.', 'Prioritize repeated alert elimination in dominant subsystem.', 'Review maintenance/break schedules to reduce unplanned overlap.', 'Apply version hardening plan on presses with high recurrence.' ] };
   }
 
-  function renderExecutiveLayer(summary) {
-    const riskMarkup = summary.topRisk.map(item => `
-      <div class="risk-item">
-        <div class="risk-line">
-          <div><strong>${esc(item.press)}</strong> <span style="color:#b8c5dd;">| ${item.eventCount} events • ${formatDuration(item.totalDowntime)} downtime</span></div>
-          <span class="badge ${item.badgeClass}">${esc(item.tier)} • ${item.riskScore}</span>
-        </div>
-        <div class="risk-reason">Driven by ${esc(item.subsystemTop)} + ${esc(item.alertTop)}. Why risky: ${esc(item.reasonText)}.</div>
-      </div>
-    `).join('') || '<div class="micro">No rows in scope.</div>';
-
-    const stableMarkup = summary.stable.map(item => `
-      <div class="risk-item">
-        <div class="risk-line">
-          <div><strong>${esc(item.press)}</strong> <span style="color:#b8c5dd;">| ${item.eventCount} events • ${formatDuration(item.totalDowntime)} downtime</span></div>
-          <span class="badge stable">Stable • ${item.riskScore}</span>
-        </div>
-        <div class="risk-reason">Low concern profile: ${esc(item.reasonText)}.</div>
-      </div>
-    `).join('') || '<div class="micro">No stability candidates yet.</div>';
-
-    document.getElementById('riskRankedList').innerHTML = riskMarkup;
-    document.getElementById('stableList').innerHTML = stableMarkup;
-    document.getElementById('executiveNarrative').innerHTML = summary.narrative.map(line => `<p>${esc(line)}</p>`).join('');
-    document.getElementById('recommendedFocus').innerHTML = summary.recommended.map(line => `<li>${esc(line)}</li>`).join('');
-    document.getElementById('executivePillars').innerHTML = `
-      <div><strong>Main downtime driver:</strong> ${esc(summary.pillars.mainDowntimeDriver)}</div>
-      <div><strong>Most affected subsystem:</strong> ${esc(summary.pillars.mostAffectedSubsystem)}</div>
-      <div><strong>Most repeated alert:</strong> ${esc(summary.pillars.mostRepeatedAlert)}</div>
-      <div><strong>Highest-risk press:</strong> ${esc(summary.pillars.highestRiskPress)}</div>
-      <div><strong>Most stable active press:</strong> ${esc(summary.pillars.mostStablePress)}</div>
-    `;
+  function riskItem(item){ return `<div class="risk-item"><div class="risk-line"><div><strong>${esc(item.press)}</strong><div class="risk-meta">${item.eventCount} events • ${formatDuration(item.totalDowntime)} downtime • ${item.eventsPerVolume.toFixed(4)} evt/vol</div></div><span class="badge ${item.badgeClass}">${esc(item.riskLevel)} <small>${item.riskScore}</small></span></div><div class="risk-reason">Dominant issue: ${esc(item.topSubsystem)} / ${esc(item.topAlert)}. ${esc(item.explanation)}. Confidence ${item.confidence}%.</div></div>`; }
+  function renderExecutiveLayer(summary){
+    document.getElementById('overallStatusBar').innerHTML = `<strong>${esc(summary.status)}</strong> • Availability ${summary.kpis.availabilityPct.toFixed(1)}% • MTTR ${formatDuration(summary.kpis.mttr)} • MTBF ${formatDuration(summary.kpis.mtbf)}`;
+    document.getElementById('executiveSignals').innerHTML = Object.entries({ 'Main Downtime Driver':summary.signals.mainDowntimeDriver, 'Most Affected Subsystem':summary.signals.mostAffectedSubsystem, 'Most Repeated Alert':summary.signals.mostRepeatedAlert, 'Highest Risk Press':summary.signals.highestRiskPress, 'Most Stable Press':summary.signals.mostStablePress }).map(([k,v])=>`<div class="signal-card"><div class="k">${esc(k)}</div><div style="margin-top:6px;">${esc(v)}</div></div>`).join('');
+    document.getElementById('riskDistribution').innerHTML = `<span class="risk-pill" style="color:#ffd3d1;border-color:rgba(242,92,84,.5);">Critical: ${summary.distribution.critical}</span><span class="risk-pill" style="color:#ffe4cc;border-color:rgba(242,149,79,.5);">High: ${summary.distribution.high}</span><span class="risk-pill" style="color:#fff1bf;border-color:rgba(242,211,92,.5);">Medium: ${summary.distribution.medium}</span><span class="risk-pill" style="color:#cbffe0;border-color:rgba(81,194,133,.5);">Stable: ${summary.distribution.stable}</span>`;
+    document.getElementById('insightLine').textContent=summary.insight;
+    document.getElementById('criticalRiskList').innerHTML = summary.critical.map(riskItem).join('') || '<div class="micro">No critical presses.</div>';
+    document.getElementById('highRiskList').innerHTML = summary.high.map(riskItem).join('') || '<div class="micro">No high-risk presses.</div>';
+    document.getElementById('mediumRiskList').innerHTML = summary.medium.map(riskItem).join('') || '<div class="micro">No medium-risk presses.</div>';
+    document.getElementById('stableList').innerHTML = summary.stable.map(riskItem).join('') || '<div class="micro">No stable presses.</div>';
   }
 
-  function renderCharts(a) {
-    registerChart('nameChart', a.topNames, 'name', 'Top Error Names');
-    registerChart('alertChart', a.topAlerts, 'alertTitle', 'Top Alert Titles');
-    registerChart('subsystemChart', a.topSubsystems, 'subsystem', 'Top Subsystems', { options: { ...baseOptions(), indexAxis: 'y', plugins: { ...baseOptions().plugins, legend: { display: false } } } });
-    registerChart('pressChart', a.topPresses, 'press', 'Top Presses', { options: { ...baseOptions(), indexAxis: 'y', plugins: { ...baseOptions().plugins, legend: { display: false } } } });
-    registerChart('versionChart', a.topVersions, 'version', 'Top Versions', { options: { ...baseOptions(), indexAxis: 'y', plugins: { ...baseOptions().plugins, legend: { display: false } } } });
+  function metricCard(k,v,d){ return `<article class="kpi"><div class="k">${esc(k)}</div><div class="v">${esc(v)}</div><div class="d">${esc(d)}</div></article>`; }
+  function renderKpis(a,k){ document.getElementById('kpiStrip').innerHTML=[['Total events',a.totalEvents,'Current filter scope'],['Total downtime',formatDuration(a.totalDuration),'Error durations'],['MTTR',formatDuration(k.mttr),'Mean time to repair'],['MTBF',formatDuration(k.mtbf),'Operating-time based'],['Availability',`${k.availabilityPct.toFixed(1)}%`,'Excluding planned downtime'],['Planned DT',formatDuration(k.planned),'Maintenance/break windows'],['Unplanned DT',formatDuration(k.unplanned),'Operational losses'],['Downtime / Volume',k.downtimePerVolume.toFixed(4),'Seconds per produced unit']].map(x=>metricCard(...x)).join(''); }
 
-    const dailyKeys = Object.keys(a.daily).sort();
-    replaceChart('timeChart', {
-      type: 'bar',
-      data: {
-        labels: dailyKeys,
-        datasets: [
-          { type: 'bar', label: 'Events', yAxisID: 'y', data: dailyKeys.map(k => a.daily[k].events), backgroundColor: 'rgba(123,141,255,0.7)' },
-          { type: 'line', label: 'Downtime (hours)', yAxisID: 'y1', data: dailyKeys.map(k => Number((a.daily[k].downtime / 3600).toFixed(2))), borderColor: '#f09b4f', backgroundColor: '#f09b4f', tension: .28, pointRadius: 2 }
-        ]
-      },
-      options: {
-        ...baseOptions(),
-        onClick: (_event, elements) => {
-          if (!elements?.length) return;
-          const idx = elements[0].index;
-          const day = dailyKeys[idx];
-          openDrilldown({ dimension: 'day', value: day, sourceChart: 'Events & Downtime Over Time', rows: getSubsetRows('day', day, STATE.filteredRows) });
-        },
-        scales: {
-          x: { ticks: { color: '#bdc9df', maxRotation: 70, minRotation: 35 }, grid: { color: 'rgba(255,255,255,.08)' } },
-          y: { beginAtZero: true, ticks: { color: '#bdc9df' }, grid: { color: 'rgba(255,255,255,.08)' }, title: { display: true, text: 'Events', color: '#bdc9df' } },
-          y1: { beginAtZero: true, position: 'right', ticks: { color: '#ffd6a9' }, grid: { drawOnChartArea: false }, title: { display: true, text: 'Downtime (hours)', color: '#ffd6a9' } }
-        }
-      }
-    });
-
-    registerChart('downtimeAlertChart', a.topDowntimeAlerts.map(([k,v]) => [k, Number((v/3600).toFixed(2))]), 'alertTitle', 'Downtime by Alert Title', { datasetLabel: 'Downtime (hours)' });
-    registerChart('stateChart', a.topPreStates, 'preErrorState', 'Pre-Error State Patterns', { options: { ...baseOptions(), indexAxis: 'y', plugins: { ...baseOptions().plugins, legend: { display: false } } } });
+  function baseOptions(){ return {responsive:true,maintainAspectRatio:false,animation:false,plugins:{legend:{labels:{color:'#c7d4ec'}},tooltip:{backgroundColor:'#101625',borderColor:'rgba(255,255,255,.12)',borderWidth:1,titleColor:'#e9efff',bodyColor:'#c4d0e8'}},scales:{x:{ticks:{color:'#bdc9df'},grid:{color:'rgba(255,255,255,.08)'}},y:{ticks:{color:'#bdc9df'},grid:{color:'rgba(255,255,255,.08)'},beginAtZero:true}}}; }
+  function replaceChart(id,config){ if(CHARTS.has(id)){CHARTS.get(id).destroy(); CHARTS.delete(id);} const ctx=document.getElementById(id)?.getContext('2d'); if(!ctx) return; CHARTS.set(id,new Chart(ctx,config)); }
+  function getSubsetRows(dimension,value,baseRows){ const cfg=DIMENSION_CONFIG[dimension]; if(!cfg) return []; return baseRows.filter(r=>String((cfg.key==='day'?r.day:r[cfg.key])||'Unspecified').trim()===value); }
+  function registerChart(id,entries,dimension,sourceChart,config={}){ const labels=entries.map(([k])=>k); const options={...baseOptions(),...(config.options||{})}; options.onClick=(_e,els)=>{ if(!els?.length) return; const idx=els[0].index; openDrilldown({dimension,value:labels[idx],sourceChart,rows:getSubsetRows(dimension,labels[idx],STATE.filteredRows)}); }; replaceChart(id,{type:config.type||'bar',data:{labels,datasets:[{label:config.datasetLabel||'Events',data:entries.map(([,v])=>v),backgroundColor:entries.map((_,i)=>CHART_COLORS[i%CHART_COLORS.length]),borderRadius:6}]},options}); }
+  function renderCharts(a){ registerChart('nameChart',a.topNames,'name','Top Error Names'); registerChart('alertChart',a.topAlerts,'alertTitle','Top Alert Titles'); registerChart('subsystemChart',a.topSubsystems,'subsystem','Top Subsystems',{options:{...baseOptions(),indexAxis:'y',plugins:{...baseOptions().plugins,legend:{display:false}}}}); registerChart('pressChart',a.topPresses,'press','Top Presses',{options:{...baseOptions(),indexAxis:'y',plugins:{...baseOptions().plugins,legend:{display:false}}}}); registerChart('versionChart',a.topVersions,'version','Top Versions',{options:{...baseOptions(),indexAxis:'y',plugins:{...baseOptions().plugins,legend:{display:false}}}});
+    const keys=Object.keys(a.daily).sort(); replaceChart('timeChart',{type:'bar',data:{labels:keys,datasets:[{type:'bar',label:'Events',yAxisID:'y',data:keys.map(k=>a.daily[k].events),backgroundColor:'rgba(123,141,255,0.7)'},{type:'line',label:'Downtime (hours)',yAxisID:'y1',data:keys.map(k=>Number((a.daily[k].downtime/3600).toFixed(2))),borderColor:'#f09b4f',backgroundColor:'#f09b4f',tension:.3}]},options:{...baseOptions(),onClick:(_e,els)=>{if(!els?.length)return; const day=keys[els[0].index]; openDrilldown({dimension:'day',value:day,sourceChart:'Events and Downtime Over Time',rows:getSubsetRows('day',day,STATE.filteredRows)});},scales:{x:{ticks:{color:'#bdc9df'},grid:{color:'rgba(255,255,255,.08)'}},y:{beginAtZero:true,ticks:{color:'#bdc9df'},grid:{color:'rgba(255,255,255,.08)'}},y1:{beginAtZero:true,position:'right',ticks:{color:'#ffd6a9'},grid:{drawOnChartArea:false}}}}});
+    registerChart('downtimeAlertChart',a.topDowntimeAlerts.map(([k,v])=>[k,Number((v/3600).toFixed(2))]),'alertTitle','Downtime by Alert Title',{datasetLabel:'Downtime (hours)'}); registerChart('stateChart',a.topPreStates,'preErrorState','Pre-Error State Patterns',{options:{...baseOptions(),indexAxis:'y',plugins:{...baseOptions().plugins,legend:{display:false}}}});
   }
 
-  function renderInsightText(a) {
-    const topPress = a.topPresses[0] || ['N/A', 0];
-    const topSubsystem = a.topSubsystems[0] || ['N/A', 0];
-    const topDowntimeAlert = a.topDowntimeAlerts[0] || ['N/A', 0];
-    const top3 = a.topNames.slice(0, 3).reduce((sum, [, count]) => sum + count, 0);
-    const pareto = a.totalEvents ? ((top3 / a.totalEvents) * 100).toFixed(1) : '0.0';
+  function valueForHeader(row,header){ const key=COLUMN_MAP[header]; if(key==='startTime') return row.startTime?row.startTime.toISOString():''; if(key==='recoveryTime') return row.recoveryTime?row.recoveryTime.toISOString():''; return row[key]??''; }
+  function renderTable(rows,tableId='dataTable',clickable=true){ const headers=REQUIRED_ERROR_COLUMNS, table=document.getElementById(tableId); if(!rows.length){ table.innerHTML='<tbody><tr><td>No rows match current filters.</td></tr></tbody>'; return; } table.innerHTML=`<thead><tr>${headers.map(h=>`<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${rows.slice(0,500).map((r,i)=>`<tr class="${clickable?'row':''}" data-idx="${i}">${headers.map(h=>`<td>${esc(valueForHeader(r,h))}</td>`).join('')}</tr>`).join('')}</tbody>`; }
+  function exportRowsToCsv(rows,filename){ if(!rows.length) return; const headers=REQUIRED_ERROR_COLUMNS; const q=(v)=>`"${String(v??'').replace(/"/g,'""')}"`; const lines=[headers.map(q).join(',')]; rows.forEach(r=>lines.push(headers.map(h=>q(valueForHeader(r,h))).join(','))); const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([lines.join('\n')],{type:'text/csv'})); a.download=filename; a.click(); URL.revokeObjectURL(a.href); }
 
-    document.getElementById('insightText').innerHTML = `
-      <p><strong>Press concentration:</strong> ${esc(topPress[0])} generates ${topPress[1]} events in current scope.</p>
-      <p><strong>Subsystem driver:</strong> ${esc(topSubsystem[0])} leads with ${topSubsystem[1]} events.</p>
-      <p><strong>Downtime alert:</strong> ${esc(topDowntimeAlert[0])} accounts for ${formatDuration(topDowntimeAlert[1])}.</p>
-      <p><strong>Pareto signal:</strong> top 3 error names account for ${pareto}% of events.</p>
-    `;
-  }
+  function summarizeDrilldownRows(rows){ const total=rows.reduce((s,r)=>s+(r.durationSeconds||0),0); return {total,avg:rows.length?total/rows.length:0, mostSubsystem:(Object.entries(rows.reduce((a,r)=>{a[r.subsystem||'Unspecified']=(a[r.subsystem||'Unspecified']||0)+1;return a;},{})).sort((a,b)=>b[1]-a[1])[0]||['N/A'])[0], mostAlert:(Object.entries(rows.reduce((a,r)=>{a[r.alertTitle||'Unspecified']=(a[r.alertTitle||'Unspecified']||0)+1;return a;},{})).sort((a,b)=>b[1]-a[1])[0]||['N/A'])[0]}; }
+  function sortRows(rows,field,dir){ const f=dir==='asc'?1:-1; return [...rows].sort((a,b)=>{const av=a[field],bv=b[field]; if(av==null) return 1; if(bv==null) return -1; if(av instanceof Date&&bv instanceof Date) return f*(av-bv); if(typeof av==='number'&&typeof bv==='number') return f*(av-bv); return f*String(av).localeCompare(String(bv));}); }
+  function renderDrilldownTable(){ const q=STATE.drilldown.search.trim().toLowerCase(); const filtered=STATE.drilldown.rows.filter(r=>!q||`${r.press} ${r.model} ${r.name} ${r.alertTitle} ${r.subsystem} ${r.version}`.toLowerCase().includes(q)); const sorted=sortRows(filtered,STATE.drilldown.sortField,STATE.drilldown.sortDir); STATE.drilldown.currentRows=sorted; renderTable(sorted,'drillTable',false); }
+  function openDrilldown({dimension,value,sourceChart,rows}){ const cfg=DIMENSION_CONFIG[dimension]||{label:dimension}; STATE.drilldown={...STATE.drilldown,context:{dimension,value,sourceChart,label:cfg.label},rows,search:'',sortField:'durationSeconds',sortDir:'desc'}; const s=summarizeDrilldownRows(rows); document.getElementById('drillTitle').textContent=`${cfg.label}: ${value}`; document.getElementById('drillSubtitle').textContent=`${sourceChart} • ${rows.length} matching events`; document.getElementById('drillChips').innerHTML=`<span class="chip">Source: ${esc(sourceChart)}</span><span class="chip">Selected: ${esc(value)}</span>`; document.getElementById('drillMetrics').innerHTML=`<div class="metric"><div class="k">Matching events</div><div class="v">${rows.length}</div></div><div class="metric"><div class="k">Total downtime</div><div class="v">${formatDuration(s.total)}</div></div><div class="metric"><div class="k">Average duration</div><div class="v">${formatDuration(s.avg)}</div></div><div class="metric"><div class="k">Dominant subsystem</div><div class="v">${esc(s.mostSubsystem)}</div></div><div class="metric"><div class="k">Dominant alert</div><div class="v">${esc(s.mostAlert)}</div></div>`;
+    document.getElementById('drillTrend').textContent=`Premium drilldown summary: dominant subsystem ${s.mostSubsystem}, dominant alert ${s.mostAlert}.`; document.getElementById('drillSortField').innerHTML=[['durationSeconds','Duration'],['startTime','Start Time'],['press','Press'],['subsystem','Subsystem'],['alertTitle','Alert Title'],['version','Version']].map(([k,l])=>`<option value="${k}">${l}</option>`).join(''); renderDrilldownTable(); document.getElementById('drilldownShell').classList.add('open'); }
+  function closeDrilldown(){ document.getElementById('drilldownShell').classList.remove('open'); }
 
-  function populateFilter(id, values, label) {
-    const select = document.getElementById(id);
-    const prev = select.value;
-    select.innerHTML = `<option value="all">All ${label}</option>${values.map(v => `<option value="${esc(v)}">${esc(v)}</option>`).join('')}`;
-    if (values.includes(prev)) select.value = prev;
-  }
+  function populateFilter(id,values,label){ const el=document.getElementById(id); const prev=el.value; el.innerHTML=`<option value="all">All ${label}</option>${values.map(v=>`<option value="${esc(v)}">${esc(v)}</option>`).join('')}`; if(values.includes(prev)) el.value=prev; }
+  function renderInsightText(a){ const p=a.topPresses[0]||['N/A',0], s=a.topSubsystems[0]||['N/A',0], d=a.topDowntimeAlerts[0]||['N/A',0]; document.getElementById('insightText').innerHTML=`<p><strong>Press concentration:</strong> ${esc(p[0])} (${p[1]} events).</p><p><strong>Subsystem driver:</strong> ${esc(s[0])} (${s[1]} events).</p><p><strong>Downtime alert:</strong> ${esc(d[0])} (${formatDuration(d[1])}).</p>`; }
 
-  function applyFilters() {
-    STATE.filteredRows = getFilteredRows();
-    renderDashboard();
-  }
-
-  function valueForHeader(row, header) {
-    const key = COLUMN_MAP[header];
-    if (key === 'startTime') return row.startTime ? row.startTime.toISOString() : '';
-    if (key === 'recoveryTime') return row.recoveryTime ? row.recoveryTime.toISOString() : '';
-    return row[key] ?? '';
-  }
-
-  function renderTable(rows, tableId = 'dataTable', clickable = true, offset = 0) {
-    const table = document.getElementById(tableId);
-    if (!table) return;
-    const headers = REQUIRED_COLUMNS;
-    if (!rows.length) {
-      table.innerHTML = '<tbody><tr><td>No rows match current filters.</td></tr></tbody>';
-      return;
-    }
-    table.innerHTML = `<thead><tr>${headers.map(h => `<th data-header="${esc(h)}">${esc(h)}</th>`).join('')}</tr></thead><tbody>${rows.slice(offset, offset + 500).map((r, i) => `
-      <tr class="${clickable ? 'row' : ''}" data-idx="${i}">${headers.map(h => `<td>${esc(valueForHeader(r, h))}</td>`).join('')}</tr>
-    `).join('')}</tbody>`;
-  }
-
-  function openDrawer(row) {
-    const drawer = document.getElementById('drawer');
-    drawer.classList.add('open');
-    drawer.setAttribute('aria-hidden', 'false');
-    document.getElementById('drawerBody').innerHTML = `
-      <p><strong>Name:</strong> ${esc(row.name)}</p>
-      <p><strong>Alert Message Title:</strong> ${esc(row.alertTitle)}</p>
-      <p><strong>Alert Message Body:</strong> ${esc(row.alertBody || '-')}</p>
-      <p><strong>Alert Message Solution:</strong> ${esc(row.alertSolution || '-')}</p>
-      <p><strong>Press:</strong> ${esc(row.press)}</p>
-      <p><strong>Model:</strong> ${esc(row.model)}</p>
-      <p><strong>Start Time:</strong> ${esc(row.startTime ? row.startTime.toISOString() : '-')}</p>
-      <p><strong>Recovery:</strong> ${esc(row.recoveryTime ? row.recoveryTime.toISOString() : '-')}</p>
-      <p><strong>Duration:</strong> ${esc(row.durationRaw || '-')} (${formatDuration(row.durationSeconds)})</p>
-      <p><strong>Subsystem:</strong> ${esc(row.subsystem)}</p>
-      <p><strong>Error State:</strong> ${esc(row.errorState)}</p>
-      <p><strong>Version:</strong> ${esc(row.version)}</p>
-      <p><strong>Pre Error State:</strong> ${esc(row.preErrorState)}</p>
-    `;
-  }
-
-  function closeDrawer() {
-    const drawer = document.getElementById('drawer');
-    drawer.classList.remove('open');
-    drawer.setAttribute('aria-hidden', 'true');
-  }
-
-  function exportRowsToCsv(rows, filename) {
-    if (!rows.length) return;
-    const headers = REQUIRED_COLUMNS;
-    const escape = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-    const lines = [headers.map(escape).join(',')];
-    rows.forEach((r) => {
-      const out = headers.map(h => valueForHeader(r, h));
-      lines.push(out.map(escape).join(','));
-    });
-    const blob = new Blob([lines.join('\n')], { type: 'text/csv' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(a.href);
-  }
-
-  function summarizeDrilldownRows(rows) {
-    const total = rows.reduce((sum, r) => sum + (r.durationSeconds || 0), 0);
-    const avg = rows.length ? total / rows.length : 0;
-    const presses = new Set(rows.map(r => r.press).filter(Boolean));
-    const subsystems = new Set(rows.map(r => r.subsystem).filter(Boolean));
-    const versions = new Set(rows.map(r => r.version).filter(Boolean));
-    const dated = rows.filter(r => r.startTime).sort((a,b)=>a.startTime-b.startTime);
-    const mostSubsystem = topBy(rows, 'subsystem');
-    const mostAlert = topBy(rows, 'alertTitle');
-    return {
-      total,
-      avg,
-      presses: [...presses].slice(0, 6),
-      subsystems: [...subsystems].slice(0, 6),
-      versions: [...versions].slice(0, 6),
-      first: dated[0]?.startTime,
-      latest: dated[dated.length - 1]?.startTime,
-      mostSubsystem: mostSubsystem[0],
-      mostAlert: mostAlert[0]
-    };
-  }
-
-  function sortRows(rows, field, dir) {
-    const factor = dir === 'asc' ? 1 : -1;
-    return [...rows].sort((a,b) => {
-      const av = a[field], bv = b[field];
-      if (av == null) return 1;
-      if (bv == null) return -1;
-      if (av instanceof Date && bv instanceof Date) return factor * (av - bv);
-      if (typeof av === 'number' && typeof bv === 'number') return factor * (av - bv);
-      return factor * String(av).localeCompare(String(bv));
-    });
-  }
-
-  function renderDrilldownTable() {
-    const rows = STATE.drilldown.rows;
-    const query = STATE.drilldown.search.trim().toLowerCase();
-    const filtered = rows.filter(r => !query || `${r.press} ${r.model} ${r.name} ${r.alertTitle} ${r.alertBody} ${r.alertSolution} ${r.subsystem} ${r.errorState} ${r.version}`.toLowerCase().includes(query));
-    const sorted = sortRows(filtered, STATE.drilldown.sortField, STATE.drilldown.sortDir);
-    STATE.drilldown.currentRows = sorted;
-    renderTable(sorted, 'drillTable', false);
-  }
-
-  function openDrilldown({ dimension, value, sourceChart, rows }) {
-    const cfg = DIMENSION_CONFIG[dimension] || { label: dimension, key: dimension };
-    STATE.drilldown.context = { dimension, value, sourceChart, label: cfg.label };
-    STATE.drilldown.rows = rows;
-    STATE.drilldown.search = '';
-    STATE.drilldown.sortField = 'durationSeconds';
-    STATE.drilldown.sortDir = 'desc';
-    document.getElementById('drillSearch').value = '';
-
-    const summary = summarizeDrilldownRows(rows);
-    document.getElementById('drillTitle').textContent = `${cfg.label}: ${value}`;
-    document.getElementById('drillSubtitle').textContent = `${sourceChart} • ${rows.length} matching events`;
-    document.getElementById('drillChips').innerHTML = `
-      <span class="chip">Source: ${esc(sourceChart)}</span>
-      <span class="chip">Dimension: ${esc(cfg.label)}</span>
-      <span class="chip">Selected: ${esc(value)}</span>
-      <span class="chip">Global filters retained</span>
-    `;
-    document.getElementById('drillMetrics').innerHTML = `
-      <div class="metric"><div class="k">Matching events</div><div class="v">${rows.length}</div></div>
-      <div class="metric"><div class="k">Total downtime</div><div class="v">${formatDuration(summary.total)}</div></div>
-      <div class="metric"><div class="k">Average duration</div><div class="v">${formatDuration(summary.avg)}</div></div>
-      <div class="metric"><div class="k">Affected presses</div><div class="v">${summary.presses.length || 0}</div></div>
-      <div class="metric"><div class="k">Affected versions</div><div class="v">${summary.versions.length || 0}</div></div>
-    `;
-    document.getElementById('drillTrend').innerHTML = `Trend summary: first occurrence ${summary.first ? summary.first.toISOString() : 'N/A'}, latest occurrence ${summary.latest ? summary.latest.toISOString() : 'N/A'}, dominant subsystem ${esc(summary.mostSubsystem)}, dominant alert ${esc(summary.mostAlert)}.`;
-
-    const sortField = document.getElementById('drillSortField');
-    sortField.innerHTML = [
-      ['durationSeconds','Duration'], ['startTime','Start Time'], ['press','Press'], ['subsystem','Subsystem'], ['alertTitle','Alert Title'], ['version','Version']
-    ].map(([k, label]) => `<option value="${k}">${label}</option>`).join('');
-    sortField.value = STATE.drilldown.sortField;
-
-    renderDrilldownTable();
-    document.getElementById('drilldownShell').classList.add('open');
-    document.getElementById('drilldownShell').setAttribute('aria-hidden', 'false');
-  }
-
-  function closeDrilldown() {
-    document.getElementById('drilldownShell').classList.remove('open');
-    document.getElementById('drilldownShell').setAttribute('aria-hidden', 'true');
-  }
-
-  function buildFilterContextText() {
-    const ids = ['pressFilter','modelFilter','subsystemFilter','errorStateFilter','versionFilter'];
-    const fields = ids.map(id => {
-      const el = document.getElementById(id);
-      const label = id.replace('Filter','');
-      return `${label}: ${el.value}`;
-    });
-    const start = document.getElementById('startDateFilter').value || 'any';
-    const end = document.getElementById('endDateFilter').value || 'any';
-    const search = document.getElementById('searchFilter').value.trim() || 'none';
-    fields.push(`date: ${start} → ${end}`);
-    fields.push(`search: ${search}`);
-    return fields.join(' | ');
-  }
-
-  function buildEmailBrief(summary) {
-    const a = summary.analytics;
-    const topRisk = summary.topRisk.slice(0, 3).map(item => `${item.press} (${item.tier}, ${item.eventCount} events, ${formatDuration(item.totalDowntime)} downtime)`).join('; ') || 'No risk concentration detected';
-    return [
-      `Executive Operational Summary (${summary.generatedAt.toISOString()})`,
-      `Dataset: ${STATE.datasetName}`,
-      `Filter scope: ${buildFilterContextText()}`,
-      `Total events: ${a.totalEvents} | Total downtime: ${formatDuration(a.totalDuration)}`,
-      `Highest-risk presses: ${topRisk}`,
-      `Main driver: ${summary.pillars.mainDowntimeDriver}`,
-      `Most affected subsystem: ${summary.pillars.mostAffectedSubsystem}`,
-      `Most repeated alert: ${summary.pillars.mostRepeatedAlert}`,
-      `Narrative: ${summary.narrative.join(' ')}`,
-      `Immediate focus: ${summary.recommended.join(' ')}`
-    ].join('\n');
-  }
-
-  function exportExecutiveSnapshot(context) {
-    const { summary } = context;
-    document.getElementById('execGeneratedMeta').textContent = `Generated ${summary.generatedAt.toISOString()} • ${STATE.datasetName}`;
-    document.getElementById('exportOverall').innerHTML = `
-      <p><strong>Reporting scope:</strong> ${esc(buildFilterContextText())}</p>
-      <p><strong>Total events:</strong> ${summary.analytics.totalEvents.toLocaleString()}</p>
-      <p><strong>Total downtime:</strong> ${formatDuration(summary.analytics.totalDuration)}</p>
-      ${summary.narrative.map(line => `<p>${esc(line)}</p>`).join('')}
-    `;
-    document.getElementById('exportRiskList').innerHTML = summary.topRisk.slice(0, 7).map(item => `
-      <div class="risk-item">
-        <div class="risk-line"><strong>${esc(item.press)}</strong><span class="badge ${item.badgeClass}">${esc(item.tier)}</span></div>
-        <div class="risk-reason">${item.eventCount} events • ${formatDuration(item.totalDowntime)} downtime • ${esc(item.reasonText)}</div>
-      </div>
-    `).join('') || '<div class="micro">No risks identified.</div>';
-    document.getElementById('exportStableList').innerHTML = summary.stable.map(item => `
-      <div class="risk-item"><div class="risk-line"><strong>${esc(item.press)}</strong><span class="badge stable">Stable</span></div><div class="risk-reason">${item.eventCount} events • ${formatDuration(item.totalDowntime)}</div></div>
-    `).join('') || '<div class="micro">No stable entities identified.</div>';
-
-    document.getElementById('exportDrivers').innerHTML = `
-      <div><strong>Main downtime driver:</strong> ${esc(summary.pillars.mainDowntimeDriver)}</div>
-      <div><strong>Most affected subsystem:</strong> ${esc(summary.pillars.mostAffectedSubsystem)}</div>
-      <div><strong>Most repeated alert:</strong> ${esc(summary.pillars.mostRepeatedAlert)}</div>
-      <div><strong>Highest-risk press:</strong> ${esc(summary.pillars.highestRiskPress)}</div>
-      <div><strong>Most stable active press:</strong> ${esc(summary.pillars.mostStablePress)}</div>
-    `;
-    document.getElementById('exportFocus').innerHTML = summary.recommended.map(line => `<li>${esc(line)}</li>`).join('');
-    document.getElementById('emailBrief').textContent = buildEmailBrief(summary);
-
+  function buildFilterContextText(){ return ['pressFilter','modelFilter','subsystemFilter','errorStateFilter','versionFilter'].map(id=>`${id.replace('Filter','')}: ${document.getElementById(id).value}`).join(' | '); }
+  function buildEmailBrief(summary){ return [ `Operational Performance Snapshot (${summary.generatedAt.toISOString()})`, `Dataset: ${STATE.datasetName}`, `Filter scope: ${buildFilterContextText()}`, `Overall status: ${summary.status}`, `Critical presses: ${summary.critical.map(r=>`${r.press} (${r.riskScore})`).join('; ')||'None'}`, `Key metrics: MTTR ${formatDuration(summary.kpis.mttr)}, MTBF ${formatDuration(summary.kpis.mtbf)}, Availability ${summary.kpis.availabilityPct.toFixed(1)}%`, `Key insights: ${summary.insight}`, `Recommended actions: ${summary.recommendations.join(' ')}` ].join('\n'); }
+  function exportExecutiveSnapshot({summary}){ document.getElementById('execGeneratedMeta').textContent=`Generated ${summary.generatedAt.toISOString()} • ${STATE.datasetName}`;
+    document.getElementById('exportPrimary').innerHTML=`<h3>1. Overall Status</h3><div class="status-strip"><strong>${esc(summary.status)}</strong></div><h3>2. Critical Presses</h3><div class="risk-list">${summary.critical.map(riskItem).join('')||'<div class="micro">No critical presses.</div>'}</div><h3>3. Critical Issues</h3><ul class="focus-list">${summary.analytics.topDowntimeAlerts.slice(0,5).map(([n,v])=>`<li>${esc(n)} • ${formatDuration(v)}</li>`).join('')}</ul><h3>4. Critical Subsystems</h3><ul class="focus-list">${summary.analytics.topSubsystems.slice(0,5).map(([n,v])=>`<li>${esc(n)} • ${v} events</li>`).join('')}</ul>`;
+    document.getElementById('exportSecondary').innerHTML=`<h3>5. Stability Overview</h3><div class="risk-list">${summary.stable.map(riskItem).join('')||'<div class="micro">No stable entities.</div>'}</div><h3>6. Key Metrics</h3><ul class="focus-list"><li>MTTR: ${formatDuration(summary.kpis.mttr)}</li><li>MTBF: ${formatDuration(summary.kpis.mtbf)}</li><li>Availability: ${summary.kpis.availabilityPct.toFixed(1)}%</li><li>Total downtime: ${formatDuration(summary.kpis.totalDowntime)}</li></ul><h3>7. Key Insights</h3><ul class="focus-list"><li>${esc(summary.insight)}</li></ul><h3>8. Recommended Actions</h3><ul class="focus-list">${summary.recommendations.slice(0,5).map(x=>`<li>${esc(x)}</li>`).join('')}</ul><h3 style="margin-top:10px;">Email-Ready Brief</h3><div id="emailBrief" class="plain-block">${esc(buildEmailBrief(summary))}</div>`;
     document.getElementById('execExportModal').classList.add('open');
-    document.getElementById('execExportModal').setAttribute('aria-hidden', 'false');
   }
 
-  function closeExecutiveExportModal() {
-    document.getElementById('execExportModal').classList.remove('open');
-    document.getElementById('execExportModal').setAttribute('aria-hidden', 'true');
+  function renderDashboard(){ const a=computeAnalytics(STATE.filteredRows); const summary=buildExecutiveSummary(STATE.filteredRows); const hash=JSON.stringify([a.totalEvents,a.totalDuration,STATE.managementMode,summary.status]); if(hash===STATE.metricsHash) return; STATE.metricsHash=hash; renderExecutiveLayer(summary); renderKpis(a,summary.kpis); renderCharts(a); renderInsightText(a); renderTable(STATE.filteredRows); const compact=STATE.managementMode; document.querySelectorAll('[data-content="time"], [data-content="insights"], [data-content="table"]').forEach(el=>el.classList.toggle('hidden',compact)); document.getElementById('filterPanel').classList.toggle('hidden',compact); if(compact) switchTab('overview'); }
+  function applyFilters(){ STATE.filteredRows=getFilteredRows(); STATE.metricsHash=''; renderDashboard(); }
+  function resetFilters(){ ['pressFilter','modelFilter','subsystemFilter','errorStateFilter','versionFilter'].forEach(id=>document.getElementById(id).value='all'); document.getElementById('startDateFilter').value=''; document.getElementById('endDateFilter').value=''; document.getElementById('searchFilter').value=''; }
+  function commitDataset(name,raw,normalized){ STATE.datasetName=name; STATE.rawRows=raw; STATE.normalizedRows=normalized; STATE.filteredRows=normalized; STATE.metricsHash=''; populateFilter('pressFilter',[...new Set(normalized.map(r=>r.press).filter(Boolean))].sort(),'presses'); populateFilter('modelFilter',[...new Set(normalized.map(r=>r.model).filter(Boolean))].sort(),'models'); populateFilter('subsystemFilter',[...new Set(normalized.map(r=>r.subsystem).filter(Boolean))].sort(),'subsystems'); populateFilter('errorStateFilter',[...new Set(normalized.map(r=>r.errorState).filter(Boolean))].sort(),'error states'); populateFilter('versionFilter',[...new Set(normalized.map(r=>r.version).filter(Boolean))].sort(),'versions'); resetFilters(); document.getElementById('datasetMeta').textContent=`${name} • ${normalized.length.toLocaleString()} error rows loaded`; toggleScreens(true); renderDashboard(); }
+
+  async function processFileBundle(files){ clearStatus(); setStatus('Parsing file bundle...', 'info');
+    try{ if(!files.errors) throw new Error('Errors dataset is required.'); const raw=await loadRowsFromFile(files.errors); const map=validateErrorRows(raw); const normalized=normalizeErrorRows(raw,map); STATE.availabilityRows = files.availability ? await loadRowsFromFile(files.availability) : []; STATE.volumeRows = files.volume ? await loadRowsFromFile(files.volume) : []; commitDataset(files.errors.name, raw, normalized); setStatus('Operational intelligence layers loaded successfully.', 'ok'); }
+    catch(e){ setStatus(e.message || 'Failed to parse files.', 'error'); toggleScreens(false); }
   }
 
-  function renderDashboard() {
-    const analytics = computeAnalytics(STATE.filteredRows);
-    const nextHash = JSON.stringify([analytics.totalEvents, analytics.totalDuration, analytics.uniquePresses, analytics.minDate?.toISOString(), analytics.maxDate?.toISOString(), STATE.managementMode]);
-    if (nextHash === STATE.metricsHash) return;
-    STATE.metricsHash = nextHash;
+  function switchTab(tab){ STATE.activeTab=tab; document.querySelectorAll('[role="tab"]').forEach(btn=>btn.setAttribute('aria-selected',String(btn.dataset.tab===tab))); document.querySelectorAll('.content').forEach(c=>c.classList.toggle('active',c.dataset.content===tab)); }
 
-    const summary = buildExecutiveSummary(STATE.filteredRows);
-    renderExecutiveLayer(summary);
-    renderKpis(analytics);
-    renderCharts(analytics);
-    renderInsightText(analytics);
-    renderTable(STATE.filteredRows);
-
-    const compact = STATE.managementMode;
-    document.querySelectorAll('[data-content="time"], [data-content="insights"]').forEach(el => el.classList.toggle('hidden', compact));
-    document.getElementById('filterPanel').classList.toggle('hidden', compact);
-    document.getElementById('kpiStrip').classList.toggle('hidden', compact);
-    if (compact) switchTab('overview');
+  function bindListeners(){ if(STATE.listenersBound) return; STATE.listenersBound=true;
+    document.getElementById('errorsPicker').addEventListener('change', e=>STATE.files.errors=e.target.files?.[0]||null);
+    document.getElementById('availabilityPicker').addEventListener('change', e=>STATE.files.availability=e.target.files?.[0]||null);
+    document.getElementById('volumePicker').addEventListener('change', e=>STATE.files.volume=e.target.files?.[0]||null);
+    document.getElementById('errorsInput').addEventListener('change', async (e)=>{ const picked=[...(e.target.files||[])]; picked.forEach(f=>{ const n=f.name.toLowerCase(); if(n.includes('avail')) STATE.files.availability=f; else if(n.includes('volume')||n.includes('print')) STATE.files.volume=f; else STATE.files.errors=f; }); await processFileBundle(STATE.files); });
+    document.getElementById('replaceBtn').addEventListener('click',()=>{toggleScreens(false); setStatus('Load Errors + Availability + Print Volume files.', 'info');});
+    document.getElementById('exportBtn').addEventListener('click',()=>exportRowsToCsv(STATE.filteredRows,'press-insight-filtered.csv'));
+    document.getElementById('openExecExportBtn').addEventListener('click',()=>exportExecutiveSnapshot({summary:buildExecutiveSummary(STATE.filteredRows)}));
+    document.getElementById('tabs').addEventListener('click',e=>{const btn=e.target.closest('[role="tab"]'); if(btn) switchTab(btn.dataset.tab);});
+    document.getElementById('managementModeToggle').addEventListener('change',e=>{STATE.managementMode=e.target.checked; STATE.metricsHash=''; renderDashboard();});
+    ['pressFilter','modelFilter','subsystemFilter','errorStateFilter','versionFilter','startDateFilter','endDateFilter'].forEach(id=>document.getElementById(id).addEventListener('change',applyFilters)); document.getElementById('searchFilter').addEventListener('input',applyFilters);
+    document.getElementById('dataTable').addEventListener('click',e=>{const tr=e.target.closest('tr[data-idx]'); if(!tr) return; const r=STATE.filteredRows[Number(tr.dataset.idx)]; if(!r) return; document.getElementById('drawer').classList.add('open'); document.getElementById('drawerBody').innerHTML=`<p><strong>Name:</strong> ${esc(r.name)}</p><p><strong>Press:</strong> ${esc(r.press)}</p><p><strong>Subsystem:</strong> ${esc(r.subsystem)}</p><p><strong>Alert:</strong> ${esc(r.alertTitle)}</p><p><strong>Duration:</strong> ${formatDuration(r.durationSeconds)}</p>`;});
+    document.getElementById('closeDrawer').addEventListener('click',()=>document.getElementById('drawer').classList.remove('open'));
+    document.getElementById('closeDrilldownBtn').addEventListener('click',closeDrilldown); document.getElementById('drillSearch').addEventListener('input',e=>{STATE.drilldown.search=e.target.value; renderDrilldownTable();}); document.getElementById('drillSortField').addEventListener('change',e=>{STATE.drilldown.sortField=e.target.value; renderDrilldownTable();}); document.getElementById('drillSortDir').addEventListener('click',e=>{STATE.drilldown.sortDir=STATE.drilldown.sortDir==='asc'?'desc':'asc'; e.target.textContent=STATE.drilldown.sortDir==='asc'?'Asc':'Desc'; renderDrilldownTable();});
+    document.getElementById('drillExportBtn').addEventListener('click',()=>exportRowsToCsv(STATE.drilldown.currentRows||STATE.drilldown.rows,'press-insight-drilldown.csv'));
+    document.getElementById('drillCopyBtn').addEventListener('click',async()=>{const c=STATE.drilldown.context,s=summarizeDrilldownRows(STATE.drilldown.currentRows||STATE.drilldown.rows); try{await navigator.clipboard.writeText(`${c.label}: ${c.value}
+Rows: ${(STATE.drilldown.currentRows||STATE.drilldown.rows).length}
+Total downtime: ${formatDuration(s.total)}`);}catch{}});
+    document.getElementById('closeExecModalBtn').addEventListener('click',()=>document.getElementById('execExportModal').classList.remove('open')); document.getElementById('execPrintBtn').addEventListener('click',()=>window.print()); document.getElementById('execCopyBtn').addEventListener('click',async()=>{try{await navigator.clipboard.writeText(document.getElementById('emailBrief')?.textContent||'');}catch{}}); document.getElementById('execMailBtn').addEventListener('click',()=>{const brief=document.getElementById('emailBrief')?.textContent||''; window.location.href=`mailto:?subject=${encodeURIComponent('Operational Performance Snapshot')}&body=${encodeURIComponent(brief)}`;});
+    const zone=document.getElementById('dropZone'); ['dragenter','dragover'].forEach(n=>zone.addEventListener(n,e=>{e.preventDefault(); zone.classList.add('drag');})); ['dragleave','drop'].forEach(n=>zone.addEventListener(n,e=>{e.preventDefault(); zone.classList.remove('drag');})); zone.addEventListener('drop',async e=>{ const files=[...(e.dataTransfer?.files||[])]; files.forEach(f=>{ const n=f.name.toLowerCase(); if(n.includes('avail')) STATE.files.availability=f; else if(n.includes('volume')||n.includes('print')) STATE.files.volume=f; else STATE.files.errors=f; }); await processFileBundle(STATE.files); });
   }
 
-  function resetFilters() {
-    ['pressFilter','modelFilter','subsystemFilter','errorStateFilter','versionFilter'].forEach((id) => { document.getElementById(id).value = 'all'; });
-    document.getElementById('startDateFilter').value = '';
-    document.getElementById('endDateFilter').value = '';
-    document.getElementById('searchFilter').value = '';
-  }
-
-  function commitDataset(fileName, rawRows, normalizedRows) {
-    STATE.datasetName = fileName;
-    STATE.rawRows = rawRows;
-    STATE.normalizedRows = normalizedRows;
-    STATE.filteredRows = normalizedRows;
-    STATE.metricsHash = '';
-
-    populateFilter('pressFilter', [...new Set(normalizedRows.map(r => r.press).filter(Boolean))].sort(), 'presses');
-    populateFilter('modelFilter', [...new Set(normalizedRows.map(r => r.model).filter(Boolean))].sort(), 'models');
-    populateFilter('subsystemFilter', [...new Set(normalizedRows.map(r => r.subsystem).filter(Boolean))].sort(), 'subsystems');
-    populateFilter('errorStateFilter', [...new Set(normalizedRows.map(r => r.errorState).filter(Boolean))].sort(), 'error states');
-    populateFilter('versionFilter', [...new Set(normalizedRows.map(r => r.version).filter(Boolean))].sort(), 'versions');
-    resetFilters();
-
-    document.getElementById('datasetMeta').textContent = `${fileName} • ${normalizedRows.length.toLocaleString()} rows loaded`;
-    toggleScreens(true);
-    renderDashboard();
-    setStatus('Dataset loaded and analyzed successfully.', 'ok');
-  }
-
-  async function processFile(file) {
-    if (!file) return;
-    clearStatus();
-    setStatus('Validating and parsing file…', 'info');
-    try {
-      const rawRows = await loadRowsFromFile(file);
-      setStatus('Validating schema…', 'info');
-      const headerMap = validateRows(rawRows);
-      setStatus('Normalizing records and computing analytics…', 'info');
-      const normalizedRows = normalizeRows(rawRows, headerMap);
-      if (!normalizedRows.length) throw new Error('Dataset has no valid rows after normalization.');
-      commitDataset(file.name, rawRows, normalizedRows);
-    } catch (err) {
-      setStatus(err.message || 'Failed to ingest dataset.', 'error');
-      toggleScreens(false);
-    }
-  }
-
-  function switchTab(tab) {
-    if (STATE.activeTab === tab) return;
-    STATE.activeTab = tab;
-    document.querySelectorAll('[role="tab"]').forEach(btn => btn.setAttribute('aria-selected', String(btn.dataset.tab === tab)));
-    document.querySelectorAll('.content').forEach(c => c.classList.toggle('active', c.dataset.content === tab));
-  }
-
-  function bindListeners() {
-    if (STATE.listenersBound) return;
-    STATE.listenersBound = true;
-
-    document.getElementById('fileInput').addEventListener('change', (e) => processFile(e.target.files?.[0]));
-    document.getElementById('replaceBtn').addEventListener('click', () => {
-      toggleScreens(false);
-      document.getElementById('fileInput').value = '';
-      clearStatus();
-      setStatus('Select a replacement dataset to continue.', 'info');
-    });
-
-    document.getElementById('exportBtn').addEventListener('click', () => exportRowsToCsv(STATE.filteredRows, 'press-insight-filtered.csv'));
-    document.getElementById('tabs').addEventListener('click', (e) => {
-      const btn = e.target.closest('[role="tab"]');
-      if (btn) switchTab(btn.dataset.tab);
-    });
-    document.getElementById('managementModeToggle').addEventListener('change', (e) => {
-      STATE.managementMode = e.target.checked;
-      STATE.metricsHash = '';
-      renderDashboard();
-    });
-
-    ['pressFilter','modelFilter','subsystemFilter','errorStateFilter','versionFilter','startDateFilter','endDateFilter'].forEach((id) => {
-      document.getElementById(id).addEventListener('change', applyFilters);
-    });
-    document.getElementById('searchFilter').addEventListener('input', applyFilters);
-
-    document.getElementById('dataTable').addEventListener('click', (e) => {
-      const tr = e.target.closest('tr[data-idx]');
-      if (!tr) return;
-      const row = STATE.filteredRows[Number(tr.dataset.idx)];
-      if (row) openDrawer(row);
-    });
-    document.getElementById('closeDrawer').addEventListener('click', closeDrawer);
-
-    document.getElementById('closeDrilldownBtn').addEventListener('click', closeDrilldown);
-    document.getElementById('drillSearch').addEventListener('input', (e) => { STATE.drilldown.search = e.target.value; renderDrilldownTable(); });
-    document.getElementById('drillSortField').addEventListener('change', (e) => { STATE.drilldown.sortField = e.target.value; renderDrilldownTable(); });
-    document.getElementById('drillSortDir').addEventListener('click', (e) => {
-      STATE.drilldown.sortDir = STATE.drilldown.sortDir === 'asc' ? 'desc' : 'asc';
-      e.target.textContent = STATE.drilldown.sortDir === 'asc' ? 'Asc' : 'Desc';
-      renderDrilldownTable();
-    });
-    document.getElementById('drillExportBtn').addEventListener('click', () => exportRowsToCsv(STATE.drilldown.currentRows || STATE.drilldown.rows, 'press-insight-drilldown.csv'));
-    document.getElementById('drillCopyBtn').addEventListener('click', async () => {
-      const c = STATE.drilldown.context;
-      const s = summarizeDrilldownRows(STATE.drilldown.currentRows || STATE.drilldown.rows);
-      const text = `${c.label}: ${c.value}\nSource chart: ${c.sourceChart}\nRows: ${(STATE.drilldown.currentRows || STATE.drilldown.rows).length}\nTotal downtime: ${formatDuration(s.total)}\nAvg duration: ${formatDuration(s.avg)}\nMost common subsystem: ${s.mostSubsystem}\nMost common alert: ${s.mostAlert}`;
-      try { await navigator.clipboard.writeText(text); } catch { /* ignore clipboard limitations */ }
-    });
-
-    document.getElementById('openExecExportBtn').addEventListener('click', () => exportExecutiveSnapshot({ summary: buildExecutiveSummary(STATE.filteredRows) }));
-    document.getElementById('closeExecModalBtn').addEventListener('click', closeExecutiveExportModal);
-    document.getElementById('execPrintBtn').addEventListener('click', () => window.print());
-    document.getElementById('execCopyBtn').addEventListener('click', async () => {
-      try { await navigator.clipboard.writeText(document.getElementById('emailBrief').textContent); } catch { /* clipboard unsupported */ }
-    });
-    document.getElementById('execMailBtn').addEventListener('click', () => {
-      const brief = document.getElementById('emailBrief').textContent;
-      const url = `mailto:?subject=${encodeURIComponent('Executive Operational Summary')}&body=${encodeURIComponent(brief)}`;
-      window.location.href = url;
-    });
-
-    const zone = document.getElementById('dropZone');
-    ['dragenter', 'dragover'].forEach((name) => zone.addEventListener(name, (e) => { e.preventDefault(); zone.classList.add('drag'); }));
-    ['dragleave', 'drop'].forEach((name) => zone.addEventListener(name, (e) => { e.preventDefault(); zone.classList.remove('drag'); }));
-    zone.addEventListener('drop', (e) => processFile(e.dataTransfer?.files?.[0]));
-  }
-
-  function bootstrap() {
-    if (STATE.initialized) return;
-    STATE.initialized = true;
-    toggleScreens(false);
-    setStatus('Select a CSV or Excel file to begin.', 'info');
-    bindListeners();
-  }
-
+  function bootstrap(){ if(STATE.initialized) return; STATE.initialized=true; toggleScreens(false); setStatus('Load errors, availability, and print volume files to begin.', 'info'); bindListeners(); }
   bootstrap();
 })();
 </script>
