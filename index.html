@@ -185,7 +185,7 @@
       </article>
 
       <article class="card span-6">
-        <div class="chart-head"><h3>Print Volume by Customer</h3><div class="chart-tools"><select id="customerVolumeMetric" class="select"><option value="production">Production Volume</option><option value="maintenance">Maintenance Volume</option><option value="total">Total Volume</option></select></div></div>
+        <div class="chart-head"><h3>Print Volume by Customer</h3><div class="chart-tools"><select id="customerVolumeMetric" class="select"><option value="production">Production Volume</option><option value="maintenance">Maintenance Volume</option><option value="total">Total Volume</option></select><select id="customerVolumeSort" class="select"><option value="desc">Highest first</option><option value="asc">Lowest first</option></select><button id="customerVolumeExpand" class="btn secondary">Show all</button></div></div>
         <div class="micro" id="customerVolumeNote">Customer workload by production volume.</div><div class="chart-area"><canvas id="customerVolumeChart"></canvas></div>
       </article>
 
@@ -207,10 +207,13 @@
       <div class="chart-tools"><input id="drilldownSearch" placeholder="Search drilldown rows" /><button id="drilldownExport" class="btn secondary">Export subset</button><button id="closeDrilldown" class="btn">Close</button></div>
     </div>
     <div id="drilldownSummary" class="micro"></div>
+    <div id="drilldownSummaryGrid" class="summary-grid" style="margin-bottom:10px;"></div>
     <div id="drilldownInsight" class="card" style="margin-bottom:10px;"></div>
     <div class="grid" style="margin-bottom:10px;">
       <article class="card span-6"><h4 style="margin:0 0 8px;">Top breakdown</h4><div class="chart-area" style="height:220px;min-height:220px;"><canvas id="drilldownTopChart"></canvas></div></article>
       <article class="card span-6"><h4 style="margin:0 0 8px;">Trend</h4><div class="chart-area" style="height:220px;min-height:220px;"><canvas id="drilldownTrendChart"></canvas></div></article>
+      <article class="card span-6"><h4 style="margin:0 0 8px;">Secondary split</h4><div class="chart-area" style="height:220px;min-height:220px;"><canvas id="drilldownSecondaryChart"></canvas></div></article>
+      <article class="card span-6"><h4 style="margin:0 0 8px;">Operational split</h4><div class="chart-area" style="height:220px;min-height:220px;"><canvas id="drilldownOpsChart"></canvas></div></article>
     </div>
     <div class="table-wrap"><table id="drilldownTable"></table></div>
   </section>
@@ -232,7 +235,9 @@
     expand: { press: false, subsystem: false, alert: false, version: false },
     metricByChart: { press: 'risk', subsystem: 'risk', alert: 'risk', version: 'risk' },
     customerVolumeMetric: 'production',
-    drilldown: { dimension: '', value: '', rows: [], search: '' },
+    customerVolumeSort: 'desc',
+    customerVolumeExpanded: false,
+    drilldown: { dimension: '', value: '', rows: [], search: '', sort: null },
     renderQueued: false,
   };
 
@@ -241,6 +246,27 @@
 
   const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const canonical = v => String(v ?? '').trim().toLowerCase().replace(/[_.]/g, ' ').replace(/[\-–—]+/g, ' ').replace(/\s+/g, ' ');
+  function normalizePress(press) {
+    return String(press || '')
+      .toLowerCase()
+      .replace(/\s+/g, ' ')
+      .trim();
+  }
+  function normalizeModel(model) {
+    return String(model || '').trim();
+  }
+  function toDay(date) {
+    const d = new Date(date);
+    if (isNaN(d)) return null;
+    return d.toISOString().slice(0, 10);
+  }
+  function buildKey({ press, model, date }) {
+    return [
+      normalizePress(press),
+      normalizeModel(model),
+      toDay(date)
+    ].join('|');
+  }
   const normalizeJoinToken = v => canonical(v) || 'unspecified';
   const normalizeTextLoose = v => String(v ?? '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
   const parseNumber = v => {
@@ -281,7 +307,7 @@
     return 0;
   };
 
-  const toDayBucket = d => (d ? d.toISOString().slice(0, 10) : '');
+  const toDayBucket = d => (d ? toDay(d) : '');
 
   function setStatus(msg, kind = 'info') {
     const el = document.getElementById('intakeStatus');
@@ -397,6 +423,7 @@
         day: toDayBucket(startTime),
         durationSeconds: parseDurationSeconds(getField(r, ['Duration', 'Duration (sec)', 'DurationSeconds'])),
       });
+      out[out.length - 1].key = buildKey({ press: out[out.length - 1].press, model: out[out.length - 1].model, date: out[out.length - 1].startTime });
       if (i % 3000 === 0) await shortYield();
     }
     const hasMinimum = out.some(r => r.press !== 'Unspecified' && (r.name !== 'Unspecified' || r.alertTitle !== 'Unspecified') && r.startTime);
@@ -445,7 +472,7 @@
       const availabilityPct = providedAvailabilityPct ?? derivedAvailabilityPct;
       const sourcePrintVolume = parseNumber(getField(r, ['Print Volume']));
 
-      const key = `${normalizeJoinToken(canonicalPress)}|${normalizeJoinToken(model)}|${day}`;
+      const key = buildKey({ press: canonicalPress, model, date: dayDate });
       if (!byPressModelDay.has(key)) {
         byPressModelDay.set(key, {
           canonicalPress,
@@ -453,6 +480,7 @@
           pressCode,
           model,
           day,
+          key,
           customer: 'Unspecified',
           site: 'Unspecified',
           runtimeSeconds: 0,
@@ -512,6 +540,7 @@
 
   async function normalizeVolumeRows(rows) {
     const out = [];
+    const jobs = [];
     const byPressModelDay = new Map();
     let sourceRows = 0;
 
@@ -541,7 +570,7 @@
       const pressMode = String(getField(r, ['Press Mode', 'Mode'])).trim() || 'Unspecified';
       const printDurationSeconds = parseDurationSeconds(getField(r, ['Print Duration']));
 
-      const key = `${normalizeJoinToken(canonicalPress)}|${normalizeJoinToken(model)}|${day}`;
+      const key = buildKey({ press: canonicalPress, model, date: printStart });
       if (!byPressModelDay.has(key)) {
         byPressModelDay.set(key, {
           canonicalPress,
@@ -549,6 +578,7 @@
           pressCode,
           model,
           day,
+          key,
           customer,
           site,
           productionVolume: 0,
@@ -574,6 +604,22 @@
       slot.sampleJobTypes.add(jobType);
       slot.samplePressModes.add(pressMode);
       slot.sampleStatuses.add(jobStatus);
+      jobs.push({
+        key,
+        customer,
+        site,
+        press: canonicalPress,
+        model,
+        day,
+        volume: preferredVolume,
+        maintenance,
+        productionVolume: maintenance ? 0 : preferredVolume,
+        maintenanceVolume: maintenance ? preferredVolume : 0,
+        totalVolume: preferredVolume,
+        jobType,
+        jobStatus,
+        pressMode,
+      });
 
       if (i % 3000 === 0) await shortYield();
     }
@@ -589,30 +635,14 @@
 
     return {
       rows: out,
+      jobs,
       diagnostics: { parsedRows: rows.length, sourceRowsUsed: sourceRows, aggregatedRowsCreated: out.length },
     };
   }
 
-  function buildJoinKeys(r) {
-    const p = normalizeJoinToken(r.canonicalPress || r.press);
-    const m = normalizeJoinToken(r.model);
-    const d = normalizeJoinToken(r.day);
-    const s = normalizeJoinToken(r.site);
-    const c = normalizeJoinToken(r.customer);
-    return {
-      pressModelDay: `${p}|${m}|${d}`,
-      pressDay: `${p}|${d}`,
-      sitePressDay: `${c}|${s}|${p}|${d}`,
-      pressModel: `${p}|${m}`,
-      pressOnly: p,
-    };
-  }
-
   function mergeOperationalData(events, availability, volume, diagnostics = {}) {
-    const availabilityByPMD = new Map();
-    const availabilityByPD = new Map();
-    const volumeByPMD = new Map();
-    const volumeByPD = new Map();
+    const availabilityMap = new Map();
+    const volumeMap = new Map();
     const mergedByPMD = new Map();
 
     const addToMap = (map, key, base) => {
@@ -621,44 +651,34 @@
     };
 
     availability.forEach(r => {
-      const keys = buildJoinKeys(r);
-      [
-        [availabilityByPMD, keys.pressModelDay],
-        [availabilityByPD, keys.pressDay],
-      ].forEach(([map, key]) => {
-        const slot = addToMap(map, key, () => ({
-          runtimeSeconds: 0,
-          plannedDowntimeSeconds: 0,
-          unplannedDowntimeSeconds: 0,
-          serviceDowntimeSeconds: 0,
-          availabilityPctAccumulator: 0,
-          availabilityPctContribCount: 0,
-          sourceRows: 0,
-        }));
-        slot.runtimeSeconds += r.runtimeSeconds || 0;
-        slot.plannedDowntimeSeconds += r.plannedDowntimeSeconds || 0;
-        slot.unplannedDowntimeSeconds += r.unplannedDowntimeSeconds || 0;
-        slot.serviceDowntimeSeconds += r.serviceDowntimeSeconds || 0;
-        if (r.availabilityPct != null) {
-          slot.availabilityPctAccumulator += r.availabilityPct;
-          slot.availabilityPctContribCount += 1;
-        }
-        slot.sourceRows += r.sourceRows || 1;
-      });
+      const key = r.key || buildKey({ press: r.press, model: r.model, date: r.day });
+      const slot = addToMap(availabilityMap, key, () => ({
+        runtimeSeconds: 0,
+        plannedDowntimeSeconds: 0,
+        unplannedDowntimeSeconds: 0,
+        serviceDowntimeSeconds: 0,
+        availabilityPctAccumulator: 0,
+        availabilityPctContribCount: 0,
+        sourceRows: 0,
+      }));
+      slot.runtimeSeconds += r.runtimeSeconds || 0;
+      slot.plannedDowntimeSeconds += r.plannedDowntimeSeconds || 0;
+      slot.unplannedDowntimeSeconds += r.unplannedDowntimeSeconds || 0;
+      slot.serviceDowntimeSeconds += r.serviceDowntimeSeconds || 0;
+      if (r.availabilityPct != null) {
+        slot.availabilityPctAccumulator += r.availabilityPct;
+        slot.availabilityPctContribCount += 1;
+      }
+      slot.sourceRows += r.sourceRows || 1;
     });
 
     volume.forEach(r => {
-      const keys = buildJoinKeys(r);
-      [
-        [volumeByPMD, keys.pressModelDay],
-        [volumeByPD, keys.pressDay],
-      ].forEach(([map, key]) => {
-        const slot = addToMap(map, key, () => ({ productionVolume: 0, maintenanceVolume: 0, totalVolume: 0, sourceRows: 0 }));
-        slot.productionVolume += r.productionVolume || 0;
-        slot.maintenanceVolume += r.maintenanceVolume || 0;
-        slot.totalVolume += r.totalVolume || 0;
-        slot.sourceRows += r.sourceRows || 1;
-      });
+      const key = r.key || buildKey({ press: r.press, model: r.model, date: r.day });
+      const slot = addToMap(volumeMap, key, () => ({ productionVolume: 0, maintenanceVolume: 0, totalVolume: 0, sourceRows: 0 }));
+      slot.productionVolume += r.productionVolume || 0;
+      slot.maintenanceVolume += r.maintenanceVolume || 0;
+      slot.totalVolume += r.totalVolume || 0;
+      slot.sourceRows += r.sourceRows || 1;
     });
 
     const stats = {
@@ -670,8 +690,8 @@
         volumeAggregated: volume.length,
       },
       matches: {
-        availability: { pressModelDay: 0, pressDay: 0, none: 0 },
-        volume: { pressModelDay: 0, pressDay: 0, none: 0 },
+        availability: { matched: 0, none: 0 },
+        volume: { matched: 0, none: 0 },
       },
       coverage: {
         errorsMatchedToAvailability: 0,
@@ -680,27 +700,16 @@
       },
     };
 
-    const pickMatch = (keys, pmdMap, pdMap, counters) => {
-      if (pmdMap.has(keys.pressModelDay)) {
-        counters.pressModelDay += 1;
-        return { value: pmdMap.get(keys.pressModelDay), label: 'pressModelDay' };
-      }
-      if (pdMap.has(keys.pressDay)) {
-        counters.pressDay += 1;
-        return { value: pdMap.get(keys.pressDay), label: 'pressDay' };
-      }
-      counters.none += 1;
-      return { value: null, label: null };
-    };
-
     const mergedEvents = events.map(ev => {
-      const keys = buildJoinKeys(ev);
-      const avMatch = pickMatch(keys, availabilityByPMD, availabilityByPD, stats.matches.availability);
-      const volMatch = pickMatch(keys, volumeByPMD, volumeByPD, stats.matches.volume);
-      if (avMatch.value) stats.coverage.errorsMatchedToAvailability += 1;
-      if (volMatch.value) stats.coverage.errorsMatchedToVolume += 1;
-
-      const rowKey = keys.pressModelDay;
+      const rowKey = ev.key || buildKey({ press: ev.press, model: ev.model, date: ev.startTime || ev.day });
+      const avMatch = availabilityMap.get(rowKey) || null;
+      const volMatch = volumeMap.get(rowKey) || null;
+      if (avMatch) stats.matches.availability.matched += 1;
+      else stats.matches.availability.none += 1;
+      if (volMatch) stats.matches.volume.matched += 1;
+      else stats.matches.volume.none += 1;
+      if (avMatch) stats.coverage.errorsMatchedToAvailability += 1;
+      if (volMatch) stats.coverage.errorsMatchedToVolume += 1;
       if (!mergedByPMD.has(rowKey)) {
         mergedByPMD.set(rowKey, {
           canonicalPress: ev.canonicalPress,
@@ -709,6 +718,7 @@
           day: ev.day,
           customer: ev.customer,
           site: ev.site,
+          key: rowKey,
           totalEvents: 0,
           totalErrorDuration: 0,
           runtimeSeconds: 0,
@@ -727,27 +737,27 @@
       slot.totalEvents += 1;
       slot.totalErrorDuration += ev.durationSeconds || 0;
 
-      if (avMatch.value && slot.matchedAvailabilityRows === 0) {
-        slot.runtimeSeconds += avMatch.value.runtimeSeconds;
-        slot.plannedDowntimeSeconds += avMatch.value.plannedDowntimeSeconds;
-        slot.unplannedDowntimeSeconds += avMatch.value.unplannedDowntimeSeconds;
-        slot.serviceDowntimeSeconds += avMatch.value.serviceDowntimeSeconds;
-        slot.availabilityPct = avMatch.value.availabilityPctContribCount ? (avMatch.value.availabilityPctAccumulator / avMatch.value.availabilityPctContribCount) : null;
-        slot.matchedAvailabilityRows += avMatch.value.sourceRows;
+      if (avMatch && slot.matchedAvailabilityRows === 0) {
+        slot.runtimeSeconds += avMatch.runtimeSeconds;
+        slot.plannedDowntimeSeconds += avMatch.plannedDowntimeSeconds;
+        slot.unplannedDowntimeSeconds += avMatch.unplannedDowntimeSeconds;
+        slot.serviceDowntimeSeconds += avMatch.serviceDowntimeSeconds;
+        slot.availabilityPct = avMatch.availabilityPctContribCount ? (avMatch.availabilityPctAccumulator / avMatch.availabilityPctContribCount) : null;
+        slot.matchedAvailabilityRows += avMatch.sourceRows;
       }
 
-      if (volMatch.value && slot.matchedVolumeRows === 0) {
-        slot.productionVolume += volMatch.value.productionVolume;
-        slot.maintenanceVolume += volMatch.value.maintenanceVolume;
-        slot.totalVolume += volMatch.value.totalVolume;
-        slot.matchedVolumeRows += volMatch.value.sourceRows;
+      if (volMatch && slot.matchedVolumeRows === 0) {
+        slot.productionVolume += volMatch.productionVolume;
+        slot.maintenanceVolume += volMatch.maintenanceVolume;
+        slot.totalVolume += volMatch.totalVolume;
+        slot.matchedVolumeRows += volMatch.sourceRows;
       }
 
       return {
         ...ev,
-        mergeContext: { availabilityKeyUsed: avMatch.label, volumeKeyUsed: volMatch.label, joinKeys: keys },
-        availability: avMatch.value || { runtimeSeconds: 0, plannedDowntimeSeconds: 0, unplannedDowntimeSeconds: 0, serviceDowntimeSeconds: 0 },
-        volume: volMatch.value || { productionVolume: 0, maintenanceVolume: 0, totalVolume: 0 },
+        mergeContext: { key: rowKey, availabilityKeyUsed: avMatch ? 'key' : null, volumeKeyUsed: volMatch ? 'key' : null },
+        availability: avMatch || { runtimeSeconds: 0, plannedDowntimeSeconds: 0, unplannedDowntimeSeconds: 0, serviceDowntimeSeconds: 0 },
+        volume: volMatch || { productionVolume: 0, maintenanceVolume: 0, totalVolume: 0 },
       };
     });
 
@@ -816,7 +826,7 @@
       const slot = map.get(key) || { name: key, events: 0, downtime: 0, volume: 0, recent: 0, subsystems: new Set(), volumeSeen: new Set() };
       slot.events += 1;
       slot.downtime += r.durationSeconds || 0;
-      const vJoin = r.mergeContext.volumeKeyUsed ? `${r.mergeContext.volumeKeyUsed}:${r.mergeContext.joinKeys[r.mergeContext.volumeKeyUsed]}` : '';
+      const vJoin = r.mergeContext.volumeKeyUsed ? r.mergeContext.key : '';
       if (vJoin && !slot.volumeSeen.has(vJoin)) {
         slot.volumeSeen.add(vJoin);
         slot.volume += r.volume.productionVolume || 0;
@@ -1037,38 +1047,44 @@
   }
 
   function filteredMergedRows(filteredEvents) {
-    const keys = new Set(filteredEvents.map(r => r.mergeContext.joinKeys.pressModelDay));
-    return (STATE.merged.mergedRows || []).filter(r => keys.has(buildJoinKeys(r).pressModelDay));
+    const keys = new Set(filteredEvents.map(r => r.mergeContext.key));
+    return (STATE.merged.mergedRows || []).filter(r => keys.has(r.key));
   }
 
-  function buildCustomerVolumeChart(rows, metric = 'production') {
+  function buildCustomerVolumeChart(rows, metric = 'production', sort = 'desc', expanded = false) {
     const byCustomer = new Map();
     rows.forEach(r => {
-      const slot = byCustomer.get(r.customer) || { customer: r.customer, production: 0, maintenance: 0, total: 0 };
+      const keyName = r.customer && r.customer !== 'Unspecified' ? r.customer : (r.press || 'Unspecified');
+      const slot = byCustomer.get(keyName) || { customer: keyName, production: 0, maintenance: 0, total: 0 };
       slot.production += r.volume.productionVolume || 0;
       slot.maintenance += r.volume.maintenanceVolume || 0;
       slot.total += (r.volume.productionVolume || 0) + (r.volume.maintenanceVolume || 0);
-      byCustomer.set(r.customer, slot);
+      byCustomer.set(keyName, slot);
     });
-    return [...byCustomer.values()].sort((a, b) => b[metric] - a[metric]).slice(0, 12);
+    const dir = sort === 'asc' ? 1 : -1;
+    const sorted = [...byCustomer.values()].sort((a, b) => (a[metric] - b[metric]) * dir);
+    return expanded ? sorted : sorted.slice(0, 12);
   }
 
   function openDrilldown(dimension, value) {
     const mapping = { press: 'press', subsystem: 'subsystem', alert: 'alert', version: 'version', customerVolume: 'customer' };
     const field = mapping[dimension];
     if (!field) return;
-    const rows = STATE.filtered.filter(r => field === 'alert' ? (r.name !== 'Unspecified' ? r.name : r.alertTitle) === value : r[field] === value);
-    STATE.drilldown = { dimension, value, rows, search: '' };
+    const rows = dimension === 'customerVolume'
+      ? (STATE.normalized.volumeJobs || []).filter(r => (r.customer && r.customer !== 'Unspecified' ? r.customer : r.press) === value)
+      : STATE.filtered.filter(r => field === 'alert' ? (r.name !== 'Unspecified' ? r.name : r.alertTitle) === value : r[field] === value);
+    STATE.drilldown = { dimension, value, rows, search: '', sort: null };
     renderDrilldown();
     document.getElementById('drilldownDrawer').classList.add('show');
   }
 
-  function buildDrilldownAnalytics(rows, dimension) {
+  function buildDrilldownAnalytics(rows, dimension, isVolume = false) {
     const topBy = (fn, limit = 8) => {
       const m = new Map();
       rows.forEach(r => {
         const k = fn(r) || 'Unspecified';
-        m.set(k, (m.get(k) || 0) + 1);
+        const inc = isVolume ? (r.totalVolume || r.volume || 0) : 1;
+        m.set(k, (m.get(k) || 0) + inc);
       });
       return [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, limit);
     };
@@ -1080,7 +1096,7 @@
     rows.forEach(r => {
       if (!r.day) return;
       const slot = trend.get(r.day) || { events: 0, downtime: 0 };
-      slot.events += 1;
+      slot.events += isVolume ? (r.totalVolume || r.volume || 0) : 1;
       slot.downtime += r.durationSeconds || 0;
       trend.set(r.day, slot);
     });
@@ -1092,13 +1108,26 @@
 
   function renderDrilldown() {
     const { dimension, value, rows, search } = STATE.drilldown;
-    const scoped = !search ? rows : rows.filter(r => `${r.customer} ${r.site} ${r.press} ${r.subsystem} ${r.name} ${r.alertTitle} ${r.version}`.toLowerCase().includes(search.toLowerCase()));
+    const isVolume = dimension === 'customerVolume';
+    const scoped = !search ? rows : rows.filter(r => `${r.customer} ${r.site} ${r.press} ${r.subsystem || ''} ${r.name || ''} ${r.alertTitle || ''} ${r.version || ''} ${r.jobType || ''} ${r.jobStatus || ''}`.toLowerCase().includes(search.toLowerCase()));
     const count = scoped.length;
-    const downtime = scoped.reduce((a, r) => a + r.durationSeconds, 0);
-    const avg = count ? downtime / count : 0;
+    const downtime = scoped.reduce((a, r) => a + (r.durationSeconds || 0), 0);
+    const totalVolume = scoped.reduce((a, r) => a + (isVolume ? (r.totalVolume || r.volume || 0) : (r.volume?.productionVolume || 0)), 0);
+    const avg = count ? (isVolume ? totalVolume / count : downtime / count) : 0;
+    const prodSplit = scoped.reduce((a, r) => a + (isVolume ? (r.productionVolume || 0) : (r.volume.productionVolume || 0)), 0);
+    const maintSplit = scoped.reduce((a, r) => a + (isVolume ? (r.maintenanceVolume || 0) : (r.volume.maintenanceVolume || 0)), 0);
     document.getElementById('drilldownTitle').textContent = `Drilldown • ${dimension} = ${value}`;
-    document.getElementById('drilldownSummary').textContent = `${count} matching events • Total downtime ${formatDuration(downtime)} • Avg duration ${formatDuration(avg)}`;
-    const analytics = buildDrilldownAnalytics(scoped, dimension);
+    document.getElementById('drilldownSummary').textContent = isVolume
+      ? `${count} matching jobs • Total volume ${totalVolume.toLocaleString()} • Avg job size ${avg.toFixed(1)}`
+      : `${count} matching events • Total downtime ${formatDuration(downtime)} • Avg duration ${formatDuration(avg)}`;
+    document.getElementById('drilldownSummaryGrid').innerHTML = isVolume
+      ? `<div class="summary-stat span-4"><div class="label">Total volume</div><div class="value">${totalVolume.toLocaleString()}</div></div>
+         <div class="summary-stat span-4"><div class="label">Jobs</div><div class="value">${count.toLocaleString()}</div></div>
+         <div class="summary-stat span-4"><div class="label">Avg job size</div><div class="value">${avg.toFixed(1)}</div></div>`
+      : `<div class="summary-stat span-4"><div class="label">Total downtime</div><div class="value">${formatDuration(downtime)}</div></div>
+         <div class="summary-stat span-4"><div class="label">Events</div><div class="value">${count.toLocaleString()}</div></div>
+         <div class="summary-stat span-4"><div class="label">Avg duration</div><div class="value">${formatDuration(avg)}</div></div>`;
+    const analytics = buildDrilldownAnalytics(scoped, dimension, isVolume);
     document.getElementById('drilldownInsight').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Subset insight</h4><span class="risk-pill risk-medium">Analytical summary</span></div><div class="micro">${esc(analytics.insight)}</div>`;
     const topLabels = (dimension === 'subsystem' ? analytics.topAlerts : analytics.topSubsystems).map(x => x[0]);
     const topValues = (dimension === 'subsystem' ? analytics.topAlerts : analytics.topSubsystems).map(x => x[1]);
@@ -1112,7 +1141,40 @@
       data: { labels: analytics.trendPoints.map(x => x[0]), datasets: [{ label: 'Events', data: analytics.trendPoints.map(x => x[1].events), borderColor: '#7b8dff', backgroundColor: 'rgba(123,141,255,.25)', tension: 0.25, fill: true }] },
       options: { ...baseOptions('drilldown', analytics.trendPoints.map(x => x[0])), plugins: { legend: { display: false } } }
     });
-    document.getElementById('drilldownTable').innerHTML = `<thead><tr><th>Customer</th><th>Site</th><th>Press</th><th>Subsystem</th><th>Alert</th><th>Version</th><th>Start</th><th>Duration</th></tr></thead><tbody>${scoped.slice(0, 1000).map(r => `<tr><td>${esc(r.customer)}</td><td>${esc(r.site)}</td><td>${esc(r.press)}</td><td>${esc(r.subsystem)}</td><td>${esc(r.name !== 'Unspecified' ? r.name : r.alertTitle)}</td><td>${esc(r.version)}</td><td>${esc(r.startTime?.toISOString() || '')}</td><td>${esc(formatDuration(r.durationSeconds))}</td></tr>`).join('')}</tbody>`;
+    const secondary = isVolume ? analytics.topPresses : analytics.topStates;
+    replaceChart('drilldownSecondaryChart', {
+      type: 'bar',
+      data: { labels: secondary.map(x => x[0]), datasets: [{ data: secondary.map(x => x[1]), backgroundColor: secondary.map((_, i) => COLORS[i % COLORS.length]), borderRadius: 6 }] },
+      options: { ...baseOptions('drilldown', secondary.map(x => x[0])), plugins: { legend: { display: false } } }
+    });
+    replaceChart('drilldownOpsChart', {
+      type: 'doughnut',
+      data: { labels: ['Production', 'Maintenance'], datasets: [{ data: [prodSplit, maintSplit], backgroundColor: ['#51c285', '#f0b165'] }] },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: '#c6d3ea' } } } }
+    });
+    const columns = isVolume
+      ? ['customer', 'site', 'press', 'day', 'jobType', 'jobStatus', 'pressMode', 'totalVolume']
+      : ['customer', 'site', 'press', 'subsystem', 'alert', 'version', 'start', 'duration'];
+    const sort = STATE.drilldown.sort || { key: columns[0], dir: 'asc' };
+    const getVal = (r, key) => ({
+      customer: r.customer, site: r.site, press: r.press, subsystem: r.subsystem,
+      alert: r.name !== 'Unspecified' ? r.name : r.alertTitle, version: r.version,
+      start: r.startTime?.toISOString() || '', duration: r.durationSeconds || 0,
+      day: r.day, jobType: r.jobType, jobStatus: r.jobStatus, pressMode: r.pressMode, totalVolume: r.totalVolume || r.volume || 0
+    }[key]);
+    const sorted = [...scoped].sort((a, b) => {
+      const av = getVal(a, sort.key); const bv = getVal(b, sort.key);
+      const cmp = typeof av === 'number' && typeof bv === 'number' ? av - bv : String(av).localeCompare(String(bv));
+      return sort.dir === 'asc' ? cmp : -cmp;
+    });
+    document.getElementById('drilldownTable').innerHTML = `<thead><tr>${columns.map(col => `<th data-dd-col="${col}" style="cursor:pointer">${esc(col)} ${sort.key === col ? (sort.dir === 'asc' ? '▲' : '▼') : ''}</th>`).join('')}</tr></thead><tbody>${sorted.slice(0, 1000).map(r => isVolume
+      ? `<tr><td>${esc(r.customer)}</td><td>${esc(r.site)}</td><td>${esc(r.press)}</td><td>${esc(r.day)}</td><td>${esc(r.jobType)}</td><td>${esc(r.jobStatus)}</td><td>${esc(r.pressMode)}</td><td>${esc((r.totalVolume || r.volume || 0).toLocaleString())}</td></tr>`
+      : `<tr><td>${esc(r.customer)}</td><td>${esc(r.site)}</td><td>${esc(r.press)}</td><td>${esc(r.subsystem)}</td><td>${esc(r.name !== 'Unspecified' ? r.name : r.alertTitle)}</td><td>${esc(r.version)}</td><td>${esc(r.startTime?.toISOString() || '')}</td><td>${esc(formatDuration(r.durationSeconds))}</td></tr>`).join('')}</tbody>`;
+    document.querySelectorAll('#drilldownTable [data-dd-col]').forEach(th => th.addEventListener('click', () => {
+      const key = th.dataset.ddCol;
+      STATE.drilldown.sort = { key, dir: STATE.drilldown.sort?.key === key && STATE.drilldown.sort?.dir === 'asc' ? 'desc' : 'asc' };
+      renderDrilldown();
+    }));
   }
 
   function renderMergeDebug() {
@@ -1127,8 +1189,8 @@
       `Parsed rows E/A/V: ${rows.errorsParsed || 0}/${rows.availabilityParsed || 0}/${rows.volumeParsed || 0} • ` +
       `Aggregated A/V: ${rows.availabilityAggregated || 0}/${rows.volumeAggregated || 0} • ` +
       `Merged rows: ${rows.mergedRowsCreated || 0} • ` +
-      `Err→Avail PMD/PD/none: ${av.pressModelDay || 0}/${av.pressDay || 0}/${av.none || 0} • ` +
-      `Err→Volume PMD/PD/none: ${vol.pressModelDay || 0}/${vol.pressDay || 0}/${vol.none || 0} • ` +
+      `Err→Avail matched/none: ${av.matched || 0}/${av.none || 0} • ` +
+      `Err→Volume matched/none: ${vol.matched || 0}/${vol.none || 0} • ` +
       `Matched E→A/E→V: ${coverage.errorsMatchedToAvailability || 0}/${coverage.errorsMatchedToVolume || 0} • ` +
       `KPI coverage (E/A/V/all): ${kpiCoverage.eventsRowsWithErrors || 0}/${kpiCoverage.rowsWithAvailability || 0}/${kpiCoverage.rowsWithVolume || 0}/${kpiCoverage.rowsWithAllThree || 0}`;
     console.info('[merge-debug]', stats);
@@ -1144,7 +1206,7 @@
     renderRankingChart('subsystem', rankings.subsystem);
     renderRankingChart('alert', rankings.alert);
     renderRankingChart('version', rankings.version);
-    const customerVolumeRows = buildCustomerVolumeChart(STATE.filtered, STATE.customerVolumeMetric);
+    const customerVolumeRows = buildCustomerVolumeChart(STATE.filtered, STATE.customerVolumeMetric, STATE.customerVolumeSort, STATE.customerVolumeExpanded);
     const labels = customerVolumeRows.map(r => r.customer);
     const values = customerVolumeRows.map(r => r[STATE.customerVolumeMetric]);
     replaceChart('customerVolumeChart', {
@@ -1152,7 +1214,8 @@
       data: { labels, datasets: [{ data: values, backgroundColor: labels.map((_, i) => COLORS[i % COLORS.length]), borderRadius: 6 }] },
       options: baseOptions('customerVolume', labels)
     });
-    document.getElementById('customerVolumeNote').textContent = `Top customers by ${STATE.customerVolumeMetric} volume.`;
+    document.getElementById('customerVolumeNote').textContent = `${STATE.customerVolumeExpanded ? 'Full ranking' : 'Top 12'} by ${STATE.customerVolumeMetric} volume (${STATE.customerVolumeSort === 'asc' ? 'lowest first' : 'highest first'}).`;
+    document.getElementById('customerVolumeExpand').textContent = STATE.customerVolumeExpanded ? 'Collapse' : 'Show all';
     STATE.merged.pressRisk = computeRiskScores(STATE.filtered);
     renderRiskSection(STATE.merged.pressRisk);
     STATE.merged.summary = buildExecutiveSummary(STATE.filtered, STATE.merged.pressRisk, STATE.kpis);
@@ -1215,7 +1278,10 @@
       await phase('Computing KPIs…');
       if (runId !== STATE.analysisRunId) return;
 
-      STATE.normalized = { events: errors, availability: availabilityResult.rows, volume: volumeResult.rows };
+      if (availabilityResult.rows.length && merged.stats.coverage.errorsMatchedToAvailability === 0) throw new Error('Join key mismatch: errors did not match any availability rows.');
+      if (volumeResult.rows.length && merged.stats.coverage.errorsMatchedToVolume === 0) throw new Error('Join key mismatch: errors did not match any print volume rows.');
+
+      STATE.normalized = { events: errors, availability: availabilityResult.rows, volume: volumeResult.rows, volumeJobs: volumeResult.jobs || [] };
       STATE.merged = merged;
       console.info('[dataset-debug]', {
         errorsRowsParsed: errorsRaw.length,
@@ -1352,6 +1418,8 @@
     ['customerFilter', 'siteFilter', 'pressFilter', 'subsystemFilter', 'versionFilter', 'startDateFilter', 'endDateFilter'].forEach(id => document.getElementById(id).addEventListener('change', scheduleRender));
     searchFilter.addEventListener('input', scheduleRender);
     customerVolumeMetric.addEventListener('change', e => { STATE.customerVolumeMetric = e.target.value; scheduleRender(); });
+    customerVolumeSort.addEventListener('change', e => { STATE.customerVolumeSort = e.target.value; scheduleRender(); });
+    customerVolumeExpand.addEventListener('click', () => { STATE.customerVolumeExpanded = !STATE.customerVolumeExpanded; scheduleRender(); });
 
     closeDrilldown.addEventListener('click', () => drilldownDrawer.classList.remove('show'));
     drilldownDrawer.addEventListener('click', e => { if (e.target.id === 'drilldownDrawer') drilldownDrawer.classList.remove('show'); });
