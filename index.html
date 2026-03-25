@@ -249,11 +249,14 @@
   function normalizePress(press) {
     return String(press || '')
       .toLowerCase()
-      .replace(/\s+/g, ' ')
+      .replace(/[^a-z0-9]/g, '')
       .trim();
   }
   function normalizeModel(model) {
-    return String(model || '').trim();
+    return String(model || '')
+      .toLowerCase()
+      .replace(/\s+/g, '')
+      .trim();
   }
   function toDay(date) {
     const d = new Date(date);
@@ -644,6 +647,9 @@
     const availabilityMap = new Map();
     const volumeMap = new Map();
     const mergedByPMD = new Map();
+    const errorKeys = new Set();
+    const availabilityKeys = new Set();
+    const volumeKeys = new Set();
 
     const addToMap = (map, key, base) => {
       if (!map.has(key)) map.set(key, base());
@@ -652,6 +658,7 @@
 
     availability.forEach(r => {
       const key = r.key || buildKey({ press: r.press, model: r.model, date: r.day });
+      availabilityKeys.add(key);
       const slot = addToMap(availabilityMap, key, () => ({
         runtimeSeconds: 0,
         plannedDowntimeSeconds: 0,
@@ -674,6 +681,7 @@
 
     volume.forEach(r => {
       const key = r.key || buildKey({ press: r.press, model: r.model, date: r.day });
+      volumeKeys.add(key);
       const slot = addToMap(volumeMap, key, () => ({ productionVolume: 0, maintenanceVolume: 0, totalVolume: 0, sourceRows: 0 }));
       slot.productionVolume += r.productionVolume || 0;
       slot.maintenanceVolume += r.maintenanceVolume || 0;
@@ -702,6 +710,7 @@
 
     const mergedEvents = events.map(ev => {
       const rowKey = ev.key || buildKey({ press: ev.press, model: ev.model, date: ev.startTime || ev.day });
+      errorKeys.add(rowKey);
       const avMatch = availabilityMap.get(rowKey) || null;
       const volMatch = volumeMap.get(rowKey) || null;
       if (avMatch) stats.matches.availability.matched += 1;
@@ -763,6 +772,11 @@
 
     const mergedRows = [...mergedByPMD.values()];
     stats.rows.mergedRowsCreated = mergedRows.length;
+    stats.keys = {
+      errors: [...errorKeys],
+      availability: [...availabilityKeys],
+      volume: [...volumeKeys],
+    };
     stats.coverage.kpiSourceCoverage = {
       eventsRowsWithErrors: mergedRows.filter(r => r.totalEvents > 0).length,
       rowsWithAvailability: mergedRows.filter(r => r.matchedAvailabilityRows > 0).length,
@@ -1275,10 +1289,22 @@
         availabilityParsedRows: availabilityResult.diagnostics.parsedRows,
         volumeParsedRows: volumeResult.diagnostics.parsedRows,
       });
+      const errorKeys = new Set(merged.stats?.keys?.errors || []);
+      const availabilityKeys = new Set(merged.stats?.keys?.availability || []);
+      console.log('ERROR KEYS:', [...errorKeys].slice(0, 20));
+      console.log('AVAIL KEYS:', [...availabilityKeys].slice(0, 20));
+      console.log('TOTAL ERROR ROWS:', merged.stats?.rows?.errorsParsed || 0);
+      console.log('MATCHED TO AVAILABILITY COUNT:', merged.stats?.coverage?.errorsMatchedToAvailability || 0);
       await phase('Computing KPIs…');
       if (runId !== STATE.analysisRunId) return;
 
-      if (availabilityResult.rows.length && merged.stats.coverage.errorsMatchedToAvailability === 0) throw new Error('Join key mismatch: errors did not match any availability rows.');
+      if (availabilityResult.rows.length && merged.stats.coverage.errorsMatchedToAvailability === 0) {
+        const errorOnly = [...errorKeys].filter(k => !availabilityKeys.has(k)).slice(0, 20);
+        const availabilityOnly = [...availabilityKeys].filter(k => !errorKeys.has(k)).slice(0, 20);
+        console.error('UNMATCHED ERROR KEYS:', errorOnly);
+        console.error('UNMATCHED AVAILABILITY KEYS:', availabilityOnly);
+        throw new Error('Join key mismatch: errors did not match any availability rows.');
+      }
       if (volumeResult.rows.length && merged.stats.coverage.errorsMatchedToVolume === 0) throw new Error('Join key mismatch: errors did not match any print volume rows.');
 
       STATE.normalized = { events: errors, availability: availabilityResult.rows, volume: volumeResult.rows, volumeJobs: volumeResult.jobs || [] };
