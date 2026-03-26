@@ -239,6 +239,7 @@
     customerVolumeExpanded: false,
     customerVolumeLookup: new Map(),
     drilldown: { dimension: '', value: '', rows: [], search: '', sort: null },
+    lastSourceScope: null,
     renderQueued: false,
   };
 
@@ -277,7 +278,7 @@
   }
   const metricMeta = metric => ({
     events: { unit: 'events', axisLabel: 'Events', source: 'errorsAgg.totalEvents', tooltip: 'events', subtitle: 'Errors aggregated events.' },
-    downtime: { unit: 'hours', axisLabel: 'Downtime (hours)', source: 'availabilityAgg.planned+unplanned+service', tooltip: 'hours', subtitle: 'Availability aggregated downtime (planned + unplanned + service).' },
+    downtime: { unit: 'hours', axisLabel: 'Downtime (hours)', source: 'availabilityAgg.planned+unplanned', tooltip: 'hours', subtitle: 'Availability aggregated downtime (Planned + Unplanned).' },
     normalized: { unit: 'events per volume', axisLabel: 'Events per volume unit', source: 'errorsAgg + volumeAgg', tooltip: 'events/volume', subtitle: 'Normalized events using errorsAgg totals divided by production volume.' },
     risk: { unit: 'risk score', axisLabel: 'Risk score', source: 'risk model', tooltip: 'risk score', subtitle: 'Composite risk model from events, downtime, recurrence, recency, and events/volume.' },
   }[metric] || { unit: 'value', axisLabel: 'Value', source: 'unknown', tooltip: 'value', subtitle: 'Ranking.' });
@@ -366,6 +367,11 @@
   };
 
   const toDayBucket = d => (d ? toDay(d) : '');
+  const DOWNTIME_DEFINITION = {
+    planned: 'Preventive Maintenance + On Job Maintenance',
+    unplanned: 'Recovery + Jams',
+    total: 'Planned + Unplanned',
+  };
 
   function setStatus(msg, kind = 'info') {
     const el = document.getElementById('intakeStatus');
@@ -579,12 +585,13 @@
       const runtimeSeconds = printSeconds + availableWithoutPrintSeconds;
       const plannedDowntimeSeconds = preventiveMaintenanceSeconds;
       const unplannedDowntimeSeconds = recoverySeconds + jamsSeconds;
-      const serviceDowntimeSeconds = onJobMaintenanceSeconds;
+      const serviceDowntimeSeconds = 0;
+      const alignedPlannedDowntimeSeconds = plannedDowntimeSeconds + onJobMaintenanceSeconds;
 
       let availabilityPct = parsePercent(getField(r, ['Availability']));
       if (availabilityPct == null && String(getField(r, ['Availability'])).trim()) diagnostics.invalidAvailabilityPct += 1;
       if (availabilityPct == null) {
-        const denom = runtimeSeconds + plannedDowntimeSeconds + unplannedDowntimeSeconds + serviceDowntimeSeconds;
+        const denom = runtimeSeconds + alignedPlannedDowntimeSeconds + unplannedDowntimeSeconds;
         availabilityPct = denom > 0 ? (runtimeSeconds / denom) * 100 : null;
       }
       const canonicalPress = resolvePressFromCodeAndModel(canonicalPressCode, canonicalModel, pressLookup, diagnostics);
@@ -625,7 +632,7 @@
         recoverySeconds,
         jamsSeconds,
         runtimeSeconds,
-        plannedDowntimeSeconds,
+        plannedDowntimeSeconds: alignedPlannedDowntimeSeconds,
         unplannedDowntimeSeconds,
         serviceDowntimeSeconds,
         subsystem,
@@ -995,6 +1002,68 @@
     return { keys, errorsAgg, availabilityAgg, volumeAgg, mergedRows };
   }
 
+  function totalDowntimeFromAvailabilityRow(row) {
+    return (row.plannedDowntimeSeconds || 0) + (row.unplannedDowntimeSeconds || 0);
+  }
+
+  function validateSourceAndLayerConsistency(sourceScope, filteredEvents, kpis, summary, riskRows, customerVolumeRows) {
+    const logs = [];
+    const errorsAgg = sourceScope?.errorsAgg || [];
+    const availabilityAgg = sourceScope?.availabilityAgg || [];
+    const volumeAgg = sourceScope?.volumeAgg || [];
+    const sourceTotals = {
+      events: errorsAgg.reduce((a, r) => a + (r.totalEvents || 0), 0),
+      errorDowntime: errorsAgg.reduce((a, r) => a + (r.totalErrorDurationSeconds || 0), 0),
+      planned: availabilityAgg.reduce((a, r) => a + (r.plannedDowntimeSeconds || 0), 0),
+      unplanned: availabilityAgg.reduce((a, r) => a + (r.unplannedDowntimeSeconds || 0), 0),
+      runtime: availabilityAgg.reduce((a, r) => a + (r.runtimeSeconds || 0), 0),
+      productionVolume: volumeAgg.reduce((a, r) => a + (r.productionVolume || 0), 0),
+      maintenanceVolume: volumeAgg.reduce((a, r) => a + (r.maintenanceVolume || 0), 0),
+      totalVolume: volumeAgg.reduce((a, r) => a + (r.totalVolume || 0), 0),
+      totalDowntime: availabilityAgg.reduce((a, r) => a + totalDowntimeFromAvailabilityRow(r), 0),
+    };
+    const weightedAvailability = (sourceTotals.runtime + sourceTotals.unplanned) > 0
+      ? (sourceTotals.runtime / (sourceTotals.runtime + sourceTotals.unplanned)) * 100
+      : null;
+    const customerVolumeTotal = (customerVolumeRows || []).reduce((a, r) => a + (r[STATE.customerVolumeMetric] || 0), 0);
+    const filteredVolumeAggForUnit = volumeAgg.reduce((a, r) => a + (STATE.customerVolumeMetric === 'printedFlats' ? (r.printedFlats || 0) : (r.printedSheets || 0)), 0);
+    const topPressDowntime = (() => {
+      const m = new Map();
+      availabilityAgg.forEach(r => {
+        const n = r.canonicalPress || 'Unspecified';
+        m.set(n, (m.get(n) || 0) + totalDowntimeFromAvailabilityRow(r));
+      });
+      return Math.max(0, ...m.values(), 0);
+    })();
+    const checks = [
+      ['kpi.totalEvents', kpis.totalEvents, sourceTotals.events],
+      ['kpi.totalDowntime', kpis.totalDowntime, sourceTotals.totalDowntime],
+      ['kpi.totalPlanned', kpis.totalPlanned, sourceTotals.planned],
+      ['kpi.totalUnplanned', kpis.totalUnplanned, sourceTotals.unplanned],
+      ['kpi.totalProdVolume', kpis.totalProdVolume, sourceTotals.productionVolume],
+      ['kpi.totalMaintenanceVolume', kpis.totalMaintenanceVolume, sourceTotals.maintenanceVolume],
+      ['kpi.totalVolume', kpis.totalVolume, sourceTotals.totalVolume],
+      ['summary.topPress.downtime', summary?.topPress?.downtime || 0, topPressDowntime],
+      ['chart.customerVolume.total', customerVolumeTotal, filteredVolumeAggForUnit],
+    ];
+    checks.forEach(([label, lhs, rhs]) => {
+      if (Math.abs((lhs || 0) - (rhs || 0)) > 1e-6) logs.push({ level: 'error', label, lhs, rhs, message: `Mismatch ${label}: ${lhs} !== ${rhs}` });
+    });
+    if (weightedAvailability != null && kpis.availabilityPct != null && Math.abs(weightedAvailability - kpis.availabilityPct) > 1e-6) {
+      logs.push({
+        level: 'error',
+        label: 'kpi.availabilityPct',
+        lhs: Number(kpis.availabilityPct.toFixed(6)),
+        rhs: Number(weightedAvailability.toFixed(6)),
+        message: `Mismatch kpi.availabilityPct: ${kpis.availabilityPct} !== ${weightedAvailability}`,
+      });
+    }
+    console.info('[source-validation]', { sourceTotals, weightedAvailability, kpis, definition: DOWNTIME_DEFINITION });
+    if (logs.length) console.error('[cross-layer-validation][discrepancies]', logs);
+    else console.info('[cross-layer-validation] passed', { comparedChecks: checks.length + 1, filteredEvents: filteredEvents.length, riskRows: (riskRows || []).length });
+    return logs;
+  }
+
   function computeOperationalMetrics(sourceScope) {
     const { errorsAgg, availabilityAgg, volumeAgg } = sourceScope;
     const totalEvents = errorsAgg.reduce((a, r) => a + (r.totalEvents || 0), 0);
@@ -1004,7 +1073,7 @@
       unplanned: availabilityAgg.reduce((a, r) => a + (r.unplannedDowntimeSeconds || 0), 0),
       service: availabilityAgg.reduce((a, r) => a + (r.serviceDowntimeSeconds || 0), 0),
       runtime: availabilityAgg.reduce((a, r) => a + (r.runtimeSeconds || 0), 0),
-      totalAvailDowntime: availabilityAgg.reduce((a, r) => a + ((r.plannedDowntimeSeconds || 0) + (r.unplannedDowntimeSeconds || 0) + (r.serviceDowntimeSeconds || 0)), 0),
+      totalAvailDowntime: availabilityAgg.reduce((a, r) => a + totalDowntimeFromAvailabilityRow(r), 0),
       productionVolume: volumeAgg.reduce((a, r) => a + (r.productionVolume || 0), 0),
       maintenanceVolume: volumeAgg.reduce((a, r) => a + (r.maintenanceVolume || 0), 0),
       totalVolume: volumeAgg.reduce((a, r) => a + (r.totalVolume || 0), 0),
@@ -1015,7 +1084,7 @@
     const totalDowntime = totals.availabilityCount ? totals.totalAvailDowntime : errorDowntime;
     const mttr = totalEvents ? (errorDowntime / totalEvents) : null;
     const mtbf = totalEvents && totals.runtime > 0 ? (totals.runtime / totalEvents) : null;
-    const availabilityBase = totals.runtime + totals.planned + totals.unplanned + totals.service;
+    const availabilityBase = totals.runtime + totals.unplanned;
     const availabilityPct = availabilityBase > 0 ? (totals.runtime / availabilityBase) * 100 : null;
 
     const reasons = [];
@@ -1095,7 +1164,7 @@
     const riskCounts = { Critical: 0, 'High Risk': 0, 'Medium Risk': 0, Stable: 0 };
     riskRows.forEach(r => { riskCounts[r.tier] += 1; });
     const topPressRow = [...availabilityAgg]
-      .map(r => ({ entity: r.canonicalPress || 'Unspecified', downtime: (r.plannedDowntimeSeconds || 0) + (r.unplannedDowntimeSeconds || 0) + (r.serviceDowntimeSeconds || 0) }))
+      .map(r => ({ entity: r.canonicalPress || 'Unspecified', downtime: totalDowntimeFromAvailabilityRow(r) }))
       .sort((a, b) => b.downtime - a.downtime)[0];
     const topPress = topPressRow ? { entity: topPressRow.entity, downtime: topPressRow.downtime } : null;
     const riskLeader = riskRows[0];
@@ -1127,20 +1196,36 @@
     };
   }
 
-  function buildManagementExport(summary, kpis, riskRows, rows) {
+  function buildManagementExport(summary, kpis, riskRows, rows, sourceScope) {
+    const { availabilityAgg = [], volumeAgg = [] } = sourceScope || {};
     const criticalPresses = riskRows.filter(r => r.tier === 'Critical' || r.tier === 'High Risk').slice(0, 8);
     const criticalIssues = aggregate(rows, r => (r.name !== 'Unspecified' ? r.name : r.alertTitle)).sort((a, b) => b.events - a.events).slice(0, 8);
     const criticalSubsystems = aggregate(rows, r => r.subsystem).sort((a, b) => b.downtime - a.downtime).slice(0, 8);
-    return `<!doctype html><html><head><meta charset="utf-8"><title>Operational Management Export</title><style>body{font-family:Arial,sans-serif;padding:24px;color:#1d2430}h1{margin-bottom:4px}section{margin-top:18px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #d5dce8;padding:8px;text-align:left}th{background:#eef3fb}.pill{padding:2px 8px;border-radius:12px;background:#eaf0ff;display:inline-block}</style></head><body>
-      <h1>Operational Intelligence Management Summary</h1><div>${new Date().toISOString()}</div>
+    const availabilityByPress = aggregate(availabilityAgg.map(r => ({ subsystem: r.canonicalPress, durationSeconds: totalDowntimeFromAvailabilityRow(r) })), r => r.subsystem)
+      .sort((a, b) => b.downtime - a.downtime)
+      .slice(0, 8);
+    const overallSummary = [
+      `Total Events: ${kpis.totalEvents.toLocaleString()}`,
+      `Total Downtime (Planned + Unplanned): ${formatDuration(kpis.totalDowntime)}`,
+      `Planned Downtime (${DOWNTIME_DEFINITION.planned}): ${formatDuration(kpis.totalPlanned)}`,
+      `Unplanned Downtime (${DOWNTIME_DEFINITION.unplanned}): ${formatDuration(kpis.totalUnplanned)}`,
+      `Availability (weighted runtime/(runtime+unplanned)): ${kpis.availabilityPct == null ? 'N/A' : `${kpis.availabilityPct.toFixed(1)}%`}`,
+      `Production Volume: ${kpis.totalProdVolume.toLocaleString()}`,
+      `Maintenance Volume: ${kpis.totalMaintenanceVolume.toLocaleString()}`,
+      `Total Volume: ${kpis.totalVolume.toLocaleString()}`,
+      `Source rows (errorsAgg / availabilityAgg / volumeAgg): ${(STATE.lastSourceScope?.errorsAgg || []).length} / ${availabilityAgg.length} / ${volumeAgg.length}`,
+    ];
+    return `<!doctype html><html><head><meta charset="utf-8"><title>Operational Management Export</title><style>body{font-family:Segoe UI,Arial,sans-serif;padding:22px;color:#1d2430;background:#f4f7fb}.card{background:#fff;padding:16px;border-radius:10px;border:1px solid #d8e0ed;margin-top:14px}.meta{color:#5a6980;font-size:12px}h1{margin-bottom:4px}h2{margin:0 0 10px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #d5dce8;padding:8px;text-align:left;font-size:13px}th{background:#eef3fb}.pill{padding:2px 8px;border-radius:12px;background:#eaf0ff;display:inline-block}</style></head><body>
+      <h1>Operational Intelligence Management Summary</h1><div class="meta">${new Date().toISOString()}</div>
       <section><h2>1. Overall Status</h2><p><span class="pill">${summary.status}</span></p></section>
-      <section><h2>2. Critical Presses</h2><table><tr><th>Press</th><th>Tier</th><th>Reason</th><th>Score</th></tr>${criticalPresses.map(r => `<tr><td>${esc(r.entity)}</td><td>${esc(r.tier)}</td><td>${esc(r.reason)}</td><td>${r.score.toFixed(1)}</td></tr>`).join('')}</table></section>
-      <section><h2>3. Critical Issues</h2><table><tr><th>Issue</th><th>Events</th><th>Downtime (h)</th></tr>${criticalIssues.map(i => `<tr><td>${esc(i.name)}</td><td>${i.events}</td><td>${(i.downtime / 3600).toFixed(2)}</td></tr>`).join('')}</table></section>
-      <section><h2>4. Critical Subsystems</h2><table><tr><th>Subsystem</th><th>Events</th><th>Downtime (h)</th></tr>${criticalSubsystems.map(i => `<tr><td>${esc(i.name)}</td><td>${i.events}</td><td>${(i.downtime / 3600).toFixed(2)}</td></tr>`).join('')}</table></section>
-      <section><h2>5. Stability Overview</h2><p>Critical: ${summary.riskCounts.Critical} | High: ${summary.riskCounts['High Risk']} | Medium: ${summary.riskCounts['Medium Risk']} | Stable: ${summary.riskCounts.Stable}</p></section>
-      <section><h2>6. Key Metrics</h2><p>Total events: ${kpis.totalEvents}; Total downtime: ${formatDuration(kpis.totalDowntime)}; Unplanned DT: ${formatDuration(kpis.totalUnplanned)}; Availability: ${kpis.availabilityPct == null ? 'N/A' : `${kpis.availabilityPct.toFixed(1)}%`}; Production volume: ${kpis.totalProdVolume.toLocaleString()}</p></section>
-      <section><h2>7. Key Insights</h2><ul>${summary.interpretation.map(i => `<li>${esc(i)}</li>`).join('')}</ul></section>
-      <section><h2>8. Recommended Actions</h2><ul>${summary.actions.map(a => `<li>${esc(a)}</li>`).join('')}</ul></section>
+      <section class="card"><h2>2. Critical Machines</h2><table><tr><th>Press</th><th>Tier</th><th>Reason</th><th>Score</th></tr>${criticalPresses.map(r => `<tr><td>${esc(r.entity)}</td><td>${esc(r.tier)}</td><td>${esc(r.reason)}</td><td>${r.score.toFixed(1)}</td></tr>`).join('')}</table></section>
+      <section class="card"><h2>3. Critical Errors</h2><table><tr><th>Error</th><th>Events</th><th>Error Downtime (h)</th></tr>${criticalIssues.map(i => `<tr><td>${esc(i.name)}</td><td>${i.events}</td><td>${(i.downtime / 3600).toFixed(2)}</td></tr>`).join('')}</table></section>
+      <section class="card"><h2>4. Critical Subsystems</h2><table><tr><th>Subsystem</th><th>Error Events</th><th>Error Downtime (h)</th></tr>${criticalSubsystems.map(i => `<tr><td>${esc(i.name)}</td><td>${i.events}</td><td>${(i.downtime / 3600).toFixed(2)}</td></tr>`).join('')}</table></section>
+      <section class="card"><h2>5. Downtime by Machine (availabilityAgg)</h2><table><tr><th>Press</th><th>Downtime (h)</th></tr>${availabilityByPress.map(i => `<tr><td>${esc(i.name)}</td><td>${(i.downtime / 3600).toFixed(2)}</td></tr>`).join('')}</table></section>
+      <section><h2>6. Stability Overview</h2><p>Critical: ${summary.riskCounts.Critical} | High: ${summary.riskCounts['High Risk']} | Medium: ${summary.riskCounts['Medium Risk']} | Stable: ${summary.riskCounts.Stable}</p></section>
+      <section class="card"><h2>7. Overall Summary</h2><ul>${overallSummary.map(i => `<li>${esc(i)}</li>`).join('')}</ul></section>
+      <section class="card"><h2>8. Key Insights</h2><ul>${summary.interpretation.map(i => `<li>${esc(i)}</li>`).join('')}</ul></section>
+      <section class="card"><h2>9. Recommended Actions</h2><ul>${summary.actions.map(a => `<li>${esc(a)}</li>`).join('')}</ul></section>
     </body></html>`;
   }
 
@@ -1148,9 +1233,9 @@
     const na = 'N/A';
     const cards = [
       ['Total Events', k.totalEvents.toLocaleString(), 'Events from Errors dataset'],
-      ['Total Downtime', formatDuration(k.totalDowntime), k.totalUnplanned || k.totalPlanned ? 'From Availability daily aggregates' : 'Fallback from Errors durations'],
-      ['Unplanned DT', formatDuration(k.totalUnplanned), 'Availability non-planned downtime'],
-      ['Planned DT', formatDuration(k.totalPlanned), 'Maintenance/break/weekend windows'],
+      ['Total Downtime', formatDuration(k.totalDowntime), 'From Availability daily aggregates (Planned + Unplanned)'],
+      ['Unplanned DT', formatDuration(k.totalUnplanned), DOWNTIME_DEFINITION.unplanned],
+      ['Planned DT', formatDuration(k.totalPlanned), DOWNTIME_DEFINITION.planned],
       ['MTTR', k.mttr == null ? na : formatDuration(k.mttr), 'Mean repair time from error duration'],
       ['MTBF', k.mtbf == null ? na : formatDuration(k.mtbf), 'Runtime between failures'],
       ['Availability', k.availabilityPct == null ? na : `${k.availabilityPct.toFixed(1)}%`, 'Runtime / (runtime + unplanned downtime)'],
@@ -1232,7 +1317,7 @@
       errorsAgg.forEach(r => add(r.canonicalPress || 'Unspecified', { events: (baseMap.get(r.canonicalPress || 'Unspecified')?.events || 0) + (r.totalEvents || 0) }));
       availabilityAgg.forEach(r => {
         const n = r.canonicalPress || 'Unspecified';
-        add(n, { downtime: (baseMap.get(n)?.downtime || 0) + (r.plannedDowntimeSeconds || 0) + (r.unplannedDowntimeSeconds || 0) + (r.serviceDowntimeSeconds || 0) });
+        add(n, { downtime: (baseMap.get(n)?.downtime || 0) + totalDowntimeFromAvailabilityRow(r) });
       });
       volumeAgg.forEach(r => {
         const n = r.canonicalPress || 'Unspecified';
@@ -1250,7 +1335,7 @@
             .filter(r => keys.has(r.key))
             .forEach(r => {
               const n = r.subsystem || 'Unspecified';
-              const dt = (r.plannedDowntimeSeconds || 0) + (r.unplannedDowntimeSeconds || 0) + (r.serviceDowntimeSeconds || 0);
+              const dt = totalDowntimeFromAvailabilityRow(r);
               bySubsystem.set(n, (bySubsystem.get(n) || 0) + dt);
             });
           [...bySubsystem.entries()].forEach(([name, downtime]) => add(name, { downtime }));
@@ -1434,6 +1519,7 @@
         <div class="summary-stat span-2"><div class="label">Avg duration/job</div><div class="value">${formatDuration(avgDurationPerJob)}</div></div>`;
       const productionSplit = new Map([['Simplex', 0], ['Duplex', 0]]);
       const maintenanceSplit = new Map([['Simplex', 0], ['Duplex', 0]]);
+      const wasteSplit = new Map([['Waste', 0], ['Non-waste', 0]]);
       const substrateSplit = new Map();
       const byJobName = new Map();
       scoped.forEach(r => {
@@ -1441,9 +1527,11 @@
         const duplexKey = r.simplexDuplex || 'Simplex';
         if (r.maintenance) maintenanceSplit.set(duplexKey, (maintenanceSplit.get(duplexKey) || 0) + unit);
         else productionSplit.set(duplexKey, (productionSplit.get(duplexKey) || 0) + unit);
-        const subKey = r.substrate || 'Unspecified';
+        const subKey = `${r.substrate || 'Unspecified'} • ${duplexKey}`;
         substrateSplit.set(subKey, (substrateSplit.get(subKey) || 0) + unit);
         byJobName.set(r.jobName || 'Unspecified', (byJobName.get(r.jobName || 'Unspecified') || 0) + unit);
+        const isWaste = /waste|reject|scrap|spoil/.test(String(r.jobStatus || '').toLowerCase()) || /waste/.test(String(r.jobType || '').toLowerCase());
+        wasteSplit.set(isWaste ? 'Waste' : 'Non-waste', (wasteSplit.get(isWaste ? 'Waste' : 'Non-waste') || 0) + unit);
       });
       document.getElementById('drilldownInsight').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Volume split overview</h4><span class="risk-pill risk-medium">Sheets/Flats mode</span></div><div class="micro">Production split, maintenance split, substrate, and job analysis are calculated directly from volume jobs. Current metric: ${esc(measure)}.</div>`;
       const modeRows = [...productionSplit.entries()].sort((a, b) => b[1] - a[1]);
@@ -1451,7 +1539,8 @@
       const substrateRows = [...substrateSplit.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10);
       replaceChart('drilldownTrendChart', { type: 'bar', data: { labels: substrateRows.map(x => x[0]), datasets: [{ data: substrateRows.map(x => x[1]), backgroundColor: COLORS, borderRadius: 6 }] }, options: baseOptions('drilldown', substrateRows.map(x => x[0])) });
       const maintenanceRows = [...maintenanceSplit.entries()];
-      replaceChart('drilldownSecondaryChart', { type: 'bar', data: { labels: maintenanceRows.map(x => `Maintenance ${x[0]}`), datasets: [{ data: maintenanceRows.map(x => x[1]), backgroundColor: COLORS, borderRadius: 6 }] }, options: baseOptions('drilldown', maintenanceRows.map(x => x[0])) });
+      const wasteRows = [...wasteSplit.entries()];
+      replaceChart('drilldownSecondaryChart', { type: 'bar', data: { labels: maintenanceRows.map(x => `Maintenance ${x[0]}`), datasets: [{ label: 'Maintenance', data: maintenanceRows.map(x => x[1]), backgroundColor: '#f0b165', borderRadius: 6 }, { label: 'Waste-oriented', data: wasteRows.map(x => x[1]), backgroundColor: '#f36b63', borderRadius: 6 }] }, options: { ...baseOptions('drilldown', maintenanceRows.map(x => x[0])), plugins: { legend: { labels: { color: '#c6d3ea' } } } } });
       const topJobs = [...byJobName.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6);
       replaceChart('drilldownOpsChart', { type: 'bar', data: { labels: topJobs.map(x => x[0]), datasets: [{ data: topJobs.map(x => x[1]), backgroundColor: COLORS, borderRadius: 6 }] }, options: baseOptions('drilldown', topJobs.map(x => x[0])) });
       const columns = ['jobName', 'jobType', 'simplexDuplex', 'substrate', 'printedSheets', 'printedFlats', 'durationSeconds'];
@@ -1459,14 +1548,14 @@
       return;
     }
     if (isDowntimeCustomer) {
-      const total = scoped.reduce((a, r) => a + (r.plannedDowntimeSeconds || 0) + (r.unplannedDowntimeSeconds || 0) + (r.serviceDowntimeSeconds || 0), 0);
-      const planned = scoped.reduce((a, r) => a + (r.plannedDowntimeSeconds || 0) + (r.serviceDowntimeSeconds || 0), 0);
+      const total = scoped.reduce((a, r) => a + totalDowntimeFromAvailabilityRow(r), 0);
+      const planned = scoped.reduce((a, r) => a + (r.plannedDowntimeSeconds || 0), 0);
       const unplanned = scoped.reduce((a, r) => a + (r.unplannedDowntimeSeconds || 0), 0);
       const bySubsystem = new Map();
       const byPress = new Map();
       const byDay = new Map();
       scoped.forEach(r => {
-        const dt = (r.plannedDowntimeSeconds || 0) + (r.unplannedDowntimeSeconds || 0) + (r.serviceDowntimeSeconds || 0);
+        const dt = totalDowntimeFromAvailabilityRow(r);
         bySubsystem.set(r.subsystem || 'Unspecified', (bySubsystem.get(r.subsystem || 'Unspecified') || 0) + dt);
         byPress.set(r.canonicalPress || 'Unspecified', (byPress.get(r.canonicalPress || 'Unspecified') || 0) + dt);
         byDay.set(r.day || 'Unknown', (byDay.get(r.day || 'Unknown') || 0) + dt);
@@ -1489,9 +1578,9 @@
       replaceChart('drilldownSecondaryChart', { type: 'bar', data: { labels: pressRows.map(x => x[0]), datasets: [{ data: pressRows.map(x => x[1]), backgroundColor: COLORS, borderRadius: 6 }] }, options: baseOptions('drilldown', pressRows.map(x => x[0])) });
       const dayRows = [...byDay.entries()].sort((a, b) => a[0].localeCompare(b[0])).slice(0, 31);
       replaceChart('drilldownOpsChart', { type: 'line', data: { labels: dayRows.map(x => x[0]), datasets: [{ data: dayRows.map(x => x[1]), borderColor: '#7b8dff', backgroundColor: 'rgba(123,141,255,.25)', fill: true, tension: 0.2 }] }, options: baseOptions('drilldown', dayRows.map(x => x[0])) });
-      document.getElementById('drilldownTable').innerHTML = `<thead><tr><th>press</th><th>day</th><th>subsystem</th><th>planned</th><th>unplanned</th><th>service</th><th>total</th></tr></thead><tbody>${scoped.slice(0, 1000).map(r => {
-        const p = r.plannedDowntimeSeconds || 0; const u = r.unplannedDowntimeSeconds || 0; const s = r.serviceDowntimeSeconds || 0;
-        return `<tr><td>${esc(r.canonicalPress)}</td><td>${esc(r.day)}</td><td>${esc(r.subsystem)}</td><td>${esc(formatDuration(p))}</td><td>${esc(formatDuration(u))}</td><td>${esc(formatDuration(s))}</td><td>${esc(formatDuration(p + u + s))}</td></tr>`;
+      document.getElementById('drilldownTable').innerHTML = `<thead><tr><th>press</th><th>day</th><th>subsystem</th><th>planned</th><th>unplanned</th><th>total</th></tr></thead><tbody>${scoped.slice(0, 1000).map(r => {
+        const p = r.plannedDowntimeSeconds || 0; const u = r.unplannedDowntimeSeconds || 0;
+        return `<tr><td>${esc(r.canonicalPress)}</td><td>${esc(r.day)}</td><td>${esc(r.subsystem)}</td><td>${esc(formatDuration(p))}</td><td>${esc(formatDuration(u))}</td><td>${esc(formatDuration(p + u))}</td></tr>`;
       }).join('')}</tbody>`;
       return;
     }
@@ -1576,7 +1665,7 @@
     const mergedRows = sourceScope?.mergedRows || [];
     const sourceTotals = {
       events: errorsAgg.reduce((a, r) => a + (r.totalEvents || 0), 0),
-      downtime: availabilityAgg.reduce((a, r) => a + ((r.plannedDowntimeSeconds || 0) + (r.unplannedDowntimeSeconds || 0) + (r.serviceDowntimeSeconds || 0)), 0),
+      downtime: availabilityAgg.reduce((a, r) => a + totalDowntimeFromAvailabilityRow(r), 0),
       productionVolume: volumeAgg.reduce((a, r) => a + (r.productionVolume || 0), 0),
       inflatedMergedProductionVolume: mergedRows.reduce((a, r) => a + (r.productionVolume || 0), 0),
     };
@@ -1598,6 +1687,7 @@
   function renderDashboard() {
     STATE.filtered = filteredRows();
     const sourceScope = buildSourceScope(STATE.filtered);
+    STATE.lastSourceScope = sourceScope;
     STATE.kpis = computeOperationalMetrics(sourceScope);
     renderKpis(STATE.kpis);
     renderRankingChart('press', buildMetricRankings(sourceScope, STATE.filtered, 'press'));
@@ -1624,6 +1714,7 @@
     renderRiskSection(STATE.merged.pressRisk);
     STATE.merged.summary = buildExecutiveSummary(STATE.filtered, sourceScope, STATE.merged.pressRisk, STATE.kpis);
     renderExecutiveSummaryCard(STATE.merged.summary);
+    validateSourceAndLayerConsistency(sourceScope, STATE.filtered, STATE.kpis, STATE.merged.summary, STATE.merged.pressRisk, customerVolumeRows);
     console.info('[consistency-debug] summary-metrics', {
       mainDowntimeDriver: {
         press: STATE.merged.summary?.topPress?.entity || 'N/A',
@@ -1708,7 +1799,7 @@
       console.log('FINAL MERGED KEYS (first 20):', (merged.mergedRows || []).slice(0, 20).map(r => r.key));
       const volumeAggTotalProduction = (merged.sourceTables?.volumeAgg || []).reduce((a, r) => a + (r.productionVolume || 0), 0);
       const mergedRowsTotalProduction = (merged.mergedRows || []).reduce((a, r) => a + (r.productionVolume || 0), 0);
-      const availabilityAggTotalDowntime = (merged.sourceTables?.availabilityAgg || []).reduce((a, r) => a + ((r.plannedDowntimeSeconds || 0) + (r.unplannedDowntimeSeconds || 0) + (r.serviceDowntimeSeconds || 0)), 0);
+      const availabilityAggTotalDowntime = (merged.sourceTables?.availabilityAgg || []).reduce((a, r) => a + totalDowntimeFromAvailabilityRow(r), 0);
       const errorsAggTotalEvents = (merged.sourceTables?.errorsAgg || []).reduce((a, r) => a + (r.totalEvents || 0), 0);
       console.info('[source-table-validation]', {
         errorsAggRows: merged.sourceTables?.errorsAgg?.length || 0,
@@ -1862,7 +1953,7 @@
 
     exportBtn.addEventListener('click', () => exportRowsToCsv(STATE.filtered));
     managerExportBtn.addEventListener('click', () => {
-      const html = buildManagementExport(STATE.merged.summary, STATE.kpis, STATE.merged.pressRisk || [], STATE.filtered);
+      const html = buildManagementExport(STATE.merged.summary, STATE.kpis, STATE.merged.pressRisk || [], STATE.filtered, STATE.lastSourceScope);
       const w = window.open('', '_blank');
       if (w) { w.document.open(); w.document.write(html); w.document.close(); }
     });
