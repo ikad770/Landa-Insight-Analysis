@@ -432,13 +432,11 @@
     return codeMatch ? `${codeMatch[1].toUpperCase()}${Number(codeMatch[2])}` : '';
   }
 
-  function extractPressCodeFromAvailabilityId(id) {
-    const raw = String(id ?? '').trim().toLowerCase();
-    if (!raw) return '';
-    const prefix = raw.match(/^[a-z]/)?.[0];
-    const trailingDigits = raw.match(/(\d+)$/)?.[1];
-    if (!prefix || !trailingDigits) return '';
-    return `${prefix.toUpperCase()}${Number(trailingDigits)}`;
+  function extractPressCodeFromAvailabilityId(rawId) {
+    const value = String(rawId || '').trim().toLowerCase();
+    const m = value.match(/^([a-z]).*?(\d{2})$/);
+    if (!m) return '';
+    return `${m[1].toUpperCase()}${Number(m[2])}`;
   }
 
   function buildPressNameLookup(errorsRows, volumeRows) {
@@ -524,6 +522,8 @@
       invalidAvailabilityPct: 0,
       machineIdToPressCodeExamples: [],
       pressCodeToCanonicalPressExamples: [],
+      availabilityRowMappingExamples: [],
+      unresolvedAvailabilityRows: [],
       ambiguousMappings: 0,
       unmatchedMachineIds: 0,
     };
@@ -560,8 +560,22 @@
       if (diagnostics.machineIdToPressCodeExamples.length < 20) {
         diagnostics.machineIdToPressCodeExamples.push({ rawPressId, canonicalPressCode });
       }
-      if (diagnostics.pressCodeToCanonicalPressExamples.length < 20) {
-        diagnostics.pressCodeToCanonicalPressExamples.push({ canonicalPressCode, canonicalPress, canonicalModel });
+      if (diagnostics.availabilityRowMappingExamples.length < 20) {
+        diagnostics.availabilityRowMappingExamples.push({
+          rawPressId,
+          decodedPressCode: canonicalPressCode,
+          resolvedCanonicalPress: canonicalPress,
+          model: canonicalModel,
+          day,
+        });
+      }
+      if ((canonicalPress === canonicalPressCode || canonicalPress === 'Unspecified') && diagnostics.unresolvedAvailabilityRows.length < 20) {
+        diagnostics.unresolvedAvailabilityRows.push({
+          rawPressId,
+          decodedPressCode: canonicalPressCode,
+          model: canonicalModel,
+          day,
+        });
       }
 
       out.push({
@@ -1383,6 +1397,9 @@
       const volumeResult = await normalizeVolumeRows(volumeRaw);
       const pressLookup = buildPressNameLookup(errors, volumeResult.jobs || []);
       const availabilityResult = await normalizeAvailabilityRows(availabilityRaw, pressLookup);
+      availabilityResult.diagnostics.pressCodeToCanonicalPressExamples = [...pressLookup.entries()]
+        .slice(0, 20)
+        .map(([pressCode, options]) => ({ pressCode, canonicalPresses: options.map(o => o.canonicalPress) }));
 
       await phase('Merging datasets…');
       const merged = mergeOperationalData(errors, availabilityResult.rows, volumeResult.rows, {
@@ -1399,7 +1416,7 @@
       console.log('MATCHED TO AVAILABILITY COUNT:', merged.stats?.coverage?.errorsMatchedToAvailability || 0);
       console.log('MATCHED TO VOLUME COUNT:', merged.stats?.coverage?.errorsMatchedToVolume || 0);
       console.log('MERGED ROW COUNT:', merged.stats?.rows?.mergedRowsCreated || 0);
-      console.log('AVAILABILITY MACHINE ID -> PRESS CODE (first 20):', availabilityResult.diagnostics.machineIdToPressCodeExamples || []);
+      console.log('AVAILABILITY ROWS DECODED (first 20):', availabilityResult.diagnostics.availabilityRowMappingExamples || []);
       console.log('PRESS CODE -> CANONICAL FULL PRESS (first 20):', availabilityResult.diagnostics.pressCodeToCanonicalPressExamples || []);
       console.log('FINAL MERGED KEYS (first 20):', (merged.mergedRows || []).slice(0, 20).map(r => r.key));
       await phase('Computing KPIs…');
@@ -1416,11 +1433,10 @@
         const availabilityOnly = [...availabilityKeys].filter(k => !errorKeys.has(k)).slice(0, 20);
         console.error('UNMATCHED ERROR KEYS:', errorOnly);
         console.error('UNMATCHED AVAILABILITY KEYS:', availabilityOnly);
-        throw new Error('Availability rows were normalized, but no error rows matched (primary/fallback keys). See console diagnostics for unmatched keys.');
+        throw new Error('Errors matched to Availability is 0 after normalization. Verify Availability press decoding and canonical key mapping.');
       }
       if (availabilityResult.rows.length) {
-        const unresolved = availabilityResult.rows.filter(r => r.canonicalPress === r.canonicalPressCode || r.canonicalPress === 'Unspecified').slice(0, 20);
-        console.log('UNMATCHED AVAILABILITY MACHINE IDS (first 20):', unresolved.map(r => ({ rawPressId: r.rawPressId, canonicalPressCode: r.canonicalPressCode, canonicalPress: r.canonicalPress })));
+        console.log('UNMATCHED AVAILABILITY MACHINE IDS (first 20):', availabilityResult.diagnostics.unresolvedAvailabilityRows || []);
       }
       console.log('AMBIGUOUS AVAILABILITY MAPPINGS:', availabilityResult.diagnostics.ambiguousMappings || 0);
       console.log('UNMATCHED AVAILABILITY MACHINE IDS:', availabilityResult.diagnostics.unmatchedMachineIds || 0);
