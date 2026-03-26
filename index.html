@@ -67,6 +67,7 @@
     .chart-head { display:flex; justify-content:space-between; align-items:center; gap:8px; }
     .chart-tools { display:flex; gap:8px; }
     .chart-area{position:relative;height:300px;min-height:300px}
+    .chart-empty-state { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; text-align:center; color:var(--muted); font-size:.86rem; padding:14px; background:rgba(12,17,25,.35); border:1px dashed rgba(255,255,255,.14); border-radius:10px; pointer-events:none; }
     .micro { color:var(--muted); font-size:.82rem; margin:6px 0 8px; }
     .risk-pill { padding:2px 10px; border-radius:999px; font-size:.76rem; border:1px solid; }
     .risk-critical{color:#ffd7d4;background:rgba(243,107,99,.2);border-color:rgba(243,107,99,.65)}
@@ -1006,12 +1007,15 @@
   }
 
   function buildSourceScope(filteredEvents) {
-    const keys = new Set(filteredEvents.map(r => r.mergeContext.key));
-    const errorsAgg = (STATE.merged.sourceTables?.errorsAgg || []).filter(r => keys.has(r.key));
-    const availabilityAgg = (STATE.merged.sourceTables?.availabilityAgg || []).filter(r => keys.has(r.key));
-    const volumeAgg = (STATE.merged.sourceTables?.volumeAgg || []).filter(r => keys.has(r.key));
-    const mergedRows = (STATE.merged.mergedRows || []).filter(r => keys.has(r.key));
-    return { keys, errorsAgg, availabilityAgg, volumeAgg, mergedRows };
+    const keysPrimary = new Set(filteredEvents.map(r => r?.mergeContext?.key).filter(Boolean));
+    const keysFallback = new Set(filteredEvents.map(r => r?.mergeContext?.fallbackKey).filter(Boolean));
+    const inScope = key => keysPrimary.has(key) || keysFallback.has(key);
+    const errorsAgg = (STATE.merged.sourceTables?.errorsAgg || []).filter(r => inScope(r.key));
+    const availabilityAgg = (STATE.merged.sourceTables?.availabilityAgg || []).filter(r => inScope(r.key));
+    const volumeAgg = (STATE.merged.sourceTables?.volumeAgg || []).filter(r => inScope(r.key));
+    const mergedRows = (STATE.merged.mergedRows || []).filter(r => inScope(r.key));
+    const keys = new Set([...keysPrimary, ...keysFallback]);
+    return { keysPrimary, keysFallback, keys, errorsAgg, availabilityAgg, volumeAgg, mergedRows };
   }
 
   function totalDowntimeFromAvailabilityRow(row) {
@@ -1376,6 +1380,22 @@
     return [...baseMap.values()].sort((a, b) => (b[metric] || 0) - (a[metric] || 0));
   }
 
+  function setRankingChartEmptyState(key, message = '') {
+    const area = document.querySelector(`[data-rank-card="${key}"] .chart-area`);
+    if (!area) return;
+    let node = area.querySelector('.chart-empty-state');
+    if (!message) {
+      if (node) node.remove();
+      return;
+    }
+    if (!node) {
+      node = document.createElement('div');
+      node.className = 'chart-empty-state';
+      area.appendChild(node);
+    }
+    node.textContent = message;
+  }
+
   function renderRankingChart(key, items) {
     const metric = STATE.metricByChart[key];
     const expanded = STATE.expand[key];
@@ -1384,6 +1404,24 @@
     const meta = metricMeta(metric);
     const labels = view.map(x => x.name);
     const data = view.map(x => metric === 'downtime' ? x.downtime / 3600 : x[metric]);
+    if (!view.length || data.every(v => !Number.isFinite(v) || v === 0)) {
+      console.warn('[ranking-chart-empty]', {
+        chart: key,
+        metric,
+        rowsReceived: items.length,
+        first5Labels: labels.slice(0, 5),
+        reason: !view.length ? 'No rows in ranking input.' : 'All plotted values are zero/invalid for current metric.',
+      });
+      setRankingChartEmptyState(key, 'No ranking data available for current filters/metric.');
+    } else {
+      setRankingChartEmptyState(key, '');
+    }
+    console.info('[ranking-chart-input]', {
+      chart: key,
+      metric,
+      rowsReceived: items.length,
+      first5Labels: labels.slice(0, 5),
+    });
     replaceChart(`${key}Chart`, {
       type: 'bar',
       data: { labels, datasets: [{ data, backgroundColor: view.map((_, i) => COLORS[i % COLORS.length]), borderRadius: 6 }] },
@@ -1755,6 +1793,18 @@
     const errorEvents = filteredErrorEvents();
     STATE.filteredErrors = errorEvents;
     const sourceScope = buildSourceScope(STATE.filtered);
+    console.info('[scope-debug]', {
+      filteredEventsCount: STATE.filtered.length,
+      primaryKeysCount: sourceScope.keysPrimary?.size || 0,
+      fallbackKeysCount: sourceScope.keysFallback?.size || 0,
+      errorsAggCount: sourceScope.errorsAgg?.length || 0,
+      availabilityAggCount: sourceScope.availabilityAgg?.length || 0,
+      volumeAggCount: sourceScope.volumeAgg?.length || 0,
+      mergedRowsCount: sourceScope.mergedRows?.length || 0,
+    });
+    if (STATE.filtered.length > 0 && sourceScope.errorsAgg.length === 0 && sourceScope.availabilityAgg.length === 0 && sourceScope.volumeAgg.length === 0) {
+      console.warn('[scope-debug] filtered events exist but scoped source aggregates are empty. Check merge key construction and normalization.');
+    }
     STATE.lastSourceScope = sourceScope;
     STATE.kpis = computeOperationalMetrics(sourceScope);
     renderKpis(STATE.kpis);
