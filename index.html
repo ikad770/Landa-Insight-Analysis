@@ -226,7 +226,7 @@
     validation: { errors: false, availability: false, volume: false },
     cachedRaw: { errors: null, availability: null, volume: null },
     normalized: { events: [], availability: [], volume: [] },
-    merged: { events: [], stats: {}, summary: null, pressRisk: [] },
+    merged: { events: [], mergedRows: [], stats: {}, summary: null, pressRisk: [], sourceTables: { errorsAgg: [], availabilityAgg: [], volumeAgg: [] } },
     filtered: [],
     kpis: null,
     mode: '',
@@ -676,6 +676,8 @@
           fallbackKey: job.fallbackKey,
           canonicalPress: job.canonicalPress,
           canonicalModel: job.canonicalModel,
+          customer: job.customer || 'Unspecified',
+          site: job.site || 'Unspecified',
           day: job.day,
           productionVolume: 0,
           maintenanceVolume: 0,
@@ -689,6 +691,8 @@
       slot.productionVolume += job.productionVolume || 0;
       slot.maintenanceVolume += job.maintenanceVolume || 0;
       slot.totalVolume += job.totalVolume || 0;
+      if (slot.customer === 'Unspecified' && job.customer) slot.customer = job.customer;
+      if (slot.site === 'Unspecified' && job.site) slot.site = job.site;
       slot.printedSheets += job.printedSheets || 0;
       slot.printedFlats += job.printedFlats || 0;
       if (slot.raw.length < 20) slot.raw.push(job.raw);
@@ -754,6 +758,8 @@
         canonicalPress: row.canonicalPress || row.press || 'Unspecified',
         canonicalModel: row.canonicalModel || row.model || 'Unspecified',
         day: row.day || '',
+        customer: row.customer || 'Unspecified',
+        site: row.site || 'Unspecified',
         productionVolume: 0,
         maintenanceVolume: 0,
         totalVolume: 0,
@@ -765,6 +771,8 @@
       slot.productionVolume += row.productionVolume || 0;
       slot.maintenanceVolume += row.maintenanceVolume || 0;
       slot.totalVolume += row.totalVolume || 0;
+      if (slot.customer === 'Unspecified' && row.customer) slot.customer = row.customer;
+      if (slot.site === 'Unspecified' && row.site) slot.site = row.site;
       slot.printedSheets += row.printedSheets || 0;
       slot.printedFlats += row.printedFlats || 0;
       slot.sourceRows += 1;
@@ -884,13 +892,45 @@
     });
 
     const mergedRows = [...mergedByPMD.values()];
+    const errorsAgg = [...errorsByPressModelDay.entries()].map(([key, bucket]) => ({
+      key,
+      canonicalPress: (mergedByPMD.get(key)?.canonicalPress) || 'Unspecified',
+      canonicalModel: (mergedByPMD.get(key)?.canonicalModel) || 'Unspecified',
+      day: (mergedByPMD.get(key)?.day) || '',
+      totalEvents: bucket.totalEvents || 0,
+      totalErrorDurationSeconds: bucket.totalErrorDurationSeconds || 0
+    }));
+    const availabilityAgg = [...availabilityByPressModelDay.values()].map(row => ({
+      key: row.key,
+      canonicalPress: row.canonicalPress,
+      canonicalModel: row.canonicalModel,
+      day: row.day,
+      runtimeSeconds: row.runtimeSeconds || 0,
+      plannedDowntimeSeconds: row.plannedDowntimeSeconds || 0,
+      unplannedDowntimeSeconds: row.unplannedDowntimeSeconds || 0,
+      serviceDowntimeSeconds: row.serviceDowntimeSeconds || 0,
+      availabilityPct: row.availabilityPctContribCount ? (row.availabilityPctAccumulator / row.availabilityPctContribCount) : null
+    }));
+    const volumeAgg = [...volumeByPressModelDay.values()].map(row => ({
+      key: row.key,
+      canonicalPress: row.canonicalPress,
+      canonicalModel: row.canonicalModel,
+      day: row.day,
+      customer: row.customer || 'Unspecified',
+      site: row.site || 'Unspecified',
+      productionVolume: row.productionVolume || 0,
+      maintenanceVolume: row.maintenanceVolume || 0,
+      totalVolume: row.totalVolume || 0
+    }));
     stats.rows.mergedRowsCreated = mergedRows.length;
+    stats.rows.errorsAggregated = errorsAgg.length;
+    stats.rows.availabilityAggregated = availabilityAgg.length;
+    stats.rows.volumeAggregated = volumeAgg.length;
     stats.keys = {
       errors: [...errorKeys],
       availability: [...availabilityKeys],
       volume: [...volumeKeys],
     };
-    stats.rows.errorsAggregated = errorsByPressModelDay.size;
     stats.coverage.kpiSourceCoverage = {
       eventsRowsWithErrors: mergedRows.filter(r => r.totalEvents > 0).length,
       rowsWithAvailability: mergedRows.filter(r => r.matchedAvailabilityRows > 0).length,
@@ -898,23 +938,33 @@
       rowsWithAllThree: mergedRows.filter(r => r.totalEvents > 0 && r.matchedAvailabilityRows > 0 && r.matchedVolumeRows > 0).length,
     };
 
-    return { events: mergedEvents, mergedRows, stats };
+    return { events: mergedEvents, mergedRows, sourceTables: { errorsAgg, availabilityAgg, volumeAgg }, stats };
   }
 
-  function computeOperationalMetrics(filteredEvents, filteredMergedRows) {
-    const totalEvents = filteredMergedRows.reduce((a, r) => a + r.totalEvents, 0);
-    const errorDowntime = filteredMergedRows.reduce((a, r) => a + (r.totalErrorDurationSeconds || 0), 0);
+  function buildSourceScope(filteredEvents) {
+    const keys = new Set(filteredEvents.map(r => r.mergeContext.key));
+    const errorsAgg = (STATE.merged.sourceTables?.errorsAgg || []).filter(r => keys.has(r.key));
+    const availabilityAgg = (STATE.merged.sourceTables?.availabilityAgg || []).filter(r => keys.has(r.key));
+    const volumeAgg = (STATE.merged.sourceTables?.volumeAgg || []).filter(r => keys.has(r.key));
+    const mergedRows = (STATE.merged.mergedRows || []).filter(r => keys.has(r.key));
+    return { keys, errorsAgg, availabilityAgg, volumeAgg, mergedRows };
+  }
+
+  function computeOperationalMetrics(sourceScope) {
+    const { errorsAgg, availabilityAgg, volumeAgg } = sourceScope;
+    const totalEvents = errorsAgg.reduce((a, r) => a + (r.totalEvents || 0), 0);
+    const errorDowntime = errorsAgg.reduce((a, r) => a + (r.totalErrorDurationSeconds || 0), 0);
     const totals = {
-      planned: filteredMergedRows.reduce((a, r) => a + (r.plannedDowntimeSeconds || 0), 0),
-      unplanned: filteredMergedRows.reduce((a, r) => a + (r.unplannedDowntimeSeconds || 0), 0),
-      service: filteredMergedRows.reduce((a, r) => a + (r.serviceDowntimeSeconds || 0), 0),
-      runtime: filteredMergedRows.reduce((a, r) => a + (r.runtimeSeconds || 0), 0),
-      totalAvailDowntime: filteredMergedRows.reduce((a, r) => a + ((r.plannedDowntimeSeconds || 0) + (r.unplannedDowntimeSeconds || 0) + (r.serviceDowntimeSeconds || 0)), 0),
-      productionVolume: filteredMergedRows.reduce((a, r) => a + (r.productionVolume || 0), 0),
-      maintenanceVolume: filteredMergedRows.reduce((a, r) => a + (r.maintenanceVolume || 0), 0),
-      totalVolume: filteredMergedRows.reduce((a, r) => a + (r.totalVolume || 0), 0),
-      availabilityCount: filteredMergedRows.filter(r => r.matchedAvailabilityRows > 0).length,
-      volumeCount: filteredMergedRows.filter(r => r.matchedVolumeRows > 0).length,
+      planned: availabilityAgg.reduce((a, r) => a + (r.plannedDowntimeSeconds || 0), 0),
+      unplanned: availabilityAgg.reduce((a, r) => a + (r.unplannedDowntimeSeconds || 0), 0),
+      service: availabilityAgg.reduce((a, r) => a + (r.serviceDowntimeSeconds || 0), 0),
+      runtime: availabilityAgg.reduce((a, r) => a + (r.runtimeSeconds || 0), 0),
+      totalAvailDowntime: availabilityAgg.reduce((a, r) => a + ((r.plannedDowntimeSeconds || 0) + (r.unplannedDowntimeSeconds || 0) + (r.serviceDowntimeSeconds || 0)), 0),
+      productionVolume: volumeAgg.reduce((a, r) => a + (r.productionVolume || 0), 0),
+      maintenanceVolume: volumeAgg.reduce((a, r) => a + (r.maintenanceVolume || 0), 0),
+      totalVolume: volumeAgg.reduce((a, r) => a + (r.totalVolume || 0), 0),
+      availabilityCount: availabilityAgg.length,
+      volumeCount: volumeAgg.length,
     };
 
     const totalDowntime = totals.availabilityCount ? totals.totalAvailDowntime : errorDowntime;
@@ -1174,19 +1224,14 @@
     );
   }
 
-  function filteredMergedRows(filteredEvents) {
-    const keys = new Set(filteredEvents.map(r => r.mergeContext.key));
-    return (STATE.merged.mergedRows || []).filter(r => keys.has(r.key));
-  }
-
-  function buildCustomerVolumeChart(rows, metric = 'production', sort = 'desc', expanded = false) {
+  function buildCustomerVolumeChart(volumeAggRows, metric = 'production', sort = 'desc', expanded = false) {
     const byCustomer = new Map();
-    rows.forEach(r => {
-      const keyName = r.customer && r.customer !== 'Unspecified' ? r.customer : (r.press || 'Unspecified');
+    volumeAggRows.forEach(r => {
+      const keyName = r.customer && r.customer !== 'Unspecified' ? r.customer : (r.canonicalPress || 'Unspecified');
       const slot = byCustomer.get(keyName) || { customer: keyName, production: 0, maintenance: 0, total: 0 };
-      slot.production += r.volume.productionVolume || 0;
-      slot.maintenance += r.volume.maintenanceVolume || 0;
-      slot.total += (r.volume.productionVolume || 0) + (r.volume.maintenanceVolume || 0);
+      slot.production += r.productionVolume || 0;
+      slot.maintenance += r.maintenanceVolume || 0;
+      slot.total += r.totalVolume || 0;
       byCustomer.set(keyName, slot);
     });
     const dir = sort === 'asc' ? 1 : -1;
@@ -1305,7 +1350,7 @@
     }));
   }
 
-  function renderMergeDebug() {
+  function renderMergeDebug(sourceScope) {
     const stats = STATE.merged.stats || {};
     const rows = stats.rows || {};
     const m = stats.matches || {};
@@ -1313,6 +1358,16 @@
     const vol = m.volume || {};
     const coverage = stats.coverage || {};
     const kpiCoverage = coverage.kpiSourceCoverage || {};
+    const errorsAgg = sourceScope?.errorsAgg || [];
+    const availabilityAgg = sourceScope?.availabilityAgg || [];
+    const volumeAgg = sourceScope?.volumeAgg || [];
+    const mergedRows = sourceScope?.mergedRows || [];
+    const sourceTotals = {
+      events: errorsAgg.reduce((a, r) => a + (r.totalEvents || 0), 0),
+      downtime: availabilityAgg.reduce((a, r) => a + ((r.plannedDowntimeSeconds || 0) + (r.unplannedDowntimeSeconds || 0) + (r.serviceDowntimeSeconds || 0)), 0),
+      productionVolume: volumeAgg.reduce((a, r) => a + (r.productionVolume || 0), 0),
+      inflatedMergedProductionVolume: mergedRows.reduce((a, r) => a + (r.productionVolume || 0), 0),
+    };
     document.getElementById('mergeDebug').textContent =
       `Parsed rows E/A/V: ${rows.errorsParsed || 0}/${rows.availabilityParsed || 0}/${rows.volumeParsed || 0} • ` +
       `Normalized A/V: ${rows.availabilityNormalized || 0}/${rows.volumeNormalized || 0} • ` +
@@ -1321,21 +1376,24 @@
       `Err→Avail matched/none: ${av.matched || 0}/${av.none || 0} • ` +
       `Err→Volume matched/none: ${vol.matched || 0}/${vol.none || 0} • ` +
       `Matched E→A/E→V: ${coverage.errorsMatchedToAvailability || 0}/${coverage.errorsMatchedToVolume || 0} • ` +
-      `KPI coverage (E/A/V/all): ${kpiCoverage.eventsRowsWithErrors || 0}/${kpiCoverage.rowsWithAvailability || 0}/${kpiCoverage.rowsWithVolume || 0}/${kpiCoverage.rowsWithAllThree || 0}`;
-    console.info('[merge-debug]', stats);
+      `KPI coverage (E/A/V/all): ${kpiCoverage.eventsRowsWithErrors || 0}/${kpiCoverage.rowsWithAvailability || 0}/${kpiCoverage.rowsWithVolume || 0}/${kpiCoverage.rowsWithAllThree || 0} • ` +
+      `Source rows E/A/V: ${errorsAgg.length}/${availabilityAgg.length}/${volumeAgg.length} • ` +
+      `Source totals events/downtime/prod: ${sourceTotals.events}/${Math.round(sourceTotals.downtime)}/${Math.round(sourceTotals.productionVolume)} • ` +
+      `Prod source vs merged: ${Math.round(sourceTotals.productionVolume)}/${Math.round(sourceTotals.inflatedMergedProductionVolume)}`;
+    console.info('[merge-debug]', { ...stats, sourceScopeTotals: sourceTotals, sourceRows: { errorsAgg: errorsAgg.length, availabilityAgg: availabilityAgg.length, volumeAgg: volumeAgg.length } });
   }
 
   function renderDashboard() {
     STATE.filtered = filteredRows();
-    const scopedMergedRows = filteredMergedRows(STATE.filtered);
-    STATE.kpis = computeOperationalMetrics(STATE.filtered, scopedMergedRows);
+    const sourceScope = buildSourceScope(STATE.filtered);
+    STATE.kpis = computeOperationalMetrics(sourceScope);
     renderKpis(STATE.kpis);
     const rankings = buildOverviewCharts(STATE.filtered);
     renderRankingChart('press', rankings.press);
     renderRankingChart('subsystem', rankings.subsystem);
     renderRankingChart('alert', rankings.alert);
     renderRankingChart('version', rankings.version);
-    const customerVolumeRows = buildCustomerVolumeChart(STATE.filtered, STATE.customerVolumeMetric, STATE.customerVolumeSort, STATE.customerVolumeExpanded);
+    const customerVolumeRows = buildCustomerVolumeChart(sourceScope.volumeAgg, STATE.customerVolumeMetric, STATE.customerVolumeSort, STATE.customerVolumeExpanded);
     const labels = customerVolumeRows.map(r => r.customer);
     const values = customerVolumeRows.map(r => r[STATE.customerVolumeMetric]);
     replaceChart('customerVolumeChart', {
@@ -1349,7 +1407,7 @@
     renderRiskSection(STATE.merged.pressRisk);
     STATE.merged.summary = buildExecutiveSummary(STATE.filtered, STATE.merged.pressRisk, STATE.kpis);
     renderExecutiveSummaryCard(STATE.merged.summary);
-    renderMergeDebug();
+    renderMergeDebug(sourceScope);
     renderTable(STATE.filtered);
   }
 
@@ -1419,6 +1477,19 @@
       console.log('AVAILABILITY ROWS DECODED (first 20):', availabilityResult.diagnostics.availabilityRowMappingExamples || []);
       console.log('PRESS CODE -> CANONICAL FULL PRESS (first 20):', availabilityResult.diagnostics.pressCodeToCanonicalPressExamples || []);
       console.log('FINAL MERGED KEYS (first 20):', (merged.mergedRows || []).slice(0, 20).map(r => r.key));
+      const volumeAggTotalProduction = (merged.sourceTables?.volumeAgg || []).reduce((a, r) => a + (r.productionVolume || 0), 0);
+      const mergedRowsTotalProduction = (merged.mergedRows || []).reduce((a, r) => a + (r.productionVolume || 0), 0);
+      const availabilityAggTotalDowntime = (merged.sourceTables?.availabilityAgg || []).reduce((a, r) => a + ((r.plannedDowntimeSeconds || 0) + (r.unplannedDowntimeSeconds || 0) + (r.serviceDowntimeSeconds || 0)), 0);
+      const errorsAggTotalEvents = (merged.sourceTables?.errorsAgg || []).reduce((a, r) => a + (r.totalEvents || 0), 0);
+      console.info('[source-table-validation]', {
+        errorsAggRows: merged.sourceTables?.errorsAgg?.length || 0,
+        availabilityAggRows: merged.sourceTables?.availabilityAgg?.length || 0,
+        volumeAggRows: merged.sourceTables?.volumeAgg?.length || 0,
+        totalEventsFromErrorsAgg: errorsAggTotalEvents,
+        totalDowntimeFromAvailabilityAgg: availabilityAggTotalDowntime,
+        totalProductionFromVolumeAgg: volumeAggTotalProduction,
+        totalProductionFromMergedRows_incorrectReference: mergedRowsTotalProduction,
+      });
       await phase('Computing KPIs…');
       if (runId !== STATE.analysisRunId) return;
 
