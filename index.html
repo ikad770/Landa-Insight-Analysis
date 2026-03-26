@@ -185,8 +185,8 @@
       </article>
 
       <article class="card span-6">
-        <div class="chart-head"><h3>Print Volume by Customer</h3><div class="chart-tools"><select id="customerVolumeUnit" class="select"><option value="printedSheets">Printed Sheets</option><option value="printedFlats">Printed Flats</option></select><select id="customerVolumeSort" class="select"><option value="desc">Highest first</option><option value="asc">Lowest first</option></select><button id="customerVolumeExpand" class="btn secondary">Show all</button></div></div>
-        <div class="micro" id="customerVolumeNote">Customer workload from volumeAgg only.</div><div class="chart-area"><canvas id="customerVolumeChart"></canvas></div>
+        <div class="chart-head"><h3>Print Volume by Press</h3><div class="chart-tools"><select id="customerVolumeUnit" class="select"><option value="printedSheets">Printed Sheets</option><option value="printedFlats">Printed Flats</option></select><select id="customerVolumeSort" class="select"><option value="desc">Highest first</option><option value="asc">Lowest first</option></select><button id="customerVolumeExpand" class="btn secondary">Show all</button></div></div>
+        <div class="micro" id="customerVolumeNote">Press-level workload from volumeAgg only.</div><div class="chart-area"><canvas id="customerVolumeChart"></canvas></div>
       </article>
 
       <article class="card span-12" id="riskSection"></article>
@@ -238,7 +238,8 @@
     customerVolumeSort: 'desc',
     customerVolumeExpanded: false,
     customerVolumeLookup: new Map(),
-    drilldown: { dimension: '', value: '', rows: [], search: '', sort: null },
+    customerVolumeRows: [],
+    drilldown: { dimension: '', value: '', entityKey: '', rows: [], search: '', sort: null },
     lastSourceScope: null,
     renderQueued: false,
   };
@@ -1163,9 +1164,15 @@
     const { availabilityAgg = [] } = sourceScope || {};
     const riskCounts = { Critical: 0, 'High Risk': 0, 'Medium Risk': 0, Stable: 0 };
     riskRows.forEach(r => { riskCounts[r.tier] += 1; });
-    const topPressRow = [...availabilityAgg]
-      .map(r => ({ entity: r.canonicalPress || 'Unspecified', downtime: totalDowntimeFromAvailabilityRow(r) }))
-      .sort((a, b) => b.downtime - a.downtime)[0];
+    const downtimeByPress = new Map();
+    availabilityAgg.forEach(r => {
+      const press = r.canonicalPress || 'Unspecified';
+      downtimeByPress.set(press, (downtimeByPress.get(press) || 0) + totalDowntimeFromAvailabilityRow(r));
+    });
+    const topDowntimePresses = [...downtimeByPress.entries()]
+      .map(([entity, downtime]) => ({ entity, downtime }))
+      .sort((a, b) => b.downtime - a.downtime);
+    const topPressRow = topDowntimePresses[0];
     const topPress = topPressRow ? { entity: topPressRow.entity, downtime: topPressRow.downtime } : null;
     const riskLeader = riskRows[0];
     const stablePress = [...riskRows].reverse().find(r => r.tier === 'Stable') || [...riskRows].reverse()[0];
@@ -1174,6 +1181,11 @@
 
     const status = riskLeader?.tier === 'Critical' ? 'High-risk concentration detected' : riskLeader?.tier === 'High Risk' ? 'Elevated operational risk' : 'Stable environment';
     const statusClass = riskLeader?.tier === 'Critical' ? 'risk-critical' : riskLeader?.tier === 'High Risk' ? 'risk-high' : 'risk-stable';
+    console.info('[consistency-debug] main-downtime-driver', {
+      source: 'availabilityAgg',
+      top10ByTotalDowntimeHours: topDowntimePresses.slice(0, 10).map((r, i) => ({ rank: i + 1, press: r.entity, downtimeHours: Number((r.downtime / 3600).toFixed(4)) })),
+      selectedForSummary: topPress ? { press: topPress.entity, downtimeSeconds: topPress.downtime } : null
+    });
 
     return {
       status,
@@ -1254,7 +1266,7 @@
         <div class="summary-stat span-3"><div class="label">Main downtime driver (by downtime)</div><div class="value">${esc(summary.topPress?.entity || 'N/A')}</div></div>
         <div class="summary-stat span-3"><div class="label">Top subsystem by events</div><div class="value">${esc(summary.topSubsystem?.name || 'N/A')}</div></div>
         <div class="summary-stat span-3"><div class="label">Most repeated alert (by events)</div><div class="value">${esc(summary.topAlert?.name || 'N/A')}</div></div>
-        <div class="summary-stat span-3"><div class="label">Best-performing press</div><div class="value">${esc(summary.stablePress?.entity || 'N/A')}</div></div>
+        <div class="summary-stat span-3"><div class="label">Best-performing press (by risk)</div><div class="value">${esc(summary.stablePress?.entity || 'N/A')}</div></div>
       </div>
       <div class="summary-grid" style="margin-top:10px;">
         <div class="summary-stat span-3"><div class="label">Critical</div><div class="value">${summary.riskCounts.Critical}</div></div>
@@ -1282,13 +1294,16 @@
     CHARTS.set(id, new Chart(document.getElementById(id).getContext('2d'), config));
   }
 
-  function baseOptions(key, labels) {
+  function baseOptions(key, labels, payloads = null) {
     return {
       responsive: true,
       maintainAspectRatio: false,
       onClick: (_, els) => {
         if (!els.length) return;
-        openDrilldown(key, labels[els[0].index]);
+        const idx = els[0].index;
+        const payload = payloads?.[idx] || null;
+        if (payload && payload.entityKey) openDrilldown(key, payload.entityKey, payload);
+        else openDrilldown(key, labels[idx]);
       },
       plugins: { legend: { display: false } },
       scales: {
@@ -1373,8 +1388,11 @@
     });
     document.querySelector(`[data-rank-card="${key}"] .micro`).textContent = `${expanded ? 'Full ranking' : 'Top 8'} by ${metric}. Source: ${meta.source}. ${meta.subtitle}`;
     document.querySelector(`[data-expand="${key}"]`).textContent = expanded ? 'Collapse' : 'Show all';
-    if (key === 'press') {
-      console.info('[consistency-debug] top-presses', { mode: metric, metricSource: meta.source, top10: view.slice(0, 10).map((x, i) => ({ rank: i + 1, label: x.name, value: metric === 'downtime' ? (x.downtime / 3600) : x[metric] })) });
+    if (key === 'press' && metric === 'downtime') {
+      console.info('[consistency-debug] top-presses-downtime-plot', {
+        source: 'availabilityAgg',
+        first10Plotted: view.slice(0, 10).map((x, i) => ({ rank: i + 1, label: x.name, downtimeHours: Number((x.downtime / 3600).toFixed(4)) }))
+      });
     }
   }
 
@@ -1415,39 +1433,37 @@
   }
 
   function buildCustomerVolumeChart(volumeAggRows, metric = 'printedSheets', sort = 'desc', expanded = false) {
-    const byCustomer = new Map();
+    const byPress = new Map();
     STATE.customerVolumeLookup = new Map();
     volumeAggRows.forEach(r => {
-      const keyName = getCanonicalDisplayName(r.canonicalPress || '', r.customer || '');
-      const slot = byCustomer.get(keyName) || { customer: keyName, printedSheets: 0, printedFlats: 0, canonicalPresses: new Set(), customerNames: new Set() };
+      const entityKey = r.canonicalPress || 'Unspecified';
+      const slot = byPress.get(entityKey) || { entityKey, displayLabel: entityKey, canonicalPress: entityKey, printedSheets: 0, printedFlats: 0, customers: new Set(), models: new Set() };
       slot.printedSheets += r.printedSheets || 0;
       slot.printedFlats += r.printedFlats || 0;
-      slot.canonicalPresses.add(r.canonicalPress || '');
-      slot.customerNames.add(r.customer || '');
-      byCustomer.set(keyName, slot);
+      if (r.customer) slot.customers.add(r.customer);
+      if (r.canonicalModel) slot.models.add(r.canonicalModel);
+      byPress.set(entityKey, slot);
     });
-    byCustomer.forEach((slot, label) => {
-      STATE.customerVolumeLookup.set(label, { canonicalPresses: slot.canonicalPresses, customerNames: slot.customerNames });
+    byPress.forEach((slot, entityKey) => {
+      STATE.customerVolumeLookup.set(entityKey, { canonicalPress: slot.canonicalPress, customers: [...slot.customers], models: [...slot.models] });
     });
     const dir = sort === 'asc' ? 1 : -1;
-    const sorted = [...byCustomer.values()].sort((a, b) => (a[metric] - b[metric]) * dir);
+    const sorted = [...byPress.values()].sort((a, b) => (a[metric] - b[metric]) * dir);
     return expanded ? sorted : sorted.slice(0, 12);
   }
 
-  function openDrilldown(dimension, value) {
+  function openDrilldown(dimension, value, payload = null) {
     const mapping = { press: 'press', subsystem: 'subsystem', alert: 'alert', version: 'version', customerVolume: 'customer' };
     const field = mapping[dimension];
     if (!field) return;
     const rows = dimension === 'customerVolume'
       ? (() => {
-          const resolver = STATE.customerVolumeLookup.get(value);
-          const canonicalPresses = resolver?.canonicalPresses || new Set();
-          const customerNames = resolver?.customerNames || new Set();
-          const subset = (STATE.normalized.volumeJobs || []).filter(r => canonicalPresses.has(r.canonicalPress || '') || customerNames.has(r.customer || '') || getCanonicalDisplayName(r.canonicalPress || '', r.customer || '') === value);
+          const entityKey = payload?.entityKey || value;
+          const scopedVolumeJobs = (STATE.normalized.volumeJobs || []).filter(r => STATE.lastSourceScope?.keys?.has(r.key));
+          const subset = scopedVolumeJobs.filter(r => (r.canonicalPress || 'Unspecified') === entityKey);
           console.info('[consistency-debug] print-volume-drilldown-select', {
-            clickedLabel: value,
-            resolvedCanonicalPresses: [...canonicalPresses],
-            resolvedCustomers: [...customerNames],
+            clickedEntityKey: entityKey,
+            displayLabel: payload?.displayLabel || value,
             subsetRows: subset.length,
             totals: {
               printedSheets: subset.reduce((a, r) => a + (r.printedSheets || 0), 0),
@@ -1457,14 +1473,14 @@
           });
           if (!subset.length) {
             console.warn('[consistency-debug] print-volume-drilldown-empty', {
-              clickedLabel: value,
-              reason: 'No normalizedVolumeRows matched resolved canonical press/customer names.'
+              clickedEntityKey: entityKey,
+              reason: 'No scoped normalizedVolumeRows matched chart entityKey.'
             });
           }
           return subset;
         })()
       : STATE.filtered.filter(r => field === 'alert' ? (r.name !== 'Unspecified' ? r.name : r.alertTitle) === value : r[field] === value);
-    STATE.drilldown = { dimension, value, rows, search: '', sort: null };
+    STATE.drilldown = { dimension, value: payload?.displayLabel || value, entityKey: payload?.entityKey || value, rows, search: '', sort: null };
     renderDrilldown();
     document.getElementById('drilldownDrawer').classList.add('show');
   }
@@ -1509,7 +1525,7 @@
       const totalJobs = scoped.length;
       const avgSheetsPerJob = totalJobs ? totalSheets / totalJobs : 0;
       const avgDurationPerJob = totalJobs ? scoped.reduce((a, r) => a + (r.durationSeconds || 0), 0) / totalJobs : 0;
-      document.getElementById('drilldownTitle').textContent = `Volume Drilldown • Customer = ${value}`;
+      document.getElementById('drilldownTitle').textContent = `Volume Drilldown • Press = ${value}`;
       document.getElementById('drilldownSummary').textContent = `${totalJobs.toLocaleString()} jobs • Sheets ${totalSheets.toLocaleString()} • Flats ${totalFlats.toLocaleString()}`;
       document.getElementById('drilldownSummaryGrid').innerHTML = `
         <div class="summary-stat span-3"><div class="label">Total Sheets</div><div class="value">${totalSheets.toLocaleString()}</div></div>
@@ -1695,21 +1711,27 @@
     renderRankingChart('alert', buildMetricRankings(sourceScope, STATE.filtered, 'alert'));
     renderRankingChart('version', buildMetricRankings(sourceScope, STATE.filtered, 'version'));
     const customerVolumeRows = buildCustomerVolumeChart(sourceScope.volumeAgg, STATE.customerVolumeMetric, STATE.customerVolumeSort, STATE.customerVolumeExpanded);
-    const labels = customerVolumeRows.map(r => r.customer);
+    STATE.customerVolumeRows = customerVolumeRows;
+    const labels = customerVolumeRows.map(r => r.displayLabel);
     const values = customerVolumeRows.map(r => r[STATE.customerVolumeMetric]);
     replaceChart('customerVolumeChart', {
       type: 'bar',
       data: { labels, datasets: [{ data: values, backgroundColor: labels.map((_, i) => COLORS[i % COLORS.length]), borderRadius: 6 }] },
       options: {
-        ...baseOptions('customerVolume', labels),
+        ...baseOptions('customerVolume', labels, customerVolumeRows),
         plugins: {
           legend: { display: false },
           tooltip: { callbacks: { label: ctx => `${ctx.parsed.y.toLocaleString()} ${STATE.customerVolumeMetric === 'printedFlats' ? 'Printed Flats' : 'Printed Sheets'}` } }
         }
       }
     });
-    document.getElementById('customerVolumeNote').textContent = `${STATE.customerVolumeExpanded ? 'Full ranking' : 'Top 12'} by ${STATE.customerVolumeMetric === 'printedFlats' ? 'Printed Flats' : 'Printed Sheets'} (${STATE.customerVolumeSort === 'asc' ? 'lowest first' : 'highest first'}) from volumeAgg only. Bars use canonical press - customer names.`;
+    document.getElementById('customerVolumeNote').textContent = `${STATE.customerVolumeExpanded ? 'Full ranking' : 'Top 12'} by ${STATE.customerVolumeMetric === 'printedFlats' ? 'Printed Flats' : 'Printed Sheets'} (${STATE.customerVolumeSort === 'asc' ? 'lowest first' : 'highest first'}) from volumeAgg only. Grouped by full canonical press names.`;
     document.getElementById('customerVolumeExpand').textContent = STATE.customerVolumeExpanded ? 'Collapse' : 'Show all';
+    console.info('[consistency-debug] print-volume-chart-plot', {
+      source: 'volumeAgg',
+      metric: STATE.customerVolumeMetric,
+      first10Plotted: customerVolumeRows.slice(0, 10).map((r, i) => ({ rank: i + 1, entityKey: r.entityKey, displayLabel: r.displayLabel, value: r[STATE.customerVolumeMetric] || 0 }))
+    });
     STATE.merged.pressRisk = computeRiskScores(STATE.filtered);
     renderRiskSection(STATE.merged.pressRisk);
     STATE.merged.summary = buildExecutiveSummary(STATE.filtered, sourceScope, STATE.merged.pressRisk, STATE.kpis);
