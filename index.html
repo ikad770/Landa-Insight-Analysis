@@ -165,28 +165,33 @@
 
     <main class="grid">
       <article class="card span-6" data-rank-card="press">
-        <div class="chart-head"><h3>Top Presses</h3><div class="chart-tools"><select data-metric="press" class="select"><option value="risk">By risk score</option><option value="events">By events</option><option value="downtime">By downtime</option><option value="normalized">By events/volume</option></select><button class="btn secondary" data-expand="press">Show all</button></div></div>
+        <div class="chart-head"><h3>Top Presses</h3><div class="chart-tools"><select data-metric="press" class="select"><option value="events">By events</option><option value="downtime">By downtime</option><option value="normalized">By events/volume</option><option value="risk">By risk score</option></select><button class="btn secondary" data-expand="press">Show all</button></div></div>
         <div class="micro">Press ranking from merged event + downtime + volume signals.</div><div class="chart-area"><canvas id="pressChart"></canvas></div>
       </article>
 
       <article class="card span-6" data-rank-card="subsystem">
-        <div class="chart-head"><h3>Top Subsystems</h3><div class="chart-tools"><select data-metric="subsystem" class="select"><option value="risk">By risk score</option><option value="events">By events</option><option value="downtime">By downtime</option><option value="normalized">By events/volume</option></select><button class="btn secondary" data-expand="subsystem">Show all</button></div></div>
+        <div class="chart-head"><h3>Top Subsystems</h3><div class="chart-tools"><select data-metric="subsystem" class="select"><option value="events">By events</option><option value="downtime">By downtime</option><option value="normalized">By events/volume</option><option value="risk">By risk score</option></select><button class="btn secondary" data-expand="subsystem">Show all</button></div></div>
         <div class="micro">Subsystem contribution weighted by operational impact.</div><div class="chart-area"><canvas id="subsystemChart"></canvas></div>
       </article>
 
       <article class="card span-6" data-rank-card="alert">
-        <div class="chart-head"><h3>Top Alert Names</h3><div class="chart-tools"><select data-metric="alert" class="select"><option value="risk">By risk score</option><option value="events">By events</option><option value="downtime">By downtime</option><option value="normalized">By events/volume</option></select><button class="btn secondary" data-expand="alert">Show all</button></div></div>
+        <div class="chart-head"><h3>Top Alert Names</h3><div class="chart-tools"><select data-metric="alert" class="select"><option value="events">By events</option><option value="downtime">By downtime</option><option value="normalized">By events/volume</option><option value="risk">By risk score</option></select><button class="btn secondary" data-expand="alert">Show all</button></div></div>
         <div class="micro">Alert ranking uses Name, with Alert Title fallback.</div><div class="chart-area"><canvas id="alertChart"></canvas></div>
       </article>
 
       <article class="card span-6" data-rank-card="version">
-        <div class="chart-head"><h3>Top Versions</h3><div class="chart-tools"><select data-metric="version" class="select"><option value="risk">By risk score</option><option value="events">By events</option><option value="downtime">By downtime</option><option value="normalized">By events/volume</option></select><button class="btn secondary" data-expand="version">Show all</button></div></div>
+        <div class="chart-head"><h3>Top Versions</h3><div class="chart-tools"><select data-metric="version" class="select"><option value="events">By events</option><option value="downtime">By downtime</option><option value="normalized">By events/volume</option><option value="risk">By risk score</option></select><button class="btn secondary" data-expand="version">Show all</button></div></div>
         <div class="micro">Version exposure with production-normalized context.</div><div class="chart-area"><canvas id="versionChart"></canvas></div>
       </article>
 
       <article class="card span-6">
-        <div class="chart-head"><h3>Print Volume by Customer</h3><div class="chart-tools"><select id="customerVolumeMetric" class="select"><option value="production">Production Volume</option><option value="maintenance">Maintenance Volume</option><option value="total">Total Volume</option></select><select id="customerVolumeSort" class="select"><option value="desc">Highest first</option><option value="asc">Lowest first</option></select><button id="customerVolumeExpand" class="btn secondary">Show all</button></div></div>
-        <div class="micro" id="customerVolumeNote">Customer workload by production volume.</div><div class="chart-area"><canvas id="customerVolumeChart"></canvas></div>
+        <div class="chart-head"><h3>Print Volume by Customer</h3><div class="chart-tools"><select id="customerVolumeUnit" class="select"><option value="printedSheets">Printed Sheets</option><option value="printedFlats">Printed Flats</option></select><select id="customerVolumeSort" class="select"><option value="desc">Highest first</option><option value="asc">Lowest first</option></select><button id="customerVolumeExpand" class="btn secondary">Show all</button></div></div>
+        <div class="micro" id="customerVolumeNote">Customer workload from volumeAgg only.</div><div class="chart-area"><canvas id="customerVolumeChart"></canvas></div>
+      </article>
+
+      <article class="card span-6">
+        <div class="chart-head"><h3>Downtime by Customer</h3><div class="chart-tools"><select id="customerDowntimeSort" class="select"><option value="desc">Highest first</option><option value="asc">Lowest first</option></select><button id="customerDowntimeExpand" class="btn secondary">Show all</button></div></div>
+        <div class="micro" id="customerDowntimeNote">Availability downtime by customer from availabilityAgg only.</div><div class="chart-area"><canvas id="customerDowntimeChart"></canvas></div>
       </article>
 
       <article class="card span-12" id="riskSection"></article>
@@ -233,10 +238,12 @@
     analysisRunning: false,
     analysisRunId: 0,
     expand: { press: false, subsystem: false, alert: false, version: false },
-    metricByChart: { press: 'risk', subsystem: 'risk', alert: 'risk', version: 'risk' },
-    customerVolumeMetric: 'production',
+    metricByChart: { press: 'events', subsystem: 'events', alert: 'events', version: 'events' },
+    customerVolumeMetric: 'printedSheets',
     customerVolumeSort: 'desc',
     customerVolumeExpanded: false,
+    customerDowntimeSort: 'desc',
+    customerDowntimeExpanded: false,
     drilldown: { dimension: '', value: '', rows: [], search: '', sort: null },
     renderQueued: false,
   };
@@ -257,6 +264,18 @@
       .toLowerCase()
       .replace(/\s+/g, '')
       .trim();
+  }
+  function deriveCustomerFromPress(press) {
+    const raw = String(press || '').trim();
+    if (!raw) return 'Unspecified';
+    const split = raw.split(/\s[-|/]\s|[-|/]/).map(x => x.trim()).filter(Boolean);
+    return split[0] || raw;
+  }
+  function classifyPressMode(model, perfector = '') {
+    const modelToken = String(model || '').trim().toUpperCase();
+    const perfectorToken = String(perfector || '').trim().toLowerCase();
+    const duplex = /P$/.test(modelToken) || /perfector|yes|true|1|duplex/.test(perfectorToken);
+    return duplex ? 'Duplex' : 'Simplex';
   }
   function toDay(date) {
     const d = new Date(date);
@@ -545,6 +564,8 @@
       const onJobMaintenanceSeconds = readSeconds(r, ['On Job Maintenance']);
       const recoverySeconds = readSeconds(r, ['Recovery']);
       const jamsSeconds = readSeconds(r, ['Jams']);
+      const subsystem = String(getField(r, ['Subsystem', 'Module'])).trim() || 'Unspecified';
+      const downtimeCategory = String(getField(r, ['Downtime Type', 'Type'])).trim() || 'Unspecified';
       const runtimeSeconds = printSeconds + availableWithoutPrintSeconds;
       const plannedDowntimeSeconds = preventiveMaintenanceSeconds;
       const unplannedDowntimeSeconds = recoverySeconds + jamsSeconds;
@@ -597,6 +618,8 @@
         plannedDowntimeSeconds,
         unplannedDowntimeSeconds,
         serviceDowntimeSeconds,
+        subsystem,
+        downtimeCategory,
         raw: r
       });
       diagnostics.normalizedRowsCreated += 1;
@@ -641,6 +664,12 @@
       const jobType = String(getField(r, ['Job Type'])).trim() || 'Unspecified';
       const jobStatus = String(getField(r, ['Job Status'])).trim() || 'Unspecified';
       const pressMode = String(getField(r, ['Press Mode', 'Mode'])).trim() || 'Unspecified';
+      const perfector = String(getField(r, ['Perfector'])).trim();
+      const simplexDuplex = classifyPressMode(canonicalModel, perfector);
+      const substrate = String(getField(r, ['Substrate Name', 'Substrate Type', 'Substrate'])).trim() || 'Unspecified';
+      const jobName = String(getField(r, ['Job Name', 'Job'])).trim() || 'Unspecified';
+      const printEnd = parseUsDateTime(getField(r, ['Print End', 'End Time']));
+      const durationSeconds = printStart && printEnd ? Math.max(0, (printEnd.getTime() - printStart.getTime()) / 1000) : 0;
       const key = buildKey({ canonicalPress, canonicalModel, day });
       jobs.push({
         key,
@@ -658,6 +687,10 @@
         totalVolume: preferredVolume,
         printedSheets: Number.isFinite(printedSheets) ? printedSheets : 0,
         printedFlats: Number.isFinite(printedFlats) ? printedFlats : 0,
+        simplexDuplex,
+        substrate,
+        jobName,
+        durationSeconds,
         maintenance,
         jobType,
         jobStatus,
@@ -920,7 +953,9 @@
       site: row.site || 'Unspecified',
       productionVolume: row.productionVolume || 0,
       maintenanceVolume: row.maintenanceVolume || 0,
-      totalVolume: row.totalVolume || 0
+      totalVolume: row.totalVolume || 0,
+      printedSheets: row.printedSheets || 0,
+      printedFlats: row.printedFlats || 0
     }));
     stats.rows.mergedRowsCreated = mergedRows.length;
     stats.rows.errorsAggregated = errorsAgg.length;
@@ -1224,14 +1259,13 @@
     );
   }
 
-  function buildCustomerVolumeChart(volumeAggRows, metric = 'production', sort = 'desc', expanded = false) {
+  function buildCustomerVolumeChart(volumeAggRows, metric = 'printedSheets', sort = 'desc', expanded = false) {
     const byCustomer = new Map();
     volumeAggRows.forEach(r => {
-      const keyName = r.customer && r.customer !== 'Unspecified' ? r.customer : (r.canonicalPress || 'Unspecified');
-      const slot = byCustomer.get(keyName) || { customer: keyName, production: 0, maintenance: 0, total: 0 };
-      slot.production += r.productionVolume || 0;
-      slot.maintenance += r.maintenanceVolume || 0;
-      slot.total += r.totalVolume || 0;
+      const keyName = deriveCustomerFromPress(r.canonicalPress || r.customer || 'Unspecified');
+      const slot = byCustomer.get(keyName) || { customer: keyName, printedSheets: 0, printedFlats: 0 };
+      slot.printedSheets += r.printedSheets || 0;
+      slot.printedFlats += r.printedFlats || 0;
       byCustomer.set(keyName, slot);
     });
     const dir = sort === 'asc' ? 1 : -1;
@@ -1239,12 +1273,27 @@
     return expanded ? sorted : sorted.slice(0, 12);
   }
 
+  function buildCustomerDowntimeChart(availabilityAggRows, sort = 'desc', expanded = false) {
+    const byCustomer = new Map();
+    availabilityAggRows.forEach(r => {
+      const keyName = deriveCustomerFromPress(r.canonicalPress || 'Unspecified');
+      const slot = byCustomer.get(keyName) || { customer: keyName, downtime: 0 };
+      slot.downtime += (r.plannedDowntimeSeconds || 0) + (r.unplannedDowntimeSeconds || 0) + (r.serviceDowntimeSeconds || 0);
+      byCustomer.set(keyName, slot);
+    });
+    const dir = sort === 'asc' ? 1 : -1;
+    const sorted = [...byCustomer.values()].sort((a, b) => (a.downtime - b.downtime) * dir);
+    return expanded ? sorted : sorted.slice(0, 12);
+  }
+
   function openDrilldown(dimension, value) {
-    const mapping = { press: 'press', subsystem: 'subsystem', alert: 'alert', version: 'version', customerVolume: 'customer' };
+    const mapping = { press: 'press', subsystem: 'subsystem', alert: 'alert', version: 'version', customerVolume: 'customer', customerDowntime: 'customer' };
     const field = mapping[dimension];
     if (!field) return;
     const rows = dimension === 'customerVolume'
       ? (STATE.normalized.volumeJobs || []).filter(r => (r.customer && r.customer !== 'Unspecified' ? r.customer : r.press) === value)
+      : dimension === 'customerDowntime'
+        ? (STATE.normalized.availability || []).filter(r => deriveCustomerFromPress(r.canonicalPress) === value)
       : STATE.filtered.filter(r => field === 'alert' ? (r.name !== 'Unspecified' ? r.name : r.alertTitle) === value : r[field] === value);
     STATE.drilldown = { dimension, value, rows, search: '', sort: null };
     renderDrilldown();
@@ -1282,7 +1331,88 @@
   function renderDrilldown() {
     const { dimension, value, rows, search } = STATE.drilldown;
     const isVolume = dimension === 'customerVolume';
+    const isDowntimeCustomer = dimension === 'customerDowntime';
     const scoped = !search ? rows : rows.filter(r => `${r.customer} ${r.site} ${r.press} ${r.subsystem || ''} ${r.name || ''} ${r.alertTitle || ''} ${r.version || ''} ${r.jobType || ''} ${r.jobStatus || ''}`.toLowerCase().includes(search.toLowerCase()));
+    if (isVolume) {
+      const measure = STATE.customerVolumeMetric;
+      const totalSheets = scoped.reduce((a, r) => a + (r.printedSheets || 0), 0);
+      const totalFlats = scoped.reduce((a, r) => a + (r.printedFlats || 0), 0);
+      const totalJobs = scoped.length;
+      const avgSheetsPerJob = totalJobs ? totalSheets / totalJobs : 0;
+      const avgDurationPerJob = totalJobs ? scoped.reduce((a, r) => a + (r.durationSeconds || 0), 0) / totalJobs : 0;
+      document.getElementById('drilldownTitle').textContent = `Volume Drilldown • Customer = ${value}`;
+      document.getElementById('drilldownSummary').textContent = `${totalJobs.toLocaleString()} jobs • Sheets ${totalSheets.toLocaleString()} • Flats ${totalFlats.toLocaleString()}`;
+      document.getElementById('drilldownSummaryGrid').innerHTML = `
+        <div class="summary-stat span-3"><div class="label">Total Sheets</div><div class="value">${totalSheets.toLocaleString()}</div></div>
+        <div class="summary-stat span-3"><div class="label">Total Flats</div><div class="value">${totalFlats.toLocaleString()}</div></div>
+        <div class="summary-stat span-2"><div class="label">Total Jobs</div><div class="value">${totalJobs.toLocaleString()}</div></div>
+        <div class="summary-stat span-2"><div class="label">Avg sheets/job</div><div class="value">${avgSheetsPerJob.toFixed(1)}</div></div>
+        <div class="summary-stat span-2"><div class="label">Avg duration/job</div><div class="value">${formatDuration(avgDurationPerJob)}</div></div>`;
+      const modeSplit = new Map();
+      const maintenanceSplit = new Map([['Production-Simplex', 0], ['Production-Duplex', 0], ['Maintenance-Simplex', 0], ['Maintenance-Duplex', 0]]);
+      const substrateSplit = new Map();
+      const byJobName = new Map();
+      const byJobType = new Map();
+      scoped.forEach(r => {
+        const unit = measure === 'printedFlats' ? (r.printedFlats || 0) : (r.printedSheets || 0);
+        modeSplit.set(r.simplexDuplex || 'Simplex', (modeSplit.get(r.simplexDuplex || 'Simplex') || 0) + unit);
+        const opKey = `${r.maintenance ? 'Maintenance' : 'Production'}-${r.simplexDuplex || 'Simplex'}`;
+        maintenanceSplit.set(opKey, (maintenanceSplit.get(opKey) || 0) + unit);
+        const subKey = `${r.substrate || 'Unspecified'} (${r.simplexDuplex || 'Simplex'})`;
+        substrateSplit.set(subKey, (substrateSplit.get(subKey) || 0) + unit);
+        byJobName.set(r.jobName || 'Unspecified', (byJobName.get(r.jobName || 'Unspecified') || 0) + unit);
+        byJobType.set(r.jobType || 'Unspecified', (byJobType.get(r.jobType || 'Unspecified') || 0) + unit);
+      });
+      document.getElementById('drilldownInsight').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Volume split overview</h4><span class="risk-pill risk-medium">Sheets/Flats mode</span></div><div class="micro">Production split, maintenance split, substrate, and job analysis are calculated directly from volume jobs. Current metric: ${esc(measure)}.</div>`;
+      const modeRows = [...modeSplit.entries()].sort((a, b) => b[1] - a[1]);
+      replaceChart('drilldownTopChart', { type: 'bar', data: { labels: modeRows.map(x => x[0]), datasets: [{ data: modeRows.map(x => x[1]), backgroundColor: COLORS, borderRadius: 6 }] }, options: baseOptions('drilldown', modeRows.map(x => x[0])) });
+      const substrateRows = [...substrateSplit.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10);
+      replaceChart('drilldownTrendChart', { type: 'bar', data: { labels: substrateRows.map(x => x[0]), datasets: [{ data: substrateRows.map(x => x[1]), backgroundColor: COLORS, borderRadius: 6 }] }, options: baseOptions('drilldown', substrateRows.map(x => x[0])) });
+      const maintenanceRows = [...maintenanceSplit.entries()];
+      replaceChart('drilldownSecondaryChart', { type: 'bar', data: { labels: maintenanceRows.map(x => x[0]), datasets: [{ data: maintenanceRows.map(x => x[1]), backgroundColor: COLORS, borderRadius: 6 }] }, options: baseOptions('drilldown', maintenanceRows.map(x => x[0])) });
+      const topJobs = [...byJobName.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6);
+      replaceChart('drilldownOpsChart', { type: 'bar', data: { labels: topJobs.map(x => x[0]), datasets: [{ data: topJobs.map(x => x[1]), backgroundColor: COLORS, borderRadius: 6 }] }, options: baseOptions('drilldown', topJobs.map(x => x[0])) });
+      const columns = ['jobName', 'jobType', 'simplexDuplex', 'substrate', 'printedSheets', 'printedFlats', 'durationSeconds'];
+      document.getElementById('drilldownTable').innerHTML = `<thead><tr>${columns.map(col => `<th>${esc(col)}</th>`).join('')}</tr></thead><tbody>${scoped.slice(0, 1000).map(r => `<tr><td>${esc(r.jobName)}</td><td>${esc(r.jobType)}</td><td>${esc(r.simplexDuplex)}</td><td>${esc(r.substrate)}</td><td>${(r.printedSheets || 0).toLocaleString()}</td><td>${(r.printedFlats || 0).toLocaleString()}</td><td>${esc(formatDuration(r.durationSeconds || 0))}</td></tr>`).join('')}</tbody>`;
+      return;
+    }
+    if (isDowntimeCustomer) {
+      const total = scoped.reduce((a, r) => a + (r.plannedDowntimeSeconds || 0) + (r.unplannedDowntimeSeconds || 0) + (r.serviceDowntimeSeconds || 0), 0);
+      const planned = scoped.reduce((a, r) => a + (r.plannedDowntimeSeconds || 0) + (r.serviceDowntimeSeconds || 0), 0);
+      const unplanned = scoped.reduce((a, r) => a + (r.unplannedDowntimeSeconds || 0), 0);
+      const bySubsystem = new Map();
+      const byPress = new Map();
+      const byDay = new Map();
+      scoped.forEach(r => {
+        const dt = (r.plannedDowntimeSeconds || 0) + (r.unplannedDowntimeSeconds || 0) + (r.serviceDowntimeSeconds || 0);
+        bySubsystem.set(r.subsystem || 'Unspecified', (bySubsystem.get(r.subsystem || 'Unspecified') || 0) + dt);
+        byPress.set(r.canonicalPress || 'Unspecified', (byPress.get(r.canonicalPress || 'Unspecified') || 0) + dt);
+        byDay.set(r.day || 'Unknown', (byDay.get(r.day || 'Unknown') || 0) + dt);
+      });
+      const topSubsystem = [...bySubsystem.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || 'N/A';
+      const topPress = [...byPress.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || 'N/A';
+      document.getElementById('drilldownTitle').textContent = `Downtime Drilldown • Customer = ${value}`;
+      document.getElementById('drilldownSummary').textContent = `Total downtime ${formatDuration(total)} • Planned ${formatDuration(planned)} • Unplanned ${formatDuration(unplanned)}`;
+      document.getElementById('drilldownSummaryGrid').innerHTML = `
+        <div class="summary-stat span-3"><div class="label">Total downtime</div><div class="value">${formatDuration(total)}</div></div>
+        <div class="summary-stat span-2"><div class="label">Planned %</div><div class="value">${total ? ((planned / total) * 100).toFixed(1) : 0}%</div></div>
+        <div class="summary-stat span-2"><div class="label">Unplanned %</div><div class="value">${total ? ((unplanned / total) * 100).toFixed(1) : 0}%</div></div>
+        <div class="summary-stat span-3"><div class="label">Top failing subsystem</div><div class="value">${esc(topSubsystem)}</div></div>
+        <div class="summary-stat span-2"><div class="label">Top failing press</div><div class="value">${esc(topPress)}</div></div>`;
+      document.getElementById('drilldownInsight').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Downtime split overview</h4><span class="risk-pill risk-medium">Availability only</span></div><div class="micro">Planned = Preventive + On Job Maintenance. Unplanned = Recovery + Jams. Subsystem and press breakdown sourced from normalized availability rows.</div>`;
+      replaceChart('drilldownTopChart', { type: 'doughnut', data: { labels: ['Planned', 'Unplanned'], datasets: [{ data: [planned, unplanned], backgroundColor: ['#51c285', '#f36b63'] }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: '#c6d3ea' } } } } });
+      const subsRows = [...bySubsystem.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10);
+      replaceChart('drilldownTrendChart', { type: 'bar', data: { labels: subsRows.map(x => x[0]), datasets: [{ data: subsRows.map(x => x[1]), backgroundColor: COLORS, borderRadius: 6 }] }, options: baseOptions('drilldown', subsRows.map(x => x[0])) });
+      const pressRows = [...byPress.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10);
+      replaceChart('drilldownSecondaryChart', { type: 'bar', data: { labels: pressRows.map(x => x[0]), datasets: [{ data: pressRows.map(x => x[1]), backgroundColor: COLORS, borderRadius: 6 }] }, options: baseOptions('drilldown', pressRows.map(x => x[0])) });
+      const dayRows = [...byDay.entries()].sort((a, b) => a[0].localeCompare(b[0])).slice(0, 31);
+      replaceChart('drilldownOpsChart', { type: 'line', data: { labels: dayRows.map(x => x[0]), datasets: [{ data: dayRows.map(x => x[1]), borderColor: '#7b8dff', backgroundColor: 'rgba(123,141,255,.25)', fill: true, tension: 0.2 }] }, options: baseOptions('drilldown', dayRows.map(x => x[0])) });
+      document.getElementById('drilldownTable').innerHTML = `<thead><tr><th>press</th><th>day</th><th>subsystem</th><th>planned</th><th>unplanned</th><th>service</th><th>total</th></tr></thead><tbody>${scoped.slice(0, 1000).map(r => {
+        const p = r.plannedDowntimeSeconds || 0; const u = r.unplannedDowntimeSeconds || 0; const s = r.serviceDowntimeSeconds || 0;
+        return `<tr><td>${esc(r.canonicalPress)}</td><td>${esc(r.day)}</td><td>${esc(r.subsystem)}</td><td>${esc(formatDuration(p))}</td><td>${esc(formatDuration(u))}</td><td>${esc(formatDuration(s))}</td><td>${esc(formatDuration(p + u + s))}</td></tr>`;
+      }).join('')}</tbody>`;
+      return;
+    }
     const count = scoped.length;
     const downtime = scoped.reduce((a, r) => a + (r.durationSeconds || 0), 0);
     const totalVolume = scoped.reduce((a, r) => a + (isVolume ? (r.totalVolume || r.volume || 0) : (r.volume?.productionVolume || 0)), 0);
@@ -1401,8 +1531,18 @@
       data: { labels, datasets: [{ data: values, backgroundColor: labels.map((_, i) => COLORS[i % COLORS.length]), borderRadius: 6 }] },
       options: baseOptions('customerVolume', labels)
     });
-    document.getElementById('customerVolumeNote').textContent = `${STATE.customerVolumeExpanded ? 'Full ranking' : 'Top 12'} by ${STATE.customerVolumeMetric} volume (${STATE.customerVolumeSort === 'asc' ? 'lowest first' : 'highest first'}).`;
+    document.getElementById('customerVolumeNote').textContent = `${STATE.customerVolumeExpanded ? 'Full ranking' : 'Top 12'} by ${STATE.customerVolumeMetric === 'printedFlats' ? 'Printed Flats' : 'Printed Sheets'} (${STATE.customerVolumeSort === 'asc' ? 'lowest first' : 'highest first'}) from volumeAgg only.`;
     document.getElementById('customerVolumeExpand').textContent = STATE.customerVolumeExpanded ? 'Collapse' : 'Show all';
+    const customerDowntimeRows = buildCustomerDowntimeChart(sourceScope.availabilityAgg, STATE.customerDowntimeSort, STATE.customerDowntimeExpanded);
+    const downtimeLabels = customerDowntimeRows.map(r => r.customer);
+    const downtimeValues = customerDowntimeRows.map(r => r.downtime);
+    replaceChart('customerDowntimeChart', {
+      type: 'bar',
+      data: { labels: downtimeLabels, datasets: [{ data: downtimeValues, backgroundColor: downtimeLabels.map((_, i) => COLORS[i % COLORS.length]), borderRadius: 6 }] },
+      options: baseOptions('customerDowntime', downtimeLabels)
+    });
+    document.getElementById('customerDowntimeNote').textContent = `${STATE.customerDowntimeExpanded ? 'Full ranking' : 'Top 12'} by downtime (${STATE.customerDowntimeSort === 'asc' ? 'lowest first' : 'highest first'}) from availabilityAgg only.`;
+    document.getElementById('customerDowntimeExpand').textContent = STATE.customerDowntimeExpanded ? 'Collapse' : 'Show all';
     STATE.merged.pressRisk = computeRiskScores(STATE.filtered);
     renderRiskSection(STATE.merged.pressRisk);
     STATE.merged.summary = buildExecutiveSummary(STATE.filtered, STATE.merged.pressRisk, STATE.kpis);
@@ -1660,9 +1800,11 @@
 
     ['customerFilter', 'siteFilter', 'pressFilter', 'subsystemFilter', 'versionFilter', 'startDateFilter', 'endDateFilter'].forEach(id => document.getElementById(id).addEventListener('change', scheduleRender));
     searchFilter.addEventListener('input', scheduleRender);
-    customerVolumeMetric.addEventListener('change', e => { STATE.customerVolumeMetric = e.target.value; scheduleRender(); });
+    customerVolumeUnit.addEventListener('change', e => { STATE.customerVolumeMetric = e.target.value; scheduleRender(); });
     customerVolumeSort.addEventListener('change', e => { STATE.customerVolumeSort = e.target.value; scheduleRender(); });
     customerVolumeExpand.addEventListener('click', () => { STATE.customerVolumeExpanded = !STATE.customerVolumeExpanded; scheduleRender(); });
+    customerDowntimeSort.addEventListener('change', e => { STATE.customerDowntimeSort = e.target.value; scheduleRender(); });
+    customerDowntimeExpand.addEventListener('click', () => { STATE.customerDowntimeExpanded = !STATE.customerDowntimeExpanded; scheduleRender(); });
 
     closeDrilldown.addEventListener('click', () => drilldownDrawer.classList.remove('show'));
     drilldownDrawer.addEventListener('click', e => { if (e.target.id === 'drilldownDrawer') drilldownDrawer.classList.remove('show'); });
