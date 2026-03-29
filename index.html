@@ -1050,49 +1050,127 @@
       (!filterValues.query || text.includes(filterValues.query));
   }
 
+  function filterErrorsNativeRows(filterValues) {
+    return (STATE.normalized.events || []).filter(r => rowPassesGlobalFilters(r, filterValues, {
+      searchText: row => `${row.name} ${row.alertTitle} ${row.press} ${row.subsystem} ${row.version} ${row.customer} ${row.site}`,
+      pressOf: row => row.press,
+      dayOf: row => row.day,
+      customerOf: row => row.customer,
+      siteOf: row => row.site,
+      subsystemOf: row => row.subsystem,
+      versionOf: row => row.version,
+    }));
+  }
+
+  function filterAvailabilityNativeRows(filterValues) {
+    return (STATE.normalized.availability || []).filter(r => {
+      const text = `${r.canonicalPress} ${r.canonicalModel} ${r.subsystem} ${r.downtimeCategory || ''}`.toLowerCase();
+      const day = r.day;
+      const press = r.canonicalPress || 'Unspecified';
+      const subsystem = r.subsystem || 'Unspecified';
+      return (filterValues.press === 'all' || press === filterValues.press) &&
+        (filterValues.subsystem === 'all' || subsystem === filterValues.subsystem) &&
+        (!filterValues.startDay || (day && day >= filterValues.startDay)) &&
+        (!filterValues.endDay || (day && day <= filterValues.endDay)) &&
+        (!filterValues.query || text.includes(filterValues.query));
+    });
+  }
+
+  function filterVolumeNativeRows(filterValues) {
+    return (STATE.normalized.volume || []).filter(r => {
+      const text = `${r.canonicalPress} ${r.canonicalModel} ${r.customer} ${r.site}`.toLowerCase();
+      const day = r.day;
+      const press = r.canonicalPress || 'Unspecified';
+      const customer = r.customer || 'Unspecified';
+      const site = r.site || 'Unspecified';
+      return (filterValues.customer === 'all' || customer === filterValues.customer) &&
+        (filterValues.site === 'all' || site === filterValues.site) &&
+        (filterValues.press === 'all' || press === filterValues.press) &&
+        (!filterValues.startDay || (day && day >= filterValues.startDay)) &&
+        (!filterValues.endDay || (day && day <= filterValues.endDay)) &&
+        (!filterValues.query || text.includes(filterValues.query));
+    });
+  }
+
+  function aggregateErrorsFromNative(errorEventsNative) {
+    const byKey = new Map();
+    errorEventsNative.forEach(row => {
+      const key = row.key || buildKey({ canonicalPress: row.canonicalPress || row.press, canonicalModel: row.canonicalModel || row.model, day: row.day });
+      if (!byKey.has(key)) byKey.set(key, {
+        key,
+        canonicalPress: row.canonicalPress || row.press || 'Unspecified',
+        canonicalModel: row.canonicalModel || row.model || 'Unspecified',
+        day: row.day || '',
+        customer: row.customer || 'Unspecified',
+        site: row.site || 'Unspecified',
+        totalEvents: 0,
+        totalErrorDurationSeconds: 0
+      });
+      const slot = byKey.get(key);
+      slot.totalEvents += 1;
+      slot.totalErrorDurationSeconds += row.durationSeconds || 0;
+    });
+    return [...byKey.values()];
+  }
+
   function buildSourceScope(filterValues, filteredEvents, filteredErrorEventsRows) {
-    const errorsAgg = (STATE.merged.sourceTables?.errorsAgg || []).filter(r => rowPassesGlobalFilters(r, filterValues, {
-      searchText: row => `${row.canonicalPress} ${row.canonicalModel} ${row.customer || ''} ${row.site || ''}`,
-      pressOf: row => row.canonicalPress,
-      dayOf: row => row.day,
-      customerOf: row => row.customer || 'Unspecified',
-      siteOf: row => row.site || 'Unspecified',
-      subsystemOf: () => 'all',
-      versionOf: () => 'all',
+    const filteredErrorEventsNative = filteredErrorEventsRows?.length ? filteredErrorEventsRows : filterErrorsNativeRows(filterValues);
+    const filteredAvailabilityRowsNative = filterAvailabilityNativeRows(filterValues);
+    const filteredVolumeRowsNative = filterVolumeNativeRows(filterValues);
+    const errorsAgg = aggregateErrorsFromNative(filteredErrorEventsNative);
+    const availabilityAgg = filteredAvailabilityRowsNative.map(row => ({
+      key: row.key,
+      canonicalPress: row.canonicalPress,
+      canonicalModel: row.canonicalModel,
+      day: row.day,
+      subsystem: row.subsystem || 'Unspecified',
+      runtimeSeconds: row.runtimeSeconds || 0,
+      plannedDowntimeSeconds: row.plannedDowntimeSeconds || 0,
+      unplannedDowntimeSeconds: row.unplannedDowntimeSeconds || 0,
+      serviceDowntimeSeconds: row.serviceDowntimeSeconds || 0,
+      availabilityPct: row.availabilityPct ?? null
+    }));
+    const volumeAgg = filteredVolumeRowsNative.map(row => ({
+      key: row.key,
+      canonicalPress: row.canonicalPress,
+      canonicalModel: row.canonicalModel,
+      day: row.day,
+      customer: row.customer || 'Unspecified',
+      site: row.site || 'Unspecified',
+      productionVolume: row.productionVolume || 0,
+      maintenanceVolume: row.maintenanceVolume || 0,
+      totalVolume: row.totalVolume || 0,
+      productionPrintedSheets: row.productionPrintedSheets || 0,
+      printedSheets: row.printedSheets || 0,
+      printedFlats: row.printedFlats || 0
     }));
 
-    const availabilityAgg = (STATE.merged.sourceTables?.availabilityAgg || []).filter(r => rowPassesGlobalFilters(r, filterValues, {
-      searchText: row => `${row.canonicalPress} ${row.canonicalModel} ${row.subsystem} availability downtime`,
-      pressOf: row => row.canonicalPress,
-      dayOf: row => row.day,
-      customerOf: () => 'all',
-      siteOf: () => 'all',
-      subsystemOf: row => row.subsystem || 'Unspecified',
-      versionOf: () => 'all',
-    }));
-
-    const volumeAgg = (STATE.merged.sourceTables?.volumeAgg || []).filter(r => rowPassesGlobalFilters(r, filterValues, {
-      searchText: row => `${row.canonicalPress} ${row.canonicalModel} ${row.customer || ''} ${row.site || ''}`,
-      pressOf: row => row.canonicalPress,
-      dayOf: row => row.day,
-      customerOf: row => row.customer || 'Unspecified',
-      siteOf: row => row.site || 'Unspecified',
-      subsystemOf: () => 'all',
-      versionOf: () => 'all',
-    }));
-
-    // Keep merged rows for explorer context only; KPI/chart totals come from source tables above.
+    // Keep merged rows for explorer context only; KPI/chart totals come from source-native scoped tables.
     const mergedRows = filteredEvents;
     const keysPrimary = new Set(filteredEvents.map(r => r?.mergeContext?.key).filter(Boolean));
     const keysFallback = new Set(filteredEvents.map(r => r?.mergeContext?.fallbackKey).filter(Boolean));
-    const keys = new Set([...keysPrimary, ...keysFallback]);
+    const errorKeys = new Set(filteredErrorEventsNative.map(r => r.key).filter(Boolean));
+    const availabilityKeys = new Set(filteredAvailabilityRowsNative.map(r => r.key).filter(Boolean));
+    const volumeKeys = new Set(filteredVolumeRowsNative.map(r => r.key).filter(Boolean));
+    const keys = new Set([...keysPrimary, ...keysFallback, ...errorKeys, ...availabilityKeys, ...volumeKeys]);
     return {
       filterValues,
       keysPrimary,
       keysFallback,
       keys,
+      errorKeys,
+      availabilityKeys,
+      volumeKeys,
+      nonApplicableFilters: {
+        errors: [],
+        availability: ['customer', 'site', 'version'],
+        volume: ['subsystem', 'version'],
+      },
+      filteredErrorEventsNative,
+      filteredAvailabilityRowsNative,
+      filteredVolumeRowsNative,
       filteredMergedRows: mergedRows,
-      filteredErrorEvents: filteredErrorEventsRows,
+      filteredErrorEvents: filteredErrorEventsNative,
       filteredErrorsAgg: errorsAgg,
       filteredAvailabilityAgg: availabilityAgg,
       filteredVolumeAgg: volumeAgg,
@@ -1453,7 +1531,7 @@
   }
 
   function buildMetricRankings(sourceScope, filteredRows, key, errorEvents = []) {
-    const { errorsAgg = [], availabilityAgg = [], volumeAgg = [], keys = new Set() } = sourceScope || {};
+    const { errorsAgg = [], availabilityAgg = [], volumeAgg = [] } = sourceScope || {};
     const metric = STATE.metricByChart[key];
     const baseMap = new Map();
     const add = (name, patch) => {
@@ -1484,8 +1562,7 @@
       if (metric === 'downtime') {
         if (key === 'subsystem') {
           const bySubsystem = new Map();
-          (STATE.normalized.availability || [])
-            .filter(r => keys.has(r.key))
+          (sourceScope?.filteredAvailabilityRowsNative || [])
             .forEach(r => {
               const n = r.subsystem || 'Unspecified';
               const dt = totalDowntimeFromAvailabilityRow(r);
@@ -1606,18 +1683,7 @@
     }));
   }
 
-  function filteredErrorEvents() {
-    const vals = currentFilterValues();
-    return (STATE.normalized.events || []).filter(r => rowPassesGlobalFilters(r, vals, {
-      searchText: row => `${row.name} ${row.alertTitle} ${row.press} ${row.subsystem} ${row.version} ${row.customer} ${row.site}`,
-      pressOf: row => row.press,
-      dayOf: row => row.day,
-      customerOf: row => row.customer,
-      siteOf: row => row.site,
-      subsystemOf: row => row.subsystem,
-      versionOf: row => row.version,
-    }));
-  }
+  function filteredErrorEvents() { return filterErrorsNativeRows(currentFilterValues()); }
 
   function buildCustomerVolumeChart(volumeAggRows, metric = 'printedSheets', sort = 'desc', expanded = false) {
     const byPress = new Map();
@@ -1647,7 +1713,7 @@
     const rows = dimension === 'customerVolume'
       ? (() => {
           const entityKey = payload?.entityKey || value;
-          const scopedVolumeJobs = (STATE.normalized.volumeJobs || []).filter(r => STATE.lastSourceScope?.keys?.has(r.key));
+          const scopedVolumeJobs = (STATE.normalized.volumeJobs || []).filter(r => STATE.lastSourceScope?.volumeKeys?.has(r.key));
           const subset = scopedVolumeJobs.filter(r => (r.canonicalPress || 'Unspecified') === entityKey);
           console.info('[consistency-debug] print-volume-drilldown-select', {
             clickedEntityKey: entityKey,
@@ -1946,6 +2012,19 @@
       version: chartStatus.versionRows ?? 0,
       customerVolume: chartStatus.customerVolumeRows ?? 0,
     };
+    const activeFilters = sourceScope?.filterValues || currentFilterValues();
+    const nativeRows = {
+      mergedEvents: chartStatus.filteredMergedEventsCount ?? 0,
+      errorEvents: sourceScope?.filteredErrorEventsNative?.length || 0,
+      availabilityRows: sourceScope?.filteredAvailabilityRowsNative?.length || 0,
+      volumeRows: sourceScope?.filteredVolumeRowsNative?.length || 0,
+    };
+    const scopedAggRows = {
+      errorsAgg: sourceScope?.errorsAgg?.length || 0,
+      availabilityAgg: sourceScope?.availabilityAgg?.length || 0,
+      volumeAgg: sourceScope?.volumeAgg?.length || 0,
+    };
+    const emptyReasons = chartStatus.emptyReasons || [];
     const metrics = STATE.metricByChart || {};
     const mainChartsInitialized = ['press', 'subsystem', 'alert', 'version'].every(key => chartStatus[`${key}Init`] !== false);
     host.innerHTML = `
@@ -1955,30 +2034,37 @@
       <div>Main charts initialized: <span class="${mainChartsInitialized ? 'ok' : 'bad'}">${mainChartsInitialized ? 'yes' : 'no'}</span></div>
       <div>Rows per chart — press:${chartRows.press} subsystem:${chartRows.subsystem} alert:${chartRows.alert} version:${chartRows.version} volume:${chartRows.customerVolume}</div>
       <div>Metric mode — press:${metrics.press} subsystem:${metrics.subsystem} alert:${metrics.alert} version:${metrics.version}</div>
-      <div>Scoped rows — merged:${sourceScope?.mergedRows?.length || 0} errorsAgg:${sourceScope?.errorsAgg?.length || 0} availabilityAgg:${sourceScope?.availabilityAgg?.length || 0} volumeAgg:${sourceScope?.volumeAgg?.length || 0}</div>`;
+      <div>Active filters — customer:${activeFilters.customer} site:${activeFilters.site} press:${activeFilters.press} subsystem:${activeFilters.subsystem} version:${activeFilters.version} day:${activeFilters.startDay || 'min'}..${activeFilters.endDay || 'max'} query:${activeFilters.query || '(none)'}</div>
+      <div>Native rows — mergedEvents:${nativeRows.mergedEvents} errors:${nativeRows.errorEvents} availability:${nativeRows.availabilityRows} volume:${nativeRows.volumeRows}</div>
+      <div>Scoped aggregates — errorsAgg:${scopedAggRows.errorsAgg} availabilityAgg:${scopedAggRows.availabilityAgg} volumeAgg:${scopedAggRows.volumeAgg}</div>
+      <div>Non-applicable filters — availability ignores customer/site/version; volume ignores subsystem/version.</div>
+      <div>${emptyReasons.length ? `Empty-state reason: <span class="warn">${esc(emptyReasons.join(' | '))}</span>` : '<span class="ok">No empty-state blockers detected.</span>'}</div>`;
     console.info('[runtime-diagnostics]', {
       chartLoaded,
       xlsxLoaded,
       mainChartsInitialized,
       rowsPerChart: chartRows,
       metricMode: metrics,
-      scopedRows: {
-        merged: sourceScope?.mergedRows?.length || 0,
-        errorsAgg: sourceScope?.errorsAgg?.length || 0,
-        availabilityAgg: sourceScope?.availabilityAgg?.length || 0,
-        volumeAgg: sourceScope?.volumeAgg?.length || 0,
-      }
+      activeFilters,
+      nativeRows,
+      scopedAggRows,
+      emptyReasons
     });
   }
 
   function renderDashboard() {
     try {
+      const filters = currentFilterValues();
       STATE.filtered = filteredRows();
       const errorEvents = filteredErrorEvents();
       STATE.filteredErrors = errorEvents;
-      const sourceScope = buildSourceScope(currentFilterValues(), STATE.filtered, errorEvents);
+      const sourceScope = buildSourceScope(filters, STATE.filtered, errorEvents);
     console.info('[scope-debug]', {
+      activeFilters: filters,
       filteredEventsCount: STATE.filtered.length,
+      filteredErrorEventsNativeCount: sourceScope.filteredErrorEventsNative?.length || 0,
+      filteredAvailabilityNativeCount: sourceScope.filteredAvailabilityRowsNative?.length || 0,
+      filteredVolumeNativeCount: sourceScope.filteredVolumeRowsNative?.length || 0,
       primaryKeysCount: sourceScope.keysPrimary?.size || 0,
       fallbackKeysCount: sourceScope.keysFallback?.size || 0,
       errorsAggCount: sourceScope.errorsAgg?.length || 0,
@@ -2015,7 +2101,7 @@
         }
       }
       });
-      if (!customerVolumeRows.length) setCanvasState('customerVolumeChart', 'No print volume data available for current filters.');
+      if (!customerVolumeRows.length) setCanvasState('customerVolumeChart', 'No print volume rows after source-native scope (volume owns press/customer/site/day).');
       if (!customerVolumeRendered) setCanvasState('customerVolumeChart', 'Chart library failed to load. Charts cannot render.', 'error');
     document.getElementById('customerVolumeNote').textContent = `${STATE.customerVolumeExpanded ? 'Full ranking' : 'Top 12'} by ${volumeMetricLabel(STATE.customerVolumeMetric)} (${STATE.customerVolumeSort === 'asc' ? 'lowest first' : 'highest first'}) from volumeAgg only. Grouped by full canonical press names.`;
     document.getElementById('customerVolumeExpand').textContent = STATE.customerVolumeExpanded ? 'Collapse' : 'Show all';
@@ -2061,16 +2147,26 @@
       }
     });
       renderMergeDebug(sourceScope);
+      const emptyReasons = [
+        ...(STATE.kpis?.reasons || []),
+        ...(!pressRankings.length ? ['Press ranking empty from scoped source tables.'] : []),
+        ...(!subsystemRankings.length ? ['Subsystem ranking empty from scoped source tables.'] : []),
+        ...(!alertRankings.length ? ['Alert ranking empty from filtered error events.'] : []),
+        ...(!versionRankings.length ? ['Version ranking empty from filtered error events.'] : []),
+        ...(!customerVolumeRows.length ? ['Volume chart empty from scoped volume rows.'] : []),
+      ];
       renderRuntimeDiagnostics(sourceScope, {
         pressInit: CHARTS.has('pressChart'),
         subsystemInit: CHARTS.has('subsystemChart'),
         alertInit: CHARTS.has('alertChart'),
         versionInit: CHARTS.has('versionChart'),
+        filteredMergedEventsCount: STATE.filtered.length,
         pressRows: pressRankings.length,
         subsystemRows: subsystemRankings.length,
         alertRows: alertRankings.length,
         versionRows: versionRankings.length,
         customerVolumeRows: customerVolumeRows.length,
+        emptyReasons,
       });
       renderTable(STATE.filtered);
     } catch (error) {
