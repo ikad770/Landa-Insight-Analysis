@@ -1019,16 +1019,89 @@
     return { events: mergedEvents, mergedRows, sourceTables: { errorsAgg, availabilityAgg, volumeAgg }, stats };
   }
 
-  function buildSourceScope(filteredEvents) {
+  function currentFilterValues() {
+    return {
+      customer: customerFilter.value,
+      site: siteFilter.value,
+      press: pressFilter.value,
+      subsystem: subsystemFilter.value,
+      version: versionFilter.value,
+      startDay: startDateFilter.value,
+      endDay: endDateFilter.value,
+      query: searchFilter.value.trim().toLowerCase(),
+    };
+  }
+
+  function rowPassesGlobalFilters(row, filterValues, options = {}) {
+    const text = options.searchText ? options.searchText(row).toLowerCase() : '';
+    const day = options.dayOf ? options.dayOf(row) : row.day;
+    const customer = options.customerOf ? options.customerOf(row) : row.customer;
+    const site = options.siteOf ? options.siteOf(row) : row.site;
+    const press = options.pressOf ? options.pressOf(row) : (row.canonicalPress || row.press);
+    const subsystem = options.subsystemOf ? options.subsystemOf(row) : row.subsystem;
+    const version = options.versionOf ? options.versionOf(row) : row.version;
+    return (filterValues.customer === 'all' || customer === filterValues.customer) &&
+      (filterValues.site === 'all' || site === filterValues.site) &&
+      (filterValues.press === 'all' || press === filterValues.press) &&
+      (filterValues.subsystem === 'all' || subsystem === filterValues.subsystem) &&
+      (filterValues.version === 'all' || version === filterValues.version) &&
+      (!filterValues.startDay || (day && day >= filterValues.startDay)) &&
+      (!filterValues.endDay || (day && day <= filterValues.endDay)) &&
+      (!filterValues.query || text.includes(filterValues.query));
+  }
+
+  function buildSourceScope(filterValues, filteredEvents, filteredErrorEventsRows) {
+    const errorsAgg = (STATE.merged.sourceTables?.errorsAgg || []).filter(r => rowPassesGlobalFilters(r, filterValues, {
+      searchText: row => `${row.canonicalPress} ${row.canonicalModel} ${row.customer || ''} ${row.site || ''}`,
+      pressOf: row => row.canonicalPress,
+      dayOf: row => row.day,
+      customerOf: row => row.customer || 'Unspecified',
+      siteOf: row => row.site || 'Unspecified',
+      subsystemOf: () => 'all',
+      versionOf: () => 'all',
+    }));
+
+    const availabilityAgg = (STATE.merged.sourceTables?.availabilityAgg || []).filter(r => rowPassesGlobalFilters(r, filterValues, {
+      searchText: row => `${row.canonicalPress} ${row.canonicalModel} ${row.subsystem} availability downtime`,
+      pressOf: row => row.canonicalPress,
+      dayOf: row => row.day,
+      customerOf: () => 'all',
+      siteOf: () => 'all',
+      subsystemOf: row => row.subsystem || 'Unspecified',
+      versionOf: () => 'all',
+    }));
+
+    const volumeAgg = (STATE.merged.sourceTables?.volumeAgg || []).filter(r => rowPassesGlobalFilters(r, filterValues, {
+      searchText: row => `${row.canonicalPress} ${row.canonicalModel} ${row.customer || ''} ${row.site || ''}`,
+      pressOf: row => row.canonicalPress,
+      dayOf: row => row.day,
+      customerOf: row => row.customer || 'Unspecified',
+      siteOf: row => row.site || 'Unspecified',
+      subsystemOf: () => 'all',
+      versionOf: () => 'all',
+    }));
+
+    // Keep merged rows for explorer context only; KPI/chart totals come from source tables above.
+    const mergedRows = filteredEvents;
     const keysPrimary = new Set(filteredEvents.map(r => r?.mergeContext?.key).filter(Boolean));
     const keysFallback = new Set(filteredEvents.map(r => r?.mergeContext?.fallbackKey).filter(Boolean));
-    const inScope = key => keysPrimary.has(key) || keysFallback.has(key);
-    const errorsAgg = (STATE.merged.sourceTables?.errorsAgg || []).filter(r => inScope(r.key));
-    const availabilityAgg = (STATE.merged.sourceTables?.availabilityAgg || []).filter(r => inScope(r.key));
-    const volumeAgg = (STATE.merged.sourceTables?.volumeAgg || []).filter(r => inScope(r.key));
-    const mergedRows = (STATE.merged.mergedRows || []).filter(r => inScope(r.key));
     const keys = new Set([...keysPrimary, ...keysFallback]);
-    return { keysPrimary, keysFallback, keys, errorsAgg, availabilityAgg, volumeAgg, mergedRows };
+    return {
+      filterValues,
+      keysPrimary,
+      keysFallback,
+      keys,
+      filteredMergedRows: mergedRows,
+      filteredErrorEvents: filteredErrorEventsRows,
+      filteredErrorsAgg: errorsAgg,
+      filteredAvailabilityAgg: availabilityAgg,
+      filteredVolumeAgg: volumeAgg,
+      // backward-compatible aliases to reduce accidental regressions.
+      errorsAgg,
+      availabilityAgg,
+      volumeAgg,
+      mergedRows
+    };
   }
 
   function totalDowntimeFromAvailabilityRow(row) {
@@ -1425,7 +1498,17 @@
         }
       }
     }
-    return [...baseMap.values()].sort((a, b) => (b[metric] || 0) - (a[metric] || 0));
+    return [...baseMap.values()]
+      .map(item => ({
+        ...item,
+        entityKey: item.name,
+        displayLabel: item.name,
+        sourceType: key === 'press'
+          ? (metric === 'downtime' ? 'availabilityAgg' : 'errorsAgg')
+          : 'errorEvents',
+        metric
+      }))
+      .sort((a, b) => (b[metric] || 0) - (a[metric] || 0));
   }
 
   function setRankingChartEmptyState(key, message = '') {
@@ -1439,6 +1522,12 @@
     const view = expanded ? sorted : sorted.slice(0, 8);
     const meta = metricMeta(metric);
     const labels = view.map(x => x.name);
+    const payloads = view.map(x => ({
+      entityKey: x.entityKey || x.name,
+      displayLabel: x.displayLabel || x.name,
+      sourceType: x.sourceType || 'errorsAgg',
+      metric
+    }));
     const data = view.map(x => metric === 'downtime' ? x.downtime / 3600 : x[metric]);
     if (!view.length || data.every(v => !Number.isFinite(v) || v === 0)) {
       console.warn('[ranking-chart-empty]', {
@@ -1462,10 +1551,10 @@
       type: 'bar',
       data: { labels, datasets: [{ data, backgroundColor: view.map((_, i) => COLORS[i % COLORS.length]), borderRadius: 6 }] },
       options: {
-        ...baseOptions(key, labels),
+        ...baseOptions(key, labels, payloads),
         scales: {
-          ...baseOptions(key, labels).scales,
-          y: { ...baseOptions(key, labels).scales.y, title: { display: true, text: meta.axisLabel, color: '#c6d3ea' } }
+          ...baseOptions(key, labels, payloads).scales,
+          y: { ...baseOptions(key, labels, payloads).scales.y, title: { display: true, text: meta.axisLabel, color: '#c6d3ea' } }
         },
         plugins: {
           legend: { display: false },
@@ -1505,49 +1594,29 @@
   }
 
   function filteredRows() {
-    const vals = {
-      customer: customerFilter.value,
-      site: siteFilter.value,
-      press: pressFilter.value,
-      subsystem: subsystemFilter.value,
-      version: versionFilter.value
-    };
-    const sd = startDateFilter.value;
-    const ed = endDateFilter.value;
-    const q = searchFilter.value.trim().toLowerCase();
-    return STATE.merged.events.filter(r =>
-      (vals.customer === 'all' || r.customer === vals.customer) &&
-      (vals.site === 'all' || r.site === vals.site) &&
-      (vals.press === 'all' || r.press === vals.press) &&
-      (vals.subsystem === 'all' || r.subsystem === vals.subsystem) &&
-      (vals.version === 'all' || r.version === vals.version) &&
-      (!sd || (r.day && r.day >= sd)) &&
-      (!ed || (r.day && r.day <= ed)) &&
-      (!q || `${r.name} ${r.alertTitle} ${r.press} ${r.subsystem} ${r.version} ${r.customer} ${r.site}`.toLowerCase().includes(q))
-    );
+    const vals = currentFilterValues();
+    return STATE.merged.events.filter(r => rowPassesGlobalFilters(r, vals, {
+      searchText: row => `${row.name} ${row.alertTitle} ${row.press} ${row.subsystem} ${row.version} ${row.customer} ${row.site}`,
+      pressOf: row => row.press,
+      dayOf: row => row.day,
+      customerOf: row => row.customer,
+      siteOf: row => row.site,
+      subsystemOf: row => row.subsystem,
+      versionOf: row => row.version,
+    }));
   }
 
   function filteredErrorEvents() {
-    const vals = {
-      customer: customerFilter.value,
-      site: siteFilter.value,
-      press: pressFilter.value,
-      subsystem: subsystemFilter.value,
-      version: versionFilter.value
-    };
-    const sd = startDateFilter.value;
-    const ed = endDateFilter.value;
-    const q = searchFilter.value.trim().toLowerCase();
-    return (STATE.normalized.events || []).filter(r =>
-      (vals.customer === 'all' || r.customer === vals.customer) &&
-      (vals.site === 'all' || r.site === vals.site) &&
-      (vals.press === 'all' || r.press === vals.press) &&
-      (vals.subsystem === 'all' || r.subsystem === vals.subsystem) &&
-      (vals.version === 'all' || r.version === vals.version) &&
-      (!sd || (r.day && r.day >= sd)) &&
-      (!ed || (r.day && r.day <= ed)) &&
-      (!q || `${r.name} ${r.alertTitle} ${r.press} ${r.subsystem} ${r.version} ${r.customer} ${r.site}`.toLowerCase().includes(q))
-    );
+    const vals = currentFilterValues();
+    return (STATE.normalized.events || []).filter(r => rowPassesGlobalFilters(r, vals, {
+      searchText: row => `${row.name} ${row.alertTitle} ${row.press} ${row.subsystem} ${row.version} ${row.customer} ${row.site}`,
+      pressOf: row => row.press,
+      dayOf: row => row.day,
+      customerOf: row => row.customer,
+      siteOf: row => row.site,
+      subsystemOf: row => row.subsystem,
+      versionOf: row => row.version,
+    }));
   }
 
   function buildCustomerVolumeChart(volumeAggRows, metric = 'printedSheets', sort = 'desc', expanded = false) {
@@ -1598,8 +1667,29 @@
           }
           return subset;
         })()
-      : STATE.filtered.filter(r => field === 'alert' ? (r.name !== 'Unspecified' ? r.name : r.alertTitle) === value : r[field] === value);
-    STATE.drilldown = { dimension, value: payload?.displayLabel || value, entityKey: payload?.entityKey || value, rows, search: '', sort: null };
+      : (() => {
+          const entityKey = payload?.entityKey || value;
+          const sourceType = payload?.sourceType || 'errorEvents';
+          if (dimension === 'press' && sourceType === 'availabilityAgg') {
+            return (STATE.lastSourceScope?.availabilityAgg || []).filter(r => (r.canonicalPress || 'Unspecified') === entityKey);
+          }
+          if (dimension === 'press' && sourceType === 'errorsAgg') {
+            return (STATE.lastSourceScope?.errorsAgg || []).filter(r => (r.canonicalPress || 'Unspecified') === entityKey);
+          }
+          return STATE.filteredErrors.filter(r => field === 'alert'
+            ? (r.name !== 'Unspecified' ? r.name : r.alertTitle) === entityKey
+            : r[field] === entityKey);
+        })();
+    STATE.drilldown = {
+      dimension,
+      value: payload?.displayLabel || value,
+      entityKey: payload?.entityKey || value,
+      sourceType: payload?.sourceType || 'errorEvents',
+      metric: payload?.metric || '',
+      rows,
+      search: '',
+      sort: null
+    };
     renderDrilldown();
     document.getElementById('drilldownDrawer').classList.add('show');
   }
@@ -1633,10 +1723,29 @@
   }
 
   function renderDrilldown() {
-    const { dimension, value, rows, search } = STATE.drilldown;
+    const { dimension, value, rows, search, sourceType } = STATE.drilldown;
     const isVolume = dimension === 'customerVolume';
     const isDowntimeCustomer = dimension === 'customerDowntime';
     const scoped = !search ? rows : rows.filter(r => `${r.customer} ${r.site} ${r.press} ${r.subsystem || ''} ${r.name || ''} ${r.alertTitle || ''} ${r.version || ''} ${r.jobType || ''} ${r.jobStatus || ''}`.toLowerCase().includes(search.toLowerCase()));
+    if (dimension === 'press' && sourceType === 'availabilityAgg') {
+      const total = scoped.reduce((a, r) => a + totalDowntimeFromAvailabilityRow(r), 0);
+      const planned = scoped.reduce((a, r) => a + (r.plannedDowntimeSeconds || 0), 0);
+      const unplanned = scoped.reduce((a, r) => a + (r.unplannedDowntimeSeconds || 0), 0);
+      document.getElementById('drilldownTitle').textContent = `Downtime Drilldown • Press = ${value}`;
+      document.getElementById('drilldownSummary').textContent = `Rows ${scoped.length.toLocaleString()} • Planned ${formatDuration(planned)} • Unplanned ${formatDuration(unplanned)} • Total ${formatDuration(total)}`;
+      document.getElementById('drilldownSummaryGrid').innerHTML = `
+        <div class="summary-stat span-4"><div class="label">Planned</div><div class="value">${formatDuration(planned)}</div></div>
+        <div class="summary-stat span-4"><div class="label">Unplanned</div><div class="value">${formatDuration(unplanned)}</div></div>
+        <div class="summary-stat span-4"><div class="label">Total</div><div class="value">${formatDuration(total)}</div></div>`;
+      document.getElementById('drilldownInsight').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Availability-only source</h4><span class="risk-pill risk-medium">Stable key drilldown</span></div><div class="micro">Rows come directly from scoped availabilityAgg using canonical press key.</div>`;
+      replaceChart('drilldownTopChart', { type: 'doughnut', data: { labels: ['Planned', 'Unplanned'], datasets: [{ data: [planned, unplanned], backgroundColor: ['#51c285', '#f36b63'] }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: '#c6d3ea' } } } } });
+      const subs = aggregate(scoped.map(r => ({ subsystem: r.subsystem, durationSeconds: totalDowntimeFromAvailabilityRow(r) })), r => r.subsystem).slice(0, 10);
+      replaceChart('drilldownTrendChart', { type: 'bar', data: { labels: subs.map(x => x.name), datasets: [{ data: subs.map(x => x.downtime), backgroundColor: COLORS, borderRadius: 6 }] }, options: baseOptions('drilldown', subs.map(x => x.name)) });
+      replaceChart('drilldownSecondaryChart', { type: 'line', data: { labels: scoped.map(r => r.day), datasets: [{ data: scoped.map(r => totalDowntimeFromAvailabilityRow(r)), borderColor: '#7b8dff', fill: false, tension: 0.2 }] }, options: baseOptions('drilldown', scoped.map(r => r.day)) });
+      replaceChart('drilldownOpsChart', { type: 'bar', data: { labels: ['Rows'], datasets: [{ data: [scoped.length], backgroundColor: ['#66bfff'], borderRadius: 6 }] }, options: baseOptions('drilldown', ['Rows']) });
+      document.getElementById('drilldownTable').innerHTML = `<thead><tr><th>day</th><th>subsystem</th><th>planned</th><th>unplanned</th><th>total</th></tr></thead><tbody>${scoped.slice(0, 1000).map(r => `<tr><td>${esc(r.day)}</td><td>${esc(r.subsystem)}</td><td>${esc(formatDuration(r.plannedDowntimeSeconds || 0))}</td><td>${esc(formatDuration(r.unplannedDowntimeSeconds || 0))}</td><td>${esc(formatDuration(totalDowntimeFromAvailabilityRow(r)))}</td></tr>`).join('')}</tbody>`;
+      return;
+    }
     if (isVolume) {
       const measure = STATE.customerVolumeMetric;
       const totalSheets = scoped.reduce((a, r) => a + (r.printedSheets || 0), 0);
@@ -1867,7 +1976,7 @@
       STATE.filtered = filteredRows();
       const errorEvents = filteredErrorEvents();
       STATE.filteredErrors = errorEvents;
-      const sourceScope = buildSourceScope(STATE.filtered);
+      const sourceScope = buildSourceScope(currentFilterValues(), STATE.filtered, errorEvents);
     console.info('[scope-debug]', {
       filteredEventsCount: STATE.filtered.length,
       primaryKeysCount: sourceScope.keysPrimary?.size || 0,
@@ -2205,7 +2314,7 @@
       setStatus('Load new files and run analysis.', 'info');
     });
 
-    exportBtn.addEventListener('click', () => exportRowsToCsv(STATE.filtered));
+    exportBtn.addEventListener('click', () => exportRowsToCsv(STATE.lastSourceScope?.filteredMergedRows || STATE.filtered));
     managerExportBtn.addEventListener('click', () => {
       const html = buildManagementExport(STATE.merged.summary, STATE.kpis, STATE.filteredErrors || [], STATE.lastSourceScope);
       const w = window.open('', '_blank');
