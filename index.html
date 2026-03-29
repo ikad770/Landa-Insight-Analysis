@@ -1484,6 +1484,8 @@
 
   function buildReconciliationReport(sourceScope, kpis, rankings, customerVolumeRows) {
     const { errorsAgg = [], availabilityAgg = [], volumeAgg = [] } = sourceScope || {};
+    const filteredMergedRows = sourceScope?.filteredMergedRows || [];
+    const filteredErrorEventsNative = sourceScope?.filteredErrorEventsNative || [];
     const sourceTotals = {
       events: errorsAgg.reduce((a, r) => a + (r.totalEvents || 0), 0),
       errorDuration: errorsAgg.reduce((a, r) => a + (r.totalErrorDurationSeconds || 0), 0),
@@ -1495,6 +1497,21 @@
     };
     const availabilityDefinitions = computeAvailabilityDefinitions(availabilityAgg);
     const availabilityPct = availabilityDefinitions.selected.value;
+    const rankingSources = {
+      press: (() => {
+        if (STATE.metricByChart.press === 'events') return sourceTotals.events;
+        if (STATE.metricByChart.press === 'downtime') return sourceTotals.downtime;
+        return rankings.press?.reduce((a, r) => a + (r.normalized || 0), 0) || 0;
+      })(),
+      subsystem: (() => {
+        if (STATE.metricByChart.subsystem === 'downtime') {
+          return (sourceScope?.filteredAvailabilityRowsNative || []).reduce((a, r) => a + totalDowntimeFromAvailabilityRow(r), 0);
+        }
+        return sourceTotals.events;
+      })(),
+      alert: sourceTotals.events,
+      version: sourceTotals.events,
+    };
     const report = [
       ['KPI • Total Events', 'Errors', kpis.totalEvents, sourceTotals.events, 'sum(errors.totalEvents)'],
       ['KPI • Total Downtime', 'Availability', kpis.totalDowntime, sourceTotals.downtime, 'sum(planned + unplanned)'],
@@ -1504,11 +1521,13 @@
       ['KPI • Production Volume', 'Volume', kpis.totalProdVolume, sourceTotals.prodSheets, 'sum(productionPrintedSheets)'],
       ['KPI • MTTR', 'Errors', kpis.mttr ?? null, sourceTotals.events ? sourceTotals.errorDuration / sourceTotals.events : null, 'sum(errorDuration) / events'],
       ['KPI • MTBF', 'Errors+Availability', kpis.mtbf ?? null, sourceTotals.events ? sourceTotals.runtime / sourceTotals.events : null, 'runtime / events'],
-      ['Chart • Top Presses', 'Errors/Availability/Volume by selected metric', rankings.press?.reduce((a, r) => a + (r[STATE.metricByChart.press] || 0), 0) || 0, rankings.press?.reduce((a, r) => a + (r[STATE.metricByChart.press] || 0), 0) || 0, `groupBy(press) on ${STATE.metricByChart.press}`],
-      ['Chart • Top Subsystems', 'Errors or Availability-by-subsystem for downtime', rankings.subsystem?.reduce((a, r) => a + (r[STATE.metricByChart.subsystem] || 0), 0) || 0, rankings.subsystem?.reduce((a, r) => a + (r[STATE.metricByChart.subsystem] || 0), 0) || 0, `groupBy(subsystem) on ${STATE.metricByChart.subsystem}`],
-      ['Chart • Top Alerts', 'Errors', rankings.alert?.reduce((a, r) => a + (r[STATE.metricByChart.alert] || 0), 0) || 0, rankings.alert?.reduce((a, r) => a + (r[STATE.metricByChart.alert] || 0), 0) || 0, `groupBy(alert) on ${STATE.metricByChart.alert}`],
-      ['Chart • Top Versions', 'Errors', rankings.version?.reduce((a, r) => a + (r[STATE.metricByChart.version] || 0), 0) || 0, rankings.version?.reduce((a, r) => a + (r[STATE.metricByChart.version] || 0), 0) || 0, `groupBy(version) on ${STATE.metricByChart.version}`],
+      ['Chart • Top Presses', 'Errors/Availability/Volume by selected metric', rankings.press?.reduce((a, r) => a + (r[STATE.metricByChart.press] || 0), 0) || 0, rankingSources.press, `groupBy(press) on ${STATE.metricByChart.press}`],
+      ['Chart • Top Subsystems', 'Errors or Availability-by-subsystem for downtime', rankings.subsystem?.reduce((a, r) => a + (r[STATE.metricByChart.subsystem] || 0), 0) || 0, rankingSources.subsystem, `groupBy(subsystem) on ${STATE.metricByChart.subsystem}`],
+      ['Chart • Top Alerts', 'Errors', rankings.alert?.reduce((a, r) => a + (r[STATE.metricByChart.alert] || 0), 0) || 0, rankingSources.alert, `groupBy(alert) on ${STATE.metricByChart.alert}`],
+      ['Chart • Top Versions', 'Errors', rankings.version?.reduce((a, r) => a + (r[STATE.metricByChart.version] || 0), 0) || 0, rankingSources.version, `groupBy(version) on ${STATE.metricByChart.version}`],
       ['Chart • Print Volume by Press', 'Volume', customerVolumeRows.reduce((a, r) => a + (r[STATE.customerVolumeMetric] || 0), 0), volumeAgg.reduce((a, r) => a + (STATE.customerVolumeMetric === 'printedFlats' ? (r.printedFlats || 0) : STATE.customerVolumeMetric === 'productionPrintedSheets' ? (r.productionPrintedSheets || 0) : (r.printedSheets || 0)), 0), `groupBy(press) sum(${STATE.customerVolumeMetric})`],
+      ['Table • Merged Event Explorer', 'Errors', filteredMergedRows.length, filteredErrorEventsNative.length, 'row_count(filtered errors events)'],
+      ['Export • Filtered CSV', 'Errors', filteredMergedRows.length, filteredErrorEventsNative.length, 'export uses filtered merged explorer scope'],
     ].map(([component, source, dashboardValue, sourceValue, formula]) => {
       const match = (dashboardValue == null && sourceValue == null) || Math.abs((dashboardValue || 0) - (sourceValue || 0)) < 1e-6;
       const delta = (dashboardValue == null || sourceValue == null) ? null : dashboardValue - sourceValue;
@@ -1746,7 +1765,7 @@
       ['Downtime / Volume', k.downtimePerVolume == null ? na : k.downtimePerVolume.toFixed(4), 'seconds per production unit'],
       ['Events / Volume', k.eventPerVolume == null ? na : k.eventPerVolume.toFixed(4), 'events per production unit'],
     ];
-    const helper = `<div class="micro">Volume basis: Raw Printed Sheets ${k.rawPrintedSheets.toLocaleString()} • Production-only Printed Sheets ${k.productionOnlyPrintedSheets.toLocaleString()} • KPI uses ${esc(k.volumeBasis)}.</div><div class="micro">Availability definition: ${esc(k.availabilityLabel || 'Source-defined availability')} (${esc(k.availabilityFormula || 'N/A')}).</div>${k.reasons.length ? `<div class="micro">KPI notes: ${esc(k.reasons.join(' '))}</div>` : ''}`;
+    const helper = `<div class="micro">Volume perspective: Total Printed Sheets ${k.rawPrintedSheets.toLocaleString()} • Production Printed Sheets ${k.productionOnlyPrintedSheets.toLocaleString()} • Primary KPI basis: ${esc(k.volumeBasis)}.</div><div class="micro">Availability method: ${esc(k.availabilityLabel || 'Source-defined availability')} (${esc(k.availabilityFormula || 'N/A')}).</div>${k.reasons.length ? `<div class="micro">KPI guidance: ${esc(k.reasons.join(' '))}</div>` : ''}`;
     document.getElementById('kpiStrip').innerHTML = cards.map(([a, b, c]) => `<article class="kpi"><div class="k">${a}</div><div class="v">${b}</div><div class="d">${c}</div></article>`).join('') + helper;
   }
 
@@ -1808,7 +1827,7 @@
             </table>
           </div>
         </div>`
-      : '';
+      : `<div style="margin-top:10px;" class="status-chip">✅ Full reconciliation achieved for KPI, charts, table, and export in current scope.</div>`;
     panel.innerHTML = `
       <div class="status-head">
         <span>${level === 'green' ? '🟢' : level === 'yellow' ? '🟡' : '🔴'} Data Validation Status</span>
@@ -2044,12 +2063,13 @@
     STATE.customerVolumeLookup = new Map();
     volumeAggRows.forEach(r => {
       const entityKey = r.canonicalPress || 'Unspecified';
-      const slot = byPress.get(entityKey) || { entityKey, displayLabel: entityKey, canonicalPress: entityKey, productionPrintedSheets: 0, printedSheets: 0, printedFlats: 0, customers: new Set(), models: new Set() };
+      const slot = byPress.get(entityKey) || { entityKey, displayLabel: entityKey, canonicalPress: entityKey, productionPrintedSheets: 0, printedSheets: 0, printedFlats: 0, customers: new Set(), models: new Set(), sourceRows: 0, isGroupedRemainder: false };
       slot.productionPrintedSheets += r.productionPrintedSheets || 0;
       slot.printedSheets += r.printedSheets || 0;
       slot.printedFlats += r.printedFlats || 0;
       if (r.customer) slot.customers.add(r.customer);
       if (r.canonicalModel) slot.models.add(r.canonicalModel);
+      slot.sourceRows += 1;
       byPress.set(entityKey, slot);
     });
     byPress.forEach((slot, entityKey) => {
@@ -2062,7 +2082,36 @@
       metric,
       parentContext: { path: [] }
     })).sort((a, b) => (a[metric] - b[metric]) * dir);
-    return expanded ? sorted : sorted.slice(0, 12);
+    if (expanded || sorted.length <= 12) return sorted;
+    const topRows = sorted.slice(0, 12);
+    const remainder = sorted.slice(12);
+    if (!remainder.length) return topRows;
+    const remainingBucket = remainder.reduce((acc, row) => {
+      acc.productionPrintedSheets += row.productionPrintedSheets || 0;
+      acc.printedSheets += row.printedSheets || 0;
+      acc.printedFlats += row.printedFlats || 0;
+      acc.sourceRows += row.sourceRows || 0;
+      (row.customers || []).forEach(c => acc.customers.add(c));
+      (row.models || []).forEach(m => acc.models.add(m));
+      acc.groupedPresses.push(row.entityKey);
+      return acc;
+    }, {
+      entityKey: '__other_volume_presses__',
+      displayLabel: `Other presses (${remainder.length})`,
+      canonicalPress: 'Other presses',
+      productionPrintedSheets: 0,
+      printedSheets: 0,
+      printedFlats: 0,
+      customers: new Set(),
+      models: new Set(),
+      sourceRows: 0,
+      sourceType: 'volumeJobs',
+      metric,
+      isGroupedRemainder: true,
+      groupedPresses: [],
+      parentContext: { path: [] }
+    });
+    return [...topRows, remainingBucket];
   }
 
   function eventValueForDimension(row, dimension) {
@@ -2099,7 +2148,12 @@
       parentPath.forEach(node => {
         rows = rows.filter(row => volumeValueForDimension(row, node.dimension) === node.entityKey);
       });
-      rows = rows.filter(r => volumeValueForDimension(r, dimension) === entityKey);
+      if (payload?.isGroupedRemainder && Array.isArray(payload?.groupedPresses)) {
+        const grouped = new Set(payload.groupedPresses);
+        if (dimension === 'customerVolume' || dimension === 'press') rows = rows.filter(r => grouped.has(volumeValueForDimension(r, dimension)));
+      } else {
+        rows = rows.filter(r => volumeValueForDimension(r, dimension) === entityKey);
+      }
     } else if (sourceType === 'availabilityNative' || sourceType === 'availabilityAgg') {
       rows = STATE.lastSourceScope?.filteredAvailabilityRowsNative || [];
       parentPath.forEach(node => {
@@ -2524,7 +2578,7 @@
       });
       if (!customerVolumeRows.length) setCanvasState('customerVolumeChart', 'No print volume rows after source-native scope (volume owns press/customer/site/day).');
       if (!customerVolumeRendered) setCanvasState('customerVolumeChart', 'Chart library failed to load. Charts cannot render.', 'error');
-    document.getElementById('customerVolumeNote').textContent = `${STATE.customerVolumeExpanded ? 'Full ranking' : 'Top 12'} by ${volumeMetricLabel(STATE.customerVolumeMetric)} (${STATE.customerVolumeSort === 'asc' ? 'lowest first' : 'highest first'}) from volumeAgg only. Grouped by full canonical press names.`;
+    document.getElementById('customerVolumeNote').textContent = `${STATE.customerVolumeExpanded ? 'Full press ranking' : 'Top 12 plus grouped remainder'} by ${volumeMetricLabel(STATE.customerVolumeMetric)} (${STATE.customerVolumeSort === 'asc' ? 'lowest first' : 'highest first'}) from source volume aggregates (canonical press grouping).`;
     document.getElementById('customerVolumeExpand').textContent = STATE.customerVolumeExpanded ? 'Collapse' : 'Show all';
     console.info('[consistency-debug] print-volume-chart-plot', {
       source: 'volumeAgg',
