@@ -20,6 +20,7 @@
     .eyebrow { color: var(--muted); text-transform: uppercase; letter-spacing: .14em; font-size: .78rem; }
     .subtitle { color: var(--muted); line-height: 1.45; margin: 8px 0 0; }
     .brand-title { margin:4px 0 0; font-size:1.65rem; font-weight:700; letter-spacing:.01em; }
+    .intake-title { margin:0; font-size:clamp(2rem,4.2vw,3rem); font-weight:760; letter-spacing:.01em; line-height:1.05; }
     .brand-plus { color: var(--info); text-shadow:0 0 18px rgba(123,141,255,.35); }
     .btn,.select,input { border:1px solid var(--border); border-radius:10px; background:var(--panel-soft); color:var(--text); padding:9px 12px; }
     .btn { cursor:pointer; font-weight:600; }
@@ -139,9 +140,9 @@
   <section id="intakeScreen" class="intake-shell">
     <article class="intake-card">
       <div class="intake-grid">
-        <div class="eyebrow">Landa InsightPro+</div>
-        <h1 style="margin:0; font-size:clamp(1.5rem,3vw,2rem);">Operational Intelligence Intake</h1>
-        <p class="subtitle">Upload errors (required), plus availability and print volume (recommended) to build a single merged operational model with explainable KPIs and events-first intelligence.</p>
+        <div class="eyebrow">Platform Intake</div>
+        <h1 class="intake-title">Landa InsightPro<span class="brand-plus">+</span></h1>
+        <p class="subtitle">Operational intelligence platform for press performance, downtime analysis, and production insights.</p>
         <div class="format-pills"><span>CSV</span><span>Excel (.xlsx/.xls)</span><span>JSON array</span><span>Local browser processing</span></div>
 
         <label id="dropZone" class="dropzone" for="bulkInput">
@@ -327,6 +328,8 @@
     drilldown: { dimension: '', value: '', entityKey: '', rows: [], search: '', sort: null, sourceType: '', metric: '', path: [], mode: 'chart', metricKey: '', simulation: { pendingExcluded: new Set(), appliedExcluded: new Set() }, filters: {} },
     baselineData: null,
     simulationData: null,
+    pendingSimulationChanges: new Set(),
+    appliedSimulationData: null,
     lastSourceScope: null,
     reconciliation: { logs: [], report: [] },
     availabilityDefinitions: null,
@@ -1781,6 +1784,38 @@
     </body></html>`;
   }
 
+  function buildExecutiveEmailText(summary, kpis, rows, sourceScope) {
+    const scopeLabel = document.getElementById('datasetMeta')?.textContent || 'Current dashboard filters';
+    const topAlerts = aggregateErrorEvents(rows, r => (r.name !== 'Unspecified' ? r.name : r.alertTitle)).slice(0, 5);
+    const topSubsystems = aggregateErrorEvents(rows, r => r.subsystem).sort((a, b) => b.events - a.events).slice(0, 5);
+    const watchItems = summary.actions || [];
+    return [
+      'Landa InsightPro+ — Executive Operations Brief',
+      `Scope: ${scopeLabel}`,
+      '',
+      'Executive Summary',
+      ...(summary.interpretation || []).map(i => `- ${i}`),
+      '',
+      'KPI Highlights',
+      `- Total Events: ${kpis.totalEvents.toLocaleString()}`,
+      `- Total Downtime: ${formatDuration(kpis.totalDowntime)}`,
+      `- Planned DT: ${formatDuration(kpis.totalPlanned)} | Unplanned DT: ${formatDuration(kpis.totalUnplanned)}`,
+      `- Availability: ${kpis.availabilityPct == null ? 'N/A' : `${kpis.availabilityPct.toFixed(1)}%`}`,
+      `- Production Volume: ${kpis.totalProdVolume.toLocaleString()}`,
+      '',
+      'Top Errors',
+      ...topAlerts.map(x => `- ${x.name}: ${x.events.toLocaleString()} events`),
+      '',
+      'Top Subsystems',
+      ...topSubsystems.map(x => `- ${x.name}: ${x.events.toLocaleString()} events`),
+      '',
+      'Watch Items',
+      ...watchItems.map(x => `- ${x}`),
+      '',
+      `Source rows (errors/availability/volume): ${(sourceScope?.errorsAgg || []).length}/${(sourceScope?.availabilityAgg || []).length}/${(sourceScope?.volumeAgg || []).length}`,
+    ].join('\n');
+  }
+
   function renderKpis(k) {
     const na = 'N/A';
     const cards = [
@@ -2251,6 +2286,8 @@
     };
     STATE.baselineData = baselineData;
     STATE.simulationData = null;
+    STATE.pendingSimulationChanges = new Set();
+    STATE.appliedSimulationData = null;
     renderDrilldown();
     document.getElementById('drilldownDrawer').classList.add('show');
   }
@@ -2263,14 +2300,19 @@
 
   function computeKpiComponents(metricKey, rows) {
     const components = new Map();
+    const rowValue = row => {
+      if (metricKey === 'totalEvents') return 1;
+      if (metricKey === 'mttr') return row.durationSeconds || 0;
+      return row.metricValue || 0;
+    };
     rows.forEach(r => {
       const press = r.component || r.press || 'Unspecified';
       if (!components.has(press)) components.set(press, { name: press, source: r.source || 'scoped-kpi-source', events: 0, durationSeconds: 0, productionVolume: 0, total: 0 });
       const item = components.get(press);
-      item.events += metricKey === 'totalEvents' ? 1 : 0;
+      item.events += 1;
       item.durationSeconds += r.durationSeconds || 0;
       item.productionVolume += r.productionPrintedSheets || 0;
-      item.total += r.metricValue || 0;
+      item.total += rowValue(r);
     });
     const arr = [...components.values()];
     const valueOf = c => (c.total || 0);
@@ -2437,11 +2479,14 @@
       const current = ensureSimulationState();
       current.appliedExcluded = new Set(current.pendingExcluded || []);
       STATE.simulationData = (STATE.baselineData || []).filter(r => !current.appliedExcluded.has(r.component || r.press || 'Unspecified'));
+      STATE.pendingSimulationChanges = new Set(current.pendingExcluded || []);
+      STATE.appliedSimulationData = [...STATE.simulationData];
       renderDrilldown();
     });
     document.getElementById('simClearBtn')?.addEventListener('click', () => {
       const current = ensureSimulationState();
       current.pendingExcluded = new Set(current.appliedExcluded || []);
+      STATE.pendingSimulationChanges = new Set(current.pendingExcluded || []);
       renderDrilldown();
     });
     document.getElementById('simResetBtn')?.addEventListener('click', () => {
@@ -2449,6 +2494,8 @@
       current.pendingExcluded = new Set();
       current.appliedExcluded = new Set();
       STATE.simulationData = null;
+      STATE.pendingSimulationChanges = new Set();
+      STATE.appliedSimulationData = null;
       renderDrilldown();
     });
   }
@@ -2514,18 +2561,23 @@
       const topPayloads = topLabels.map(name => ({ entityKey: name, displayLabel: name, sourceType: topSource, metric: topMetric, parentContext: { path: [] } }));
       replaceChart('drilldownTopChart', { type: 'bar', data: { labels: topLabels, datasets: simulationActive ? [{ label: 'Baseline', simRole: 'baseline', data: topBaselineVals, backgroundColor: 'rgba(151,167,194,.24)', borderColor: 'rgba(151,167,194,.48)', borderWidth: 1, borderRadius: 6 }, { label: 'Current', simRole: 'current', data: topCurrent, backgroundColor: topLabels.map((_, i) => COLORS[i % COLORS.length]), borderRadius: 6 }] : [{ simRole: 'current', data: topCurrent, backgroundColor: topLabels.map((_, i) => COLORS[i % COLORS.length]), borderRadius: 6 }] }, options: { ...baseOptions('press', topLabels, topPayloads), plugins: { legend: { display: simulationActive, labels: { color: '#c6d3ea' } }, tooltip: simulationActive ? { callbacks: { label: simulationTooltipLabel } } : { callbacks: { label: ctx => `${ctx.parsed.y.toLocaleString(undefined, { maximumFractionDigits: 3 })}` } } } } });
 
-      const byDayCurrent = new Map(); appliedRows.forEach(r => { if (!r.day) return; byDayCurrent.set(r.day, (byDayCurrent.get(r.day) || 0) + 1); });
-      const byDayBaseline = new Map(); baselineRows.forEach(r => { if (!r.day) return; byDayBaseline.set(r.day, (byDayBaseline.get(r.day) || 0) + 1); });
+      const rowMetricValue = (row) => {
+        if (metricKey === 'totalEvents') return 1;
+        if (metricKey === 'mttr') return row.durationSeconds || 0;
+        return row.metricValue || 0;
+      };
+      const byDayCurrent = new Map(); appliedRows.forEach(r => { if (!r.day) return; byDayCurrent.set(r.day, (byDayCurrent.get(r.day) || 0) + rowMetricValue(r)); });
+      const byDayBaseline = new Map(); baselineRows.forEach(r => { if (!r.day) return; byDayBaseline.set(r.day, (byDayBaseline.get(r.day) || 0) + rowMetricValue(r)); });
       const dayLabels = [...new Set([...byDayCurrent.keys(), ...byDayBaseline.keys()])].sort((a, b) => a.localeCompare(b));
       replaceChart('drilldownTrendChart', { type: 'line', data: { labels: dayLabels, datasets: simulationActive ? [{ label: 'Baseline', simRole: 'baseline', data: dayLabels.map(x => byDayBaseline.get(x) || 0), borderColor: 'rgba(151,167,194,.6)', borderDash: [5, 4], tension: .25, fill: false, pointRadius: 0 }, { label: 'Current', simRole: 'current', data: dayLabels.map(x => byDayCurrent.get(x) || 0), borderColor: '#7b8dff', tension: .25, fill: false }] : [{ label: 'Current', simRole: 'current', data: dayLabels.map(x => byDayCurrent.get(x) || 0), borderColor: '#7b8dff', tension: .25, fill: false }] }, options: { ...baseOptions('drilldown', dayLabels), plugins: { legend: { display: simulationActive, labels: { color: '#c6d3ea' } }, tooltip: simulationActive ? { callbacks: { label: simulationTooltipLabel } } : { callbacks: { label: ctx => `${ctx.parsed.y.toLocaleString()}` } } } } });
 
-      const subsystemMap = new Map(); appliedRows.forEach(r => subsystemMap.set(r.subsystem || 'Unspecified', (subsystemMap.get(r.subsystem || 'Unspecified') || 0) + 1));
-      const subsystemBaseMap = new Map(); baselineRows.forEach(r => subsystemBaseMap.set(r.subsystem || 'Unspecified', (subsystemBaseMap.get(r.subsystem || 'Unspecified') || 0) + 1));
+      const subsystemMap = new Map(); appliedRows.forEach(r => subsystemMap.set(r.subsystem || 'Unspecified', (subsystemMap.get(r.subsystem || 'Unspecified') || 0) + rowMetricValue(r)));
+      const subsystemBaseMap = new Map(); baselineRows.forEach(r => subsystemBaseMap.set(r.subsystem || 'Unspecified', (subsystemBaseMap.get(r.subsystem || 'Unspecified') || 0) + rowMetricValue(r)));
       const subs = [...subsystemBaseMap.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10);
       replaceChart('drilldownSecondaryChart', { type: 'bar', data: { labels: subs.map(x => x[0]), datasets: simulationActive ? [{ label: 'Baseline', simRole: 'baseline', data: subs.map(x => x[1]), backgroundColor: 'rgba(151,167,194,.24)', borderColor: 'rgba(151,167,194,.48)', borderWidth: 1, borderRadius: 6 }, { label: 'Current', simRole: 'current', data: subs.map(x => subsystemMap.get(x[0]) || 0), backgroundColor: COLORS, borderRadius: 6 }] : [{ simRole: 'current', data: subs.map(x => subsystemMap.get(x[0]) || 0), backgroundColor: COLORS, borderRadius: 6 }] }, options: { ...baseOptions('subsystem', subs.map(x => x[0]), subs.map(x => ({ entityKey: x[0], displayLabel: x[0], sourceType: 'errorEvents', metric: 'events', parentContext: { path: [] } }))), plugins: { legend: { display: simulationActive, labels: { color: '#c6d3ea' } }, tooltip: simulationActive ? { callbacks: { label: simulationTooltipLabel } } : { callbacks: { label: ctx => `${ctx.parsed.y.toLocaleString()}` } } } } });
 
-      const alertMap = new Map(); appliedRows.forEach(r => { const a = r.name !== 'Unspecified' ? r.name : r.alertTitle; alertMap.set(a, (alertMap.get(a) || 0) + 1); });
-      const alertBaseMap = new Map(); baselineRows.forEach(r => { const a = r.alert || (r.name !== 'Unspecified' ? r.name : r.alertTitle); alertBaseMap.set(a, (alertBaseMap.get(a) || 0) + 1); });
+      const alertMap = new Map(); appliedRows.forEach(r => { const a = r.name !== 'Unspecified' ? r.name : r.alertTitle; alertMap.set(a, (alertMap.get(a) || 0) + rowMetricValue(r)); });
+      const alertBaseMap = new Map(); baselineRows.forEach(r => { const a = r.alert || (r.name !== 'Unspecified' ? r.name : r.alertTitle); alertBaseMap.set(a, (alertBaseMap.get(a) || 0) + rowMetricValue(r)); });
       const alerts = [...alertBaseMap.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);
       replaceChart('drilldownOpsChart', { type: 'bar', data: { labels: alerts.map(x => x[0]), datasets: simulationActive ? [{ label: 'Baseline', simRole: 'baseline', data: alerts.map(x => x[1]), backgroundColor: 'rgba(151,167,194,.24)', borderColor: 'rgba(151,167,194,.48)', borderWidth: 1, borderRadius: 6 }, { label: 'Current', simRole: 'current', data: alerts.map(x => alertMap.get(x[0]) || 0), backgroundColor: COLORS, borderRadius: 6 }] : [{ simRole: 'current', data: alerts.map(x => alertMap.get(x[0]) || 0), backgroundColor: COLORS, borderRadius: 6 }] }, options: { ...baseOptions('alert', alerts.map(x => x[0]), alerts.map(x => ({ entityKey: x[0], displayLabel: x[0], sourceType: 'errorEvents', metric: 'events', parentContext: { path: [] } }))), plugins: { legend: { display: simulationActive, labels: { color: '#c6d3ea' } }, tooltip: simulationActive ? { callbacks: { label: simulationTooltipLabel } } : { callbacks: { label: ctx => `${ctx.parsed.y.toLocaleString()}` } } } } });
       document.getElementById('drilldownInsight').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Explanation & calculation logic</h4><span class="risk-pill risk-medium">Metric-specific narrative</span></div><div class="micro">${esc(profile.formula)} Contributions are aggregated by press and can be recursively explored through subsystem, alert, version, and trend views.</div>`;
@@ -3275,15 +3327,7 @@
     const summaryPreview = document.getElementById('summaryPreview');
     const buildTextSummary = () => {
       if (!STATE.merged.summary || !STATE.kpis) return;
-      return [
-        'Landa InsightPro+ — Executive Operations Brief',
-        `Scope: ${document.getElementById('datasetMeta')?.textContent || 'Current dashboard filters'}`,
-        `Executive Summary: ${STATE.merged.summary.interpretation?.join(' ') || 'N/A'}`,
-        `Total Events: ${STATE.kpis.totalEvents.toLocaleString()} | Total Downtime: ${formatDuration(STATE.kpis.totalDowntime)} | Availability: ${STATE.kpis.availabilityPct == null ? 'N/A' : `${STATE.kpis.availabilityPct.toFixed(1)}%`}`,
-        `Top Presses by Error Events: ${(STATE.merged.summary.topPressByEvents?.name || 'N/A')}`,
-        `Top Errors: ${(STATE.merged.summary.topAlert?.name || 'N/A')}`,
-        `Risks: ${STATE.merged.summary.actions?.join(' ') || 'N/A'}`
-      ].join('\n');
+      return buildExecutiveEmailText(STATE.merged.summary, STATE.kpis, STATE.filteredErrors || [], STATE.lastSourceScope);
     };
     summaryBtnEl.addEventListener('click', () => {
       summaryModal.classList.add('show');
@@ -3312,10 +3356,11 @@
       URL.revokeObjectURL(url);
     });
     summaryPreviewBtnEl.addEventListener('click', () => {
+      if (!STATE.merged.summary || !STATE.kpis) return;
       const textSummary = buildTextSummary();
-      if (!textSummary) return;
+      const html = buildExecutiveEmailExport(STATE.merged.summary, STATE.kpis, STATE.filteredErrors || [], STATE.lastSourceScope);
       summaryPreview.classList.remove('hidden');
-      summaryPreview.textContent = textSummary;
+      summaryPreview.innerHTML = `<div style="font-weight:650;margin-bottom:8px;">Email Copy Preview</div><pre style="margin:0;white-space:pre-wrap;font:inherit;">${esc(textSummary || '')}</pre><div style="height:12px"></div><div style="font-weight:650;margin-bottom:8px;">Email HTML Preview</div><iframe title="Email preview" style="width:100%;height:280px;border:1px solid rgba(255,255,255,.15);border-radius:8px;background:#fff;" srcdoc="${esc(html)}"></iframe>`;
     });
 
     document.querySelectorAll('[data-expand]').forEach(btn => btn.addEventListener('click', () => {
