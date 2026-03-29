@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Press Insight Intelligence Platform</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <script src="assets/vendor/chart-fallback.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
   <style>
     :root {
@@ -69,6 +70,11 @@
     .chart-area{position:relative;height:300px;min-height:300px}
     .chart-empty-state { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; text-align:center; color:var(--muted); font-size:.86rem; padding:14px; background:rgba(12,17,25,.35); border:1px dashed rgba(255,255,255,.14); border-radius:10px; pointer-events:none; }
     .micro { color:var(--muted); font-size:.82rem; margin:6px 0 8px; }
+    .diag { margin-top:8px; border:1px solid var(--border); border-radius:10px; padding:8px 10px; background:rgba(255,255,255,.02); font-size:.8rem; color:#dce6f8; display:grid; gap:3px; }
+    .diag strong { color:#f1f6ff; }
+    .diag .bad { color:#ffd2cf; }
+    .diag .warn { color:#ffe5c7; }
+    .diag .ok { color:#d8ffea; }
     .risk-pill { padding:2px 10px; border-radius:999px; font-size:.76rem; border:1px solid; }
     .risk-critical{color:#ffd7d4;background:rgba(243,107,99,.2);border-color:rgba(243,107,99,.65)}
     .risk-high{color:#ffe1c2;background:rgba(240,177,101,.2);border-color:rgba(240,177,101,.65)}
@@ -141,6 +147,7 @@
         <h2 style="margin:4px 0 0;">Press Insight Intelligence Platform</h2>
         <p id="datasetMeta" class="subtitle">Dataset not loaded</p>
         <div id="mergeDebug" class="micro" style="margin-top:6px;"></div>
+        <div id="runtimeDiagnostics" class="diag" aria-live="polite"></div>
       </div>
       <div class="controls">
         <button id="replaceBtn" class="btn">Load new dataset</button>
@@ -321,6 +328,8 @@
     return Number.isFinite(n) ? n : NaN;
   };
   const shortYield = () => new Promise(resolve => (window.requestIdleCallback ? requestIdleCallback(() => resolve(), { timeout: 30 }) : setTimeout(resolve, 0)));
+  const hasChartLibrary = () => typeof window.Chart === 'function';
+  const hasSpreadsheetLibrary = () => !!window.XLSX;
 
   const getField = (row, aliases) => {
     const entries = Object.entries(row || {});
@@ -435,6 +444,10 @@
   }
 
   async function parseExcel(file) {
+    if (!hasSpreadsheetLibrary()) {
+      console.error('[library-missing] Spreadsheet parser failed to load. XLSX is unavailable.');
+      throw new Error('Spreadsheet parser failed to load. XLSX is unavailable; use CSV/JSON or reload.');
+    }
     const wb = XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: true, raw: true });
     const sheet = wb.Sheets[wb.SheetNames[0]];
     return XLSX.utils.sheet_to_json(sheet, { defval: '', raw: true, blankrows: false });
@@ -1307,9 +1320,44 @@
       <div class="micro">Risk-based prioritization is disabled (pending formal risk model definition). Dashboard is operating in events-first mode.</div>`;
   }
 
+  function setCanvasState(canvasId, message = '', kind = 'empty') {
+    const canvas = document.getElementById(canvasId);
+    const area = canvas?.closest('.chart-area');
+    if (!area) return;
+    let node = area.querySelector('.chart-empty-state');
+    if (!message) {
+      if (node) node.remove();
+      return;
+    }
+    if (!node) {
+      node = document.createElement('div');
+      node.className = 'chart-empty-state';
+      area.appendChild(node);
+    }
+    node.textContent = message;
+    node.style.borderStyle = kind === 'error' ? 'solid' : 'dashed';
+    node.style.color = kind === 'error' ? '#ffd2cf' : '';
+  }
+
   function replaceChart(id, config) {
-    if (CHARTS.has(id)) CHARTS.get(id).destroy();
-    CHARTS.set(id, new Chart(document.getElementById(id).getContext('2d'), config));
+    try {
+      if (!hasChartLibrary()) {
+        const msg = 'Chart library failed to load. Charts cannot render.';
+        console.error('[chart-render-error]', { chartId: id, reason: msg });
+        setCanvasState(id, msg, 'error');
+        return false;
+      }
+      const canvas = document.getElementById(id);
+      if (!canvas) throw new Error(`Canvas not found: ${id}`);
+      if (CHARTS.has(id)) CHARTS.get(id).destroy();
+      CHARTS.set(id, new Chart(canvas.getContext('2d'), config));
+      setCanvasState(id, '');
+      return true;
+    } catch (error) {
+      console.error('[chart-render-error]', { chartId: id, error });
+      setCanvasState(id, `Failed to render chart (${id}).`, 'error');
+      return false;
+    }
   }
 
   function baseOptions(key, labels, payloads = null) {
@@ -1381,19 +1429,7 @@
   }
 
   function setRankingChartEmptyState(key, message = '') {
-    const area = document.querySelector(`[data-rank-card="${key}"] .chart-area`);
-    if (!area) return;
-    let node = area.querySelector('.chart-empty-state');
-    if (!message) {
-      if (node) node.remove();
-      return;
-    }
-    if (!node) {
-      node = document.createElement('div');
-      node.className = 'chart-empty-state';
-      area.appendChild(node);
-    }
-    node.textContent = message;
+    setCanvasState(`${key}Chart`, message, message && message.toLowerCase().includes('failed') ? 'error' : 'empty');
   }
 
   function renderRankingChart(key, items) {
@@ -1422,7 +1458,7 @@
       rowsReceived: items.length,
       first5Labels: labels.slice(0, 5),
     });
-    replaceChart(`${key}Chart`, {
+    const rendered = replaceChart(`${key}Chart`, {
       type: 'bar',
       data: { labels, datasets: [{ data, backgroundColor: view.map((_, i) => COLORS[i % COLORS.length]), borderRadius: 6 }] },
       options: {
@@ -1437,6 +1473,7 @@
         }
       }
     });
+    if (!rendered && !view.length) setRankingChartEmptyState(key, 'No ranking data available for current filters/metric.');
     document.querySelector(`[data-rank-card="${key}"] .micro`).textContent = `${expanded ? 'Full ranking' : 'Top 8'} by ${metric}. Source: ${meta.source}. ${meta.subtitle}`;
     document.querySelector(`[data-expand="${key}"]`).textContent = expanded ? 'Collapse' : 'Show all';
     if ((key === 'press' || key === 'subsystem') && metric === 'events') {
@@ -1788,11 +1825,49 @@
     console.info('[merge-debug]', { ...stats, sourceScopeTotals: sourceTotals, sourceRows: { errorsAgg: errorsAgg.length, availabilityAgg: availabilityAgg.length, volumeAgg: volumeAgg.length } });
   }
 
+  function renderRuntimeDiagnostics(sourceScope, chartStatus = {}) {
+    const host = document.getElementById('runtimeDiagnostics');
+    if (!host) return;
+    const chartLoaded = hasChartLibrary();
+    const xlsxLoaded = hasSpreadsheetLibrary();
+    const chartRows = {
+      press: chartStatus.pressRows ?? 0,
+      subsystem: chartStatus.subsystemRows ?? 0,
+      alert: chartStatus.alertRows ?? 0,
+      version: chartStatus.versionRows ?? 0,
+      customerVolume: chartStatus.customerVolumeRows ?? 0,
+    };
+    const metrics = STATE.metricByChart || {};
+    const mainChartsInitialized = ['press', 'subsystem', 'alert', 'version'].every(key => chartStatus[`${key}Init`] !== false);
+    host.innerHTML = `
+      <div><strong>Init diagnostics</strong></div>
+      <div>Chart loaded: <span class="${chartLoaded ? 'ok' : 'bad'}">${chartLoaded ? 'yes' : 'no'}</span>${window.__chartFallbackActive ? ' <span class="warn">(local fallback active)</span>' : ''}</div>
+      <div>XLSX loaded: <span class="${xlsxLoaded ? 'ok' : 'bad'}">${xlsxLoaded ? 'yes' : 'no'}</span></div>
+      <div>Main charts initialized: <span class="${mainChartsInitialized ? 'ok' : 'bad'}">${mainChartsInitialized ? 'yes' : 'no'}</span></div>
+      <div>Rows per chart — press:${chartRows.press} subsystem:${chartRows.subsystem} alert:${chartRows.alert} version:${chartRows.version} volume:${chartRows.customerVolume}</div>
+      <div>Metric mode — press:${metrics.press} subsystem:${metrics.subsystem} alert:${metrics.alert} version:${metrics.version}</div>
+      <div>Scoped rows — merged:${sourceScope?.mergedRows?.length || 0} errorsAgg:${sourceScope?.errorsAgg?.length || 0} availabilityAgg:${sourceScope?.availabilityAgg?.length || 0} volumeAgg:${sourceScope?.volumeAgg?.length || 0}</div>`;
+    console.info('[runtime-diagnostics]', {
+      chartLoaded,
+      xlsxLoaded,
+      mainChartsInitialized,
+      rowsPerChart: chartRows,
+      metricMode: metrics,
+      scopedRows: {
+        merged: sourceScope?.mergedRows?.length || 0,
+        errorsAgg: sourceScope?.errorsAgg?.length || 0,
+        availabilityAgg: sourceScope?.availabilityAgg?.length || 0,
+        volumeAgg: sourceScope?.volumeAgg?.length || 0,
+      }
+    });
+  }
+
   function renderDashboard() {
-    STATE.filtered = filteredRows();
-    const errorEvents = filteredErrorEvents();
-    STATE.filteredErrors = errorEvents;
-    const sourceScope = buildSourceScope(STATE.filtered);
+    try {
+      STATE.filtered = filteredRows();
+      const errorEvents = filteredErrorEvents();
+      STATE.filteredErrors = errorEvents;
+      const sourceScope = buildSourceScope(STATE.filtered);
     console.info('[scope-debug]', {
       filteredEventsCount: STATE.filtered.length,
       primaryKeysCount: sourceScope.keysPrimary?.size || 0,
@@ -1812,15 +1887,15 @@
     const subsystemRankings = buildMetricRankings(sourceScope, STATE.filtered, 'subsystem', errorEvents);
     const alertRankings = buildMetricRankings(sourceScope, STATE.filtered, 'alert', errorEvents);
     const versionRankings = buildMetricRankings(sourceScope, STATE.filtered, 'version', errorEvents);
-    renderRankingChart('press', pressRankings);
-    renderRankingChart('subsystem', subsystemRankings);
-    renderRankingChart('alert', alertRankings);
-    renderRankingChart('version', versionRankings);
+      renderRankingChart('press', pressRankings);
+      renderRankingChart('subsystem', subsystemRankings);
+      renderRankingChart('alert', alertRankings);
+      renderRankingChart('version', versionRankings);
     const customerVolumeRows = buildCustomerVolumeChart(sourceScope.volumeAgg, STATE.customerVolumeMetric, STATE.customerVolumeSort, STATE.customerVolumeExpanded);
     STATE.customerVolumeRows = customerVolumeRows;
     const labels = customerVolumeRows.map(r => r.displayLabel);
     const values = customerVolumeRows.map(r => r[STATE.customerVolumeMetric]);
-    replaceChart('customerVolumeChart', {
+      const customerVolumeRendered = replaceChart('customerVolumeChart', {
       type: 'bar',
       data: { labels, datasets: [{ data: values, backgroundColor: labels.map((_, i) => COLORS[i % COLORS.length]), borderRadius: 6 }] },
       options: {
@@ -1830,7 +1905,9 @@
           tooltip: { callbacks: { label: ctx => `${ctx.parsed.y.toLocaleString()} ${volumeMetricLabel(STATE.customerVolumeMetric)}` } }
         }
       }
-    });
+      });
+      if (!customerVolumeRows.length) setCanvasState('customerVolumeChart', 'No print volume data available for current filters.');
+      if (!customerVolumeRendered) setCanvasState('customerVolumeChart', 'Chart library failed to load. Charts cannot render.', 'error');
     document.getElementById('customerVolumeNote').textContent = `${STATE.customerVolumeExpanded ? 'Full ranking' : 'Top 12'} by ${volumeMetricLabel(STATE.customerVolumeMetric)} (${STATE.customerVolumeSort === 'asc' ? 'lowest first' : 'highest first'}) from volumeAgg only. Grouped by full canonical press names.`;
     document.getElementById('customerVolumeExpand').textContent = STATE.customerVolumeExpanded ? 'Collapse' : 'Show all';
     console.info('[consistency-debug] print-volume-chart-plot', {
@@ -1874,8 +1951,24 @@
         alertChartTop: (alertRankings[0]?.name || 'N/A')
       }
     });
-    renderMergeDebug(sourceScope);
-    renderTable(STATE.filtered);
+      renderMergeDebug(sourceScope);
+      renderRuntimeDiagnostics(sourceScope, {
+        pressInit: CHARTS.has('pressChart'),
+        subsystemInit: CHARTS.has('subsystemChart'),
+        alertInit: CHARTS.has('alertChart'),
+        versionInit: CHARTS.has('versionChart'),
+        pressRows: pressRankings.length,
+        subsystemRows: subsystemRankings.length,
+        alertRows: alertRankings.length,
+        versionRows: versionRankings.length,
+        customerVolumeRows: customerVolumeRows.length,
+      });
+      renderTable(STATE.filtered);
+    } catch (error) {
+      console.error('[dashboard-render-failure]', error);
+      setStatus(`Dashboard render failure: ${error.message || error}`, 'error');
+      ['pressChart', 'subsystemChart', 'alertChart', 'versionChart', 'customerVolumeChart'].forEach(id => setCanvasState(id, `Failed to render ${id}.`, 'error'));
+    }
   }
 
   function exportRowsToCsv(rows) {
@@ -2073,6 +2166,17 @@
   function bind() {
     ['errors', 'availability', 'volume'].forEach(setFileUI);
     setStatus('Assign datasets and run analysis. Errors dataset is required.', 'info');
+    if (!hasSpreadsheetLibrary()) {
+      setStatus('Spreadsheet parser failed to load. Excel files are unavailable; use CSV/JSON or reload.', 'error');
+    }
+    if (!hasChartLibrary()) {
+      console.error('[library-missing] Chart library failed to load. Charts may use local fallback renderer.');
+    }
+    document.querySelectorAll('[data-metric]').forEach(sel => {
+      const key = sel.dataset.metric;
+      if (STATE.metricByChart[key]) sel.value = STATE.metricByChart[key];
+    });
+    renderRuntimeDiagnostics(null, { pressInit: false, subsystemInit: false, alertInit: false, versionInit: false });
 
     document.querySelectorAll('[data-pick]').forEach(btn => btn.addEventListener('click', () => document.getElementById(`${btn.dataset.pick}Picker`).click()));
     errorsPicker.addEventListener('change', async e => { STATE.files.errors = e.target.files?.[0] || null; await validateSingleFile('errors'); });
