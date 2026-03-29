@@ -70,11 +70,13 @@
     .chart-area{position:relative;height:300px;min-height:300px}
     .chart-empty-state { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; text-align:center; color:var(--muted); font-size:.86rem; padding:14px; background:rgba(12,17,25,.35); border:1px dashed rgba(255,255,255,.14); border-radius:10px; pointer-events:none; }
     .micro { color:var(--muted); font-size:.82rem; margin:6px 0 8px; }
-    .diag { margin-top:8px; border:1px solid var(--border); border-radius:10px; padding:8px 10px; background:rgba(255,255,255,.02); font-size:.8rem; color:#dce6f8; display:grid; gap:3px; }
-    .diag strong { color:#f1f6ff; }
-    .diag .bad { color:#ffd2cf; }
-    .diag .warn { color:#ffe5c7; }
-    .diag .ok { color:#d8ffea; }
+    .data-health { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; margin-bottom:12px; }
+    .health-card { border:1px solid var(--border); border-radius:12px; padding:10px; background:rgba(255,255,255,.02); }
+    .health-head { display:flex; align-items:center; justify-content:space-between; gap:8px; font-weight:600; }
+    .health-note { margin-top:6px; color:var(--muted); font-size:.82rem; line-height:1.35; min-height:2.2em; }
+    .health-green { color:#d8ffea; }
+    .health-yellow { color:#ffe5c7; }
+    .health-red { color:#ffd2cf; }
     .risk-pill { padding:2px 10px; border-radius:999px; font-size:.76rem; border:1px solid; }
     .risk-critical{color:#ffd7d4;background:rgba(243,107,99,.2);border-color:rgba(243,107,99,.65)}
     .risk-high{color:#ffe1c2;background:rgba(240,177,101,.2);border-color:rgba(240,177,101,.65)}
@@ -146,8 +148,6 @@
         <div class="eyebrow">Operational Dashboard</div>
         <h2 style="margin:4px 0 0;">Press Insight Intelligence Platform</h2>
         <p id="datasetMeta" class="subtitle">Dataset not loaded</p>
-        <div id="mergeDebug" class="micro hidden" style="margin-top:6px;"></div>
-        <div id="runtimeDiagnostics" class="diag hidden" aria-live="polite"></div>
       </div>
       <div class="controls">
         <button id="replaceBtn" class="btn">Load new dataset</button>
@@ -157,6 +157,7 @@
     </header>
 
     <section id="kpiStrip" class="kpis"></section>
+    <section id="dataHealthPanel" class="data-health"></section>
 
     <section id="executiveSummaryCard" class="card" style="margin-bottom:12px;"></section>
 
@@ -214,6 +215,7 @@
       <h3 id="drilldownTitle">Drilldown</h3>
       <div class="chart-tools"><input id="drilldownSearch" placeholder="Search drilldown rows" /><button id="drilldownExport" class="btn secondary">Export subset</button><button id="closeDrilldown" class="btn">Close</button></div>
     </div>
+    <div id="drilldownBreadcrumbs" class="micro"></div>
     <div id="drilldownSummary" class="micro"></div>
     <div id="drilldownSummaryGrid" class="summary-grid" style="margin-bottom:10px;"></div>
     <div id="drilldownInsight" class="card" style="margin-bottom:10px;"></div>
@@ -248,7 +250,7 @@
     customerVolumeExpanded: false,
     customerVolumeLookup: new Map(),
     customerVolumeRows: [],
-    drilldown: { dimension: '', value: '', entityKey: '', rows: [], search: '', sort: null },
+    drilldown: { dimension: '', value: '', entityKey: '', rows: [], search: '', sort: null, sourceType: '', metric: '', path: [] },
     lastSourceScope: null,
     renderQueued: false,
   };
@@ -340,6 +342,10 @@
     }
     return '';
   };
+  const hasAnyField = (row, aliases) => aliases.some(alias => {
+    const v = getField(row, [alias]);
+    return String(v ?? '').trim() !== '';
+  });
 
   const parseUsDateTime = value => {
     if (value == null || value === '') return null;
@@ -471,6 +477,25 @@
   const parseErrorsFile = file => loadRowsFromFile(file);
   const parseAvailabilityFile = file => loadRowsFromFile(file);
   const parsePrintVolumeFile = file => loadRowsFromFile(file);
+
+  function detectDatasetType(rows = []) {
+    const sample = rows.slice(0, 60);
+    if (!sample.length) return 'unknown';
+    const score = { errors: 0, availability: 0, volume: 0 };
+    sample.forEach(row => {
+      if (hasAnyField(row, ['Start Time', 'Start', 'Event Time', 'Timestamp']) && hasAnyField(row, ['Name', 'Alert Name', 'Alert Title'])) score.errors += 3;
+      if (hasAnyField(row, ['Subsystem', 'Module'])) score.errors += 1;
+      if (hasAnyField(row, ['Duration', 'Duration (sec)', 'DurationSeconds'])) score.errors += 1;
+
+      if (hasAnyField(row, ['Print']) || hasAnyField(row, ['Available Without Print'])) score.availability += 3;
+      if (hasAnyField(row, ['Preventive Maintenance']) || hasAnyField(row, ['On Job Maintenance']) || hasAnyField(row, ['Recovery']) || hasAnyField(row, ['Jams'])) score.availability += 3;
+      if (hasAnyField(row, ['Availability'])) score.availability += 1;
+
+      if (hasAnyField(row, ['Print Start']) || hasAnyField(row, ['Printed Sheets']) || hasAnyField(row, ['Printed Flats'])) score.volume += 3;
+      if (hasAnyField(row, ['Job Type', 'Job Status', 'Press Mode'])) score.volume += 1;
+    });
+    return Object.entries(score).sort((a, b) => b[1] - a[1])[0][1] > 0 ? Object.entries(score).sort((a, b) => b[1] - a[1])[0][0] : 'unknown';
+  }
 
   function canonicalizePressName(value) {
     const raw = String(value ?? '').trim();
@@ -1487,6 +1512,46 @@
       <div class="micro">Risk-based prioritization is disabled (pending formal risk model definition). Dashboard is operating in events-first mode.</div>`;
   }
 
+  function renderDataHealthPanel(sourceScope) {
+    const panel = document.getElementById('dataHealthPanel');
+    if (!panel) return;
+    const totals = {
+      errors: sourceScope?.filteredErrorEventsNative?.length || 0,
+      availability: sourceScope?.filteredAvailabilityRowsNative?.length || 0,
+      volume: sourceScope?.filteredVolumeRowsNative?.length || 0,
+    };
+    const checks = [
+      {
+        key: 'errors',
+        label: 'Errors',
+        status: totals.errors > 0 ? 'green' : 'red',
+        text: totals.errors > 0 ? `${totals.errors.toLocaleString()} events mapped and validated.` : 'No error events in current filter scope.',
+      },
+      {
+        key: 'availability',
+        label: 'Availability',
+        status: totals.availability > 0 ? 'green' : (STATE.normalized.availability?.length ? 'yellow' : 'red'),
+        text: totals.availability > 0
+          ? `${totals.availability.toLocaleString()} rows mapped (planned/unplanned split active).`
+          : (STATE.normalized.availability?.length ? 'Dataset loaded but filtered scope has no rows.' : 'Dataset unavailable; downtime KPIs cannot be source-complete.'),
+      },
+      {
+        key: 'volume',
+        label: 'Print Volume',
+        status: totals.volume > 0 ? 'green' : (STATE.normalized.volume?.length ? 'yellow' : 'red'),
+        text: totals.volume > 0
+          ? `${totals.volume.toLocaleString()} rows mapped for production volume metrics.`
+          : (STATE.normalized.volume?.length ? 'Dataset loaded but filtered scope has no rows.' : 'Dataset unavailable; normalized volume metrics are limited.'),
+      }
+    ];
+    const icon = { green: '🟢', yellow: '🟡', red: '🔴' };
+    panel.innerHTML = checks.map(c => `
+      <article class="health-card">
+        <div class="health-head"><span>${icon[c.status]} ${esc(c.label)}</span><span class="health-${c.status}">${c.status.toUpperCase()}</span></div>
+        <div class="health-note">${esc(c.text)}</div>
+      </article>`).join('');
+  }
+
   function setCanvasState(canvasId, message = '', kind = 'empty') {
     const canvas = document.getElementById(canvasId);
     const area = canvas?.closest('.chart-area');
@@ -1619,7 +1684,8 @@
       entityKey: x.entityKey || x.name,
       displayLabel: x.displayLabel || x.name,
       sourceType: x.sourceType || 'errorsAgg',
-      metric
+      metric,
+      parentContext: { path: [] }
     }));
     const data = view.map(x => metric === 'downtime' ? x.downtime / 3600 : x[metric]);
     if (!view.length || data.every(v => !Number.isFinite(v) || v === 0)) {
@@ -1718,7 +1784,12 @@
       STATE.customerVolumeLookup.set(entityKey, { canonicalPress: slot.canonicalPress, customers: [...slot.customers], models: [...slot.models] });
     });
     const dir = sort === 'asc' ? 1 : -1;
-    const sorted = [...byPress.values()].sort((a, b) => (a[metric] - b[metric]) * dir);
+    const sorted = [...byPress.values()].map(row => ({
+      ...row,
+      sourceType: 'volumeJobs',
+      metric,
+      parentContext: { path: [] }
+    })).sort((a, b) => (a[metric] - b[metric]) * dir);
     return expanded ? sorted : sorted.slice(0, 12);
   }
 
@@ -1762,12 +1833,16 @@
             ? (r.name !== 'Unspecified' ? r.name : r.alertTitle) === entityKey
             : r[field] === entityKey);
         })();
+    const prevPath = Array.isArray(payload?.parentContext?.path) ? payload.parentContext.path : [];
+    const nextPath = [...prevPath, { dimension, entityKey: payload?.entityKey || value, displayLabel: payload?.displayLabel || value }];
     STATE.drilldown = {
       dimension,
       value: payload?.displayLabel || value,
       entityKey: payload?.entityKey || value,
       sourceType: payload?.sourceType || 'errorEvents',
       metric: payload?.metric || '',
+      parentContext: payload?.parentContext || null,
+      path: nextPath,
       rows,
       search: '',
       sort: null
@@ -1804,11 +1879,45 @@
     return { topAlerts, topPresses, topSubsystems, topStates, trendPoints, insight };
   }
 
+  function getNextErrorDrillDimension(dimension) {
+    if (dimension === 'press') return 'subsystem';
+    if (dimension === 'subsystem') return 'alert';
+    if (dimension === 'alert') return 'version';
+    return null;
+  }
+
+  function renderDrilldownBreadcrumbs() {
+    const host = document.getElementById('drilldownBreadcrumbs');
+    const path = STATE.drilldown.path || [];
+    if (!host) return;
+    if (!path.length) {
+      host.innerHTML = '';
+      return;
+    }
+    host.innerHTML = path.map((node, idx) => {
+      const isLast = idx === path.length - 1;
+      return `${isLast ? '' : `<button class="btn secondary" data-dd-crumb="${idx}" style="padding:3px 8px;">`}${esc(node.displayLabel)}${isLast ? '' : '</button>'}`;
+    }).join(' <span style="color:var(--muted)">›</span> ');
+    host.querySelectorAll('[data-dd-crumb]').forEach(btn => btn.addEventListener('click', () => {
+      const idx = Number(btn.dataset.ddCrumb);
+      const crumb = path[idx];
+      if (!crumb) return;
+      openDrilldown(crumb.dimension, crumb.entityKey, {
+        entityKey: crumb.entityKey,
+        displayLabel: crumb.displayLabel,
+        sourceType: STATE.drilldown.sourceType,
+        metric: STATE.drilldown.metric,
+        parentContext: { path: path.slice(0, idx) }
+      });
+    }));
+  }
+
   function renderDrilldown() {
     const { dimension, value, rows, search, sourceType } = STATE.drilldown;
     const isVolume = dimension === 'customerVolume';
     const isDowntimeCustomer = dimension === 'customerDowntime';
     const scoped = !search ? rows : rows.filter(r => `${r.customer} ${r.site} ${r.press} ${r.subsystem || ''} ${r.name || ''} ${r.alertTitle || ''} ${r.version || ''} ${r.jobType || ''} ${r.jobStatus || ''}`.toLowerCase().includes(search.toLowerCase()));
+    renderDrilldownBreadcrumbs();
     if (dimension === 'press' && sourceType === 'availabilityAgg') {
       const total = scoped.reduce((a, r) => a + totalDowntimeFromAvailabilityRow(r), 0);
       const planned = scoped.reduce((a, r) => a + (r.plannedDowntimeSeconds || 0), 0);
@@ -1933,12 +2042,21 @@
          <div class="summary-stat span-4"><div class="label">Avg duration</div><div class="value">${formatDuration(avg)}</div></div>`;
     const analytics = buildDrilldownAnalytics(scoped, dimension, isVolume);
     document.getElementById('drilldownInsight').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Subset insight</h4><span class="risk-pill risk-medium">Analytical summary</span></div><div class="micro">${esc(analytics.insight)}</div>`;
-    const topLabels = (dimension === 'subsystem' ? analytics.topAlerts : analytics.topSubsystems).map(x => x[0]);
-    const topValues = (dimension === 'subsystem' ? analytics.topAlerts : analytics.topSubsystems).map(x => x[1]);
+    const nextDimension = getNextErrorDrillDimension(dimension);
+    const topRows = (dimension === 'subsystem' ? analytics.topAlerts : analytics.topSubsystems);
+    const topLabels = topRows.map(x => x[0]);
+    const topValues = topRows.map(x => x[1]);
+    const topPayloads = topRows.map(([label]) => ({
+      entityKey: label,
+      displayLabel: label,
+      sourceType: 'errorEvents',
+      metric: STATE.drilldown.metric || 'events',
+      parentContext: { path: STATE.drilldown.path || [] }
+    }));
     replaceChart('drilldownTopChart', {
       type: 'bar',
       data: { labels: topLabels, datasets: [{ data: topValues, backgroundColor: topLabels.map((_, i) => COLORS[i % COLORS.length]), borderRadius: 6 }] },
-      options: { ...baseOptions('drilldown', topLabels), plugins: { legend: { display: false } } }
+      options: { ...baseOptions(nextDimension || 'drilldown', topLabels, nextDimension ? topPayloads : null), plugins: { legend: { display: false } } }
     });
     replaceChart('drilldownTrendChart', {
       type: 'line',
@@ -2175,28 +2293,7 @@
         alertChartTop: (alertRankings[0]?.name || 'N/A')
       }
     });
-      renderMergeDebug(sourceScope);
-      const emptyReasons = [
-        ...(STATE.kpis?.reasons || []),
-        ...(!pressRankings.length ? ['Press ranking empty from scoped source tables.'] : []),
-        ...(!subsystemRankings.length ? ['Subsystem ranking empty from scoped source tables.'] : []),
-        ...(!alertRankings.length ? ['Alert ranking empty from filtered error events.'] : []),
-        ...(!versionRankings.length ? ['Version ranking empty from filtered error events.'] : []),
-        ...(!customerVolumeRows.length ? ['Volume chart empty from scoped volume rows.'] : []),
-      ];
-      renderRuntimeDiagnostics(sourceScope, {
-        pressInit: CHARTS.has('pressChart'),
-        subsystemInit: CHARTS.has('subsystemChart'),
-        alertInit: CHARTS.has('alertChart'),
-        versionInit: CHARTS.has('versionChart'),
-        filteredMergedEventsCount: STATE.filtered.length,
-        pressRows: pressRankings.length,
-        subsystemRows: subsystemRankings.length,
-        alertRows: alertRankings.length,
-        versionRows: versionRankings.length,
-        customerVolumeRows: customerVolumeRows.length,
-        emptyReasons,
-      });
+      renderDataHealthPanel(sourceScope);
       renderTable(STATE.filtered);
     } catch (error) {
       console.error('[dashboard-render-failure]', error);
@@ -2361,11 +2458,19 @@
     }
   }
 
-  function assignFileByDetection(file) {
-    const n = file.name.toLowerCase();
-    if (/avail|uptime|state/.test(n)) STATE.files.availability = file;
-    else if (/volume|print|impression|workload/.test(n)) STATE.files.volume = file;
-    else STATE.files.errors = file;
+  async function assignFileByDetection(file) {
+    try {
+      const rows = await loadRowsFromFile(file);
+      const detected = detectDatasetType(rows);
+      if (detected === 'availability') STATE.files.availability = file;
+      else if (detected === 'volume') STATE.files.volume = file;
+      else STATE.files.errors = file;
+      if (detected !== 'unknown') {
+        STATE.cachedRaw[detected === 'errors' ? 'errors' : detected] = rows;
+      }
+    } catch {
+      STATE.files.errors = file;
+    }
   }
 
   function clearFiles() {
@@ -2409,7 +2514,6 @@
       const key = sel.dataset.metric;
       if (STATE.metricByChart[key]) sel.value = STATE.metricByChart[key];
     });
-    renderRuntimeDiagnostics(null, { pressInit: false, subsystemInit: false, alertInit: false, versionInit: false });
 
     document.querySelectorAll('[data-pick]').forEach(btn => btn.addEventListener('click', () => document.getElementById(`${btn.dataset.pick}Picker`).click()));
     errorsPicker.addEventListener('change', async e => { STATE.files.errors = e.target.files?.[0] || null; await validateSingleFile('errors'); });
@@ -2417,7 +2521,7 @@
     volumePicker.addEventListener('change', async e => { STATE.files.volume = e.target.files?.[0] || null; await validateSingleFile('volume'); });
 
     bulkInput.addEventListener('change', async e => {
-      for (const f of [...(e.target.files || [])]) assignFileByDetection(f);
+      for (const f of [...(e.target.files || [])]) await assignFileByDetection(f);
       await Promise.all([validateSingleFile('errors'), validateSingleFile('availability'), validateSingleFile('volume')]);
     });
 
@@ -2425,7 +2529,7 @@
     ['dragenter', 'dragover'].forEach(ev => dropZone.addEventListener(ev, e => { e.preventDefault(); dropZone.classList.add('drag'); }));
     ['dragleave', 'drop'].forEach(ev => dropZone.addEventListener(ev, e => { e.preventDefault(); dropZone.classList.remove('drag'); }));
     dropZone.addEventListener('drop', async e => {
-      for (const f of [...(e.dataTransfer?.files || [])]) assignFileByDetection(f);
+      for (const f of [...(e.dataTransfer?.files || [])]) await assignFileByDetection(f);
       await Promise.all([validateSingleFile('errors'), validateSingleFile('availability'), validateSingleFile('volume')]);
     });
 
