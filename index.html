@@ -116,6 +116,12 @@
     .drawer.show{display:flex}
     .drawer-panel { width:min(1350px,96vw); max-height:94vh; background:var(--panel); border:1px solid var(--border); border-radius:18px 18px 0 0; box-shadow:var(--shadow); padding:14px; overflow:auto; }
 
+
+    .sim-pending-bar { position:sticky; bottom:12px; z-index:4; margin:0 0 10px; display:flex; justify-content:space-between; align-items:center; gap:10px; border:1px solid rgba(123,141,255,.45); background:rgba(20,28,42,.94); padding:10px 12px; border-radius:12px; box-shadow:0 12px 24px rgba(0,0,0,.25); }
+    .sim-pending-meta { color:#c7d5ee; font-size:.84rem; }
+    .sim-pending-actions{display:flex;gap:8px;}
+    .sim-active-indicator{ margin:0 0 10px; border:1px solid rgba(123,141,255,.4); background:rgba(123,141,255,.1); color:#d7e2ff; border-radius:10px; padding:8px 10px; font-size:.82rem; }
+
     @media(max-width:1000px){ .kpis{grid-template-columns:repeat(2,minmax(140px,1fr));}.topbar{grid-template-columns:1fr}.span-6,.span-4,.span-8,.span-3{grid-column:span 12}.file-row{grid-template-columns:1fr} .file-state{justify-content:flex-start} }
   </style>
 </head>
@@ -185,7 +191,8 @@
       <div class="controls">
         <button id="replaceBtn" class="btn">Load new dataset</button>
         <button id="exportBtn" class="btn secondary">Export filtered CSV</button>
-        <button id="managerExportBtn" class="btn secondary">Manager export</button>
+        <button id="copyEmailBtn" class="btn secondary">Copy Email Summary</button>
+        <button id="emailExportBtn" class="btn secondary">Export Email HTML</button>
       </div>
     </header>
 
@@ -195,8 +202,6 @@
     <section id="executiveSummaryCard" class="card" style="margin-bottom:12px;"></section>
 
     <section class="filters">
-      <select id="customerFilter" class="select"><option value="all">All customers</option></select>
-      <select id="siteFilter" class="select"><option value="all">All sites</option></select>
       <select id="pressFilter" class="select"><option value="all">All presses</option></select>
       <select id="subsystemFilter" class="select"><option value="all">All subsystems</option></select>
       <select id="versionFilter" class="select"><option value="all">All software versions</option></select>
@@ -227,7 +232,7 @@
       </article>
 
       <article class="card span-6">
-        <div class="chart-head"><h3>Production Volume by Press</h3><div class="chart-tools"><select id="customerVolumeUnit" class="select"><option value="productionPrintedSheets">Production-only Printed Sheets</option><option value="printedSheets">Total Printed Sheets</option><option value="printedFlats">Printed Flats</option></select><select id="customerVolumeSort" class="select"><option value="desc">Highest first</option><option value="asc">Lowest first</option></select><label style="display:flex;align-items:center;gap:6px;color:var(--muted);font-size:.8rem;"><input id="customerVolumeOthersToggle" type="checkbox" /> Group remainder</label><button id="customerVolumeExpand" class="btn secondary">Show all</button></div></div>
+        <div class="chart-head"><h3>Print Volume By Press</h3><div class="chart-tools"><select id="customerVolumeUnit" class="select"><option value="productionPrintedSheets">Production-only Printed Sheets</option><option value="printedSheets">Total Printed Sheets</option><option value="printedFlats">Printed Flats</option></select><select id="customerVolumeSort" class="select"><option value="desc">Highest first</option><option value="asc">Lowest first</option></select><label style="display:flex;align-items:center;gap:6px;color:var(--muted);font-size:.8rem;"><input id="customerVolumeOthersToggle" type="checkbox" /> Group remainder</label><button id="customerVolumeExpand" class="btn secondary">Show all</button></div></div>
         <div class="micro" id="customerVolumeNote">Press-level workload from volumeAgg only.</div><div class="chart-area"><canvas id="customerVolumeChart"></canvas></div>
       </article>
 
@@ -261,6 +266,8 @@
       <article class="card span-6"><h4 style="margin:0 0 8px;">Secondary split</h4><div class="chart-area" style="height:220px;min-height:220px;"><canvas id="drilldownSecondaryChart"></canvas></div></article>
       <article class="card span-6"><h4 style="margin:0 0 8px;">Operational split</h4><div class="chart-area" style="height:220px;min-height:220px;"><canvas id="drilldownOpsChart"></canvas></div></article>
     </div>
+    <div id="simulationPendingBar" class="sim-pending-bar hidden"></div>
+    <div id="simulationActiveIndicator" class="sim-active-indicator hidden"></div>
     <div class="table-wrap"><table id="drilldownTable"></table></div>
   </section>
 </div>
@@ -293,7 +300,7 @@
     customerVolumeShowOthers: false,
     customerVolumeLookup: new Map(),
     customerVolumeRows: [],
-    drilldown: { dimension: '', value: '', entityKey: '', rows: [], search: '', sort: null, sourceType: '', metric: '', path: [], mode: 'chart', metricKey: '', simulation: { include: new Set(), excluded: new Set() }, filters: {} },
+    drilldown: { dimension: '', value: '', entityKey: '', rows: [], search: '', sort: null, sourceType: '', metric: '', path: [], mode: 'chart', metricKey: '', simulation: { pendingExcluded: new Set(), appliedExcluded: new Set() }, filters: {} },
     lastSourceScope: null,
     reconciliation: { logs: [], report: [] },
     availabilityDefinitions: null,
@@ -1204,8 +1211,6 @@
 
   function currentFilterValues() {
     return {
-      customer: customerFilter.value,
-      site: siteFilter.value,
       press: pressFilter.value,
       subsystem: subsystemFilter.value,
       version: versionFilter.value,
@@ -1218,14 +1223,10 @@
   function rowPassesGlobalFilters(row, filterValues, options = {}) {
     const text = options.searchText ? options.searchText(row).toLowerCase() : '';
     const day = options.dayOf ? options.dayOf(row) : row.day;
-    const customer = options.customerOf ? options.customerOf(row) : row.customer;
-    const site = options.siteOf ? options.siteOf(row) : row.site;
     const press = options.pressOf ? options.pressOf(row) : (row.canonicalPress || row.press);
     const subsystem = options.subsystemOf ? options.subsystemOf(row) : row.subsystem;
     const version = options.versionOf ? options.versionOf(row) : row.version;
-    return (filterValues.customer === 'all' || customer === filterValues.customer) &&
-      (filterValues.site === 'all' || site === filterValues.site) &&
-      (filterValues.press === 'all' || press === filterValues.press) &&
+    return (filterValues.press === 'all' || press === filterValues.press) &&
       (filterValues.subsystem === 'all' || subsystem === filterValues.subsystem) &&
       (filterValues.version === 'all' || version === filterValues.version) &&
       (!filterValues.startDay || (day && day >= filterValues.startDay)) &&
@@ -1235,11 +1236,9 @@
 
   function filterErrorsNativeRows(filterValues) {
     return (STATE.normalized.events || []).filter(r => rowPassesGlobalFilters(r, filterValues, {
-      searchText: row => `${row.name} ${row.alertTitle} ${row.press} ${row.subsystem} ${row.version} ${row.customer} ${row.site}`,
+      searchText: row => `${row.name} ${row.alertTitle} ${row.press} ${row.subsystem} ${row.version}`,
       pressOf: row => row.press,
       dayOf: row => row.day,
-      customerOf: row => row.customer,
-      siteOf: row => row.site,
       subsystemOf: row => row.subsystem,
       versionOf: row => row.version,
     }));
@@ -1264,11 +1263,7 @@
       const text = `${r.canonicalPress} ${r.canonicalModel} ${r.customer} ${r.site}`.toLowerCase();
       const day = r.day;
       const press = r.canonicalPress || 'Unspecified';
-      const customer = r.customer || 'Unspecified';
-      const site = r.site || 'Unspecified';
-      return (filterValues.customer === 'all' || customer === filterValues.customer) &&
-        (filterValues.site === 'all' || site === filterValues.site) &&
-        (filterValues.press === 'all' || press === filterValues.press) &&
+      return (filterValues.press === 'all' || press === filterValues.press) &&
         (!filterValues.startDay || (day && day >= filterValues.startDay)) &&
         (!filterValues.endDay || (day && day <= filterValues.endDay)) &&
         (!filterValues.query || text.includes(filterValues.query));
@@ -1534,7 +1529,7 @@
       ['Chart • Top Subsystems', 'Errors or Availability-by-subsystem for downtime', rankings.subsystem?.reduce((a, r) => a + (r[STATE.metricByChart.subsystem] || 0), 0) || 0, rankingSources.subsystem, `groupBy(subsystem) on ${STATE.metricByChart.subsystem}`],
       ['Chart • Top Alerts', 'Errors', rankings.alert?.reduce((a, r) => a + (r[STATE.metricByChart.alert] || 0), 0) || 0, rankingSources.alert, `groupBy(alert) on ${STATE.metricByChart.alert}`],
       ['Chart • Top Versions', 'Errors', rankings.version?.reduce((a, r) => a + (r[STATE.metricByChart.version] || 0), 0) || 0, rankingSources.version, `groupBy(version) on ${STATE.metricByChart.version}`],
-      ['Chart • Production Volume by Press', 'Volume', customerVolumeRows.reduce((a, r) => a + (r[STATE.customerVolumeMetric] || 0), 0), volumeAgg.reduce((a, r) => a + (STATE.customerVolumeMetric === 'printedFlats' ? (r.printedFlats || 0) : STATE.customerVolumeMetric === 'productionPrintedSheets' ? (r.productionPrintedSheets || 0) : (r.printedSheets || 0)), 0), `groupBy(press) sum(${STATE.customerVolumeMetric})`],
+      ['Chart • Print Volume By Press', 'Volume', customerVolumeRows.reduce((a, r) => a + (r[STATE.customerVolumeMetric] || 0), 0), volumeAgg.reduce((a, r) => a + (STATE.customerVolumeMetric === 'printedFlats' ? (r.printedFlats || 0) : STATE.customerVolumeMetric === 'productionPrintedSheets' ? (r.productionPrintedSheets || 0) : (r.printedSheets || 0)), 0), `groupBy(press) sum(${STATE.customerVolumeMetric})`],
       ['Table • Merged Event Explorer', 'Errors', filteredMergedRows.length, filteredErrorEventsNative.length, 'row_count(filtered errors events)'],
       ['Export • Filtered CSV', 'Errors', filteredMergedRows.length, filteredErrorEventsNative.length, 'export uses filtered merged explorer scope'],
     ].map(([component, source, dashboardValue, sourceValue, formula]) => {
@@ -1729,7 +1724,7 @@
     };
   }
 
-  function buildManagementExport(summary, kpis, rows, sourceScope) {
+  function buildExecutiveEmailExport(summary, kpis, rows, sourceScope) {
     const { availabilityAgg = [], volumeAgg = [] } = sourceScope || {};
     const criticalIssues = aggregateErrorEvents(rows, r => (r.name !== 'Unspecified' ? r.name : r.alertTitle)).sort((a, b) => b.events - a.events).slice(0, 8);
     const criticalSubsystems = aggregateErrorEvents(rows, r => r.subsystem).sort((a, b) => b.downtime - a.downtime).slice(0, 8);
@@ -1748,8 +1743,8 @@
       `Source rows (errorsAgg / availabilityAgg / volumeAgg): ${(STATE.lastSourceScope?.errorsAgg || []).length} / ${availabilityAgg.length} / ${volumeAgg.length}`,
       `Volume KPI basis: ${VOLUME_BASIS.label}`,
     ];
-    return `<!doctype html><html><head><meta charset="utf-8"><title>Operational Management Export</title><style>body{font-family:Segoe UI,Arial,sans-serif;padding:22px;color:#1d2430;background:#f4f7fb}.card{background:#fff;padding:16px;border-radius:10px;border:1px solid #d8e0ed;margin-top:14px}.meta{color:#5a6980;font-size:12px}h1{margin-bottom:4px}h2{margin:0 0 10px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #d5dce8;padding:8px;text-align:left;font-size:13px}th{background:#eef3fb}.pill{padding:2px 8px;border-radius:12px;background:#eaf0ff;display:inline-block}</style></head><body>
-      <h1>Operational Intelligence Management Summary</h1><div class="meta">${new Date().toISOString()}</div>
+    return `<!doctype html><html><head><meta charset="utf-8"><title>Landa Insight Executive Summary</title><style>body{font-family:Segoe UI,Arial,sans-serif;padding:22px;color:#1d2430;background:#f4f7fb}.card{background:#fff;padding:16px;border-radius:10px;border:1px solid #d8e0ed;margin-top:14px}.meta{color:#5a6980;font-size:12px}h1{margin-bottom:4px}h2{margin:0 0 10px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #d5dce8;padding:8px;text-align:left;font-size:13px}th{background:#eef3fb}.pill{padding:2px 8px;border-radius:12px;background:#eaf0ff;display:inline-block}</style></head><body>
+      <h1>Landa Insight Analysis — Executive Operations Brief</h1><div class="meta">${new Date().toISOString()}</div>
       <section><h2>1. Overall Status</h2><p><span class="pill">${summary.status}</span></p></section>
       <section class="card"><h2>2. Top Alerts (by events)</h2><table><tr><th>Error</th><th>Events</th><th>Error Downtime (h)</th></tr>${criticalIssues.map(i => `<tr><td>${esc(i.name)}</td><td>${i.events}</td><td>${(i.downtime / 3600).toFixed(2)}</td></tr>`).join('')}</table></section>
       <section class="card"><h2>3. Top Subsystems (by events)</h2><table><tr><th>Subsystem</th><th>Error Events</th><th>Error Downtime (h)</th></tr>${criticalSubsystems.map(i => `<tr><td>${esc(i.name)}</td><td>${i.events}</td><td>${(i.downtime / 3600).toFixed(2)}</td></tr>`).join('')}</table></section>
@@ -2056,11 +2051,9 @@
   function filteredRows() {
     const vals = currentFilterValues();
     return STATE.merged.events.filter(r => rowPassesGlobalFilters(r, vals, {
-      searchText: row => `${row.name} ${row.alertTitle} ${row.press} ${row.subsystem} ${row.version} ${row.customer} ${row.site}`,
+      searchText: row => `${row.name} ${row.alertTitle} ${row.press} ${row.subsystem} ${row.version}`,
       pressOf: row => row.press,
       dayOf: row => row.day,
-      customerOf: row => row.customer,
-      siteOf: row => row.site,
       subsystemOf: row => row.subsystem,
       versionOf: row => row.version,
     }));
@@ -2180,7 +2173,7 @@
       rows: STATE.filteredErrors || [],
       search: '',
       sort: null,
-      simulation: { include: new Set(), excluded: new Set() },
+      simulation: { pendingExcluded: new Set(), appliedExcluded: new Set() },
       filters: {}
     };
     renderDrilldown();
@@ -2329,12 +2322,49 @@
     }));
   }
 
+  function renderSimulationControls(components = []) {
+    const pendingBar = document.getElementById('simulationPendingBar');
+    const activeIndicator = document.getElementById('simulationActiveIndicator');
+    if (!pendingBar || !activeIndicator) return;
+    const sim = STATE.drilldown.simulation || { pendingExcluded: new Set(), appliedExcluded: new Set() };
+    const pending = sim.pendingExcluded || new Set();
+    const applied = sim.appliedExcluded || new Set();
+    const changesPending = [...pending].filter(x => !applied.has(x)).length + [...applied].filter(x => !pending.has(x)).length;
+    if (STATE.drilldown.mode !== 'kpi') {
+      pendingBar.classList.add('hidden');
+      activeIndicator.classList.add('hidden');
+      return;
+    }
+    activeIndicator.classList.toggle('hidden', applied.size === 0);
+    activeIndicator.textContent = applied.size ? `Simulation Active • Partial Scope Applied • ${applied.size} components excluded` : '';
+    pendingBar.classList.toggle('hidden', changesPending === 0);
+    if (changesPending === 0) {
+      pendingBar.innerHTML = '';
+      return;
+    }
+    pendingBar.innerHTML = `<div class="sim-pending-meta">${changesPending} changes pending</div><div class="sim-pending-actions"><button id="simApplyBtn" class="btn primary">Apply Changes</button><button id="simResetBtn" class="btn secondary">Reset</button><button id="simRestoreBtn" class="btn secondary">Restore Full Scope</button></div>`;
+    document.getElementById('simApplyBtn')?.addEventListener('click', () => {
+      STATE.drilldown.simulation.appliedExcluded = new Set(STATE.drilldown.simulation.pendingExcluded || []);
+      renderDrilldown();
+    });
+    document.getElementById('simResetBtn')?.addEventListener('click', () => {
+      STATE.drilldown.simulation.pendingExcluded = new Set(STATE.drilldown.simulation.appliedExcluded || []);
+      renderDrilldown();
+    });
+    document.getElementById('simRestoreBtn')?.addEventListener('click', () => {
+      STATE.drilldown.simulation.pendingExcluded = new Set();
+      STATE.drilldown.simulation.appliedExcluded = new Set();
+      renderDrilldown();
+    });
+  }
+
   function renderDrilldown() {
     const { dimension, value, rows, search, sourceType } = STATE.drilldown;
     const isVolume = sourceType === 'volumeJobs';
     const isAvailability = sourceType === 'availabilityNative' || sourceType === 'availabilityAgg';
     const scoped = !search ? rows : rows.filter(r => `${r.customer} ${r.site} ${r.press} ${r.subsystem || ''} ${r.name || ''} ${r.alertTitle || ''} ${r.version || ''} ${r.jobType || ''} ${r.jobStatus || ''}`.toLowerCase().includes(search.toLowerCase()));
     renderDrilldownBreadcrumbs();
+    renderSimulationControls([]);
     if (STATE.drilldown.mode === 'kpi' || sourceType === 'kpi') {
       const metricKey = STATE.drilldown.metricKey || STATE.drilldown.metric;
       const metricName = STATE.drilldown.value;
@@ -2345,22 +2375,26 @@
       document.getElementById('drilldownSummary').textContent = `Professional metric drilldown with transparent components, simulation, and source-native support.`;
       renderDrilldownContext(metricName, currentValue, profile);
       const components = computeKpiComponents(metricKey, scoped);
-      const included = components.filter(c => !STATE.drilldown.simulation.excluded.has(c.name));
+      const appliedExcluded = STATE.drilldown.simulation.appliedExcluded || new Set();
+      const pendingExcluded = STATE.drilldown.simulation.pendingExcluded || new Set(appliedExcluded);
+      const included = components.filter(c => !appliedExcluded.has(c.name));
+      const appliedRows = scoped.filter(r => !appliedExcluded.has(r.press || "Unspecified"));
       const simTotal = included.reduce((a,c)=>a+c.metricValue,0);
       document.getElementById('drilldownSummaryGrid').innerHTML = `<div class="summary-stat span-3"><div class="label">Displayed rows</div><div class="value">${scoped.length.toLocaleString()}</div></div><div class="summary-stat span-3"><div class="label">Components</div><div class="value">${components.length.toLocaleString()}</div></div><div class="summary-stat span-3"><div class="label">Included</div><div class="value">${included.length.toLocaleString()}</div></div><div class="summary-stat span-3"><div class="label">Simulated total</div><div class="value">${Number(simTotal).toLocaleString(undefined,{maximumFractionDigits:2})}</div></div>`;
-      document.getElementById('drilldownFilters').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Interactive filtering</h4><span class="impact-chip">Live impact simulation</span></div><div class="micro">Use dashboard filters for time, press, subsystem, alert, version, customer/site/job. Drilldown honors the same scoped rows and updates instantly.</div>`;
-      const top = components.slice().sort((a,b)=>b.metricValue-a.metricValue).slice(0,10);
+      document.getElementById('drilldownFilters').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Interactive filtering</h4><span class="impact-chip">Staged simulation workflow</span></div><div class="micro">Use dashboard filters for time, press, subsystem, alert, and version. KPI simulation changes are staged until Apply Changes is selected.</div>`;
+      const top = included.slice().sort((a,b)=>b.metricValue-a.metricValue).slice(0,10);
       replaceChart('drilldownTopChart',{type:'bar',data:{labels:top.map(x=>x.name),datasets:[{data:top.map(x=>x.metricValue),backgroundColor:COLORS,borderRadius:6}]},options:baseOptions('press',top.map(x=>x.name),top.map(x=>({entityKey:x.name,displayLabel:x.name,sourceType:'errorEvents',metric:'events',parentContext:{path:[]}})))});
-      const byDay = new Map(); scoped.forEach(r=>{if(!r.day)return; byDay.set(r.day,(byDay.get(r.day)||0)+1);}); const dayRows=[...byDay.entries()].sort((a,b)=>a[0].localeCompare(b[0]));
+      const byDay = new Map(); appliedRows.forEach(r=>{if(!r.day)return; byDay.set(r.day,(byDay.get(r.day)||0)+1);}); const dayRows=[...byDay.entries()].sort((a,b)=>a[0].localeCompare(b[0]));
       replaceChart('drilldownTrendChart',{type:'line',data:{labels:dayRows.map(x=>x[0]),datasets:[{data:dayRows.map(x=>x[1]),borderColor:'#7b8dff',tension:.25,fill:false}]},options:baseOptions('drilldown',dayRows.map(x=>x[0]))});
-      const subsystemMap=new Map(); scoped.forEach(r=>subsystemMap.set(r.subsystem||'Unspecified',(subsystemMap.get(r.subsystem||'Unspecified')||0)+1)); const subs=[...subsystemMap.entries()].sort((a,b)=>b[1]-a[1]).slice(0,10);
+      const subsystemMap=new Map(); appliedRows.forEach(r=>subsystemMap.set(r.subsystem||'Unspecified',(subsystemMap.get(r.subsystem||'Unspecified')||0)+1)); const subs=[...subsystemMap.entries()].sort((a,b)=>b[1]-a[1]).slice(0,10);
       replaceChart('drilldownSecondaryChart',{type:'bar',data:{labels:subs.map(x=>x[0]),datasets:[{data:subs.map(x=>x[1]),backgroundColor:COLORS,borderRadius:6}]},options:baseOptions('subsystem',subs.map(x=>x[0]),subs.map(x=>({entityKey:x[0],displayLabel:x[0],sourceType:'errorEvents',metric:'events',parentContext:{path:[]}})))});
-      const alertMap=new Map(); scoped.forEach(r=>{const a=r.name!=='Unspecified'?r.name:r.alertTitle; alertMap.set(a,(alertMap.get(a)||0)+1)}); const alerts=[...alertMap.entries()].sort((a,b)=>b[1]-a[1]).slice(0,8);
+      const alertMap=new Map(); appliedRows.forEach(r=>{const a=r.name!=='Unspecified'?r.name:r.alertTitle; alertMap.set(a,(alertMap.get(a)||0)+1)}); const alerts=[...alertMap.entries()].sort((a,b)=>b[1]-a[1]).slice(0,8);
       replaceChart('drilldownOpsChart',{type:'bar',data:{labels:alerts.map(x=>x[0]),datasets:[{data:alerts.map(x=>x[1]),backgroundColor:COLORS,borderRadius:6}]},options:baseOptions('alert',alerts.map(x=>x[0]),alerts.map(x=>({entityKey:x[0],displayLabel:x[0],sourceType:'errorEvents',metric:'events',parentContext:{path:[]}})))});
       document.getElementById('drilldownInsight').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Explanation & calculation logic</h4><span class="risk-pill risk-medium">Metric-specific narrative</span></div><div class="micro">${esc(profile.formula)} Contributions are aggregated by press and can be recursively explored through subsystem, alert, version, and trend views.</div>`;
-      document.getElementById('drilldownTransparency').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Calculation transparency table</h4><span class="impact-chip">Include / exclude to simulate impact</span></div><div class="table-wrap" style="max-height:260px;margin-top:8px;"><table><thead><tr><th>Include</th><th>Component</th><th>Source contribution</th><th>Amount</th><th>Contribution %</th></tr></thead><tbody>${components.slice(0,200).map(c=>`<tr><td><input type="checkbox" data-kpi-inc="${esc(c.name)}" ${STATE.drilldown.simulation.excluded.has(c.name)?'':'checked'} /></td><td>${esc(c.name)}</td><td>${esc(c.source)}</td><td>${Number(c.metricValue).toLocaleString(undefined,{maximumFractionDigits:2})}</td><td>${c.contributionPct.toFixed(2)}%</td></tr>`).join('')}</tbody></table></div>`;
-      document.querySelectorAll('[data-kpi-inc]').forEach(el=>el.addEventListener('change',()=>{const key=el.getAttribute('data-kpi-inc'); if(el.checked) STATE.drilldown.simulation.excluded.delete(key); else STATE.drilldown.simulation.excluded.add(key); renderDrilldown();}));
-      document.getElementById('drilldownTable').innerHTML = `<thead><tr><th>customer</th><th>site</th><th>press</th><th>subsystem</th><th>alert</th><th>version</th><th>start</th><th>duration</th><th>volume</th></tr></thead><tbody>${scoped.slice(0,1000).map(r=>`<tr><td>${esc(r.customer)}</td><td>${esc(r.site)}</td><td>${esc(r.press)}</td><td>${esc(r.subsystem)}</td><td>${esc(r.name !== 'Unspecified' ? r.name : r.alertTitle)}</td><td>${esc(r.version)}</td><td>${esc(r.startTime?.toISOString() || '')}</td><td>${esc(formatDuration(r.durationSeconds||0))}</td><td>${esc((r?.volume?.productionVolume||0).toLocaleString())}</td></tr>`).join('')}</tbody>`;
+      document.getElementById('drilldownTransparency').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Calculation transparency table</h4><span class="impact-chip">Staged include/exclude simulation</span></div><div class="table-wrap" style="max-height:260px;margin-top:8px;"><table><thead><tr><th>Include</th><th>Component</th><th>Source contribution</th><th>Amount</th><th>Contribution %</th></tr></thead><tbody>${components.slice(0,200).map(c=>`<tr><td><input type="checkbox" data-kpi-inc="${esc(c.name)}" ${pendingExcluded.has(c.name)?'':'checked'} /></td><td>${esc(c.name)}</td><td>${esc(c.source)}</td><td>${Number(c.metricValue).toLocaleString(undefined,{maximumFractionDigits:2})}</td><td>${c.contributionPct.toFixed(2)}%</td></tr>`).join('')}</tbody></table></div>`;
+      document.querySelectorAll('[data-kpi-inc]').forEach(el=>el.addEventListener('change',()=>{const key=el.getAttribute('data-kpi-inc'); if(el.checked) pendingExcluded.delete(key); else pendingExcluded.add(key); STATE.drilldown.simulation.pendingExcluded = pendingExcluded; renderSimulationControls(components); }));
+      renderSimulationControls(components);
+      document.getElementById('drilldownTable').innerHTML = `<thead><tr><th>customer</th><th>site</th><th>press</th><th>subsystem</th><th>alert</th><th>version</th><th>start</th><th>duration</th><th>volume</th></tr></thead><tbody>${appliedRows.slice(0,1000).map(r=>`<tr><td>${esc(r.customer)}</td><td>${esc(r.site)}</td><td>${esc(r.press)}</td><td>${esc(r.subsystem)}</td><td>${esc(r.name !== 'Unspecified' ? r.name : r.alertTitle)}</td><td>${esc(r.version)}</td><td>${esc(r.startTime?.toISOString() || '')}</td><td>${esc(formatDuration(r.durationSeconds||0))}</td><td>${esc((r?.volume?.productionVolume||0).toLocaleString())}</td></tr>`).join('')}</tbody>`;
       return;
     }
     if (isAvailability) {
@@ -2610,10 +2644,10 @@
       <div>Main charts initialized: <span class="${mainChartsInitialized ? 'ok' : 'bad'}">${mainChartsInitialized ? 'yes' : 'no'}</span></div>
       <div>Rows per chart — press:${chartRows.press} subsystem:${chartRows.subsystem} alert:${chartRows.alert} version:${chartRows.version} volume:${chartRows.customerVolume}</div>
       <div>Metric mode — press:${metrics.press} subsystem:${metrics.subsystem} alert:${metrics.alert} version:${metrics.version}</div>
-      <div>Active filters — customer:${activeFilters.customer} site:${activeFilters.site} press:${activeFilters.press} subsystem:${activeFilters.subsystem} version:${activeFilters.version} day:${activeFilters.startDay || 'min'}..${activeFilters.endDay || 'max'} query:${activeFilters.query || '(none)'}</div>
+      <div>Active filters — press:${activeFilters.press} subsystem:${activeFilters.subsystem} version:${activeFilters.version} day:${activeFilters.startDay || 'min'}..${activeFilters.endDay || 'max'} query:${activeFilters.query || '(none)'}</div>
       <div>Native rows — mergedEvents:${nativeRows.mergedEvents} errors:${nativeRows.errorEvents} availability:${nativeRows.availabilityRows} volume:${nativeRows.volumeRows}</div>
       <div>Scoped aggregates — errorsAgg:${scopedAggRows.errorsAgg} availabilityAgg:${scopedAggRows.availabilityAgg} volumeAgg:${scopedAggRows.volumeAgg}</div>
-      <div>Non-applicable filters — availability ignores customer/site/version; volume ignores subsystem/version.</div>
+      <div>Non-applicable filters — availability ignores version; volume ignores subsystem/version.</div>
       <div>${emptyReasons.length ? `Empty-state reason: <span class="warn">${esc(emptyReasons.join(' | '))}</span>` : '<span class="ok">No empty-state blockers detected.</span>'}</div>`;
     console.info('[runtime-diagnostics]', {
       chartLoaded,
@@ -2684,7 +2718,7 @@
         }
       }
       });
-      if (!customerVolumeRows.length) setCanvasState('customerVolumeChart', 'No print volume rows after source-native scope (volume owns press/customer/site/day).');
+      if (!customerVolumeRows.length) setCanvasState('customerVolumeChart', 'No print volume rows after source-native scope (volume owns press/day and native job metadata).');
       if (!customerVolumeRendered) setCanvasState('customerVolumeChart', 'Chart library failed to load. Charts cannot render.', 'error');
     document.getElementById('customerVolumeNote').textContent = `${STATE.customerVolumeExpanded ? 'Full press ranking' : 'Top 12'} by ${volumeMetricLabel(STATE.customerVolumeMetric)} (${STATE.customerVolumeSort === 'asc' ? 'lowest first' : 'highest first'}) from source volume aggregates (canonical press grouping). ${STATE.customerVolumeShowOthers ? 'Grouped remainder is enabled.' : 'Grouped remainder is disabled by default.'}`;
     const othersToggle = document.getElementById('customerVolumeOthersToggle');
@@ -2932,8 +2966,6 @@
 
       setProcessingState({ stage: 'preparing', status: 'running', percent: 0.35, detail: 'Preparing filters, source summaries, and dashboard state…' });
       await yieldAnalysisFrame(controller);
-      populateFilter('customerFilter', [...new Set(merged.events.map(r => r.customer))].sort(), 'customers');
-      populateFilter('siteFilter', [...new Set(merged.events.map(r => r.site))].sort(), 'sites');
       populateFilter('pressFilter', [...new Set(merged.events.map(r => r.press))].sort(), 'presses');
       populateFilter('subsystemFilter', [...new Set(merged.events.map(r => r.subsystem))].sort(), 'subsystems');
       populateFilter('versionFilter', [...new Set(merged.events.map(r => r.version))].sort(), 'software versions');
@@ -3094,10 +3126,32 @@
     });
 
     exportBtn.addEventListener('click', () => exportRowsToCsv(STATE.lastSourceScope?.filteredMergedRows || STATE.filtered, 'dashboard-filtered-export.csv'));
-    managerExportBtn.addEventListener('click', () => {
-      const html = buildManagementExport(STATE.merged.summary, STATE.kpis, STATE.filteredErrors || [], STATE.lastSourceScope);
-      const w = window.open('', '_blank');
-      if (w) { w.document.open(); w.document.write(html); w.document.close(); }
+    copyEmailBtn.addEventListener('click', async () => {
+      if (!STATE.merged.summary || !STATE.kpis) return;
+      const textSummary = [
+        'Landa Insight Analysis — Executive Operations Brief',
+        `Scope: ${document.getElementById('datasetMeta')?.textContent || 'Current dashboard filters'}`,
+        `Executive Summary: ${STATE.merged.summary.interpretation?.join(' ') || 'N/A'}`,
+        `Total Events: ${STATE.kpis.totalEvents.toLocaleString()} | Total Downtime: ${formatDuration(STATE.kpis.totalDowntime)} | Availability: ${STATE.kpis.availabilityPct == null ? 'N/A' : `${STATE.kpis.availabilityPct.toFixed(1)}%`}`,
+        `Top Presses by Error Events: ${(STATE.merged.summary.topPressByEvents?.name || 'N/A')}`,
+        `Top Errors: ${(STATE.merged.summary.topAlert?.name || 'N/A')}`,
+        `Risks: ${STATE.merged.summary.actions?.join(' ') || 'N/A'}`
+      ].join('\n');
+      try { await navigator.clipboard.writeText(textSummary); setStatus('Executive email summary copied to clipboard.', 'ok'); }
+      catch { setStatus('Clipboard copy failed in this browser context.', 'warning'); }
+    });
+    emailExportBtn.addEventListener('click', () => {
+      if (!STATE.merged.summary || !STATE.kpis) return;
+      const html = buildExecutiveEmailExport(STATE.merged.summary, STATE.kpis, STATE.filteredErrors || [], STATE.lastSourceScope);
+      const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `landa-insight-executive-summary-${new Date().toISOString().slice(0,10)}.html`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
     });
 
     document.querySelectorAll('[data-expand]').forEach(btn => btn.addEventListener('click', () => {
@@ -3120,7 +3174,7 @@
       });
     };
 
-    ['customerFilter', 'siteFilter', 'pressFilter', 'subsystemFilter', 'versionFilter', 'startDateFilter', 'endDateFilter'].forEach(id => document.getElementById(id).addEventListener('change', scheduleRender));
+    ['pressFilter', 'subsystemFilter', 'versionFilter', 'startDateFilter', 'endDateFilter'].forEach(id => document.getElementById(id).addEventListener('change', scheduleRender));
     searchFilter.addEventListener('input', scheduleRender);
     customerVolumeUnit.addEventListener('change', e => { STATE.customerVolumeMetric = e.target.value; scheduleRender(); });
     customerVolumeSort.addEventListener('change', e => { STATE.customerVolumeSort = e.target.value; scheduleRender(); });
