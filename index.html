@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Press Insight Intelligence Platform</title>
+  <title>Landa InsightPro+</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
   <script src="assets/vendor/chart-fallback.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -19,6 +19,8 @@
     .hidden{display:none!important}
     .eyebrow { color: var(--muted); text-transform: uppercase; letter-spacing: .14em; font-size: .78rem; }
     .subtitle { color: var(--muted); line-height: 1.45; margin: 8px 0 0; }
+    .brand-title { margin:4px 0 0; font-size:1.65rem; font-weight:700; letter-spacing:.01em; }
+    .brand-plus { color: var(--info); text-shadow:0 0 18px rgba(123,141,255,.35); }
     .btn,.select,input { border:1px solid var(--border); border-radius:10px; background:var(--panel-soft); color:var(--text); padding:9px 12px; }
     .btn { cursor:pointer; font-weight:600; }
     .btn:hover { background:#24324a; }
@@ -123,6 +125,11 @@
     .sim-state-meta{font-size:.83rem;color:#d2dff8;letter-spacing:.02em}
     .sim-state-meta strong{font-weight:650}
     .sim-state-actions{display:flex;gap:8px;flex-wrap:wrap}
+    .summary-modal{position:fixed;inset:0;background:rgba(4,7,13,.72);display:none;align-items:center;justify-content:center;z-index:40}
+    .summary-modal.show{display:flex}
+    .summary-panel{width:min(760px,94vw);background:var(--panel);border:1px solid var(--border);border-radius:16px;box-shadow:var(--shadow);padding:16px}
+    .summary-actions{display:flex;gap:8px;flex-wrap:wrap}
+    .summary-preview{border:1px solid var(--border);background:rgba(255,255,255,.02);border-radius:10px;padding:10px;max-height:300px;overflow:auto;color:#d4deef;white-space:pre-wrap}
 
     @media(max-width:1000px){ .kpis{grid-template-columns:repeat(2,minmax(140px,1fr));}.topbar{grid-template-columns:1fr}.span-6,.span-4,.span-8,.span-3{grid-column:span 12}.file-row{grid-template-columns:1fr} .file-state{justify-content:flex-start} }
   </style>
@@ -132,7 +139,7 @@
   <section id="intakeScreen" class="intake-shell">
     <article class="intake-card">
       <div class="intake-grid">
-        <div class="eyebrow">Landa Insight Intelligence</div>
+        <div class="eyebrow">Landa InsightPro+</div>
         <h1 style="margin:0; font-size:clamp(1.5rem,3vw,2rem);">Operational Intelligence Intake</h1>
         <p class="subtitle">Upload errors (required), plus availability and print volume (recommended) to build a single merged operational model with explainable KPIs and events-first intelligence.</p>
         <div class="format-pills"><span>CSV</span><span>Excel (.xlsx/.xls)</span><span>JSON array</span><span>Local browser processing</span></div>
@@ -187,14 +194,14 @@
     <header class="topbar">
       <div>
         <div class="eyebrow">Operational Dashboard</div>
-        <h2 style="margin:4px 0 0;">Press Insight Intelligence Platform</h2>
+        <h1 class="brand-title">Landa InsightPro<span class="brand-plus">+</span></h1>
+        <p class="subtitle">Operational intelligence platform for press performance, downtime analysis, and production insights.</p>
         <p id="datasetMeta" class="subtitle">Dataset not loaded</p>
       </div>
       <div class="controls">
         <button id="replaceBtn" class="btn">Load new dataset</button>
         <button id="exportBtn" class="btn secondary">Export filtered CSV</button>
-        <button id="copyEmailBtn" class="btn secondary">Copy Email Summary</button>
-        <button id="emailExportBtn" class="btn secondary">Export Email HTML</button>
+        <button id="summaryBtn" class="btn secondary">Summary</button>
       </div>
     </header>
 
@@ -246,6 +253,22 @@
         <div class="table-wrap"><table id="eventTable"></table></div>
       </article>
     </main>
+  </section>
+</div>
+
+<div id="summaryModal" class="summary-modal">
+  <section class="summary-panel">
+    <div class="chart-head">
+      <h3 style="margin:0;">Summary</h3>
+      <button id="closeSummaryBtn" class="btn">Close</button>
+    </div>
+    <p class="micro">Summary actions use the current validated dashboard scope.</p>
+    <div class="summary-actions">
+      <button id="summaryCopyBtn" class="btn secondary">Copy Email Summary</button>
+      <button id="summaryExportBtn" class="btn secondary">Export Email HTML</button>
+      <button id="summaryPreviewBtn" class="btn secondary">Preview Email</button>
+    </div>
+    <div id="summaryPreview" class="summary-preview hidden"></div>
   </section>
 </div>
 
@@ -302,6 +325,8 @@
     customerVolumeLookup: new Map(),
     customerVolumeRows: [],
     drilldown: { dimension: '', value: '', entityKey: '', rows: [], search: '', sort: null, sourceType: '', metric: '', path: [], mode: 'chart', metricKey: '', simulation: { pendingExcluded: new Set(), appliedExcluded: new Set() }, filters: {} },
+    baselineData: null,
+    simulationData: null,
     lastSourceScope: null,
     reconciliation: { logs: [], report: [] },
     availabilityDefinitions: null,
@@ -1745,7 +1770,7 @@
       `Volume KPI basis: ${VOLUME_BASIS.label}`,
     ];
     return `<!doctype html><html><head><meta charset="utf-8"><title>Landa Insight Executive Summary</title><style>body{font-family:Segoe UI,Arial,sans-serif;padding:22px;color:#1d2430;background:#f4f7fb}.card{background:#fff;padding:16px;border-radius:10px;border:1px solid #d8e0ed;margin-top:14px}.meta{color:#5a6980;font-size:12px}h1{margin-bottom:4px}h2{margin:0 0 10px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #d5dce8;padding:8px;text-align:left;font-size:13px}th{background:#eef3fb}.pill{padding:2px 8px;border-radius:12px;background:#eaf0ff;display:inline-block}</style></head><body>
-      <h1>Landa Insight Analysis — Executive Operations Brief</h1><div class="meta">${new Date().toISOString()}</div>
+      <h1>Landa InsightPro+ — Executive Operations Brief</h1><div class="meta">${new Date().toISOString()}</div>
       <section><h2>1. Overall Status</h2><p><span class="pill">${summary.status}</span></p></section>
       <section class="card"><h2>2. Top Alerts (by events)</h2><table><tr><th>Error</th><th>Events</th><th>Error Downtime (h)</th></tr>${criticalIssues.map(i => `<tr><td>${esc(i.name)}</td><td>${i.events}</td><td>${(i.downtime / 3600).toFixed(2)}</td></tr>`).join('')}</table></section>
       <section class="card"><h2>3. Top Subsystems (by events)</h2><table><tr><th>Subsystem</th><th>Error Events</th><th>Error Downtime (h)</th></tr>${criticalSubsystems.map(i => `<tr><td>${esc(i.name)}</td><td>${i.events}</td><td>${(i.downtime / 3600).toFixed(2)}</td></tr>`).join('')}</table></section>
@@ -2159,7 +2184,54 @@
     return map[metricKey] || { source: 'mixed', formula: `${metricName} is computed from current scoped source rows.`, primary: 'value', unit: 'value' };
   }
 
+  function kpiDimensionForMetric(metricKey) {
+    if (['totalDowntime', 'totalUnplanned', 'totalPlanned', 'availabilityPct'].includes(metricKey)) return 'availability';
+    if (['totalProdVolume'].includes(metricKey)) return 'volume';
+    return 'errors';
+  }
+
+  function buildKpiBaselineData(metricKey) {
+    const scope = STATE.lastSourceScope || {};
+    if (kpiDimensionForMetric(metricKey) === 'availability') {
+      return (scope.availabilityAgg || []).map(r => ({
+        component: r.canonicalPress || 'Unspecified',
+        press: r.canonicalPress || 'Unspecified',
+        day: r.day || '',
+        subsystem: r.subsystem || 'Unspecified',
+        metricValue: metricKey === 'totalPlanned' ? (r.plannedDowntimeSeconds || 0) : metricKey === 'totalUnplanned' ? (r.unplannedDowntimeSeconds || 0) : totalDowntimeFromAvailabilityRow(r),
+        source: 'availabilityAgg',
+        raw: r
+      }));
+    }
+    if (kpiDimensionForMetric(metricKey) === 'volume') {
+      return (scope.volumeAgg || []).map(r => ({
+        component: r.canonicalPress || 'Unspecified',
+        press: r.canonicalPress || 'Unspecified',
+        day: r.day || '',
+        metricValue: r.productionPrintedSheets || 0,
+        source: 'volumeAgg',
+        raw: r
+      }));
+    }
+    return (scope.filteredErrorEventsNative || []).map(r => ({
+      component: r.press || 'Unspecified',
+      press: r.press || 'Unspecified',
+      day: r.day || '',
+      subsystem: r.subsystem || 'Unspecified',
+      alert: r.name !== 'Unspecified' ? r.name : r.alertTitle,
+      version: r.version || 'Unspecified',
+      customer: r.customer || 'Unspecified',
+      site: r.site || 'Unspecified',
+      startTime: r.startTime,
+      durationSeconds: r.durationSeconds || 0,
+      metricValue: metricKey === 'mttr' ? (r.durationSeconds || 0) : 1,
+      source: 'errorsAgg',
+      raw: r
+    }));
+  }
+
   function openKpiDrilldown(metricKey, metricName) {
+    const baselineData = buildKpiBaselineData(metricKey);
     const path = [{ dimension: 'kpi', entityKey: metricKey, displayLabel: metricName }];
     STATE.drilldown = {
       dimension: 'kpi',
@@ -2171,12 +2243,14 @@
       mode: 'kpi',
       parentContext: null,
       path,
-      rows: STATE.filteredErrors || [],
+      rows: baselineData,
       search: '',
       sort: null,
       simulation: { pendingExcluded: new Set(), appliedExcluded: new Set() },
       filters: {}
     };
+    STATE.baselineData = baselineData;
+    STATE.simulationData = null;
     renderDrilldown();
     document.getElementById('drilldownDrawer').classList.add('show');
   }
@@ -2190,15 +2264,16 @@
   function computeKpiComponents(metricKey, rows) {
     const components = new Map();
     rows.forEach(r => {
-      const press = r.press || 'Unspecified';
-      if (!components.has(press)) components.set(press, { name: press, source: 'errors+availability+volume', events: 0, durationSeconds: 0, productionVolume: 0 });
+      const press = r.component || r.press || 'Unspecified';
+      if (!components.has(press)) components.set(press, { name: press, source: r.source || 'scoped-kpi-source', events: 0, durationSeconds: 0, productionVolume: 0, total: 0 });
       const item = components.get(press);
-      item.events += 1;
+      item.events += metricKey === 'totalEvents' ? 1 : 0;
       item.durationSeconds += r.durationSeconds || 0;
-      item.productionVolume += r?.volume?.productionVolume || 0;
+      item.productionVolume += r.productionPrintedSheets || 0;
+      item.total += r.metricValue || 0;
     });
     const arr = [...components.values()];
-    const valueOf = c => metricKey === 'totalEvents' ? c.events : metricKey === 'totalProdVolume' ? c.productionVolume : c.durationSeconds;
+    const valueOf = c => (c.total || 0);
     const total = arr.reduce((a,c)=>a+valueOf(c),0) || 0;
     return arr.map(c => ({ ...c, metricValue: valueOf(c), contributionPct: total ? (valueOf(c)/total)*100 : 0 }));
   }
@@ -2355,12 +2430,13 @@
       return;
     }
     strip.className = `sim-state-strip ${changesPending ? 'pending' : 'active'}`;
-    const pendingText = `<div class="sim-state-meta"><strong>Changes pending</strong> • ${changesPending || modifiedSelections} selections modified</div>`;
-    const activeText = `<div class="sim-state-meta"><strong>Simulation Mode</strong> • Partial data view${modifiedSelections ? ` • ${modifiedSelections} selections excluded` : ''}</div>`;
+    const pendingText = `<div class="sim-state-meta"><strong>${changesPending || modifiedSelections} changes pending</strong></div>`;
+    const activeText = `<div class="sim-state-meta"><strong>Simulation Mode</strong> • Partial Scope${modifiedSelections ? ` • ${modifiedSelections} selections excluded` : ''}</div>`;
     strip.innerHTML = `${changesPending ? pendingText : activeText}<div class="sim-state-actions">${changesPending ? '<button id="simApplyBtn" class="btn primary">Apply</button><button id="simClearBtn" class="btn secondary">Clear</button>' : ''}${simulationActive ? '<button id="simResetBtn" class="btn secondary">Reset</button>' : ''}</div>`;
     document.getElementById('simApplyBtn')?.addEventListener('click', () => {
       const current = ensureSimulationState();
       current.appliedExcluded = new Set(current.pendingExcluded || []);
+      STATE.simulationData = (STATE.baselineData || []).filter(r => !current.appliedExcluded.has(r.component || r.press || 'Unspecified'));
       renderDrilldown();
     });
     document.getElementById('simClearBtn')?.addEventListener('click', () => {
@@ -2372,6 +2448,7 @@
       const current = ensureSimulationState();
       current.pendingExcluded = new Set();
       current.appliedExcluded = new Set();
+      STATE.simulationData = null;
       renderDrilldown();
     });
   }
@@ -2418,40 +2495,44 @@
       document.getElementById('drilldownTitle').textContent = `${metricName} Drilldown`;
       document.getElementById('drilldownSummary').textContent = `Professional metric drilldown with transparent components, simulation, and source-native support.`;
       renderDrilldownContext(metricName, currentValue, profile);
-      const components = computeKpiComponents(metricKey, scoped);
+      const baselineRows = STATE.baselineData || scoped;
+      const simulatedRows = STATE.simulationData || baselineRows;
+      const components = computeKpiComponents(metricKey, baselineRows);
       const { pendingExcluded, appliedExcluded, simulationActive } = getSimulationStateSnapshot();
       const included = components.filter(c => !appliedExcluded.has(c.name));
-      const appliedRows = scoped.filter(r => !appliedExcluded.has(r.press || "Unspecified"));
+      const appliedRows = simulationActive ? simulatedRows : baselineRows;
       const simTotal = included.reduce((a,c)=>a+c.metricValue,0);
-      document.getElementById('drilldownSummaryGrid').innerHTML = `<div class="summary-stat span-3"><div class="label">Displayed rows</div><div class="value">${scoped.length.toLocaleString()}</div></div><div class="summary-stat span-3"><div class="label">Components</div><div class="value">${components.length.toLocaleString()}</div></div><div class="summary-stat span-3"><div class="label">Included</div><div class="value">${included.length.toLocaleString()}</div></div><div class="summary-stat span-3"><div class="label">Simulated total</div><div class="value">${Number(simTotal).toLocaleString(undefined,{maximumFractionDigits:2})}</div></div>`;
+      document.getElementById('drilldownSummaryGrid').innerHTML = `<div class="summary-stat span-3"><div class="label">Baseline rows</div><div class="value">${baselineRows.length.toLocaleString()}</div></div><div class="summary-stat span-3"><div class="label">Components</div><div class="value">${components.length.toLocaleString()}</div></div><div class="summary-stat span-3"><div class="label">Included</div><div class="value">${included.length.toLocaleString()}</div></div><div class="summary-stat span-3"><div class="label">Simulated total</div><div class="value">${Number(simTotal).toLocaleString(undefined,{maximumFractionDigits:2})}</div></div>`;
       document.getElementById('drilldownFilters').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Interactive filtering</h4><span class="impact-chip">Staged simulation workflow</span></div><div class="micro">Use dashboard filters for time, press, subsystem, alert, and version. KPI simulation changes are staged until Apply is selected.</div>`;
       const topBaseline = components.slice().sort((a, b) => b.metricValue - a.metricValue).slice(0, 10);
       const topCurrentMap = new Map(included.map(x => [x.name, x.metricValue]));
       const topLabels = topBaseline.map(x => x.name);
       const topCurrent = topLabels.map(name => topCurrentMap.get(name) || 0);
       const topBaselineVals = topLabels.map(name => topBaseline.find(x => x.name === name)?.metricValue || 0);
-      const topPayloads = topLabels.map(name => ({ entityKey: name, displayLabel: name, sourceType: 'errorEvents', metric: 'events', parentContext: { path: [] } }));
+      const topSource = kpiDimensionForMetric(metricKey) === 'availability' ? 'availabilityNative' : (kpiDimensionForMetric(metricKey) === 'volume' ? 'volumeJobs' : 'errorEvents');
+      const topMetric = kpiDimensionForMetric(metricKey) === 'availability' ? 'downtime' : (kpiDimensionForMetric(metricKey) === 'volume' ? 'productionPrintedSheets' : 'events');
+      const topPayloads = topLabels.map(name => ({ entityKey: name, displayLabel: name, sourceType: topSource, metric: topMetric, parentContext: { path: [] } }));
       replaceChart('drilldownTopChart', { type: 'bar', data: { labels: topLabels, datasets: simulationActive ? [{ label: 'Baseline', simRole: 'baseline', data: topBaselineVals, backgroundColor: 'rgba(151,167,194,.24)', borderColor: 'rgba(151,167,194,.48)', borderWidth: 1, borderRadius: 6 }, { label: 'Current', simRole: 'current', data: topCurrent, backgroundColor: topLabels.map((_, i) => COLORS[i % COLORS.length]), borderRadius: 6 }] : [{ simRole: 'current', data: topCurrent, backgroundColor: topLabels.map((_, i) => COLORS[i % COLORS.length]), borderRadius: 6 }] }, options: { ...baseOptions('press', topLabels, topPayloads), plugins: { legend: { display: simulationActive, labels: { color: '#c6d3ea' } }, tooltip: simulationActive ? { callbacks: { label: simulationTooltipLabel } } : { callbacks: { label: ctx => `${ctx.parsed.y.toLocaleString(undefined, { maximumFractionDigits: 3 })}` } } } } });
 
       const byDayCurrent = new Map(); appliedRows.forEach(r => { if (!r.day) return; byDayCurrent.set(r.day, (byDayCurrent.get(r.day) || 0) + 1); });
-      const byDayBaseline = new Map(); scoped.forEach(r => { if (!r.day) return; byDayBaseline.set(r.day, (byDayBaseline.get(r.day) || 0) + 1); });
+      const byDayBaseline = new Map(); baselineRows.forEach(r => { if (!r.day) return; byDayBaseline.set(r.day, (byDayBaseline.get(r.day) || 0) + 1); });
       const dayLabels = [...new Set([...byDayCurrent.keys(), ...byDayBaseline.keys()])].sort((a, b) => a.localeCompare(b));
       replaceChart('drilldownTrendChart', { type: 'line', data: { labels: dayLabels, datasets: simulationActive ? [{ label: 'Baseline', simRole: 'baseline', data: dayLabels.map(x => byDayBaseline.get(x) || 0), borderColor: 'rgba(151,167,194,.6)', borderDash: [5, 4], tension: .25, fill: false, pointRadius: 0 }, { label: 'Current', simRole: 'current', data: dayLabels.map(x => byDayCurrent.get(x) || 0), borderColor: '#7b8dff', tension: .25, fill: false }] : [{ label: 'Current', simRole: 'current', data: dayLabels.map(x => byDayCurrent.get(x) || 0), borderColor: '#7b8dff', tension: .25, fill: false }] }, options: { ...baseOptions('drilldown', dayLabels), plugins: { legend: { display: simulationActive, labels: { color: '#c6d3ea' } }, tooltip: simulationActive ? { callbacks: { label: simulationTooltipLabel } } : { callbacks: { label: ctx => `${ctx.parsed.y.toLocaleString()}` } } } } });
 
       const subsystemMap = new Map(); appliedRows.forEach(r => subsystemMap.set(r.subsystem || 'Unspecified', (subsystemMap.get(r.subsystem || 'Unspecified') || 0) + 1));
-      const subsystemBaseMap = new Map(); scoped.forEach(r => subsystemBaseMap.set(r.subsystem || 'Unspecified', (subsystemBaseMap.get(r.subsystem || 'Unspecified') || 0) + 1));
+      const subsystemBaseMap = new Map(); baselineRows.forEach(r => subsystemBaseMap.set(r.subsystem || 'Unspecified', (subsystemBaseMap.get(r.subsystem || 'Unspecified') || 0) + 1));
       const subs = [...subsystemBaseMap.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10);
       replaceChart('drilldownSecondaryChart', { type: 'bar', data: { labels: subs.map(x => x[0]), datasets: simulationActive ? [{ label: 'Baseline', simRole: 'baseline', data: subs.map(x => x[1]), backgroundColor: 'rgba(151,167,194,.24)', borderColor: 'rgba(151,167,194,.48)', borderWidth: 1, borderRadius: 6 }, { label: 'Current', simRole: 'current', data: subs.map(x => subsystemMap.get(x[0]) || 0), backgroundColor: COLORS, borderRadius: 6 }] : [{ simRole: 'current', data: subs.map(x => subsystemMap.get(x[0]) || 0), backgroundColor: COLORS, borderRadius: 6 }] }, options: { ...baseOptions('subsystem', subs.map(x => x[0]), subs.map(x => ({ entityKey: x[0], displayLabel: x[0], sourceType: 'errorEvents', metric: 'events', parentContext: { path: [] } }))), plugins: { legend: { display: simulationActive, labels: { color: '#c6d3ea' } }, tooltip: simulationActive ? { callbacks: { label: simulationTooltipLabel } } : { callbacks: { label: ctx => `${ctx.parsed.y.toLocaleString()}` } } } } });
 
       const alertMap = new Map(); appliedRows.forEach(r => { const a = r.name !== 'Unspecified' ? r.name : r.alertTitle; alertMap.set(a, (alertMap.get(a) || 0) + 1); });
-      const alertBaseMap = new Map(); scoped.forEach(r => { const a = r.name !== 'Unspecified' ? r.name : r.alertTitle; alertBaseMap.set(a, (alertBaseMap.get(a) || 0) + 1); });
+      const alertBaseMap = new Map(); baselineRows.forEach(r => { const a = r.alert || (r.name !== 'Unspecified' ? r.name : r.alertTitle); alertBaseMap.set(a, (alertBaseMap.get(a) || 0) + 1); });
       const alerts = [...alertBaseMap.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);
       replaceChart('drilldownOpsChart', { type: 'bar', data: { labels: alerts.map(x => x[0]), datasets: simulationActive ? [{ label: 'Baseline', simRole: 'baseline', data: alerts.map(x => x[1]), backgroundColor: 'rgba(151,167,194,.24)', borderColor: 'rgba(151,167,194,.48)', borderWidth: 1, borderRadius: 6 }, { label: 'Current', simRole: 'current', data: alerts.map(x => alertMap.get(x[0]) || 0), backgroundColor: COLORS, borderRadius: 6 }] : [{ simRole: 'current', data: alerts.map(x => alertMap.get(x[0]) || 0), backgroundColor: COLORS, borderRadius: 6 }] }, options: { ...baseOptions('alert', alerts.map(x => x[0]), alerts.map(x => ({ entityKey: x[0], displayLabel: x[0], sourceType: 'errorEvents', metric: 'events', parentContext: { path: [] } }))), plugins: { legend: { display: simulationActive, labels: { color: '#c6d3ea' } }, tooltip: simulationActive ? { callbacks: { label: simulationTooltipLabel } } : { callbacks: { label: ctx => `${ctx.parsed.y.toLocaleString()}` } } } } });
       document.getElementById('drilldownInsight').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Explanation & calculation logic</h4><span class="risk-pill risk-medium">Metric-specific narrative</span></div><div class="micro">${esc(profile.formula)} Contributions are aggregated by press and can be recursively explored through subsystem, alert, version, and trend views.</div>`;
       document.getElementById('drilldownTransparency').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Calculation transparency table</h4><span class="impact-chip">Staged include/exclude simulation</span></div><div class="table-wrap" style="max-height:260px;margin-top:8px;"><table><thead><tr><th>Include</th><th>Component</th><th>Source contribution</th><th>Amount</th><th>Contribution %</th></tr></thead><tbody>${components.slice(0,200).map(c=>`<tr><td><input type="checkbox" data-kpi-inc="${esc(c.name)}" ${pendingExcluded.has(c.name)?'':'checked'} /></td><td>${esc(c.name)}</td><td>${esc(c.source)}</td><td>${Number(c.metricValue).toLocaleString(undefined,{maximumFractionDigits:2})}</td><td>${c.contributionPct.toFixed(2)}%</td></tr>`).join('')}</tbody></table></div>`;
       document.querySelectorAll('[data-kpi-inc]').forEach(el=>el.addEventListener('change',()=>{const key=el.getAttribute('data-kpi-inc'); if(el.checked) pendingExcluded.delete(key); else pendingExcluded.add(key); STATE.drilldown.simulation.pendingExcluded = pendingExcluded; renderSimulationControls(pendingExcluded.size); }));
       renderSimulationControls(appliedExcluded.size);
-      document.getElementById('drilldownTable').innerHTML = `<thead><tr><th>customer</th><th>site</th><th>press</th><th>subsystem</th><th>alert</th><th>version</th><th>start</th><th>duration</th><th>volume</th></tr></thead><tbody>${appliedRows.slice(0,1000).map(r=>`<tr><td>${esc(r.customer)}</td><td>${esc(r.site)}</td><td>${esc(r.press)}</td><td>${esc(r.subsystem)}</td><td>${esc(r.name !== 'Unspecified' ? r.name : r.alertTitle)}</td><td>${esc(r.version)}</td><td>${esc(r.startTime?.toISOString() || '')}</td><td>${esc(formatDuration(r.durationSeconds||0))}</td><td>${esc((r?.volume?.productionVolume||0).toLocaleString())}</td></tr>`).join('')}</tbody>`;
+      document.getElementById('drilldownTable').innerHTML = `<thead><tr><th>component</th><th>source</th><th>day</th><th>metric value</th></tr></thead><tbody>${appliedRows.slice(0,1000).map(r=>`<tr><td>${esc(r.component || r.press || 'Unspecified')}</td><td>${esc(r.source || 'N/A')}</td><td>${esc(r.day || '')}</td><td>${esc(Number(r.metricValue || 0).toLocaleString(undefined,{maximumFractionDigits:2}))}</td></tr>`).join('')}</tbody>`;
       return;
     }
     if (isAvailability) {
@@ -2742,6 +2823,8 @@
     if (STATE.filtered.length > 0 && sourceScope.errorsAgg.length === 0 && sourceScope.availabilityAgg.length === 0 && sourceScope.volumeAgg.length === 0) {
       console.warn('[scope-debug] filtered events exist but scoped source aggregates are empty. Check merge key construction and normalization.');
     }
+    STATE.baselineData = null;
+    STATE.simulationData = null;
     STATE.lastSourceScope = sourceScope;
     STATE.kpis = computeOperationalMetrics(sourceScope);
     renderKpis(STATE.kpis);
@@ -3183,10 +3266,17 @@
     });
 
     exportBtn.addEventListener('click', () => exportRowsToCsv(STATE.lastSourceScope?.filteredMergedRows || STATE.filtered, 'dashboard-filtered-export.csv'));
-    copyEmailBtn.addEventListener('click', async () => {
+    const summaryBtnEl = document.getElementById('summaryBtn');
+    const summaryModal = document.getElementById('summaryModal');
+    const closeSummaryBtnEl = document.getElementById('closeSummaryBtn');
+    const summaryCopyBtnEl = document.getElementById('summaryCopyBtn');
+    const summaryExportBtnEl = document.getElementById('summaryExportBtn');
+    const summaryPreviewBtnEl = document.getElementById('summaryPreviewBtn');
+    const summaryPreview = document.getElementById('summaryPreview');
+    const buildTextSummary = () => {
       if (!STATE.merged.summary || !STATE.kpis) return;
-      const textSummary = [
-        'Landa Insight Analysis — Executive Operations Brief',
+      return [
+        'Landa InsightPro+ — Executive Operations Brief',
         `Scope: ${document.getElementById('datasetMeta')?.textContent || 'Current dashboard filters'}`,
         `Executive Summary: ${STATE.merged.summary.interpretation?.join(' ') || 'N/A'}`,
         `Total Events: ${STATE.kpis.totalEvents.toLocaleString()} | Total Downtime: ${formatDuration(STATE.kpis.totalDowntime)} | Availability: ${STATE.kpis.availabilityPct == null ? 'N/A' : `${STATE.kpis.availabilityPct.toFixed(1)}%`}`,
@@ -3194,10 +3284,21 @@
         `Top Errors: ${(STATE.merged.summary.topAlert?.name || 'N/A')}`,
         `Risks: ${STATE.merged.summary.actions?.join(' ') || 'N/A'}`
       ].join('\n');
+    };
+    summaryBtnEl.addEventListener('click', () => {
+      summaryModal.classList.add('show');
+      summaryPreview.classList.add('hidden');
+      summaryPreview.textContent = '';
+    });
+    closeSummaryBtnEl.addEventListener('click', () => summaryModal.classList.remove('show'));
+    summaryModal.addEventListener('click', e => { if (e.target.id === 'summaryModal') summaryModal.classList.remove('show'); });
+    summaryCopyBtnEl.addEventListener('click', async () => {
+      const textSummary = buildTextSummary();
+      if (!textSummary) return;
       try { await navigator.clipboard.writeText(textSummary); setStatus('Executive email summary copied to clipboard.', 'ok'); }
       catch { setStatus('Clipboard copy failed in this browser context.', 'warning'); }
     });
-    emailExportBtn.addEventListener('click', () => {
+    summaryExportBtnEl.addEventListener('click', () => {
       if (!STATE.merged.summary || !STATE.kpis) return;
       const html = buildExecutiveEmailExport(STATE.merged.summary, STATE.kpis, STATE.filteredErrors || [], STATE.lastSourceScope);
       const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
@@ -3209,6 +3310,12 @@
       a.click();
       a.remove();
       URL.revokeObjectURL(url);
+    });
+    summaryPreviewBtnEl.addEventListener('click', () => {
+      const textSummary = buildTextSummary();
+      if (!textSummary) return;
+      summaryPreview.classList.remove('hidden');
+      summaryPreview.textContent = textSummary;
     });
 
     document.querySelectorAll('[data-expand]').forEach(btn => btn.addEventListener('click', () => {
