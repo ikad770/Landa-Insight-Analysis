@@ -72,6 +72,11 @@
     .controls { display:flex; gap:8px; flex-wrap:wrap; }
     .kpis { display:grid; grid-template-columns: repeat(5,minmax(140px,1fr)); gap:10px; margin-bottom:12px; }
     .kpi { padding:11px; border:1px solid var(--border); border-radius:12px; background:rgba(255,255,255,.02); }
+    .kpi.clickable{cursor:pointer;transition:all .18s ease}
+    .kpi.clickable:hover{border-color:rgba(123,141,255,.65);background:rgba(123,141,255,.09);transform:translateY(-1px)}
+    .inline-filters{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+    .inline-filters .select{font-size:.82rem;padding:7px 10px}
+    .impact-chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);padding:4px 8px;border-radius:999px;background:rgba(255,255,255,.02);font-size:.78rem;color:#d2ddf2}
     .k { color:var(--muted); font-size:.72rem; text-transform:uppercase; letter-spacing:.08em; }
     .v { font-size:1.05rem; margin-top:5px; font-weight:650; }
     .d { color:var(--muted); font-size:.8rem; margin-top:4px; min-height:2.2em; }
@@ -202,7 +207,7 @@
 
     <main class="grid">
       <article class="card span-6" data-rank-card="press">
-        <div class="chart-head"><h3>Top Presses</h3><div class="chart-tools"><select data-metric="press" class="select"><option value="events">By events</option><option value="downtime">By downtime</option><option value="normalized">By events/volume</option></select><button class="btn secondary" data-expand="press">Show all</button></div></div>
+        <div class="chart-head"><h3>Top Presses by Error Events</h3><div class="chart-tools"><select data-metric="press" class="select"><option value="events">By events</option><option value="downtime">By downtime</option><option value="normalized">By events/volume</option></select><button class="btn secondary" data-expand="press">Show all</button></div></div>
         <div class="micro">Metric source shown dynamically by mode.</div><div class="chart-area"><canvas id="pressChart"></canvas></div>
       </article>
 
@@ -212,7 +217,7 @@
       </article>
 
       <article class="card span-6" data-rank-card="alert">
-        <div class="chart-head"><h3>Top Alert Names</h3><div class="chart-tools"><select data-metric="alert" class="select"><option value="events">By events</option><option value="downtime">By downtime</option><option value="normalized">By events/volume</option></select><button class="btn secondary" data-expand="alert">Show all</button></div></div>
+        <div class="chart-head"><h3>Top Errors</h3><div class="chart-tools"><select data-metric="alert" class="select"><option value="events">By events</option><option value="downtime">By downtime</option><option value="normalized">By events/volume</option></select><button class="btn secondary" data-expand="alert">Show all</button></div></div>
         <div class="micro">Alert ranking uses Name, with Alert Title fallback.</div><div class="chart-area"><canvas id="alertChart"></canvas></div>
       </article>
 
@@ -222,7 +227,7 @@
       </article>
 
       <article class="card span-6">
-        <div class="chart-head"><h3>Print Volume by Press</h3><div class="chart-tools"><select id="customerVolumeUnit" class="select"><option value="productionPrintedSheets">Production-only Printed Sheets</option><option value="printedSheets">Total Printed Sheets</option><option value="printedFlats">Printed Flats</option></select><select id="customerVolumeSort" class="select"><option value="desc">Highest first</option><option value="asc">Lowest first</option></select><button id="customerVolumeExpand" class="btn secondary">Show all</button></div></div>
+        <div class="chart-head"><h3>Production Volume by Press</h3><div class="chart-tools"><select id="customerVolumeUnit" class="select"><option value="productionPrintedSheets">Production-only Printed Sheets</option><option value="printedSheets">Total Printed Sheets</option><option value="printedFlats">Printed Flats</option></select><select id="customerVolumeSort" class="select"><option value="desc">Highest first</option><option value="asc">Lowest first</option></select><label style="display:flex;align-items:center;gap:6px;color:var(--muted);font-size:.8rem;"><input id="customerVolumeOthersToggle" type="checkbox" /> Group remainder</label><button id="customerVolumeExpand" class="btn secondary">Show all</button></div></div>
         <div class="micro" id="customerVolumeNote">Press-level workload from volumeAgg only.</div><div class="chart-area"><canvas id="customerVolumeChart"></canvas></div>
       </article>
 
@@ -246,6 +251,9 @@
     <div id="drilldownBreadcrumbs" class="micro"></div>
     <div id="drilldownSummary" class="micro"></div>
     <div id="drilldownSummaryGrid" class="summary-grid" style="margin-bottom:10px;"></div>
+    <div id="drilldownContext" class="card" style="margin-bottom:10px;"></div>
+    <div id="drilldownFilters" class="card" style="margin-bottom:10px;"></div>
+    <div id="drilldownTransparency" class="card" style="margin-bottom:10px;"></div>
     <div id="drilldownInsight" class="card" style="margin-bottom:10px;"></div>
     <div class="grid" style="margin-bottom:10px;">
       <article class="card span-6"><h4 style="margin:0 0 8px;">Top breakdown</h4><div class="chart-area" style="height:220px;min-height:220px;"><canvas id="drilldownTopChart"></canvas></div></article>
@@ -282,9 +290,10 @@
     customerVolumeMetric: 'productionPrintedSheets',
     customerVolumeSort: 'desc',
     customerVolumeExpanded: false,
+    customerVolumeShowOthers: false,
     customerVolumeLookup: new Map(),
     customerVolumeRows: [],
-    drilldown: { dimension: '', value: '', entityKey: '', rows: [], search: '', sort: null, sourceType: '', metric: '', path: [] },
+    drilldown: { dimension: '', value: '', entityKey: '', rows: [], search: '', sort: null, sourceType: '', metric: '', path: [], mode: 'chart', metricKey: '', simulation: { include: new Set(), excluded: new Set() }, filters: {} },
     lastSourceScope: null,
     reconciliation: { logs: [], report: [] },
     availabilityDefinitions: null,
@@ -1521,11 +1530,11 @@
       ['KPI • Production Volume', 'Volume', kpis.totalProdVolume, sourceTotals.prodSheets, 'sum(productionPrintedSheets)'],
       ['KPI • MTTR', 'Errors', kpis.mttr ?? null, sourceTotals.events ? sourceTotals.errorDuration / sourceTotals.events : null, 'sum(errorDuration) / events'],
       ['KPI • MTBF', 'Errors+Availability', kpis.mtbf ?? null, sourceTotals.events ? sourceTotals.runtime / sourceTotals.events : null, 'runtime / events'],
-      ['Chart • Top Presses', 'Errors/Availability/Volume by selected metric', rankings.press?.reduce((a, r) => a + (r[STATE.metricByChart.press] || 0), 0) || 0, rankingSources.press, `groupBy(press) on ${STATE.metricByChart.press}`],
+      ['Chart • Top Presses by Error Events', 'Errors/Availability/Volume by selected metric', rankings.press?.reduce((a, r) => a + (r[STATE.metricByChart.press] || 0), 0) || 0, rankingSources.press, `groupBy(press) on ${STATE.metricByChart.press}`],
       ['Chart • Top Subsystems', 'Errors or Availability-by-subsystem for downtime', rankings.subsystem?.reduce((a, r) => a + (r[STATE.metricByChart.subsystem] || 0), 0) || 0, rankingSources.subsystem, `groupBy(subsystem) on ${STATE.metricByChart.subsystem}`],
       ['Chart • Top Alerts', 'Errors', rankings.alert?.reduce((a, r) => a + (r[STATE.metricByChart.alert] || 0), 0) || 0, rankingSources.alert, `groupBy(alert) on ${STATE.metricByChart.alert}`],
       ['Chart • Top Versions', 'Errors', rankings.version?.reduce((a, r) => a + (r[STATE.metricByChart.version] || 0), 0) || 0, rankingSources.version, `groupBy(version) on ${STATE.metricByChart.version}`],
-      ['Chart • Print Volume by Press', 'Volume', customerVolumeRows.reduce((a, r) => a + (r[STATE.customerVolumeMetric] || 0), 0), volumeAgg.reduce((a, r) => a + (STATE.customerVolumeMetric === 'printedFlats' ? (r.printedFlats || 0) : STATE.customerVolumeMetric === 'productionPrintedSheets' ? (r.productionPrintedSheets || 0) : (r.printedSheets || 0)), 0), `groupBy(press) sum(${STATE.customerVolumeMetric})`],
+      ['Chart • Production Volume by Press', 'Volume', customerVolumeRows.reduce((a, r) => a + (r[STATE.customerVolumeMetric] || 0), 0), volumeAgg.reduce((a, r) => a + (STATE.customerVolumeMetric === 'printedFlats' ? (r.printedFlats || 0) : STATE.customerVolumeMetric === 'productionPrintedSheets' ? (r.productionPrintedSheets || 0) : (r.printedSheets || 0)), 0), `groupBy(press) sum(${STATE.customerVolumeMetric})`],
       ['Table • Merged Event Explorer', 'Errors', filteredMergedRows.length, filteredErrorEventsNative.length, 'row_count(filtered errors events)'],
       ['Export • Filtered CSV', 'Errors', filteredMergedRows.length, filteredErrorEventsNative.length, 'export uses filtered merged explorer scope'],
     ].map(([component, source, dashboardValue, sourceValue, formula]) => {
@@ -1754,19 +1763,20 @@
   function renderKpis(k) {
     const na = 'N/A';
     const cards = [
-      ['Total Events', k.totalEvents.toLocaleString(), 'Events from Errors dataset'],
-      ['Total Downtime', formatDuration(k.totalDowntime), 'From Availability daily aggregates (Planned + Unplanned)'],
-      ['Unplanned DT', formatDuration(k.totalUnplanned), DOWNTIME_DEFINITION.unplanned],
-      ['Planned DT', formatDuration(k.totalPlanned), DOWNTIME_DEFINITION.planned],
-      ['MTTR', k.mttr == null ? na : formatDuration(k.mttr), 'Mean repair time from error duration'],
-      ['MTBF', k.mtbf == null ? na : formatDuration(k.mtbf), 'Runtime between failures'],
-      ['Availability', k.availabilityPct == null ? na : `${k.availabilityPct.toFixed(1)}%`, k.availabilityFormula || 'Source-defined availability'],
-      ['Production Volume', k.totalProdVolume.toLocaleString(), `Basis: ${k.volumeBasis}`],
-      ['Downtime / Volume', k.downtimePerVolume == null ? na : k.downtimePerVolume.toFixed(4), 'seconds per production unit'],
-      ['Events / Volume', k.eventPerVolume == null ? na : k.eventPerVolume.toFixed(4), 'events per production unit'],
+      ['Total Events', 'totalEvents', k.totalEvents.toLocaleString(), 'Events from source-native Errors records'],
+      ['Total Downtime', 'totalDowntime', formatDuration(k.totalDowntime), 'Availability downtime (Planned + Unplanned)'],
+      ['Unplanned DT', 'totalUnplanned', formatDuration(k.totalUnplanned), DOWNTIME_DEFINITION.unplanned],
+      ['Planned DT', 'totalPlanned', formatDuration(k.totalPlanned), DOWNTIME_DEFINITION.planned],
+      ['MTTR', 'mttr', k.mttr == null ? na : formatDuration(k.mttr), 'Mean Time To Repair from error durations'],
+      ['MTBF', 'mtbf', k.mtbf == null ? na : formatDuration(k.mtbf), 'Mean Time Between Failures from runtime/event rate'],
+      ['Availability', 'availabilityPct', k.availabilityPct == null ? na : `${k.availabilityPct.toFixed(1)}%`, k.availabilityFormula || 'Source-defined availability'],
+      ['Production Volume', 'totalProdVolume', k.totalProdVolume.toLocaleString(), `Basis: ${k.volumeBasis}`],
+      ['Downtime / Volume', 'downtimePerVolume', k.downtimePerVolume == null ? na : k.downtimePerVolume.toFixed(4), 'seconds per production unit'],
+      ['Events / Volume', 'eventPerVolume', k.eventPerVolume == null ? na : k.eventPerVolume.toFixed(4), 'events per production unit'],
     ];
     const helper = `<div class="micro">Volume perspective: Total Printed Sheets ${k.rawPrintedSheets.toLocaleString()} • Production Printed Sheets ${k.productionOnlyPrintedSheets.toLocaleString()} • Primary KPI basis: ${esc(k.volumeBasis)}.</div><div class="micro">Availability method: ${esc(k.availabilityLabel || 'Source-defined availability')} (${esc(k.availabilityFormula || 'N/A')}).</div>${k.reasons.length ? `<div class="micro">KPI guidance: ${esc(k.reasons.join(' '))}</div>` : ''}`;
-    document.getElementById('kpiStrip').innerHTML = cards.map(([a, b, c]) => `<article class="kpi"><div class="k">${a}</div><div class="v">${b}</div><div class="d">${c}</div></article>`).join('') + helper;
+    document.getElementById('kpiStrip').innerHTML = cards.map(([a, metricKey, b, c]) => `<article class="kpi clickable" data-kpi-metric="${metricKey}"><div class="k">${a}</div><div class="v">${b}</div><div class="d">${c}</div></article>`).join('') + helper;
+    document.querySelectorAll('[data-kpi-metric]').forEach(card => card.addEventListener('click', () => openKpiDrilldown(card.dataset.kpiMetric, card.querySelector('.k')?.textContent || card.dataset.kpiMetric)));
   }
 
   function renderExecutiveSummaryCard(summary) {
@@ -2058,7 +2068,7 @@
 
   function filteredErrorEvents() { return filterErrorsNativeRows(currentFilterValues()); }
 
-  function buildCustomerVolumeChart(volumeAggRows, metric = 'printedSheets', sort = 'desc', expanded = false) {
+  function buildCustomerVolumeChart(volumeAggRows, metric = 'printedSheets', sort = 'desc', expanded = false, showOthers = false) {
     const byPress = new Map();
     STATE.customerVolumeLookup = new Map();
     volumeAggRows.forEach(r => {
@@ -2082,7 +2092,7 @@
       metric,
       parentContext: { path: [] }
     })).sort((a, b) => (a[metric] - b[metric]) * dir);
-    if (expanded || sorted.length <= 12) return sorted;
+    if (expanded || sorted.length <= 12 || !showOthers) return sorted.slice(0, expanded ? sorted.length : 12);
     const topRows = sorted.slice(0, 12);
     const remainder = sorted.slice(12);
     if (!remainder.length) return topRows;
@@ -2136,6 +2146,67 @@
     if (dimension === 'availabilitySubsystem') return row.subsystem || 'Unspecified';
     if (dimension === 'availabilityCategory') return row.downtimeCategory || 'Unspecified';
     return '';
+  }
+
+
+  function kpiMetricProfile(metricKey, metricName) {
+    const map = {
+      totalEvents: { source: 'errorsAgg', formula: 'Sum of all error events in current scope.', primary: 'events', unit: 'events' },
+      totalDowntime: { source: 'availabilityAgg', formula: 'Planned downtime + Unplanned downtime.', primary: 'downtime', unit: 'seconds' },
+      totalUnplanned: { source: 'availabilityAgg', formula: 'Recovery + Jams duration.', primary: 'unplannedDowntimeSeconds', unit: 'seconds' },
+      totalPlanned: { source: 'availabilityAgg', formula: 'Preventive Maintenance + On Job Maintenance.', primary: 'plannedDowntimeSeconds', unit: 'seconds' },
+      mttr: { source: 'errorsAgg', formula: 'Total error duration / total events.', primary: 'durationSeconds', unit: 'seconds' },
+      mtbf: { source: 'errorsAgg + availabilityAgg', formula: 'Runtime / total events.', primary: 'mtbf', unit: 'seconds' },
+      availabilityPct: { source: 'availabilityAgg', formula: 'Runtime / (Runtime + Planned + Unplanned) × 100.', primary: 'availability', unit: '%' },
+      totalProdVolume: { source: 'volumeAgg', formula: 'Sum of productionPrintedSheets.', primary: 'productionPrintedSheets', unit: 'units' },
+      downtimePerVolume: { source: 'availabilityAgg + volumeAgg', formula: 'Total downtime seconds / production volume.', primary: 'ratio', unit: 'ratio' },
+      eventPerVolume: { source: 'errorsAgg + volumeAgg', formula: 'Total events / production volume.', primary: 'ratio', unit: 'ratio' },
+    };
+    return map[metricKey] || { source: 'mixed', formula: `${metricName} is computed from current scoped source rows.`, primary: 'value', unit: 'value' };
+  }
+
+  function openKpiDrilldown(metricKey, metricName) {
+    const path = [{ dimension: 'kpi', entityKey: metricKey, displayLabel: metricName }];
+    STATE.drilldown = {
+      dimension: 'kpi',
+      value: metricName,
+      entityKey: metricKey,
+      sourceType: 'kpi',
+      metric: metricKey,
+      metricKey,
+      mode: 'kpi',
+      parentContext: null,
+      path,
+      rows: STATE.filteredErrors || [],
+      search: '',
+      sort: null,
+      simulation: { include: new Set(), excluded: new Set() },
+      filters: {}
+    };
+    renderDrilldown();
+    document.getElementById('drilldownDrawer').classList.add('show');
+  }
+
+  function renderDrilldownContext(metricName, currentValue, profile) {
+    const scope = currentFilterValues();
+    const scopeTxt = Object.entries(scope || {}).filter(([,v]) => String(v||'all') !== 'all' && String(v||'').trim() !== '').map(([k,v]) => `${k}: ${v}`).join(' • ') || 'All active dashboard data';
+    document.getElementById('drilldownContext').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Metric context</h4><span class="risk-pill risk-medium">Traceable calculation</span></div><div class="summary-grid" style="margin-top:8px;"><div class="summary-stat span-3"><div class="label">Metric</div><div class="value">${esc(metricName)}</div></div><div class="summary-stat span-3"><div class="label">Current value</div><div class="value">${esc(currentValue)}</div></div><div class="summary-stat span-3"><div class="label">Source used</div><div class="value">${esc(profile.source)}</div></div><div class="summary-stat span-3"><div class="label">Formula</div><div class="value" style="font-size:.87rem;line-height:1.35;">${esc(profile.formula)}</div></div></div><div class="micro" style="margin-top:8px;">Current scope / filters: ${esc(scopeTxt)}.</div>`;
+  }
+
+  function computeKpiComponents(metricKey, rows) {
+    const components = new Map();
+    rows.forEach(r => {
+      const press = r.press || 'Unspecified';
+      if (!components.has(press)) components.set(press, { name: press, source: 'errors+availability+volume', events: 0, durationSeconds: 0, productionVolume: 0 });
+      const item = components.get(press);
+      item.events += 1;
+      item.durationSeconds += r.durationSeconds || 0;
+      item.productionVolume += r?.volume?.productionVolume || 0;
+    });
+    const arr = [...components.values()];
+    const valueOf = c => metricKey === 'totalEvents' ? c.events : metricKey === 'totalProdVolume' ? c.productionVolume : c.durationSeconds;
+    const total = arr.reduce((a,c)=>a+valueOf(c),0) || 0;
+    return arr.map(c => ({ ...c, metricValue: valueOf(c), contributionPct: total ? (valueOf(c)/total)*100 : 0 }));
   }
 
   function openDrilldown(dimension, value, payload = null) {
@@ -2264,11 +2335,41 @@
     const isAvailability = sourceType === 'availabilityNative' || sourceType === 'availabilityAgg';
     const scoped = !search ? rows : rows.filter(r => `${r.customer} ${r.site} ${r.press} ${r.subsystem || ''} ${r.name || ''} ${r.alertTitle || ''} ${r.version || ''} ${r.jobType || ''} ${r.jobStatus || ''}`.toLowerCase().includes(search.toLowerCase()));
     renderDrilldownBreadcrumbs();
+    if (STATE.drilldown.mode === 'kpi' || sourceType === 'kpi') {
+      const metricKey = STATE.drilldown.metricKey || STATE.drilldown.metric;
+      const metricName = STATE.drilldown.value;
+      const profile = kpiMetricProfile(metricKey, metricName);
+      const k = STATE.kpis || {};
+      const currentValue = metricKey === 'totalEvents' ? (k.totalEvents || 0).toLocaleString() : metricKey === 'totalDowntime' ? formatDuration(k.totalDowntime || 0) : metricKey === 'totalUnplanned' ? formatDuration(k.totalUnplanned || 0) : metricKey === 'totalPlanned' ? formatDuration(k.totalPlanned || 0) : metricKey === 'mttr' ? (k.mttr == null ? 'N/A' : formatDuration(k.mttr)) : metricKey === 'mtbf' ? (k.mtbf == null ? 'N/A' : formatDuration(k.mtbf)) : metricKey === 'availabilityPct' ? (k.availabilityPct == null ? 'N/A' : `${k.availabilityPct.toFixed(1)}%`) : metricKey === 'totalProdVolume' ? (k.totalProdVolume || 0).toLocaleString() : metricKey === 'downtimePerVolume' ? (k.downtimePerVolume == null ? 'N/A' : k.downtimePerVolume.toFixed(4)) : metricKey === 'eventPerVolume' ? (k.eventPerVolume == null ? 'N/A' : k.eventPerVolume.toFixed(4)) : 'N/A';
+      document.getElementById('drilldownTitle').textContent = `${metricName} Drilldown`;
+      document.getElementById('drilldownSummary').textContent = `Professional metric drilldown with transparent components, simulation, and source-native support.`;
+      renderDrilldownContext(metricName, currentValue, profile);
+      const components = computeKpiComponents(metricKey, scoped);
+      const included = components.filter(c => !STATE.drilldown.simulation.excluded.has(c.name));
+      const simTotal = included.reduce((a,c)=>a+c.metricValue,0);
+      document.getElementById('drilldownSummaryGrid').innerHTML = `<div class="summary-stat span-3"><div class="label">Displayed rows</div><div class="value">${scoped.length.toLocaleString()}</div></div><div class="summary-stat span-3"><div class="label">Components</div><div class="value">${components.length.toLocaleString()}</div></div><div class="summary-stat span-3"><div class="label">Included</div><div class="value">${included.length.toLocaleString()}</div></div><div class="summary-stat span-3"><div class="label">Simulated total</div><div class="value">${Number(simTotal).toLocaleString(undefined,{maximumFractionDigits:2})}</div></div>`;
+      document.getElementById('drilldownFilters').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Interactive filtering</h4><span class="impact-chip">Live impact simulation</span></div><div class="micro">Use dashboard filters for time, press, subsystem, alert, version, customer/site/job. Drilldown honors the same scoped rows and updates instantly.</div>`;
+      const top = components.slice().sort((a,b)=>b.metricValue-a.metricValue).slice(0,10);
+      replaceChart('drilldownTopChart',{type:'bar',data:{labels:top.map(x=>x.name),datasets:[{data:top.map(x=>x.metricValue),backgroundColor:COLORS,borderRadius:6}]},options:baseOptions('press',top.map(x=>x.name),top.map(x=>({entityKey:x.name,displayLabel:x.name,sourceType:'errorEvents',metric:'events',parentContext:{path:[]}})))});
+      const byDay = new Map(); scoped.forEach(r=>{if(!r.day)return; byDay.set(r.day,(byDay.get(r.day)||0)+1);}); const dayRows=[...byDay.entries()].sort((a,b)=>a[0].localeCompare(b[0]));
+      replaceChart('drilldownTrendChart',{type:'line',data:{labels:dayRows.map(x=>x[0]),datasets:[{data:dayRows.map(x=>x[1]),borderColor:'#7b8dff',tension:.25,fill:false}]},options:baseOptions('drilldown',dayRows.map(x=>x[0]))});
+      const subsystemMap=new Map(); scoped.forEach(r=>subsystemMap.set(r.subsystem||'Unspecified',(subsystemMap.get(r.subsystem||'Unspecified')||0)+1)); const subs=[...subsystemMap.entries()].sort((a,b)=>b[1]-a[1]).slice(0,10);
+      replaceChart('drilldownSecondaryChart',{type:'bar',data:{labels:subs.map(x=>x[0]),datasets:[{data:subs.map(x=>x[1]),backgroundColor:COLORS,borderRadius:6}]},options:baseOptions('subsystem',subs.map(x=>x[0]),subs.map(x=>({entityKey:x[0],displayLabel:x[0],sourceType:'errorEvents',metric:'events',parentContext:{path:[]}})))});
+      const alertMap=new Map(); scoped.forEach(r=>{const a=r.name!=='Unspecified'?r.name:r.alertTitle; alertMap.set(a,(alertMap.get(a)||0)+1)}); const alerts=[...alertMap.entries()].sort((a,b)=>b[1]-a[1]).slice(0,8);
+      replaceChart('drilldownOpsChart',{type:'bar',data:{labels:alerts.map(x=>x[0]),datasets:[{data:alerts.map(x=>x[1]),backgroundColor:COLORS,borderRadius:6}]},options:baseOptions('alert',alerts.map(x=>x[0]),alerts.map(x=>({entityKey:x[0],displayLabel:x[0],sourceType:'errorEvents',metric:'events',parentContext:{path:[]}})))});
+      document.getElementById('drilldownInsight').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Explanation & calculation logic</h4><span class="risk-pill risk-medium">Metric-specific narrative</span></div><div class="micro">${esc(profile.formula)} Contributions are aggregated by press and can be recursively explored through subsystem, alert, version, and trend views.</div>`;
+      document.getElementById('drilldownTransparency').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Calculation transparency table</h4><span class="impact-chip">Include / exclude to simulate impact</span></div><div class="table-wrap" style="max-height:260px;margin-top:8px;"><table><thead><tr><th>Include</th><th>Component</th><th>Source contribution</th><th>Amount</th><th>Contribution %</th></tr></thead><tbody>${components.slice(0,200).map(c=>`<tr><td><input type="checkbox" data-kpi-inc="${esc(c.name)}" ${STATE.drilldown.simulation.excluded.has(c.name)?'':'checked'} /></td><td>${esc(c.name)}</td><td>${esc(c.source)}</td><td>${Number(c.metricValue).toLocaleString(undefined,{maximumFractionDigits:2})}</td><td>${c.contributionPct.toFixed(2)}%</td></tr>`).join('')}</tbody></table></div>`;
+      document.querySelectorAll('[data-kpi-inc]').forEach(el=>el.addEventListener('change',()=>{const key=el.getAttribute('data-kpi-inc'); if(el.checked) STATE.drilldown.simulation.excluded.delete(key); else STATE.drilldown.simulation.excluded.add(key); renderDrilldown();}));
+      document.getElementById('drilldownTable').innerHTML = `<thead><tr><th>customer</th><th>site</th><th>press</th><th>subsystem</th><th>alert</th><th>version</th><th>start</th><th>duration</th><th>volume</th></tr></thead><tbody>${scoped.slice(0,1000).map(r=>`<tr><td>${esc(r.customer)}</td><td>${esc(r.site)}</td><td>${esc(r.press)}</td><td>${esc(r.subsystem)}</td><td>${esc(r.name !== 'Unspecified' ? r.name : r.alertTitle)}</td><td>${esc(r.version)}</td><td>${esc(r.startTime?.toISOString() || '')}</td><td>${esc(formatDuration(r.durationSeconds||0))}</td><td>${esc((r?.volume?.productionVolume||0).toLocaleString())}</td></tr>`).join('')}</tbody>`;
+      return;
+    }
     if (isAvailability) {
       const total = scoped.reduce((a, r) => a + totalDowntimeFromAvailabilityRow(r), 0);
       const planned = scoped.reduce((a, r) => a + (r.plannedDowntimeSeconds || 0), 0);
       const unplanned = scoped.reduce((a, r) => a + (r.unplannedDowntimeSeconds || 0), 0);
       const nextDimension = getNextAvailabilityDrillDimension(dimension);
+      document.getElementById('drilldownContext').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Context header</h4><span class="risk-pill risk-medium">Availability source</span></div><div class="micro">Source: availabilityAgg. Formula: planned + unplanned downtime. Scope inherits active dashboard filters and breadcrumb path.</div>`;
+      document.getElementById('drilldownFilters').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Interactive filtering</h4><span class="impact-chip">Press/subsystem/category/time</span></div><div class="micro">Use global filters plus recursive breadcrumb clicks to refine press → subsystem → downtime category views.</div>`;
       document.getElementById('drilldownTitle').textContent = `Availability Drilldown • ${dimension} = ${value}`;
       document.getElementById('drilldownSummary').textContent = `Rows ${scoped.length.toLocaleString()} • Planned ${formatDuration(planned)} • Unplanned ${formatDuration(unplanned)} • Total ${formatDuration(total)}`;
       document.getElementById('drilldownSummaryGrid').innerHTML = `
@@ -2291,6 +2392,7 @@
         ? catRows.map(([k]) => ({ entityKey: k, displayLabel: k, sourceType: 'availabilityNative', metric: 'downtime', parentContext: { path: STATE.drilldown.path || [] } }))
         : null;
       replaceChart('drilldownOpsChart', { type: 'bar', data: { labels: catRows.map(x => x[0]), datasets: [{ data: catRows.map(x => x[1]), backgroundColor: COLORS, borderRadius: 6 }] }, options: baseOptions(nextDimension === 'availabilityCategory' ? 'availabilityCategory' : 'drilldown', catRows.map(x => x[0]), catPayloads) });
+      document.getElementById('drilldownTransparency').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Calculation transparency table</h4><span class="impact-chip">Availability components</span></div><div class="table-wrap" style="max-height:220px;margin-top:8px;"><table><thead><tr><th>Component</th><th>Planned</th><th>Unplanned</th><th>Total</th><th>Contribution %</th></tr></thead><tbody>${subs.slice(0,25).map(x=>`<tr><td>${esc(x.name)}</td><td>${esc(formatDuration(scoped.filter(r=>r.subsystem===x.name).reduce((a,r)=>a+(r.plannedDowntimeSeconds||0),0)))}</td><td>${esc(formatDuration(scoped.filter(r=>r.subsystem===x.name).reduce((a,r)=>a+(r.unplannedDowntimeSeconds||0),0)))}</td><td>${esc(formatDuration(x.downtime))}</td><td>${total?((x.downtime/total)*100).toFixed(2):'0.00'}%</td></tr>`).join('')}</tbody></table></div>`;
       document.getElementById('drilldownTable').innerHTML = `<thead><tr><th>press</th><th>day</th><th>subsystem</th><th>category</th><th>planned</th><th>unplanned</th><th>total</th></tr></thead><tbody>${scoped.slice(0, 1000).map(r => `<tr><td>${esc(r.canonicalPress || '')}</td><td>${esc(r.day)}</td><td>${esc(r.subsystem)}</td><td>${esc(r.downtimeCategory || 'Unspecified')}</td><td>${esc(formatDuration(r.plannedDowntimeSeconds || 0))}</td><td>${esc(formatDuration(r.unplannedDowntimeSeconds || 0))}</td><td>${esc(formatDuration(totalDowntimeFromAvailabilityRow(r)))}</td></tr>`).join('')}</tbody>`;
       return;
     }
@@ -2301,6 +2403,8 @@
       const totalJobs = scoped.length;
       const avgSheetsPerJob = totalJobs ? totalSheets / totalJobs : 0;
       const avgDurationPerJob = totalJobs ? scoped.reduce((a, r) => a + (r.durationSeconds || 0), 0) / totalJobs : 0;
+      document.getElementById('drilldownContext').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Context header</h4><span class="risk-pill risk-medium">Volume source</span></div><div class="micro">Source: volume jobs and volumeAgg. Formula follows selected volume unit (${esc(measure)}), including production-only treatment when selected.</div>`;
+      document.getElementById('drilldownFilters').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Interactive filtering</h4><span class="impact-chip">Press/customer/site/job/time</span></div><div class="micro">Use dashboard filters and recursive drill clicks to analyze customer, site, job type, and trend context.</div>`;
       document.getElementById('drilldownTitle').textContent = `Volume Drilldown • Press = ${value}`;
       document.getElementById('drilldownSummary').textContent = `${totalJobs.toLocaleString()} jobs • Sheets ${totalSheets.toLocaleString()} • Flats ${totalFlats.toLocaleString()}`;
       document.getElementById('drilldownSummaryGrid').innerHTML = `
@@ -2347,6 +2451,7 @@
       replaceChart('drilldownSecondaryChart', { type: 'bar', data: { labels: maintenanceRows.map(x => `Maintenance ${x[0]}`), datasets: [{ label: 'Maintenance', data: maintenanceRows.map(x => x[1]), backgroundColor: '#f0b165', borderRadius: 6 }, { label: 'Waste-oriented', data: wasteRows.map(x => x[1]), backgroundColor: '#f36b63', borderRadius: 6 }] }, options: { ...baseOptions('drilldown', maintenanceRows.map(x => x[0])), plugins: { legend: { labels: { color: '#c6d3ea' } } } } });
       const topJobs = [...byJobName.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6);
       replaceChart('drilldownOpsChart', { type: 'bar', data: { labels: topJobs.map(x => x[0]), datasets: [{ data: topJobs.map(x => x[1]), backgroundColor: COLORS, borderRadius: 6 }] }, options: baseOptions('drilldown', topJobs.map(x => x[0])) });
+      document.getElementById('drilldownTransparency').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Calculation transparency table</h4><span class="impact-chip">Source-native job contributions</span></div><div class="table-wrap" style="max-height:220px;margin-top:8px;"><table><thead><tr><th>Include</th><th>Component</th><th>Source contribution</th><th>Amount</th><th>Contribution %</th></tr></thead><tbody>${topJobs.map(([name,val])=>`<tr><td>✓</td><td>${esc(name)}</td><td>volumeJobs</td><td>${Number(val).toLocaleString()}</td><td>${(totalSheets?((val/totalSheets)*100):0).toFixed(2)}%</td></tr>`).join('')}</tbody></table></div>`;
       const columns = ['jobName', 'jobType', 'simplexDuplex', 'substrate', 'printedSheets', 'printedFlats', 'durationSeconds'];
       document.getElementById('drilldownTable').innerHTML = `<thead><tr>${columns.map(col => `<th>${esc(col)}</th>`).join('')}</tr></thead><tbody>${scoped.slice(0, 1000).map(r => `<tr><td>${esc(r.jobName)}</td><td>${esc(r.jobType)}</td><td>${esc(r.simplexDuplex)}</td><td>${esc(r.substrate)}</td><td>${(r.printedSheets || 0).toLocaleString()}</td><td>${(r.printedFlats || 0).toLocaleString()}</td><td>${esc(formatDuration(r.durationSeconds || 0))}</td></tr>`).join('')}</tbody>`;
       return;
@@ -2357,6 +2462,8 @@
     const avg = count ? (isVolume ? totalVolume / count : downtime / count) : 0;
     const prodSplit = scoped.reduce((a, r) => a + (isVolume ? (r.productionVolume || 0) : (r?.volume?.productionVolume || 0)), 0);
     const maintSplit = scoped.reduce((a, r) => a + (isVolume ? (r.maintenanceVolume || 0) : (r?.volume?.maintenanceVolume || 0)), 0);
+    document.getElementById('drilldownContext').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Context header</h4><span class="risk-pill risk-medium">Event source</span></div><div class="micro">Source: normalized errors events in active scope. Formula: direct event count and duration rollups for the selected breadcrumb.</div>`;
+    document.getElementById('drilldownFilters').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Interactive filtering</h4><span class="impact-chip">Press/subsystem/error/version/time</span></div><div class="micro">Click charts recursively to preserve breadcrumb context and move deeper into subsystem, error, and version slices.</div>`;
     document.getElementById('drilldownTitle').textContent = `Drilldown • ${dimension} = ${value}`;
     document.getElementById('drilldownSummary').textContent = isVolume
       ? `${count} matching jobs • Total volume ${totalVolume.toLocaleString()} • Avg job size ${avg.toFixed(1)}`
@@ -2402,6 +2509,7 @@
       data: { labels: ['Production', 'Maintenance'], datasets: [{ data: [prodSplit, maintSplit], backgroundColor: ['#51c285', '#f0b165'] }] },
       options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: '#c6d3ea' } } } }
     });
+    document.getElementById('drilldownTransparency').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Calculation transparency table</h4><span class="impact-chip">Top component contributions</span></div><div class="table-wrap" style="max-height:220px;margin-top:8px;"><table><thead><tr><th>Component</th><th>Events</th><th>Contribution %</th></tr></thead><tbody>${topRows.map(([name,val])=>`<tr><td>${esc(name)}</td><td>${Number(val).toLocaleString()}</td><td>${count?((val/count)*100).toFixed(2):'0.00'}%</td></tr>`).join('')}</tbody></table></div>`;
     const columns = isVolume
       ? ['customer', 'site', 'press', 'day', 'jobType', 'jobStatus', 'pressMode', 'totalVolume']
       : ['customer', 'site', 'press', 'subsystem', 'alert', 'version', 'start', 'duration'];
@@ -2561,7 +2669,7 @@
     const subsystemRankings = safeRankingRender('subsystem');
     const alertRankings = safeRankingRender('alert');
     const versionRankings = safeRankingRender('version');
-    const customerVolumeRows = buildCustomerVolumeChart(sourceScope.volumeAgg, STATE.customerVolumeMetric, STATE.customerVolumeSort, STATE.customerVolumeExpanded);
+    const customerVolumeRows = buildCustomerVolumeChart(sourceScope.volumeAgg, STATE.customerVolumeMetric, STATE.customerVolumeSort, STATE.customerVolumeExpanded, STATE.customerVolumeShowOthers);
     STATE.customerVolumeRows = customerVolumeRows;
     const labels = customerVolumeRows.map(r => r.displayLabel);
     const values = customerVolumeRows.map(r => r[STATE.customerVolumeMetric]);
@@ -2578,7 +2686,9 @@
       });
       if (!customerVolumeRows.length) setCanvasState('customerVolumeChart', 'No print volume rows after source-native scope (volume owns press/customer/site/day).');
       if (!customerVolumeRendered) setCanvasState('customerVolumeChart', 'Chart library failed to load. Charts cannot render.', 'error');
-    document.getElementById('customerVolumeNote').textContent = `${STATE.customerVolumeExpanded ? 'Full press ranking' : 'Top 12 plus grouped remainder'} by ${volumeMetricLabel(STATE.customerVolumeMetric)} (${STATE.customerVolumeSort === 'asc' ? 'lowest first' : 'highest first'}) from source volume aggregates (canonical press grouping).`;
+    document.getElementById('customerVolumeNote').textContent = `${STATE.customerVolumeExpanded ? 'Full press ranking' : 'Top 12'} by ${volumeMetricLabel(STATE.customerVolumeMetric)} (${STATE.customerVolumeSort === 'asc' ? 'lowest first' : 'highest first'}) from source volume aggregates (canonical press grouping). ${STATE.customerVolumeShowOthers ? 'Grouped remainder is enabled.' : 'Grouped remainder is disabled by default.'}`;
+    const othersToggle = document.getElementById('customerVolumeOthersToggle');
+    if (othersToggle) othersToggle.checked = !!STATE.customerVolumeShowOthers;
     document.getElementById('customerVolumeExpand').textContent = STATE.customerVolumeExpanded ? 'Collapse' : 'Show all';
     console.info('[consistency-debug] print-volume-chart-plot', {
       source: 'volumeAgg',
@@ -3015,6 +3125,8 @@
     customerVolumeUnit.addEventListener('change', e => { STATE.customerVolumeMetric = e.target.value; scheduleRender(); });
     customerVolumeSort.addEventListener('change', e => { STATE.customerVolumeSort = e.target.value; scheduleRender(); });
     customerVolumeExpand.addEventListener('click', () => { STATE.customerVolumeExpanded = !STATE.customerVolumeExpanded; scheduleRender(); });
+    const customerVolumeOthersToggle = document.getElementById('customerVolumeOthersToggle');
+    customerVolumeOthersToggle.addEventListener('change', e => { STATE.customerVolumeShowOthers = !!e.target.checked; scheduleRender(); });
 
     closeDrilldown.addEventListener('click', () => drilldownDrawer.classList.remove('show'));
     drilldownDrawer.addEventListener('click', e => { if (e.target.id === 'drilldownDrawer') drilldownDrawer.classList.remove('show'); });
