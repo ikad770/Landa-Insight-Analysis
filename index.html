@@ -287,6 +287,7 @@
     drilldown: { dimension: '', value: '', entityKey: '', rows: [], search: '', sort: null, sourceType: '', metric: '', path: [] },
     lastSourceScope: null,
     reconciliation: { logs: [], report: [] },
+    availabilityDefinitions: null,
     renderQueued: false,
   };
 
@@ -1359,6 +1360,61 @@
     return (row.plannedDowntimeSeconds || 0) + (row.unplannedDowntimeSeconds || 0);
   }
 
+  function computeAvailabilityDefinitions(availabilityAgg = []) {
+    const totals = availabilityAgg.reduce((acc, row) => {
+      const runtime = row.runtimeSeconds || 0;
+      const planned = row.plannedDowntimeSeconds || 0;
+      const unplanned = row.unplannedDowntimeSeconds || 0;
+      const totalWindow = runtime + planned + unplanned;
+      acc.runtime += runtime;
+      acc.planned += planned;
+      acc.unplanned += unplanned;
+      if (row.availabilityPct != null) {
+        acc.sourceRows += 1;
+        acc.sourcePctSum += row.availabilityPct;
+        acc.sourceWeightedPct += row.availabilityPct * totalWindow;
+        acc.sourceWeight += totalWindow;
+      }
+      return acc;
+    }, { runtime: 0, planned: 0, unplanned: 0, sourceRows: 0, sourcePctSum: 0, sourceWeightedPct: 0, sourceWeight: 0 });
+
+    const runtimeOverTotal = (totals.runtime + totals.planned + totals.unplanned) > 0
+      ? (totals.runtime / (totals.runtime + totals.planned + totals.unplanned)) * 100
+      : null;
+    const runtimeOverRuntimePlusUnplanned = (totals.runtime + totals.unplanned) > 0
+      ? (totals.runtime / (totals.runtime + totals.unplanned)) * 100
+      : null;
+    const sourceAverage = totals.sourceRows ? totals.sourcePctSum / totals.sourceRows : null;
+    const sourceWeighted = totals.sourceWeight > 0 ? totals.sourceWeightedPct / totals.sourceWeight : null;
+    const hasSourceAvailabilityColumn = totals.sourceRows > 0;
+
+    const selected = hasSourceAvailabilityColumn
+      ? {
+          key: 'sourceWeighted',
+          value: sourceWeighted,
+          label: 'Source weighted availability',
+          formula: 'weighted avg(Availability %) by (runtime + planned + unplanned)',
+          reason: 'Availability column exists in source and is used as business-defined KPI.',
+        }
+      : {
+          key: 'runtimeOverTotal',
+          value: runtimeOverTotal,
+          label: 'Runtime over total observed time',
+          formula: 'runtime / (runtime + planned + unplanned)',
+          reason: 'Source availability column missing; computed directly from source duration fields.',
+        };
+
+    return {
+      totals,
+      hasSourceAvailabilityColumn,
+      sourceAverage,
+      sourceWeighted,
+      runtimeOverTotal,
+      runtimeOverRuntimePlusUnplanned,
+      selected,
+    };
+  }
+
   function validateSourceAndLayerConsistency(sourceScope, filteredEvents, kpis, summary, riskRows, customerVolumeRows) {
     const logs = [];
     const errorsAgg = sourceScope?.errorsAgg || [];
@@ -1377,9 +1433,8 @@
       totalVolume: volumeAgg.reduce((a, r) => a + (r.totalVolume || 0), 0),
       totalDowntime: availabilityAgg.reduce((a, r) => a + totalDowntimeFromAvailabilityRow(r), 0),
     };
-    const weightedAvailability = (sourceTotals.runtime + sourceTotals.unplanned) > 0
-      ? (sourceTotals.runtime / (sourceTotals.runtime + sourceTotals.unplanned)) * 100
-      : null;
+    const availabilityDefinitions = computeAvailabilityDefinitions(availabilityAgg);
+    const weightedAvailability = availabilityDefinitions.selected.value;
     const customerVolumeTotal = (customerVolumeRows || []).reduce((a, r) => a + (r[STATE.customerVolumeMetric] || 0), 0);
     const filteredVolumeAggForUnit = volumeAgg.reduce((a, r) => a + (STATE.customerVolumeMetric === 'printedFlats' ? (r.printedFlats || 0) : STATE.customerVolumeMetric === 'productionPrintedSheets' ? (r.productionPrintedSheets || 0) : (r.printedSheets || 0)), 0);
     const topPressDowntime = (() => {
@@ -1438,15 +1493,14 @@
       runtime: availabilityAgg.reduce((a, r) => a + (r.runtimeSeconds || 0), 0),
       prodSheets: volumeAgg.reduce((a, r) => a + (r.productionPrintedSheets || 0), 0),
     };
-    const availabilityPct = (sourceTotals.runtime + sourceTotals.unplanned) > 0
-      ? (sourceTotals.runtime / (sourceTotals.runtime + sourceTotals.unplanned)) * 100
-      : null;
+    const availabilityDefinitions = computeAvailabilityDefinitions(availabilityAgg);
+    const availabilityPct = availabilityDefinitions.selected.value;
     const report = [
       ['KPI • Total Events', 'Errors', kpis.totalEvents, sourceTotals.events, 'sum(errors.totalEvents)'],
       ['KPI • Total Downtime', 'Availability', kpis.totalDowntime, sourceTotals.downtime, 'sum(planned + unplanned)'],
       ['KPI • Planned Downtime', 'Availability', kpis.totalPlanned, sourceTotals.planned, 'sum(preventive + on-job-maintenance)'],
       ['KPI • Unplanned Downtime', 'Availability', kpis.totalUnplanned, sourceTotals.unplanned, 'sum(recovery + jams)'],
-      ['KPI • Availability', 'Availability', kpis.availabilityPct ?? null, availabilityPct, 'runtime / (runtime + unplanned)'],
+      ['KPI • Availability', 'Availability', kpis.availabilityPct ?? null, availabilityPct, availabilityDefinitions.selected.formula],
       ['KPI • Production Volume', 'Volume', kpis.totalProdVolume, sourceTotals.prodSheets, 'sum(productionPrintedSheets)'],
       ['KPI • MTTR', 'Errors', kpis.mttr ?? null, sourceTotals.events ? sourceTotals.errorDuration / sourceTotals.events : null, 'sum(errorDuration) / events'],
       ['KPI • MTBF', 'Errors+Availability', kpis.mtbf ?? null, sourceTotals.events ? sourceTotals.runtime / sourceTotals.events : null, 'runtime / events'],
@@ -1457,7 +1511,27 @@
       ['Chart • Print Volume by Press', 'Volume', customerVolumeRows.reduce((a, r) => a + (r[STATE.customerVolumeMetric] || 0), 0), volumeAgg.reduce((a, r) => a + (STATE.customerVolumeMetric === 'printedFlats' ? (r.printedFlats || 0) : STATE.customerVolumeMetric === 'productionPrintedSheets' ? (r.productionPrintedSheets || 0) : (r.printedSheets || 0)), 0), `groupBy(press) sum(${STATE.customerVolumeMetric})`],
     ].map(([component, source, dashboardValue, sourceValue, formula]) => {
       const match = (dashboardValue == null && sourceValue == null) || Math.abs((dashboardValue || 0) - (sourceValue || 0)) < 1e-6;
-      return { component, source, dashboardValue, sourceValue, formula, status: match ? 'match' : 'warning' };
+      const delta = (dashboardValue == null || sourceValue == null) ? null : dashboardValue - sourceValue;
+      return {
+        component,
+        source,
+        dashboardValue,
+        sourceValue,
+        delta,
+        formula,
+        status: match ? 'match' : 'warning',
+        mismatchReason: match ? '' : `Dashboard aggregation diverges from source recalculation for ${component}.`,
+      };
+    });
+    report.push({
+      component: 'Availability Definitions Audit',
+      source: 'Availability',
+      dashboardValue: availabilityDefinitions.selected.value,
+      sourceValue: availabilityDefinitions.selected.value,
+      delta: 0,
+      formula: `Selected=${availabilityDefinitions.selected.formula}; avg(source Availability)=${availabilityDefinitions.sourceAverage?.toFixed(4) ?? 'N/A'}; weighted(source Availability)=${availabilityDefinitions.sourceWeighted?.toFixed(4) ?? 'N/A'}; runtime/(runtime+unplanned)=${availabilityDefinitions.runtimeOverRuntimePlusUnplanned?.toFixed(4) ?? 'N/A'}; runtime/(runtime+planned+unplanned)=${availabilityDefinitions.runtimeOverTotal?.toFixed(4) ?? 'N/A'}`,
+      status: 'match',
+      mismatchReason: availabilityDefinitions.selected.reason,
     });
     return report;
   }
@@ -1484,8 +1558,9 @@
     const totalDowntime = totals.availabilityCount ? totals.totalAvailDowntime : errorDowntime;
     const mttr = totalEvents ? (errorDowntime / totalEvents) : null;
     const mtbf = totalEvents && totals.runtime > 0 ? (totals.runtime / totalEvents) : null;
-    const availabilityBase = totals.runtime + totals.unplanned;
-    const availabilityPct = availabilityBase > 0 ? (totals.runtime / availabilityBase) * 100 : null;
+    const availabilityDefinitions = computeAvailabilityDefinitions(availabilityAgg);
+    STATE.availabilityDefinitions = availabilityDefinitions;
+    const availabilityPct = availabilityDefinitions.selected.value;
 
     const reasons = [];
     if (!totals.availabilityCount) reasons.push('Availability aggregated dataset unavailable for current filters.');
@@ -1508,6 +1583,8 @@
       mttr,
       mtbf,
       availabilityPct,
+      availabilityLabel: availabilityDefinitions.selected.label,
+      availabilityFormula: availabilityDefinitions.selected.formula,
       downtimePerVolume: totals.productionPrintedSheets > 0 ? totalDowntime / totals.productionPrintedSheets : null,
       eventPerVolume: totals.productionPrintedSheets > 0 ? totalEvents / totals.productionPrintedSheets : null,
       reasons,
@@ -1614,7 +1691,7 @@
       interpretation: [
         `${kpis.totalEvents.toLocaleString()} events in current scope (events-first mode).`,
         `Top press by events: ${topPressByEvents?.name || 'N/A'}; top subsystem by events: ${topSubsystem?.name || 'N/A'}.`,
-        kpis.availabilityPct == null ? 'Availability cannot be computed for this slice due to missing runtime/unplanned context.' : `Availability is ${kpis.availabilityPct.toFixed(1)}% (runtime vs unplanned downtime).`
+        kpis.availabilityPct == null ? 'Availability cannot be computed for this slice due to missing availability context.' : `Availability is ${kpis.availabilityPct.toFixed(1)}% (${kpis.availabilityFormula}).`
       ],
       actions: [
         `Prioritize alert recurrence on ${topPressByEvents?.name || 'top press'} (by events).`,
@@ -1636,7 +1713,7 @@
       `Total Downtime (Planned + Unplanned): ${formatDuration(kpis.totalDowntime)}`,
       `Planned Downtime (${DOWNTIME_DEFINITION.planned}): ${formatDuration(kpis.totalPlanned)}`,
       `Unplanned Downtime (${DOWNTIME_DEFINITION.unplanned}): ${formatDuration(kpis.totalUnplanned)}`,
-      `Availability (weighted runtime/(runtime+unplanned)): ${kpis.availabilityPct == null ? 'N/A' : `${kpis.availabilityPct.toFixed(1)}%`}`,
+      `Availability (${kpis.availabilityFormula || 'source-defined'}): ${kpis.availabilityPct == null ? 'N/A' : `${kpis.availabilityPct.toFixed(1)}%`}`,
       `Production Volume: ${kpis.totalProdVolume.toLocaleString()}`,
       `Maintenance Volume: ${kpis.totalMaintenanceVolume.toLocaleString()}`,
       `Total Volume: ${kpis.totalVolume.toLocaleString()}`,
@@ -1664,12 +1741,12 @@
       ['Planned DT', formatDuration(k.totalPlanned), DOWNTIME_DEFINITION.planned],
       ['MTTR', k.mttr == null ? na : formatDuration(k.mttr), 'Mean repair time from error duration'],
       ['MTBF', k.mtbf == null ? na : formatDuration(k.mtbf), 'Runtime between failures'],
-      ['Availability', k.availabilityPct == null ? na : `${k.availabilityPct.toFixed(1)}%`, 'Runtime / (runtime + unplanned downtime)'],
+      ['Availability', k.availabilityPct == null ? na : `${k.availabilityPct.toFixed(1)}%`, k.availabilityFormula || 'Source-defined availability'],
       ['Production Volume', k.totalProdVolume.toLocaleString(), `Basis: ${k.volumeBasis}`],
       ['Downtime / Volume', k.downtimePerVolume == null ? na : k.downtimePerVolume.toFixed(4), 'seconds per production unit'],
       ['Events / Volume', k.eventPerVolume == null ? na : k.eventPerVolume.toFixed(4), 'events per production unit'],
     ];
-    const helper = `<div class="micro">Volume debug — Raw Printed Sheets: ${k.rawPrintedSheets.toLocaleString()} • Production-only Printed Sheets: ${k.productionOnlyPrintedSheets.toLocaleString()} • KPI uses: ${esc(k.volumeBasis)}</div>${k.reasons.length ? `<div class="micro">KPI notes: ${esc(k.reasons.join(' '))}</div>` : ''}`;
+    const helper = `<div class="micro">Volume basis: Raw Printed Sheets ${k.rawPrintedSheets.toLocaleString()} • Production-only Printed Sheets ${k.productionOnlyPrintedSheets.toLocaleString()} • KPI uses ${esc(k.volumeBasis)}.</div><div class="micro">Availability definition: ${esc(k.availabilityLabel || 'Source-defined availability')} (${esc(k.availabilityFormula || 'N/A')}).</div>${k.reasons.length ? `<div class="micro">KPI notes: ${esc(k.reasons.join(' '))}</div>` : ''}`;
     document.getElementById('kpiStrip').innerHTML = cards.map(([a, b, c]) => `<article class="kpi"><div class="k">${a}</div><div class="v">${b}</div><div class="d">${c}</div></article>`).join('') + helper;
   }
 
@@ -1713,6 +1790,25 @@
     const reportSummary = reconciliationReport.length
       ? `${reconciliationReport.filter(r => r.status === 'match').length}/${reconciliationReport.length} KPI/chart checks aligned.`
       : 'No reconciliation checks yet.';
+    const mismatchRows = reconciliationReport.filter(r => r.status !== 'match').slice(0, 8);
+    const mismatchSection = mismatchRows.length
+      ? `<div style="margin-top:10px;">
+          <div class="status-note" style="margin-bottom:6px;">Reconciliation mismatches</div>
+          <div class="table-wrap" style="max-height:220px;">
+            <table>
+              <thead><tr><th>Component</th><th>Dashboard</th><th>Source</th><th>Delta</th><th>Definition</th><th>Reason</th></tr></thead>
+              <tbody>${mismatchRows.map(row => `<tr>
+                <td>${esc(row.component)}</td>
+                <td>${esc(row.dashboardValue == null ? 'N/A' : Number(row.dashboardValue).toLocaleString(undefined, { maximumFractionDigits: 4 }))}</td>
+                <td>${esc(row.sourceValue == null ? 'N/A' : Number(row.sourceValue).toLocaleString(undefined, { maximumFractionDigits: 4 }))}</td>
+                <td>${esc(row.delta == null ? 'N/A' : Number(row.delta).toLocaleString(undefined, { maximumFractionDigits: 4 }))}</td>
+                <td>${esc(row.formula || '')}</td>
+                <td>${esc(row.mismatchReason || '')}</td>
+              </tr>`).join('')}</tbody>
+            </table>
+          </div>
+        </div>`
+      : '';
     panel.innerHTML = `
       <div class="status-head">
         <span>${level === 'green' ? '🟢' : level === 'yellow' ? '🟡' : '🔴'} Data Validation Status</span>
@@ -1724,7 +1820,8 @@
         <div class="status-chip">${esc(sourceChip('Availability', totals.availability, !!STATE.normalized.availability?.length))}</div>
         <div class="status-chip">${esc(sourceChip('Volume', totals.volume, !!STATE.normalized.volume?.length))}</div>
       </div>
-      <div class="status-note">${esc(warnings.length ? warnings.join(' ') : 'Files loaded, schema mapping succeeded, and dashboard reconciles with source calculations.')}</div>`;
+      <div class="status-note">${esc(warnings.length ? warnings.join(' ') : 'Files loaded, schema mapping succeeded, and dashboard reconciles with source calculations.')}</div>
+      ${mismatchSection}`;
   }
 
   function setCanvasState(canvasId, message = '', kind = 'empty') {
@@ -1837,7 +1934,7 @@
         entityKey: item.name,
         displayLabel: item.name,
         sourceType: key === 'press'
-          ? (metric === 'downtime' ? 'availabilityAgg' : 'errorsAgg')
+          ? (metric === 'downtime' ? 'availabilityNative' : 'errorEvents')
           : 'errorEvents',
         metric
       }))
@@ -1968,53 +2065,61 @@
     return expanded ? sorted : sorted.slice(0, 12);
   }
 
+  function eventValueForDimension(row, dimension) {
+    if (dimension === 'alert') return row.name !== 'Unspecified' ? row.name : row.alertTitle;
+    if (dimension === 'press') return row.press;
+    if (dimension === 'subsystem') return row.subsystem;
+    if (dimension === 'version') return row.version;
+    return '';
+  }
+
+  function volumeValueForDimension(row, dimension) {
+    if (dimension === 'press' || dimension === 'customerVolume') return row.canonicalPress || row.press || 'Unspecified';
+    if (dimension === 'jobType') return row.jobType || 'Unspecified';
+    if (dimension === 'jobStatus') return row.jobStatus || 'Unspecified';
+    if (dimension === 'customer') return row.customer || 'Unspecified';
+    if (dimension === 'site') return row.site || 'Unspecified';
+    return '';
+  }
+
+  function availabilityValueForDimension(row, dimension) {
+    if (dimension === 'press') return row.canonicalPress || 'Unspecified';
+    if (dimension === 'availabilitySubsystem') return row.subsystem || 'Unspecified';
+    if (dimension === 'availabilityCategory') return row.downtimeCategory || 'Unspecified';
+    return '';
+  }
+
   function openDrilldown(dimension, value, payload = null) {
-    const mapping = { press: 'press', subsystem: 'subsystem', alert: 'alert', version: 'version', customerVolume: 'customer' };
-    const field = mapping[dimension];
-    if (!field) return;
-    const rows = dimension === 'customerVolume'
-      ? (() => {
-          const entityKey = payload?.entityKey || value;
-          const scopedVolumeJobs = (STATE.normalized.volumeJobs || []).filter(r => STATE.lastSourceScope?.volumeKeys?.has(r.key));
-          const subset = scopedVolumeJobs.filter(r => (r.canonicalPress || 'Unspecified') === entityKey);
-          console.info('[consistency-debug] print-volume-drilldown-select', {
-            clickedEntityKey: entityKey,
-            displayLabel: payload?.displayLabel || value,
-            subsetRows: subset.length,
-            totals: {
-              printedSheets: subset.reduce((a, r) => a + (r.printedSheets || 0), 0),
-              printedFlats: subset.reduce((a, r) => a + (r.printedFlats || 0), 0),
-              jobs: subset.length,
-            }
-          });
-          if (!subset.length) {
-            console.warn('[consistency-debug] print-volume-drilldown-empty', {
-              clickedEntityKey: entityKey,
-              reason: 'No scoped normalizedVolumeRows matched chart entityKey.'
-            });
-          }
-          return subset;
-        })()
-      : (() => {
-          const entityKey = payload?.entityKey || value;
-          const sourceType = payload?.sourceType || 'errorEvents';
-          if (dimension === 'press' && sourceType === 'availabilityAgg') {
-            return (STATE.lastSourceScope?.availabilityAgg || []).filter(r => (r.canonicalPress || 'Unspecified') === entityKey);
-          }
-          if (dimension === 'press' && sourceType === 'errorsAgg') {
-            return (STATE.lastSourceScope?.errorsAgg || []).filter(r => (r.canonicalPress || 'Unspecified') === entityKey);
-          }
-          return STATE.filteredErrors.filter(r => field === 'alert'
-            ? (r.name !== 'Unspecified' ? r.name : r.alertTitle) === entityKey
-            : r[field] === entityKey);
-        })();
+    const entityKey = payload?.entityKey || value;
+    const sourceType = payload?.sourceType || 'errorEvents';
+    const parentPath = Array.isArray(payload?.parentContext?.path) ? payload.parentContext.path : [];
+    let rows = [];
+    if (sourceType === 'volumeJobs') {
+      rows = (STATE.normalized.volumeJobs || []).filter(r => STATE.lastSourceScope?.volumeKeys?.has(r.key));
+      parentPath.forEach(node => {
+        rows = rows.filter(row => volumeValueForDimension(row, node.dimension) === node.entityKey);
+      });
+      rows = rows.filter(r => volumeValueForDimension(r, dimension) === entityKey);
+    } else if (sourceType === 'availabilityNative' || sourceType === 'availabilityAgg') {
+      rows = STATE.lastSourceScope?.filteredAvailabilityRowsNative || [];
+      parentPath.forEach(node => {
+        rows = rows.filter(row => availabilityValueForDimension(row, node.dimension) === node.entityKey);
+      });
+      rows = rows.filter(r => availabilityValueForDimension(r, dimension) === entityKey);
+    } else {
+      rows = STATE.filteredErrors || [];
+      parentPath.forEach(node => {
+        rows = rows.filter(row => eventValueForDimension(row, node.dimension) === node.entityKey);
+      });
+      rows = rows.filter(r => eventValueForDimension(r, dimension) === entityKey);
+    }
     const prevPath = Array.isArray(payload?.parentContext?.path) ? payload.parentContext.path : [];
     const nextPath = [...prevPath, { dimension, entityKey: payload?.entityKey || value, displayLabel: payload?.displayLabel || value }];
     STATE.drilldown = {
       dimension,
       value: payload?.displayLabel || value,
       entityKey: payload?.entityKey || value,
-      sourceType: payload?.sourceType || 'errorEvents',
+      sourceType,
       metric: payload?.metric || '',
       parentContext: payload?.parentContext || null,
       path: nextPath,
@@ -2061,6 +2166,18 @@
     return null;
   }
 
+  function getNextVolumeDrillDimension(dimension) {
+    if (dimension === 'customerVolume' || dimension === 'press') return 'jobType';
+    if (dimension === 'jobType') return 'jobStatus';
+    return null;
+  }
+
+  function getNextAvailabilityDrillDimension(dimension) {
+    if (dimension === 'press') return 'availabilitySubsystem';
+    if (dimension === 'availabilitySubsystem') return 'availabilityCategory';
+    return null;
+  }
+
   function renderDrilldownBreadcrumbs() {
     const host = document.getElementById('drilldownBreadcrumbs');
     const path = STATE.drilldown.path || [];
@@ -2089,15 +2206,16 @@
 
   function renderDrilldown() {
     const { dimension, value, rows, search, sourceType } = STATE.drilldown;
-    const isVolume = dimension === 'customerVolume';
-    const isDowntimeCustomer = dimension === 'customerDowntime';
+    const isVolume = sourceType === 'volumeJobs';
+    const isAvailability = sourceType === 'availabilityNative' || sourceType === 'availabilityAgg';
     const scoped = !search ? rows : rows.filter(r => `${r.customer} ${r.site} ${r.press} ${r.subsystem || ''} ${r.name || ''} ${r.alertTitle || ''} ${r.version || ''} ${r.jobType || ''} ${r.jobStatus || ''}`.toLowerCase().includes(search.toLowerCase()));
     renderDrilldownBreadcrumbs();
-    if (dimension === 'press' && sourceType === 'availabilityAgg') {
+    if (isAvailability) {
       const total = scoped.reduce((a, r) => a + totalDowntimeFromAvailabilityRow(r), 0);
       const planned = scoped.reduce((a, r) => a + (r.plannedDowntimeSeconds || 0), 0);
       const unplanned = scoped.reduce((a, r) => a + (r.unplannedDowntimeSeconds || 0), 0);
-      document.getElementById('drilldownTitle').textContent = `Downtime Drilldown • Press = ${value}`;
+      const nextDimension = getNextAvailabilityDrillDimension(dimension);
+      document.getElementById('drilldownTitle').textContent = `Availability Drilldown • ${dimension} = ${value}`;
       document.getElementById('drilldownSummary').textContent = `Rows ${scoped.length.toLocaleString()} • Planned ${formatDuration(planned)} • Unplanned ${formatDuration(unplanned)} • Total ${formatDuration(total)}`;
       document.getElementById('drilldownSummaryGrid').innerHTML = `
         <div class="summary-stat span-4"><div class="label">Planned</div><div class="value">${formatDuration(planned)}</div></div>
@@ -2106,10 +2224,20 @@
       document.getElementById('drilldownInsight').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Availability-only source</h4><span class="risk-pill risk-medium">Stable key drilldown</span></div><div class="micro">Rows come directly from scoped availabilityAgg using canonical press key.</div>`;
       replaceChart('drilldownTopChart', { type: 'doughnut', data: { labels: ['Planned', 'Unplanned'], datasets: [{ data: [planned, unplanned], backgroundColor: ['#51c285', '#f36b63'] }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: '#c6d3ea' } } } } });
       const subs = aggregateDurationRows(scoped.map(r => ({ subsystem: r.subsystem, durationSeconds: totalDowntimeFromAvailabilityRow(r) })), r => r.subsystem).slice(0, 10);
-      replaceChart('drilldownTrendChart', { type: 'bar', data: { labels: subs.map(x => x.name), datasets: [{ data: subs.map(x => x.downtime), backgroundColor: COLORS, borderRadius: 6 }] }, options: baseOptions('drilldown', subs.map(x => x.name)) });
+      const subPayloads = nextDimension ? subs.map(x => ({ entityKey: x.name, displayLabel: x.name, sourceType: 'availabilityNative', metric: 'downtime', parentContext: { path: STATE.drilldown.path || [] } })) : null;
+      replaceChart('drilldownTrendChart', { type: 'bar', data: { labels: subs.map(x => x.name), datasets: [{ data: subs.map(x => x.downtime), backgroundColor: COLORS, borderRadius: 6 }] }, options: baseOptions(nextDimension || 'drilldown', subs.map(x => x.name), subPayloads) });
       replaceChart('drilldownSecondaryChart', { type: 'line', data: { labels: scoped.map(r => r.day), datasets: [{ data: scoped.map(r => totalDowntimeFromAvailabilityRow(r)), borderColor: '#7b8dff', fill: false, tension: 0.2 }] }, options: baseOptions('drilldown', scoped.map(r => r.day)) });
-      replaceChart('drilldownOpsChart', { type: 'bar', data: { labels: ['Rows'], datasets: [{ data: [scoped.length], backgroundColor: ['#66bfff'], borderRadius: 6 }] }, options: baseOptions('drilldown', ['Rows']) });
-      document.getElementById('drilldownTable').innerHTML = `<thead><tr><th>day</th><th>subsystem</th><th>planned</th><th>unplanned</th><th>total</th></tr></thead><tbody>${scoped.slice(0, 1000).map(r => `<tr><td>${esc(r.day)}</td><td>${esc(r.subsystem)}</td><td>${esc(formatDuration(r.plannedDowntimeSeconds || 0))}</td><td>${esc(formatDuration(r.unplannedDowntimeSeconds || 0))}</td><td>${esc(formatDuration(totalDowntimeFromAvailabilityRow(r)))}</td></tr>`).join('')}</tbody>`;
+      const categoryMap = new Map();
+      scoped.forEach(r => {
+        const key = r.downtimeCategory || 'Unspecified';
+        categoryMap.set(key, (categoryMap.get(key) || 0) + totalDowntimeFromAvailabilityRow(r));
+      });
+      const catRows = [...categoryMap.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);
+      const catPayloads = nextDimension === 'availabilityCategory'
+        ? catRows.map(([k]) => ({ entityKey: k, displayLabel: k, sourceType: 'availabilityNative', metric: 'downtime', parentContext: { path: STATE.drilldown.path || [] } }))
+        : null;
+      replaceChart('drilldownOpsChart', { type: 'bar', data: { labels: catRows.map(x => x[0]), datasets: [{ data: catRows.map(x => x[1]), backgroundColor: COLORS, borderRadius: 6 }] }, options: baseOptions(nextDimension === 'availabilityCategory' ? 'availabilityCategory' : 'drilldown', catRows.map(x => x[0]), catPayloads) });
+      document.getElementById('drilldownTable').innerHTML = `<thead><tr><th>press</th><th>day</th><th>subsystem</th><th>category</th><th>planned</th><th>unplanned</th><th>total</th></tr></thead><tbody>${scoped.slice(0, 1000).map(r => `<tr><td>${esc(r.canonicalPress || '')}</td><td>${esc(r.day)}</td><td>${esc(r.subsystem)}</td><td>${esc(r.downtimeCategory || 'Unspecified')}</td><td>${esc(formatDuration(r.plannedDowntimeSeconds || 0))}</td><td>${esc(formatDuration(r.unplannedDowntimeSeconds || 0))}</td><td>${esc(formatDuration(totalDowntimeFromAvailabilityRow(r)))}</td></tr>`).join('')}</tbody>`;
       return;
     }
     if (isVolume) {
@@ -2147,9 +2275,17 @@
         const isWaste = /waste|reject|scrap|spoil/.test(String(r.jobStatus || '').toLowerCase()) || /waste/.test(String(r.jobType || '').toLowerCase());
         wasteSplit.set(isWaste ? 'Waste' : 'Non-waste', (wasteSplit.get(isWaste ? 'Waste' : 'Non-waste') || 0) + unit);
       });
+      const nextDimension = getNextVolumeDrillDimension(dimension);
       document.getElementById('drilldownInsight').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Volume split overview</h4><span class="risk-pill risk-medium">Sheets/Flats mode</span></div><div class="micro">Production split, maintenance split, substrate, and job analysis are calculated directly from volume jobs. Current metric: ${esc(measure)}.</div>`;
-      const modeRows = [...productionSplit.entries()].sort((a, b) => b[1] - a[1]);
-      replaceChart('drilldownTopChart', { type: 'bar', data: { labels: modeRows.map(x => `Production ${x[0]}`), datasets: [{ data: modeRows.map(x => x[1]), backgroundColor: COLORS, borderRadius: 6 }] }, options: baseOptions('drilldown', modeRows.map(x => x[0])) });
+      const jobTypeMap = new Map();
+      scoped.forEach(r => {
+        const unit = measure === 'printedFlats' ? (r.printedFlats || 0) : (r.printedSheets || 0);
+        const jt = r.jobType || 'Unspecified';
+        jobTypeMap.set(jt, (jobTypeMap.get(jt) || 0) + unit);
+      });
+      const jobTypeRows = [...jobTypeMap.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10);
+      const payloads = nextDimension ? jobTypeRows.map(([name]) => ({ entityKey: name, displayLabel: name, sourceType: 'volumeJobs', metric: measure, parentContext: { path: STATE.drilldown.path || [] } })) : null;
+      replaceChart('drilldownTopChart', { type: 'bar', data: { labels: jobTypeRows.map(x => x[0]), datasets: [{ data: jobTypeRows.map(x => x[1]), backgroundColor: COLORS, borderRadius: 6 }] }, options: baseOptions(nextDimension || 'drilldown', jobTypeRows.map(x => x[0]), payloads) });
       const substrateRows = [...substrateSplit.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10);
       replaceChart('drilldownTrendChart', { type: 'bar', data: { labels: substrateRows.map(x => x[0]), datasets: [{ data: substrateRows.map(x => x[1]), backgroundColor: COLORS, borderRadius: 6 }] }, options: baseOptions('drilldown', substrateRows.map(x => x[0])) });
       const maintenanceRows = [...maintenanceSplit.entries()];
@@ -2159,43 +2295,6 @@
       replaceChart('drilldownOpsChart', { type: 'bar', data: { labels: topJobs.map(x => x[0]), datasets: [{ data: topJobs.map(x => x[1]), backgroundColor: COLORS, borderRadius: 6 }] }, options: baseOptions('drilldown', topJobs.map(x => x[0])) });
       const columns = ['jobName', 'jobType', 'simplexDuplex', 'substrate', 'printedSheets', 'printedFlats', 'durationSeconds'];
       document.getElementById('drilldownTable').innerHTML = `<thead><tr>${columns.map(col => `<th>${esc(col)}</th>`).join('')}</tr></thead><tbody>${scoped.slice(0, 1000).map(r => `<tr><td>${esc(r.jobName)}</td><td>${esc(r.jobType)}</td><td>${esc(r.simplexDuplex)}</td><td>${esc(r.substrate)}</td><td>${(r.printedSheets || 0).toLocaleString()}</td><td>${(r.printedFlats || 0).toLocaleString()}</td><td>${esc(formatDuration(r.durationSeconds || 0))}</td></tr>`).join('')}</tbody>`;
-      return;
-    }
-    if (isDowntimeCustomer) {
-      const total = scoped.reduce((a, r) => a + totalDowntimeFromAvailabilityRow(r), 0);
-      const planned = scoped.reduce((a, r) => a + (r.plannedDowntimeSeconds || 0), 0);
-      const unplanned = scoped.reduce((a, r) => a + (r.unplannedDowntimeSeconds || 0), 0);
-      const bySubsystem = new Map();
-      const byPress = new Map();
-      const byDay = new Map();
-      scoped.forEach(r => {
-        const dt = totalDowntimeFromAvailabilityRow(r);
-        bySubsystem.set(r.subsystem || 'Unspecified', (bySubsystem.get(r.subsystem || 'Unspecified') || 0) + dt);
-        byPress.set(r.canonicalPress || 'Unspecified', (byPress.get(r.canonicalPress || 'Unspecified') || 0) + dt);
-        byDay.set(r.day || 'Unknown', (byDay.get(r.day || 'Unknown') || 0) + dt);
-      });
-      const topSubsystem = [...bySubsystem.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || 'N/A';
-      const topPress = [...byPress.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || 'N/A';
-      document.getElementById('drilldownTitle').textContent = `Downtime Drilldown • Customer = ${value}`;
-      document.getElementById('drilldownSummary').textContent = `Total downtime ${formatDuration(total)} • Planned ${formatDuration(planned)} • Unplanned ${formatDuration(unplanned)}`;
-      document.getElementById('drilldownSummaryGrid').innerHTML = `
-        <div class="summary-stat span-3"><div class="label">Total downtime</div><div class="value">${formatDuration(total)}</div></div>
-        <div class="summary-stat span-2"><div class="label">Planned %</div><div class="value">${total ? ((planned / total) * 100).toFixed(1) : 0}%</div></div>
-        <div class="summary-stat span-2"><div class="label">Unplanned %</div><div class="value">${total ? ((unplanned / total) * 100).toFixed(1) : 0}%</div></div>
-        <div class="summary-stat span-3"><div class="label">Top failing subsystem</div><div class="value">${esc(topSubsystem)}</div></div>
-        <div class="summary-stat span-2"><div class="label">Top failing press</div><div class="value">${esc(topPress)}</div></div>`;
-      document.getElementById('drilldownInsight').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Downtime split overview</h4><span class="risk-pill risk-medium">Availability only</span></div><div class="micro">Planned = Preventive + On Job Maintenance. Unplanned = Recovery + Jams. Subsystem and press breakdown sourced from normalized availability rows.</div>`;
-      replaceChart('drilldownTopChart', { type: 'doughnut', data: { labels: ['Planned', 'Unplanned'], datasets: [{ data: [planned, unplanned], backgroundColor: ['#51c285', '#f36b63'] }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: '#c6d3ea' } } } } });
-      const subsRows = [...bySubsystem.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10);
-      replaceChart('drilldownTrendChart', { type: 'bar', data: { labels: subsRows.map(x => x[0]), datasets: [{ data: subsRows.map(x => x[1]), backgroundColor: COLORS, borderRadius: 6 }] }, options: baseOptions('drilldown', subsRows.map(x => x[0])) });
-      const pressRows = [...byPress.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10);
-      replaceChart('drilldownSecondaryChart', { type: 'bar', data: { labels: pressRows.map(x => x[0]), datasets: [{ data: pressRows.map(x => x[1]), backgroundColor: COLORS, borderRadius: 6 }] }, options: baseOptions('drilldown', pressRows.map(x => x[0])) });
-      const dayRows = [...byDay.entries()].sort((a, b) => a[0].localeCompare(b[0])).slice(0, 31);
-      replaceChart('drilldownOpsChart', { type: 'line', data: { labels: dayRows.map(x => x[0]), datasets: [{ data: dayRows.map(x => x[1]), borderColor: '#7b8dff', backgroundColor: 'rgba(123,141,255,.25)', fill: true, tension: 0.2 }] }, options: baseOptions('drilldown', dayRows.map(x => x[0])) });
-      document.getElementById('drilldownTable').innerHTML = `<thead><tr><th>press</th><th>day</th><th>subsystem</th><th>planned</th><th>unplanned</th><th>total</th></tr></thead><tbody>${scoped.slice(0, 1000).map(r => {
-        const p = r.plannedDowntimeSeconds || 0; const u = r.unplannedDowntimeSeconds || 0;
-        return `<tr><td>${esc(r.canonicalPress)}</td><td>${esc(r.day)}</td><td>${esc(r.subsystem)}</td><td>${esc(formatDuration(p))}</td><td>${esc(formatDuration(u))}</td><td>${esc(formatDuration(p + u))}</td></tr>`;
-      }).join('')}</tbody>`;
       return;
     }
     const count = scoped.length;
