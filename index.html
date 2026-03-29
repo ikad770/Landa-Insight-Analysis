@@ -1756,62 +1756,53 @@
 
   function buildExecutiveEmailExport(summary, kpis, rows, sourceScope) {
     const { availabilityAgg = [], volumeAgg = [] } = sourceScope || {};
-    const criticalIssues = aggregateErrorEvents(rows, r => (r.name !== 'Unspecified' ? r.name : r.alertTitle)).sort((a, b) => b.events - a.events).slice(0, 8);
-    const criticalSubsystems = aggregateErrorEvents(rows, r => r.subsystem).sort((a, b) => b.downtime - a.downtime).slice(0, 8);
-    const availabilityByPress = aggregateDurationRows(availabilityAgg.map(r => ({ subsystem: r.canonicalPress, durationSeconds: totalDowntimeFromAvailabilityRow(r) })), r => r.subsystem)
-      .sort((a, b) => b.downtime - a.downtime)
-      .slice(0, 8);
-    const overallSummary = [
-      `Total Events: ${kpis.totalEvents.toLocaleString()}`,
-      `Total Downtime (Planned + Unplanned): ${formatDuration(kpis.totalDowntime)}`,
-      `Planned Downtime (${DOWNTIME_DEFINITION.planned}): ${formatDuration(kpis.totalPlanned)}`,
-      `Unplanned Downtime (${DOWNTIME_DEFINITION.unplanned}): ${formatDuration(kpis.totalUnplanned)}`,
-      `Availability (${kpis.availabilityFormula || 'source-defined'}): ${kpis.availabilityPct == null ? 'N/A' : `${kpis.availabilityPct.toFixed(1)}%`}`,
-      `Production Volume: ${kpis.totalProdVolume.toLocaleString()}`,
-      `Maintenance Volume: ${kpis.totalMaintenanceVolume.toLocaleString()}`,
-      `Total Volume: ${kpis.totalVolume.toLocaleString()}`,
-      `Source rows (errorsAgg / availabilityAgg / volumeAgg): ${(STATE.lastSourceScope?.errorsAgg || []).length} / ${availabilityAgg.length} / ${volumeAgg.length}`,
-      `Volume KPI basis: ${VOLUME_BASIS.label}`,
-    ];
-    return `<!doctype html><html><head><meta charset="utf-8"><title>Landa Insight Executive Summary</title><style>body{font-family:Segoe UI,Arial,sans-serif;padding:22px;color:#1d2430;background:#f4f7fb}.card{background:#fff;padding:16px;border-radius:10px;border:1px solid #d8e0ed;margin-top:14px}.meta{color:#5a6980;font-size:12px}h1{margin-bottom:4px}h2{margin:0 0 10px}table{width:100%;border-collapse:collapse}th,td{border:1px solid #d5dce8;padding:8px;text-align:left;font-size:13px}th{background:#eef3fb}.pill{padding:2px 8px;border-radius:12px;background:#eaf0ff;display:inline-block}</style></head><body>
-      <h1>Landa InsightPro+ — Executive Operations Brief</h1><div class="meta">${new Date().toISOString()}</div>
-      <section><h2>1. Overall Status</h2><p><span class="pill">${summary.status}</span></p></section>
-      <section class="card"><h2>2. Top Alerts (by events)</h2><table><tr><th>Error</th><th>Events</th><th>Error Downtime (h)</th></tr>${criticalIssues.map(i => `<tr><td>${esc(i.name)}</td><td>${i.events}</td><td>${(i.downtime / 3600).toFixed(2)}</td></tr>`).join('')}</table></section>
-      <section class="card"><h2>3. Top Subsystems (by events)</h2><table><tr><th>Subsystem</th><th>Error Events</th><th>Error Downtime (h)</th></tr>${criticalSubsystems.map(i => `<tr><td>${esc(i.name)}</td><td>${i.events}</td><td>${(i.downtime / 3600).toFixed(2)}</td></tr>`).join('')}</table></section>
-      <section class="card"><h2>4. Downtime by Machine (availabilityAgg, by downtime)</h2><table><tr><th>Press</th><th>Downtime (h)</th></tr>${availabilityByPress.map(i => `<tr><td>${esc(i.name)}</td><td>${(i.downtime / 3600).toFixed(2)}</td></tr>`).join('')}</table></section>
-      <section class="card"><h2>5. Overall Summary</h2><ul>${overallSummary.map(i => `<li>${esc(i)}</li>`).join('')}</ul></section>
-      <section class="card"><h2>6. Key Insights</h2><ul>${summary.interpretation.map(i => `<li>${esc(i)}</li>`).join('')}</ul></section>
-      <section class="card"><h2>7. Recommended Actions</h2><ul>${summary.actions.map(a => `<li>${esc(a)}</li>`).join('')}</ul></section>
+    const topErrors = aggregateErrorEvents(rows, r => (r.name !== 'Unspecified' ? r.name : r.alertTitle)).sort((a, b) => b.events - a.events).slice(0, 8);
+    const topSubsystems = aggregateErrorEvents(rows, r => r.subsystem).sort((a, b) => b.events - a.events).slice(0, 8);
+    const topPressDowntime = aggregateDurationRows(availabilityAgg.map(r => ({ subsystem: r.canonicalPress, durationSeconds: totalDowntimeFromAvailabilityRow(r) })), r => r.subsystem).sort((a, b) => b.downtime - a.downtime).slice(0, 8);
+    const topPrintVolume = aggregateMetricRows(volumeAgg, r => r.canonicalPress, r => r.productionPrintedSheets || 0).sort((a, b) => b.value - a.value).slice(0, 8);
+    const scopeLabel = document.getElementById('datasetMeta')?.textContent || 'Current dashboard filters';
+    const exportDate = new Date().toISOString();
+    const buildTable = (rowsHtml, headers, accent = '#d8e0ed') => `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;border:1px solid ${accent};background:#ffffff;"><tr>${headers.map(h => `<th style="padding:8px 10px;text-align:left;font-size:12px;border-bottom:1px solid ${accent};background:#f9fbff;color:#1f2a3a;">${esc(h)}</th>`).join('')}</tr>${rowsHtml || `<tr><td colspan="${headers.length}" style="padding:10px;color:#5f6f85;">No records in current scope.</td></tr>`}</table>`;
+    const section = (title, accent, bodyHtml) => `<tr><td style="padding:0 0 12px;"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;border:1px solid ${accent};border-radius:10px;overflow:hidden;background:#ffffff;"><tr><td style="padding:10px 12px;background:${accent};color:#ffffff;font-size:15px;font-weight:700;">${esc(title)}</td></tr><tr><td style="padding:12px;">${bodyHtml}</td></tr></table></td></tr>`;
+    return `<!doctype html><html><head><meta charset="utf-8"><title>Landa Insight Executive Summary</title></head><body style="margin:0;padding:20px;background:#f4f7fb;font-family:Segoe UI,Arial,sans-serif;color:#1d2430;">
+      <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;max-width:980px;margin:0 auto;background:#f4f7fb;">
+        <tr><td style="padding:0 0 14px;"><div style="font-size:24px;font-weight:700;color:#1d2430;">Landa InsightPro+ — Executive Operations Brief</div><div style="font-size:12px;color:#5a6980;margin-top:4px;">${esc(scopeLabel)} • Generated ${esc(exportDate)}</div><div style="font-size:12px;color:#5a6980;">Source rows (errors/availability/volume): ${(STATE.lastSourceScope?.errorsAgg || []).length}/${availabilityAgg.length}/${volumeAgg.length}</div></td></tr>
+        ${section('1) Executive Snapshot', '#1f8bff', `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;"><tr><td style="padding:8px;border:1px solid #bfe0ff;background:#f5fbff;"><div style="font-size:11px;color:#3a5c8a;">Availability</div><div style="font-size:20px;font-weight:700;color:#123f70;">${kpis.availabilityPct == null ? 'N/A' : `${kpis.availabilityPct.toFixed(1)}%`}</div></td><td style="padding:8px;border:1px solid #bfe0ff;background:#f5fbff;"><div style="font-size:11px;color:#3a5c8a;">Production Volume</div><div style="font-size:20px;font-weight:700;color:#123f70;">${kpis.totalProdVolume.toLocaleString()}</div></td><td style="padding:8px;border:1px solid #bfe0ff;background:#f5fbff;"><div style="font-size:11px;color:#3a5c8a;">Downtime / Volume</div><div style="font-size:20px;font-weight:700;color:#123f70;">${kpis.downtimePerVolume == null ? 'N/A' : kpis.downtimePerVolume.toFixed(4)}</div></td><td style="padding:8px;border:1px solid #bfe0ff;background:#f5fbff;"><div style="font-size:11px;color:#3a5c8a;">Events / Volume</div><div style="font-size:20px;font-weight:700;color:#123f70;">${kpis.eventPerVolume == null ? 'N/A' : kpis.eventPerVolume.toFixed(4)}</div></td></tr></table>`)}
+        ${section('2) Top Presses Downtime', '#e56739', buildTable(topPressDowntime.map(i => `<tr><td style="padding:8px 10px;border-bottom:1px solid #f5d2c6;">${esc(i.name)}</td><td style="padding:8px 10px;border-bottom:1px solid #f5d2c6;">${formatDuration(i.downtime)}</td><td style="padding:8px 10px;border-bottom:1px solid #f5d2c6;">${(i.downtime / 3600).toFixed(2)}</td></tr>`).join(''), ['Press', 'Downtime', 'Downtime (h)'], '#f5d2c6'))}
+        ${section('3) Print Volume', '#25a65b', buildTable(topPrintVolume.map(i => `<tr><td style="padding:8px 10px;border-bottom:1px solid #cfead8;">${esc(i.name)}</td><td style="padding:8px 10px;border-bottom:1px solid #cfead8;">${Number(i.value || 0).toLocaleString()}</td></tr>`).join(''), ['Press', 'Production Printed Sheets'], '#cfead8'))}
+        ${section('4) Top Subsystems', '#7c4dff', buildTable(topSubsystems.map(i => `<tr><td style="padding:8px 10px;border-bottom:1px solid #ddd0ff;">${esc(i.name)}</td><td style="padding:8px 10px;border-bottom:1px solid #ddd0ff;">${i.events.toLocaleString()}</td><td style="padding:8px 10px;border-bottom:1px solid #ddd0ff;">${formatDuration(i.downtime)}</td></tr>`).join(''), ['Subsystem', 'Events', 'Downtime'], '#ddd0ff'))}
+        ${section('5) Top Errors', '#d39a1f', buildTable(topErrors.map(i => `<tr><td style="padding:8px 10px;border-bottom:1px solid #f3e1b8;">${esc(i.name)}</td><td style="padding:8px 10px;border-bottom:1px solid #f3e1b8;">${i.events.toLocaleString()}</td><td style="padding:8px 10px;border-bottom:1px solid #f3e1b8;">${formatDuration(i.downtime)}</td></tr>`).join(''), ['Error', 'Events', 'Downtime'], '#f3e1b8'))}
+      </table>
     </body></html>`;
   }
 
   function buildExecutiveEmailText(summary, kpis, rows, sourceScope) {
     const scopeLabel = document.getElementById('datasetMeta')?.textContent || 'Current dashboard filters';
-    const topAlerts = aggregateErrorEvents(rows, r => (r.name !== 'Unspecified' ? r.name : r.alertTitle)).slice(0, 5);
+    const topAlerts = aggregateErrorEvents(rows, r => (r.name !== 'Unspecified' ? r.name : r.alertTitle)).sort((a, b) => b.events - a.events).slice(0, 5);
     const topSubsystems = aggregateErrorEvents(rows, r => r.subsystem).sort((a, b) => b.events - a.events).slice(0, 5);
-    const watchItems = summary.actions || [];
+    const topPressDowntime = aggregateDurationRows((sourceScope?.availabilityAgg || []).map(r => ({ subsystem: r.canonicalPress, durationSeconds: totalDowntimeFromAvailabilityRow(r) })), r => r.subsystem).sort((a, b) => b.downtime - a.downtime).slice(0, 5);
+    const topPrintVolume = aggregateMetricRows(sourceScope?.volumeAgg || [], r => r.canonicalPress, r => r.productionPrintedSheets || 0).sort((a, b) => b.value - a.value).slice(0, 5);
     return [
       'Landa InsightPro+ — Executive Operations Brief',
       `Scope: ${scopeLabel}`,
       '',
-      'Executive Summary',
-      ...(summary.interpretation || []).map(i => `- ${i}`),
-      '',
-      'KPI Highlights',
-      `- Total Events: ${kpis.totalEvents.toLocaleString()}`,
-      `- Total Downtime: ${formatDuration(kpis.totalDowntime)}`,
-      `- Planned DT: ${formatDuration(kpis.totalPlanned)} | Unplanned DT: ${formatDuration(kpis.totalUnplanned)}`,
+      '1) Executive Snapshot',
       `- Availability: ${kpis.availabilityPct == null ? 'N/A' : `${kpis.availabilityPct.toFixed(1)}%`}`,
       `- Production Volume: ${kpis.totalProdVolume.toLocaleString()}`,
+      `- Downtime / Volume: ${kpis.downtimePerVolume == null ? 'N/A' : kpis.downtimePerVolume.toFixed(4)}`,
+      `- Events / Volume: ${kpis.eventPerVolume == null ? 'N/A' : kpis.eventPerVolume.toFixed(4)}`,
       '',
-      'Top Errors',
+      '2) Top Presses Downtime',
+      ...topPressDowntime.map(x => `- ${x.name}: ${formatDuration(x.downtime)}`),
+      '',
+      '3) Print Volume',
+      ...topPrintVolume.map(x => `- ${x.name}: ${Number(x.value || 0).toLocaleString()} production sheets`),
+      '',
+      '4) Top Subsystems',
+      ...topSubsystems.map(x => `- ${x.name}: ${x.events.toLocaleString()} events (${formatDuration(x.downtime)})`),
+      '',
+      '5) Top Errors',
       ...topAlerts.map(x => `- ${x.name}: ${x.events.toLocaleString()} events`),
-      '',
-      'Top Subsystems',
-      ...topSubsystems.map(x => `- ${x.name}: ${x.events.toLocaleString()} events`),
-      '',
-      'Watch Items',
-      ...watchItems.map(x => `- ${x}`),
       '',
       `Source rows (errors/availability/volume): ${(sourceScope?.errorsAgg || []).length}/${(sourceScope?.availabilityAgg || []).length}/${(sourceScope?.volumeAgg || []).length}`,
     ].join('\n');
@@ -2452,10 +2443,10 @@
 
   function getSimulationStateSnapshot() {
     const sim = ensureSimulationState();
-    const pending = sim.pendingExcluded || new Set();
-    const applied = sim.appliedExcluded || new Set();
-    const changesPending = [...pending].filter(x => !applied.has(x)).length + [...applied].filter(x => !pending.has(x)).length;
-    return { sim, pending, applied, changesPending, simulationActive: applied.size > 0 };
+    const pendingExcluded = sim.pendingExcluded || new Set();
+    const appliedExcluded = sim.appliedExcluded || new Set();
+    const changesPending = [...pendingExcluded].filter(x => !appliedExcluded.has(x)).length + [...appliedExcluded].filter(x => !pendingExcluded.has(x)).length;
+    return { sim, pendingExcluded, appliedExcluded, changesPending, simulationActive: appliedExcluded.size > 0 };
   }
 
   function renderSimulationControls(modifiedSelections = 0) {
@@ -3340,8 +3331,21 @@
     summaryModal.addEventListener('click', e => { if (e.target.id === 'summaryModal') summaryModal.classList.remove('show'); });
     summaryCopyBtnEl.addEventListener('click', async () => {
       const textSummary = buildTextSummary();
-      if (!textSummary) return;
-      try { await navigator.clipboard.writeText(textSummary); setStatus('Executive email summary copied to clipboard.', 'ok'); }
+      if (!textSummary || !STATE.merged.summary || !STATE.kpis) return;
+      try {
+        const html = buildExecutiveEmailExport(STATE.merged.summary, STATE.kpis, STATE.filteredErrors || [], STATE.lastSourceScope);
+        if (navigator.clipboard?.write && window.ClipboardItem) {
+          await navigator.clipboard.write([
+            new ClipboardItem({
+              'text/plain': new Blob([textSummary], { type: 'text/plain' }),
+              'text/html': new Blob([html], { type: 'text/html' }),
+            })
+          ]);
+        } else {
+          await navigator.clipboard.writeText(textSummary);
+        }
+        setStatus('Executive email summary copied to clipboard.', 'ok');
+      }
       catch { setStatus('Clipboard copy failed in this browser context.', 'warning'); }
     });
     summaryExportBtnEl.addEventListener('click', () => {
