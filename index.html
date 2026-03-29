@@ -11,7 +11,7 @@
     :root {
       --bg: #0c1119; --panel: #141c2a; --panel-soft: #192336; --text: #e9eef8; --muted: #97a7c2;
       --border: rgba(255,255,255,.12); --radius: 14px; --shadow: 0 14px 36px rgba(0,0,0,.35);
-      --info: #7b8dff; --ok: #57c98a; --warn: #f0b165; --danger: #f36b63;
+      --info: #7b8dff; --ok: #57c98a; --warn: #f0b165; --danger: #f36b63; --pro-accent:#8fd3ff;
     }
     * { box-sizing: border-box; }
     body { margin:0; min-height:100vh; font-family: Inter,Segoe UI,Roboto,Arial,sans-serif; color:var(--text); background: radial-gradient(1200px 500px at 5% -10%, #1f2b3f 0%, transparent 55%), var(--bg); }
@@ -21,7 +21,7 @@
     .subtitle { color: var(--muted); line-height: 1.45; margin: 8px 0 0; }
     .brand-title { margin:4px 0 0; font-size:1.65rem; font-weight:700; letter-spacing:.01em; }
     .intake-title { margin:0; font-size:clamp(2rem,4.2vw,3rem); font-weight:760; letter-spacing:.01em; line-height:1.05; }
-    .brand-plus { color: var(--info); text-shadow:0 0 18px rgba(123,141,255,.35); }
+    .brand-plus { color: var(--pro-accent); text-shadow:0 0 16px rgba(143,211,255,.35); font-weight:760; }
     .btn,.select,input { border:1px solid var(--border); border-radius:10px; background:var(--panel-soft); color:var(--text); padding:9px 12px; }
     .btn { cursor:pointer; font-weight:600; }
     .btn:hover { background:#24324a; }
@@ -73,9 +73,9 @@
     .topbar,.card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow)}
     .topbar { display:grid; grid-template-columns:1fr auto; gap:12px; align-items:start; padding:16px; margin-bottom:12px; }
     .controls { display:flex; gap:8px; flex-wrap:wrap; }
-    .kpis { display:grid; grid-template-columns: repeat(5,minmax(140px,1fr)); gap:10px; margin-bottom:12px; }
+    .kpis { display:grid; grid-template-columns: repeat(5,minmax(140px,1fr)); gap:10px; margin-bottom:12px; position:relative; z-index:2; }
     .kpi { padding:11px; border:1px solid var(--border); border-radius:12px; background:rgba(255,255,255,.02); }
-    .kpi.clickable{cursor:pointer;transition:all .18s ease}
+    .kpi.clickable{cursor:pointer;transition:all .18s ease;position:relative;z-index:1;pointer-events:auto}
     .kpi.clickable:hover{border-color:rgba(123,141,255,.65);background:rgba(123,141,255,.09);transform:translateY(-1px)}
     .inline-filters{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
     .inline-filters .select{font-size:.82rem;padding:7px 10px}
@@ -322,9 +322,10 @@
     customerVolumeMetric: 'productionPrintedSheets',
     customerVolumeSort: 'desc',
     customerVolumeExpanded: false,
-    customerVolumeShowOthers: false,
+    customerVolumeShowOthers: true,
     customerVolumeLookup: new Map(),
     customerVolumeRows: [],
+    customerVolumeAllRows: [],
     drilldown: { dimension: '', value: '', entityKey: '', rows: [], search: '', sort: null, sourceType: '', metric: '', path: [], mode: 'chart', metricKey: '', simulation: { pendingExcluded: new Set(), appliedExcluded: new Set() }, filters: {} },
     baselineData: null,
     simulationData: null,
@@ -1831,8 +1832,7 @@
       ['Events / Volume', 'eventPerVolume', k.eventPerVolume == null ? na : k.eventPerVolume.toFixed(4), 'events per production unit'],
     ];
     const helper = `<div class="micro">Volume perspective: Total Printed Sheets ${k.rawPrintedSheets.toLocaleString()} • Production Printed Sheets ${k.productionOnlyPrintedSheets.toLocaleString()} • Primary KPI basis: ${esc(k.volumeBasis)}.</div><div class="micro">Availability method: ${esc(k.availabilityLabel || 'Source-defined availability')} (${esc(k.availabilityFormula || 'N/A')}).</div>${k.reasons.length ? `<div class="micro">KPI guidance: ${esc(k.reasons.join(' '))}</div>` : ''}`;
-    document.getElementById('kpiStrip').innerHTML = cards.map(([a, metricKey, b, c]) => `<article class="kpi clickable" data-kpi-metric="${metricKey}"><div class="k">${a}</div><div class="v">${b}</div><div class="d">${c}</div></article>`).join('') + helper;
-    document.querySelectorAll('[data-kpi-metric]').forEach(card => card.addEventListener('click', () => openKpiDrilldown(card.dataset.kpiMetric, card.querySelector('.k')?.textContent || card.dataset.kpiMetric)));
+    document.getElementById('kpiStrip').innerHTML = cards.map(([a, metricKey, b, c]) => `<article class="kpi clickable" role="button" tabindex="0" data-kpi-metric="${metricKey}"><div class="k">${a}</div><div class="v">${b}</div><div class="d">${c}</div></article>`).join('') + helper;
   }
 
   function renderExecutiveSummaryCard(summary) {
@@ -2146,10 +2146,11 @@
       metric,
       parentContext: { path: [] }
     })).sort((a, b) => (a[metric] - b[metric]) * dir);
-    if (expanded || sorted.length <= 12 || !showOthers) return sorted.slice(0, expanded ? sorted.length : 12);
+    const fullRows = expanded ? sorted : sorted.slice(0, Math.max(sorted.length, 12));
+    if (expanded || sorted.length <= 12 || !showOthers) return { chartRows: sorted.slice(0, expanded ? sorted.length : 12), fullRows };
     const topRows = sorted.slice(0, 12);
     const remainder = sorted.slice(12);
-    if (!remainder.length) return topRows;
+    if (!remainder.length) return { chartRows: topRows, fullRows };
     const remainingBucket = remainder.reduce((acc, row) => {
       acc.productionPrintedSheets += row.productionPrintedSheets || 0;
       acc.printedSheets += row.printedSheets || 0;
@@ -2175,7 +2176,7 @@
       groupedPresses: [],
       parentContext: { path: [] }
     });
-    return [...topRows, remainingBucket];
+    return { chartRows: [...topRows, remainingBucket], fullRows };
   }
 
   function eventValueForDimension(row, dimension) {
@@ -2895,8 +2896,9 @@
     const subsystemRankings = safeRankingRender('subsystem');
     const alertRankings = safeRankingRender('alert');
     const versionRankings = safeRankingRender('version');
-    const customerVolumeRows = buildCustomerVolumeChart(sourceScope.volumeAgg, STATE.customerVolumeMetric, STATE.customerVolumeSort, STATE.customerVolumeExpanded, STATE.customerVolumeShowOthers);
+    const { chartRows: customerVolumeRows, fullRows: customerVolumeAllRows } = buildCustomerVolumeChart(sourceScope.volumeAgg, STATE.customerVolumeMetric, STATE.customerVolumeSort, STATE.customerVolumeExpanded, STATE.customerVolumeShowOthers);
     STATE.customerVolumeRows = customerVolumeRows;
+    STATE.customerVolumeAllRows = customerVolumeAllRows;
     const labels = customerVolumeRows.map(r => r.displayLabel);
     const values = customerVolumeRows.map(r => r[STATE.customerVolumeMetric]);
       const customerVolumeRendered = replaceChart('customerVolumeChart', {
@@ -2912,7 +2914,7 @@
       });
       if (!customerVolumeRows.length) setCanvasState('customerVolumeChart', 'No print volume rows after source-native scope (volume owns press/day and native job metadata).');
       if (!customerVolumeRendered) setCanvasState('customerVolumeChart', 'Chart library failed to load. Charts cannot render.', 'error');
-    document.getElementById('customerVolumeNote').textContent = `${STATE.customerVolumeExpanded ? 'Full press ranking' : 'Top 12'} by ${volumeMetricLabel(STATE.customerVolumeMetric)} (${STATE.customerVolumeSort === 'asc' ? 'lowest first' : 'highest first'}) from source volume aggregates (canonical press grouping). ${STATE.customerVolumeShowOthers ? 'Grouped remainder is enabled.' : 'Grouped remainder is disabled by default.'}`;
+    document.getElementById('customerVolumeNote').textContent = `${STATE.customerVolumeExpanded ? 'Full press ranking' : 'Top 12'} by ${volumeMetricLabel(STATE.customerVolumeMetric)} (${STATE.customerVolumeSort === 'asc' ? 'lowest first' : 'highest first'}) from source volume aggregates (canonical press grouping). ${STATE.customerVolumeShowOthers ? 'Grouped remainder is enabled to preserve full source totals.' : 'Grouped remainder is disabled (chart shows only the visible top 12 presses).'} `;
     const othersToggle = document.getElementById('customerVolumeOthersToggle');
     if (othersToggle) othersToggle.checked = !!STATE.customerVolumeShowOthers;
     document.getElementById('customerVolumeExpand').textContent = STATE.customerVolumeExpanded ? 'Collapse' : 'Show all';
@@ -2925,14 +2927,14 @@
     renderRiskSection(STATE.merged.pressRisk);
     STATE.merged.summary = buildExecutiveSummary(errorEvents, sourceScope, STATE.kpis);
     renderExecutiveSummaryCard(STATE.merged.summary);
-    const mismatches = validateSourceAndLayerConsistency(sourceScope, STATE.filtered, STATE.kpis, STATE.merged.summary, STATE.merged.pressRisk, customerVolumeRows);
+    const mismatches = validateSourceAndLayerConsistency(sourceScope, STATE.filtered, STATE.kpis, STATE.merged.summary, STATE.merged.pressRisk, customerVolumeAllRows);
     STATE.reconciliation.logs = mismatches;
     STATE.reconciliation.report = buildReconciliationReport(sourceScope, STATE.kpis, {
       press: pressRankings,
       subsystem: subsystemRankings,
       alert: alertRankings,
       version: versionRankings
-    }, customerVolumeRows);
+    }, customerVolumeAllRows);
     console.info('[volume-validation]', {
       rawPrintedSheetsFromVolumeAgg: sourceScope.volumeAgg.reduce((a, r) => a + (r.printedSheets || 0), 0),
       productionOnlyPrintedSheetsFromVolumeAgg: sourceScope.volumeAgg.reduce((a, r) => a + (r.productionPrintedSheets || 0), 0),
@@ -3382,6 +3384,21 @@
         renderDashboard();
       });
     };
+
+    const kpiStripEl = document.getElementById('kpiStrip');
+    const openKpiFromEventTarget = (target) => {
+      const card = target?.closest?.('[data-kpi-metric]');
+      if (!card) return;
+      openKpiDrilldown(card.dataset.kpiMetric, card.querySelector('.k')?.textContent || card.dataset.kpiMetric);
+    };
+    kpiStripEl.addEventListener('click', e => openKpiFromEventTarget(e.target));
+    kpiStripEl.addEventListener('keydown', e => {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      const card = e.target?.closest?.('[data-kpi-metric]');
+      if (!card) return;
+      e.preventDefault();
+      openKpiFromEventTarget(card);
+    });
 
     ['pressFilter', 'subsystemFilter', 'versionFilter', 'startDateFilter', 'endDateFilter'].forEach(id => document.getElementById(id).addEventListener('change', scheduleRender));
     searchFilter.addEventListener('input', scheduleRender);
