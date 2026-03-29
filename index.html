@@ -117,10 +117,12 @@
     .drawer-panel { width:min(1350px,96vw); max-height:94vh; background:var(--panel); border:1px solid var(--border); border-radius:18px 18px 0 0; box-shadow:var(--shadow); padding:14px; overflow:auto; }
 
 
-    .sim-pending-bar { position:sticky; bottom:12px; z-index:4; margin:0 0 10px; display:flex; justify-content:space-between; align-items:center; gap:10px; border:1px solid rgba(123,141,255,.45); background:rgba(20,28,42,.94); padding:10px 12px; border-radius:12px; box-shadow:0 12px 24px rgba(0,0,0,.25); }
-    .sim-pending-meta { color:#c7d5ee; font-size:.84rem; }
-    .sim-pending-actions{display:flex;gap:8px;}
-    .sim-active-indicator{ margin:0 0 10px; border:1px solid rgba(123,141,255,.4); background:rgba(123,141,255,.1); color:#d7e2ff; border-radius:10px; padding:8px 10px; font-size:.82rem; }
+    .sim-state-strip{position:sticky;top:0;z-index:5;margin:0 0 10px;border:1px solid rgba(123,141,255,.28);background:linear-gradient(180deg,rgba(24,35,55,.95),rgba(20,28,42,.92));backdrop-filter:blur(6px);border-radius:10px;padding:9px 12px;display:flex;justify-content:space-between;align-items:center;gap:10px;transition:all .24s ease}
+    .sim-state-strip.pending{border-color:rgba(240,177,101,.42);background:linear-gradient(180deg,rgba(62,47,28,.86),rgba(36,30,22,.9))}
+    .sim-state-strip.active{border-color:rgba(123,141,255,.45);background:linear-gradient(180deg,rgba(45,54,92,.86),rgba(24,35,55,.9))}
+    .sim-state-meta{font-size:.83rem;color:#d2dff8;letter-spacing:.02em}
+    .sim-state-meta strong{font-weight:650}
+    .sim-state-actions{display:flex;gap:8px;flex-wrap:wrap}
 
     @media(max-width:1000px){ .kpis{grid-template-columns:repeat(2,minmax(140px,1fr));}.topbar{grid-template-columns:1fr}.span-6,.span-4,.span-8,.span-3{grid-column:span 12}.file-row{grid-template-columns:1fr} .file-state{justify-content:flex-start} }
   </style>
@@ -266,8 +268,7 @@
       <article class="card span-6"><h4 style="margin:0 0 8px;">Secondary split</h4><div class="chart-area" style="height:220px;min-height:220px;"><canvas id="drilldownSecondaryChart"></canvas></div></article>
       <article class="card span-6"><h4 style="margin:0 0 8px;">Operational split</h4><div class="chart-area" style="height:220px;min-height:220px;"><canvas id="drilldownOpsChart"></canvas></div></article>
     </div>
-    <div id="simulationPendingBar" class="sim-pending-bar hidden"></div>
-    <div id="simulationActiveIndicator" class="sim-active-indicator hidden"></div>
+    <div id="simulationStateStrip" class="sim-state-strip hidden"></div>
     <div class="table-wrap"><table id="drilldownTable"></table></div>
   </section>
 </div>
@@ -2203,6 +2204,7 @@
   }
 
   function openDrilldown(dimension, value, payload = null) {
+    const existingSimulation = STATE.drilldown.simulation || { pendingExcluded: new Set(), appliedExcluded: new Set() };
     const entityKey = payload?.entityKey || value;
     const sourceType = payload?.sourceType || 'errorEvents';
     const parentPath = Array.isArray(payload?.parentContext?.path) ? payload.parentContext.path : [];
@@ -2243,7 +2245,8 @@
       path: nextPath,
       rows,
       search: '',
-      sort: null
+      sort: null,
+      simulation: { pendingExcluded: new Set(existingSimulation.pendingExcluded || []), appliedExcluded: new Set(existingSimulation.appliedExcluded || []) }
     };
     renderDrilldown();
     document.getElementById('drilldownDrawer').classList.add('show');
@@ -2322,40 +2325,81 @@
     }));
   }
 
-  function renderSimulationControls(components = []) {
-    const pendingBar = document.getElementById('simulationPendingBar');
-    const activeIndicator = document.getElementById('simulationActiveIndicator');
-    if (!pendingBar || !activeIndicator) return;
-    const sim = STATE.drilldown.simulation || { pendingExcluded: new Set(), appliedExcluded: new Set() };
+  function ensureSimulationState() {
+    if (!STATE.drilldown.simulation) STATE.drilldown.simulation = { pendingExcluded: new Set(), appliedExcluded: new Set() };
+    if (!(STATE.drilldown.simulation.pendingExcluded instanceof Set)) STATE.drilldown.simulation.pendingExcluded = new Set(STATE.drilldown.simulation.pendingExcluded || []);
+    if (!(STATE.drilldown.simulation.appliedExcluded instanceof Set)) STATE.drilldown.simulation.appliedExcluded = new Set(STATE.drilldown.simulation.appliedExcluded || []);
+    return STATE.drilldown.simulation;
+  }
+
+  function getSimulationStateSnapshot() {
+    const sim = ensureSimulationState();
     const pending = sim.pendingExcluded || new Set();
     const applied = sim.appliedExcluded || new Set();
     const changesPending = [...pending].filter(x => !applied.has(x)).length + [...applied].filter(x => !pending.has(x)).length;
+    return { sim, pending, applied, changesPending, simulationActive: applied.size > 0 };
+  }
+
+  function renderSimulationControls(modifiedSelections = 0) {
+    const strip = document.getElementById('simulationStateStrip');
+    if (!strip) return;
     if (STATE.drilldown.mode !== 'kpi') {
-      pendingBar.classList.add('hidden');
-      activeIndicator.classList.add('hidden');
+      strip.className = 'sim-state-strip hidden';
+      strip.innerHTML = '';
       return;
     }
-    activeIndicator.classList.toggle('hidden', applied.size === 0);
-    activeIndicator.textContent = applied.size ? `Simulation Active • Partial Scope Applied • ${applied.size} components excluded` : '';
-    pendingBar.classList.toggle('hidden', changesPending === 0);
-    if (changesPending === 0) {
-      pendingBar.innerHTML = '';
+    const { changesPending, simulationActive } = getSimulationStateSnapshot();
+    if (!changesPending && !simulationActive) {
+      strip.className = 'sim-state-strip hidden';
+      strip.innerHTML = '';
       return;
     }
-    pendingBar.innerHTML = `<div class="sim-pending-meta">${changesPending} changes pending</div><div class="sim-pending-actions"><button id="simApplyBtn" class="btn primary">Apply Changes</button><button id="simResetBtn" class="btn secondary">Reset</button><button id="simRestoreBtn" class="btn secondary">Restore Full Scope</button></div>`;
+    strip.className = `sim-state-strip ${changesPending ? 'pending' : 'active'}`;
+    const pendingText = `<div class="sim-state-meta"><strong>Changes pending</strong> • ${changesPending || modifiedSelections} selections modified</div>`;
+    const activeText = `<div class="sim-state-meta"><strong>Simulation Mode</strong> • Partial data view${modifiedSelections ? ` • ${modifiedSelections} selections excluded` : ''}</div>`;
+    strip.innerHTML = `${changesPending ? pendingText : activeText}<div class="sim-state-actions">${changesPending ? '<button id="simApplyBtn" class="btn primary">Apply</button><button id="simClearBtn" class="btn secondary">Clear</button>' : ''}${simulationActive ? '<button id="simResetBtn" class="btn secondary">Reset</button>' : ''}</div>`;
     document.getElementById('simApplyBtn')?.addEventListener('click', () => {
-      STATE.drilldown.simulation.appliedExcluded = new Set(STATE.drilldown.simulation.pendingExcluded || []);
+      const current = ensureSimulationState();
+      current.appliedExcluded = new Set(current.pendingExcluded || []);
+      renderDrilldown();
+    });
+    document.getElementById('simClearBtn')?.addEventListener('click', () => {
+      const current = ensureSimulationState();
+      current.pendingExcluded = new Set(current.appliedExcluded || []);
       renderDrilldown();
     });
     document.getElementById('simResetBtn')?.addEventListener('click', () => {
-      STATE.drilldown.simulation.pendingExcluded = new Set(STATE.drilldown.simulation.appliedExcluded || []);
+      const current = ensureSimulationState();
+      current.pendingExcluded = new Set();
+      current.appliedExcluded = new Set();
       renderDrilldown();
     });
-    document.getElementById('simRestoreBtn')?.addEventListener('click', () => {
-      STATE.drilldown.simulation.pendingExcluded = new Set();
-      STATE.drilldown.simulation.appliedExcluded = new Set();
-      renderDrilldown();
-    });
+  }
+
+  function formatDelta(current, baseline, digits = 2) {
+    const delta = current - baseline;
+    const pct = baseline === 0 ? null : (delta / baseline) * 100;
+    return {
+      delta,
+      pct,
+      deltaLabel: `${delta >= 0 ? '+' : ''}${delta.toLocaleString(undefined, { maximumFractionDigits: digits })}`,
+      pctLabel: pct == null ? 'N/A' : `${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%`,
+    };
+  }
+
+  function simulationTooltipLabel(ctx, formatter = v => Number(v).toLocaleString(undefined, { maximumFractionDigits: 2 })) {
+    const index = ctx.dataIndex;
+    const datasets = ctx.chart.data.datasets || [];
+    const currentDs = datasets.find(d => d.simRole === 'current');
+    const baselineDs = datasets.find(d => d.simRole === 'baseline');
+    const current = Number(currentDs?.data?.[index] || 0);
+    const baseline = Number(baselineDs?.data?.[index] || 0);
+    const info = formatDelta(current, baseline, 3);
+    return [
+      `Current: ${formatter(current)}`,
+      `Baseline: ${formatter(baseline)}`,
+      `Δ ${info.deltaLabel} (${info.pctLabel})`,
+    ];
   }
 
   function renderDrilldown() {
@@ -2364,7 +2408,7 @@
     const isAvailability = sourceType === 'availabilityNative' || sourceType === 'availabilityAgg';
     const scoped = !search ? rows : rows.filter(r => `${r.customer} ${r.site} ${r.press} ${r.subsystem || ''} ${r.name || ''} ${r.alertTitle || ''} ${r.version || ''} ${r.jobType || ''} ${r.jobStatus || ''}`.toLowerCase().includes(search.toLowerCase()));
     renderDrilldownBreadcrumbs();
-    renderSimulationControls([]);
+    renderSimulationControls(0);
     if (STATE.drilldown.mode === 'kpi' || sourceType === 'kpi') {
       const metricKey = STATE.drilldown.metricKey || STATE.drilldown.metric;
       const metricName = STATE.drilldown.value;
@@ -2375,25 +2419,38 @@
       document.getElementById('drilldownSummary').textContent = `Professional metric drilldown with transparent components, simulation, and source-native support.`;
       renderDrilldownContext(metricName, currentValue, profile);
       const components = computeKpiComponents(metricKey, scoped);
-      const appliedExcluded = STATE.drilldown.simulation.appliedExcluded || new Set();
-      const pendingExcluded = STATE.drilldown.simulation.pendingExcluded || new Set(appliedExcluded);
+      const { pendingExcluded, appliedExcluded, simulationActive } = getSimulationStateSnapshot();
       const included = components.filter(c => !appliedExcluded.has(c.name));
       const appliedRows = scoped.filter(r => !appliedExcluded.has(r.press || "Unspecified"));
       const simTotal = included.reduce((a,c)=>a+c.metricValue,0);
       document.getElementById('drilldownSummaryGrid').innerHTML = `<div class="summary-stat span-3"><div class="label">Displayed rows</div><div class="value">${scoped.length.toLocaleString()}</div></div><div class="summary-stat span-3"><div class="label">Components</div><div class="value">${components.length.toLocaleString()}</div></div><div class="summary-stat span-3"><div class="label">Included</div><div class="value">${included.length.toLocaleString()}</div></div><div class="summary-stat span-3"><div class="label">Simulated total</div><div class="value">${Number(simTotal).toLocaleString(undefined,{maximumFractionDigits:2})}</div></div>`;
-      document.getElementById('drilldownFilters').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Interactive filtering</h4><span class="impact-chip">Staged simulation workflow</span></div><div class="micro">Use dashboard filters for time, press, subsystem, alert, and version. KPI simulation changes are staged until Apply Changes is selected.</div>`;
-      const top = included.slice().sort((a,b)=>b.metricValue-a.metricValue).slice(0,10);
-      replaceChart('drilldownTopChart',{type:'bar',data:{labels:top.map(x=>x.name),datasets:[{data:top.map(x=>x.metricValue),backgroundColor:COLORS,borderRadius:6}]},options:baseOptions('press',top.map(x=>x.name),top.map(x=>({entityKey:x.name,displayLabel:x.name,sourceType:'errorEvents',metric:'events',parentContext:{path:[]}})))});
-      const byDay = new Map(); appliedRows.forEach(r=>{if(!r.day)return; byDay.set(r.day,(byDay.get(r.day)||0)+1);}); const dayRows=[...byDay.entries()].sort((a,b)=>a[0].localeCompare(b[0]));
-      replaceChart('drilldownTrendChart',{type:'line',data:{labels:dayRows.map(x=>x[0]),datasets:[{data:dayRows.map(x=>x[1]),borderColor:'#7b8dff',tension:.25,fill:false}]},options:baseOptions('drilldown',dayRows.map(x=>x[0]))});
-      const subsystemMap=new Map(); appliedRows.forEach(r=>subsystemMap.set(r.subsystem||'Unspecified',(subsystemMap.get(r.subsystem||'Unspecified')||0)+1)); const subs=[...subsystemMap.entries()].sort((a,b)=>b[1]-a[1]).slice(0,10);
-      replaceChart('drilldownSecondaryChart',{type:'bar',data:{labels:subs.map(x=>x[0]),datasets:[{data:subs.map(x=>x[1]),backgroundColor:COLORS,borderRadius:6}]},options:baseOptions('subsystem',subs.map(x=>x[0]),subs.map(x=>({entityKey:x[0],displayLabel:x[0],sourceType:'errorEvents',metric:'events',parentContext:{path:[]}})))});
-      const alertMap=new Map(); appliedRows.forEach(r=>{const a=r.name!=='Unspecified'?r.name:r.alertTitle; alertMap.set(a,(alertMap.get(a)||0)+1)}); const alerts=[...alertMap.entries()].sort((a,b)=>b[1]-a[1]).slice(0,8);
-      replaceChart('drilldownOpsChart',{type:'bar',data:{labels:alerts.map(x=>x[0]),datasets:[{data:alerts.map(x=>x[1]),backgroundColor:COLORS,borderRadius:6}]},options:baseOptions('alert',alerts.map(x=>x[0]),alerts.map(x=>({entityKey:x[0],displayLabel:x[0],sourceType:'errorEvents',metric:'events',parentContext:{path:[]}})))});
+      document.getElementById('drilldownFilters').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Interactive filtering</h4><span class="impact-chip">Staged simulation workflow</span></div><div class="micro">Use dashboard filters for time, press, subsystem, alert, and version. KPI simulation changes are staged until Apply is selected.</div>`;
+      const topBaseline = components.slice().sort((a, b) => b.metricValue - a.metricValue).slice(0, 10);
+      const topCurrentMap = new Map(included.map(x => [x.name, x.metricValue]));
+      const topLabels = topBaseline.map(x => x.name);
+      const topCurrent = topLabels.map(name => topCurrentMap.get(name) || 0);
+      const topBaselineVals = topLabels.map(name => topBaseline.find(x => x.name === name)?.metricValue || 0);
+      const topPayloads = topLabels.map(name => ({ entityKey: name, displayLabel: name, sourceType: 'errorEvents', metric: 'events', parentContext: { path: [] } }));
+      replaceChart('drilldownTopChart', { type: 'bar', data: { labels: topLabels, datasets: simulationActive ? [{ label: 'Baseline', simRole: 'baseline', data: topBaselineVals, backgroundColor: 'rgba(151,167,194,.24)', borderColor: 'rgba(151,167,194,.48)', borderWidth: 1, borderRadius: 6 }, { label: 'Current', simRole: 'current', data: topCurrent, backgroundColor: topLabels.map((_, i) => COLORS[i % COLORS.length]), borderRadius: 6 }] : [{ simRole: 'current', data: topCurrent, backgroundColor: topLabels.map((_, i) => COLORS[i % COLORS.length]), borderRadius: 6 }] }, options: { ...baseOptions('press', topLabels, topPayloads), plugins: { legend: { display: simulationActive, labels: { color: '#c6d3ea' } }, tooltip: simulationActive ? { callbacks: { label: simulationTooltipLabel } } : { callbacks: { label: ctx => `${ctx.parsed.y.toLocaleString(undefined, { maximumFractionDigits: 3 })}` } } } } });
+
+      const byDayCurrent = new Map(); appliedRows.forEach(r => { if (!r.day) return; byDayCurrent.set(r.day, (byDayCurrent.get(r.day) || 0) + 1); });
+      const byDayBaseline = new Map(); scoped.forEach(r => { if (!r.day) return; byDayBaseline.set(r.day, (byDayBaseline.get(r.day) || 0) + 1); });
+      const dayLabels = [...new Set([...byDayCurrent.keys(), ...byDayBaseline.keys()])].sort((a, b) => a.localeCompare(b));
+      replaceChart('drilldownTrendChart', { type: 'line', data: { labels: dayLabels, datasets: simulationActive ? [{ label: 'Baseline', simRole: 'baseline', data: dayLabels.map(x => byDayBaseline.get(x) || 0), borderColor: 'rgba(151,167,194,.6)', borderDash: [5, 4], tension: .25, fill: false, pointRadius: 0 }, { label: 'Current', simRole: 'current', data: dayLabels.map(x => byDayCurrent.get(x) || 0), borderColor: '#7b8dff', tension: .25, fill: false }] : [{ label: 'Current', simRole: 'current', data: dayLabels.map(x => byDayCurrent.get(x) || 0), borderColor: '#7b8dff', tension: .25, fill: false }] }, options: { ...baseOptions('drilldown', dayLabels), plugins: { legend: { display: simulationActive, labels: { color: '#c6d3ea' } }, tooltip: simulationActive ? { callbacks: { label: simulationTooltipLabel } } : { callbacks: { label: ctx => `${ctx.parsed.y.toLocaleString()}` } } } } });
+
+      const subsystemMap = new Map(); appliedRows.forEach(r => subsystemMap.set(r.subsystem || 'Unspecified', (subsystemMap.get(r.subsystem || 'Unspecified') || 0) + 1));
+      const subsystemBaseMap = new Map(); scoped.forEach(r => subsystemBaseMap.set(r.subsystem || 'Unspecified', (subsystemBaseMap.get(r.subsystem || 'Unspecified') || 0) + 1));
+      const subs = [...subsystemBaseMap.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10);
+      replaceChart('drilldownSecondaryChart', { type: 'bar', data: { labels: subs.map(x => x[0]), datasets: simulationActive ? [{ label: 'Baseline', simRole: 'baseline', data: subs.map(x => x[1]), backgroundColor: 'rgba(151,167,194,.24)', borderColor: 'rgba(151,167,194,.48)', borderWidth: 1, borderRadius: 6 }, { label: 'Current', simRole: 'current', data: subs.map(x => subsystemMap.get(x[0]) || 0), backgroundColor: COLORS, borderRadius: 6 }] : [{ simRole: 'current', data: subs.map(x => subsystemMap.get(x[0]) || 0), backgroundColor: COLORS, borderRadius: 6 }] }, options: { ...baseOptions('subsystem', subs.map(x => x[0]), subs.map(x => ({ entityKey: x[0], displayLabel: x[0], sourceType: 'errorEvents', metric: 'events', parentContext: { path: [] } }))), plugins: { legend: { display: simulationActive, labels: { color: '#c6d3ea' } }, tooltip: simulationActive ? { callbacks: { label: simulationTooltipLabel } } : { callbacks: { label: ctx => `${ctx.parsed.y.toLocaleString()}` } } } } });
+
+      const alertMap = new Map(); appliedRows.forEach(r => { const a = r.name !== 'Unspecified' ? r.name : r.alertTitle; alertMap.set(a, (alertMap.get(a) || 0) + 1); });
+      const alertBaseMap = new Map(); scoped.forEach(r => { const a = r.name !== 'Unspecified' ? r.name : r.alertTitle; alertBaseMap.set(a, (alertBaseMap.get(a) || 0) + 1); });
+      const alerts = [...alertBaseMap.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);
+      replaceChart('drilldownOpsChart', { type: 'bar', data: { labels: alerts.map(x => x[0]), datasets: simulationActive ? [{ label: 'Baseline', simRole: 'baseline', data: alerts.map(x => x[1]), backgroundColor: 'rgba(151,167,194,.24)', borderColor: 'rgba(151,167,194,.48)', borderWidth: 1, borderRadius: 6 }, { label: 'Current', simRole: 'current', data: alerts.map(x => alertMap.get(x[0]) || 0), backgroundColor: COLORS, borderRadius: 6 }] : [{ simRole: 'current', data: alerts.map(x => alertMap.get(x[0]) || 0), backgroundColor: COLORS, borderRadius: 6 }] }, options: { ...baseOptions('alert', alerts.map(x => x[0]), alerts.map(x => ({ entityKey: x[0], displayLabel: x[0], sourceType: 'errorEvents', metric: 'events', parentContext: { path: [] } }))), plugins: { legend: { display: simulationActive, labels: { color: '#c6d3ea' } }, tooltip: simulationActive ? { callbacks: { label: simulationTooltipLabel } } : { callbacks: { label: ctx => `${ctx.parsed.y.toLocaleString()}` } } } } });
       document.getElementById('drilldownInsight').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Explanation & calculation logic</h4><span class="risk-pill risk-medium">Metric-specific narrative</span></div><div class="micro">${esc(profile.formula)} Contributions are aggregated by press and can be recursively explored through subsystem, alert, version, and trend views.</div>`;
       document.getElementById('drilldownTransparency').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Calculation transparency table</h4><span class="impact-chip">Staged include/exclude simulation</span></div><div class="table-wrap" style="max-height:260px;margin-top:8px;"><table><thead><tr><th>Include</th><th>Component</th><th>Source contribution</th><th>Amount</th><th>Contribution %</th></tr></thead><tbody>${components.slice(0,200).map(c=>`<tr><td><input type="checkbox" data-kpi-inc="${esc(c.name)}" ${pendingExcluded.has(c.name)?'':'checked'} /></td><td>${esc(c.name)}</td><td>${esc(c.source)}</td><td>${Number(c.metricValue).toLocaleString(undefined,{maximumFractionDigits:2})}</td><td>${c.contributionPct.toFixed(2)}%</td></tr>`).join('')}</tbody></table></div>`;
-      document.querySelectorAll('[data-kpi-inc]').forEach(el=>el.addEventListener('change',()=>{const key=el.getAttribute('data-kpi-inc'); if(el.checked) pendingExcluded.delete(key); else pendingExcluded.add(key); STATE.drilldown.simulation.pendingExcluded = pendingExcluded; renderSimulationControls(components); }));
-      renderSimulationControls(components);
+      document.querySelectorAll('[data-kpi-inc]').forEach(el=>el.addEventListener('change',()=>{const key=el.getAttribute('data-kpi-inc'); if(el.checked) pendingExcluded.delete(key); else pendingExcluded.add(key); STATE.drilldown.simulation.pendingExcluded = pendingExcluded; renderSimulationControls(pendingExcluded.size); }));
+      renderSimulationControls(appliedExcluded.size);
       document.getElementById('drilldownTable').innerHTML = `<thead><tr><th>customer</th><th>site</th><th>press</th><th>subsystem</th><th>alert</th><th>version</th><th>start</th><th>duration</th><th>volume</th></tr></thead><tbody>${appliedRows.slice(0,1000).map(r=>`<tr><td>${esc(r.customer)}</td><td>${esc(r.site)}</td><td>${esc(r.press)}</td><td>${esc(r.subsystem)}</td><td>${esc(r.name !== 'Unspecified' ? r.name : r.alertTitle)}</td><td>${esc(r.version)}</td><td>${esc(r.startTime?.toISOString() || '')}</td><td>${esc(formatDuration(r.durationSeconds||0))}</td><td>${esc((r?.volume?.productionVolume||0).toLocaleString())}</td></tr>`).join('')}</tbody>`;
       return;
     }
