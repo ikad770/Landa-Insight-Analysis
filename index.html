@@ -146,8 +146,8 @@
         <div class="eyebrow">Operational Dashboard</div>
         <h2 style="margin:4px 0 0;">Press Insight Intelligence Platform</h2>
         <p id="datasetMeta" class="subtitle">Dataset not loaded</p>
-        <div id="mergeDebug" class="micro" style="margin-top:6px;"></div>
-        <div id="runtimeDiagnostics" class="diag" aria-live="polite"></div>
+        <div id="mergeDebug" class="micro hidden" style="margin-top:6px;"></div>
+        <div id="runtimeDiagnostics" class="diag hidden" aria-live="polite"></div>
       </div>
       <div class="controls">
         <button id="replaceBtn" class="btn">Load new dataset</button>
@@ -255,6 +255,7 @@
 
   const CHARTS = new Map();
   const COLORS = ['#7b8dff', '#51c285', '#f0b165', '#f36b63', '#66bfff', '#a39cfe', '#f3d95e', '#7be0ca'];
+  const DEBUG = false;
   const VOLUME_BASIS = {
     code: 'B',
     label: 'Production-only Printed Sheets (excluding maintenance-classified jobs)',
@@ -1306,20 +1307,21 @@
     };
   }
 
-  function aggregate(rows, keyFn) {
+  function aggregateErrorEvents(rows, keyFn) {
     const map = new Map();
-    rows.forEach(r => {
+    (rows || []).forEach(r => {
+      if (!r) return;
       const key = keyFn(r) || 'Unspecified';
       const slot = map.get(key) || { name: key, events: 0, downtime: 0, volume: 0, recent: 0, subsystems: new Set(), volumeSeen: new Set() };
       slot.events += 1;
-      slot.downtime += r.durationSeconds || 0;
-      const vJoin = r.mergeContext.volumeKeyUsed ? r.mergeContext.key : '';
+      slot.downtime += r?.durationSeconds || 0;
+      const vJoin = r?.mergeContext?.volumeKeyUsed ? r?.mergeContext?.key : '';
       if (vJoin && !slot.volumeSeen.has(vJoin)) {
         slot.volumeSeen.add(vJoin);
-        slot.volume += r.volume.productionVolume || 0;
+        slot.volume += r?.volume?.productionVolume || 0;
       }
-      slot.subsystems.add(r.subsystem);
-      const ageDays = r.startTime ? (Date.now() - r.startTime.getTime()) / 86400000 : 999;
+      slot.subsystems.add(r?.subsystem || 'Unspecified');
+      const ageDays = r?.startTime ? (Date.now() - r.startTime.getTime()) / 86400000 : 999;
       if (ageDays <= 7) slot.recent += 1;
       map.set(key, slot);
     });
@@ -1332,8 +1334,22 @@
     });
   }
 
+  function aggregateDurationRows(rows, keyFn, durationFn = (r => r?.durationSeconds || 0)) {
+    const map = new Map();
+    (rows || []).forEach(r => {
+      if (!r) return;
+      const key = keyFn(r) || 'Unspecified';
+      const slot = map.get(key) || { name: key, events: 0, downtime: 0, volume: 0, recent: 0, subsystems: new Set(), volumeSeen: new Set() };
+      slot.events += 1;
+      slot.downtime += durationFn(r) || 0;
+      slot.subsystems.add(r?.subsystem || 'Unspecified');
+      map.set(key, slot);
+    });
+    return [...map.values()].map(s => ({ ...s, normalized: s.events, recurrence: s.events > 1 ? s.events / Math.max(1, s.subsystems.size) : 0, risk: 0 }));
+  }
+
   function computeRiskScores(rows) {
-    const pressStats = aggregate(rows, r => r.press).sort((a, b) => b.risk - a.risk);
+    const pressStats = aggregateErrorEvents(rows, r => r.press).sort((a, b) => b.risk - a.risk);
     return pressStats.map(item => {
       const reasons = [];
       if (item.events > 5) reasons.push('high recurrence');
@@ -1362,9 +1378,9 @@
 
   function buildExecutiveSummary(errorEvents, sourceScope, kpis) {
     const { availabilityAgg = [] } = sourceScope || {};
-    const topPressByEvents = aggregate(errorEvents, r => r.press).sort((a, b) => b.events - a.events)[0] || null;
-    const topSubsystem = aggregate(errorEvents, r => r.subsystem).sort((a, b) => b.events - a.events)[0] || null;
-    const topAlert = aggregate(errorEvents, r => (r.name !== 'Unspecified' ? r.name : r.alertTitle)).sort((a, b) => b.events - a.events)[0] || null;
+    const topPressByEvents = aggregateErrorEvents(errorEvents, r => r.press).sort((a, b) => b.events - a.events)[0] || null;
+    const topSubsystem = aggregateErrorEvents(errorEvents, r => r.subsystem).sort((a, b) => b.events - a.events)[0] || null;
+    const topAlert = aggregateErrorEvents(errorEvents, r => (r.name !== 'Unspecified' ? r.name : r.alertTitle)).sort((a, b) => b.events - a.events)[0] || null;
     const downtimeByPress = new Map();
     availabilityAgg.forEach(r => {
       const press = r.canonicalPress || 'Unspecified';
@@ -1403,9 +1419,9 @@
 
   function buildManagementExport(summary, kpis, rows, sourceScope) {
     const { availabilityAgg = [], volumeAgg = [] } = sourceScope || {};
-    const criticalIssues = aggregate(rows, r => (r.name !== 'Unspecified' ? r.name : r.alertTitle)).sort((a, b) => b.events - a.events).slice(0, 8);
-    const criticalSubsystems = aggregate(rows, r => r.subsystem).sort((a, b) => b.downtime - a.downtime).slice(0, 8);
-    const availabilityByPress = aggregate(availabilityAgg.map(r => ({ subsystem: r.canonicalPress, durationSeconds: totalDowntimeFromAvailabilityRow(r) })), r => r.subsystem)
+    const criticalIssues = aggregateErrorEvents(rows, r => (r.name !== 'Unspecified' ? r.name : r.alertTitle)).sort((a, b) => b.events - a.events).slice(0, 8);
+    const criticalSubsystems = aggregateErrorEvents(rows, r => r.subsystem).sort((a, b) => b.downtime - a.downtime).slice(0, 8);
+    const availabilityByPress = aggregateDurationRows(availabilityAgg.map(r => ({ subsystem: r.canonicalPress, durationSeconds: totalDowntimeFromAvailabilityRow(r) })), r => r.subsystem)
       .sort((a, b) => b.downtime - a.downtime)
       .slice(0, 8);
     const overallSummary = [
@@ -1557,7 +1573,7 @@
       });
       [...baseMap.values()].forEach(item => { item.normalized = item.volume > 0 ? item.events / item.volume : item.events; item.risk = 0; });
     } else {
-      const eventAggregate = aggregate(errorEvents, r => nameOf(r));
+      const eventAggregate = aggregateErrorEvents(errorEvents, r => nameOf(r));
       eventAggregate.forEach(r => add(r.name, { events: r.events || 0, normalized: r.normalized || 0, risk: r.risk || 0 }));
       if (metric === 'downtime') {
         if (key === 'subsystem') {
@@ -1570,7 +1586,7 @@
             });
           [...bySubsystem.entries()].forEach(([name, downtime]) => add(name, { downtime }));
         } else {
-          const downtimeAggregate = aggregate(errorEvents, r => nameOf(r));
+          const downtimeAggregate = aggregateErrorEvents(errorEvents, r => nameOf(r));
           downtimeAggregate.forEach(r => add(r.name, { downtime: r.downtime || 0 }));
         }
       }
@@ -1660,7 +1676,7 @@
   function renderTable(rows) {
     const table = document.getElementById('eventTable');
     if (!rows.length) { table.innerHTML = '<tbody><tr><td>No rows in current scope.</td></tr></tbody>'; return; }
-    table.innerHTML = `<thead><tr><th>Customer</th><th>Site</th><th>Press</th><th>Subsystem</th><th>Alert Name</th><th>Version</th><th>Start</th><th>Duration</th><th>Prod Vol</th><th>Avail Context</th></tr></thead><tbody>${rows.slice(0, 800).map(r => `<tr><td>${esc(r.customer)}</td><td>${esc(r.site)}</td><td>${esc(r.press)}</td><td>${esc(r.subsystem)}</td><td>${esc(r.name !== 'Unspecified' ? r.name : r.alertTitle)}</td><td>${esc(r.version)}</td><td>${esc(r.startTime?.toISOString() || '')}</td><td>${esc(formatDuration(r.durationSeconds))}</td><td>${esc(r.volume.productionVolume || 0)}</td><td>${esc(`U:${formatDuration(r.availability.unplannedDowntimeSeconds)} P:${formatDuration(r.availability.plannedDowntimeSeconds)} (${r.mergeContext.availabilityKeyUsed || 'none'})`)}</td></tr>`).join('')}</tbody>`;
+    table.innerHTML = `<thead><tr><th>Customer</th><th>Site</th><th>Press</th><th>Subsystem</th><th>Alert Name</th><th>Version</th><th>Start</th><th>Duration</th><th>Prod Vol</th><th>Avail Context</th></tr></thead><tbody>${rows.slice(0, 800).map(r => `<tr><td>${esc(r.customer)}</td><td>${esc(r.site)}</td><td>${esc(r.press)}</td><td>${esc(r.subsystem)}</td><td>${esc(r.name !== 'Unspecified' ? r.name : r.alertTitle)}</td><td>${esc(r.version)}</td><td>${esc(r.startTime?.toISOString() || '')}</td><td>${esc(formatDuration(r.durationSeconds))}</td><td>${esc(r?.volume?.productionVolume || 0)}</td><td>${esc(`U:${formatDuration(r?.availability?.unplannedDowntimeSeconds || 0)} P:${formatDuration(r?.availability?.plannedDowntimeSeconds || 0)} (${r?.mergeContext?.availabilityKeyUsed || 'none'})`)}</td></tr>`).join('')}</tbody>`;
   }
 
   function populateFilter(id, values, label) {
@@ -1805,7 +1821,7 @@
         <div class="summary-stat span-4"><div class="label">Total</div><div class="value">${formatDuration(total)}</div></div>`;
       document.getElementById('drilldownInsight').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Availability-only source</h4><span class="risk-pill risk-medium">Stable key drilldown</span></div><div class="micro">Rows come directly from scoped availabilityAgg using canonical press key.</div>`;
       replaceChart('drilldownTopChart', { type: 'doughnut', data: { labels: ['Planned', 'Unplanned'], datasets: [{ data: [planned, unplanned], backgroundColor: ['#51c285', '#f36b63'] }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: '#c6d3ea' } } } } });
-      const subs = aggregate(scoped.map(r => ({ subsystem: r.subsystem, durationSeconds: totalDowntimeFromAvailabilityRow(r) })), r => r.subsystem).slice(0, 10);
+      const subs = aggregateDurationRows(scoped.map(r => ({ subsystem: r.subsystem, durationSeconds: totalDowntimeFromAvailabilityRow(r) })), r => r.subsystem).slice(0, 10);
       replaceChart('drilldownTrendChart', { type: 'bar', data: { labels: subs.map(x => x.name), datasets: [{ data: subs.map(x => x.downtime), backgroundColor: COLORS, borderRadius: 6 }] }, options: baseOptions('drilldown', subs.map(x => x.name)) });
       replaceChart('drilldownSecondaryChart', { type: 'line', data: { labels: scoped.map(r => r.day), datasets: [{ data: scoped.map(r => totalDowntimeFromAvailabilityRow(r)), borderColor: '#7b8dff', fill: false, tension: 0.2 }] }, options: baseOptions('drilldown', scoped.map(r => r.day)) });
       replaceChart('drilldownOpsChart', { type: 'bar', data: { labels: ['Rows'], datasets: [{ data: [scoped.length], backgroundColor: ['#66bfff'], borderRadius: 6 }] }, options: baseOptions('drilldown', ['Rows']) });
@@ -1902,8 +1918,8 @@
     const downtime = scoped.reduce((a, r) => a + (r.durationSeconds || 0), 0);
     const totalVolume = scoped.reduce((a, r) => a + (isVolume ? (r.totalVolume || r.volume || 0) : (r.volume?.productionVolume || 0)), 0);
     const avg = count ? (isVolume ? totalVolume / count : downtime / count) : 0;
-    const prodSplit = scoped.reduce((a, r) => a + (isVolume ? (r.productionVolume || 0) : (r.volume.productionVolume || 0)), 0);
-    const maintSplit = scoped.reduce((a, r) => a + (isVolume ? (r.maintenanceVolume || 0) : (r.volume.maintenanceVolume || 0)), 0);
+    const prodSplit = scoped.reduce((a, r) => a + (isVolume ? (r.productionVolume || 0) : (r?.volume?.productionVolume || 0)), 0);
+    const maintSplit = scoped.reduce((a, r) => a + (isVolume ? (r.maintenanceVolume || 0) : (r?.volume?.maintenanceVolume || 0)), 0);
     document.getElementById('drilldownTitle').textContent = `Drilldown • ${dimension} = ${value}`;
     document.getElementById('drilldownSummary').textContent = isVolume
       ? `${count} matching jobs • Total volume ${totalVolume.toLocaleString()} • Avg job size ${avg.toFixed(1)}`
@@ -1966,6 +1982,10 @@
   }
 
   function renderMergeDebug(sourceScope) {
+    const host = document.getElementById('mergeDebug');
+    if (!host) return;
+    if (!DEBUG) { host.textContent = ''; host.classList.add('hidden'); return; }
+    host.classList.remove('hidden');
     const stats = STATE.merged.stats || {};
     const rows = stats.rows || {};
     const m = stats.matches || {};
@@ -1984,7 +2004,7 @@
       rawPrintedSheets: volumeAgg.reduce((a, r) => a + (r.printedSheets || 0), 0),
       inflatedMergedProductionVolume: mergedRows.reduce((a, r) => a + (r.productionVolume || 0), 0),
     };
-    document.getElementById('mergeDebug').textContent =
+    host.textContent =
       `Parsed rows E/A/V: ${rows.errorsParsed || 0}/${rows.availabilityParsed || 0}/${rows.volumeParsed || 0} • ` +
       `Normalized A/V: ${rows.availabilityNormalized || 0}/${rows.volumeNormalized || 0} • ` +
       `Aggregated A/V: ${rows.availabilityAggregated || 0}/${rows.volumeAggregated || 0} • ` +
@@ -2003,6 +2023,8 @@
   function renderRuntimeDiagnostics(sourceScope, chartStatus = {}) {
     const host = document.getElementById('runtimeDiagnostics');
     if (!host) return;
+    if (!DEBUG) { host.innerHTML = ''; host.classList.add('hidden'); return; }
+    host.classList.remove('hidden');
     const chartLoaded = hasChartLibrary();
     const xlsxLoaded = hasSpreadsheetLibrary();
     const chartRows = {
@@ -2078,14 +2100,21 @@
     STATE.lastSourceScope = sourceScope;
     STATE.kpis = computeOperationalMetrics(sourceScope);
     renderKpis(STATE.kpis);
-    const pressRankings = buildMetricRankings(sourceScope, STATE.filtered, 'press', errorEvents);
-    const subsystemRankings = buildMetricRankings(sourceScope, STATE.filtered, 'subsystem', errorEvents);
-    const alertRankings = buildMetricRankings(sourceScope, STATE.filtered, 'alert', errorEvents);
-    const versionRankings = buildMetricRankings(sourceScope, STATE.filtered, 'version', errorEvents);
-      renderRankingChart('press', pressRankings);
-      renderRankingChart('subsystem', subsystemRankings);
-      renderRankingChart('alert', alertRankings);
-      renderRankingChart('version', versionRankings);
+    const safeRankingRender = (key) => {
+      try {
+        const rankings = buildMetricRankings(sourceScope, STATE.filtered, key, errorEvents);
+        renderRankingChart(key, rankings);
+        return rankings;
+      } catch (err) {
+        console.error('[ranking-render-failure]', { key, err });
+        setRankingChartEmptyState(key, 'No ranking data available for current filters/metric.');
+        return [];
+      }
+    };
+    const pressRankings = safeRankingRender('press');
+    const subsystemRankings = safeRankingRender('subsystem');
+    const alertRankings = safeRankingRender('alert');
+    const versionRankings = safeRankingRender('version');
     const customerVolumeRows = buildCustomerVolumeChart(sourceScope.volumeAgg, STATE.customerVolumeMetric, STATE.customerVolumeSort, STATE.customerVolumeExpanded);
     STATE.customerVolumeRows = customerVolumeRows;
     const labels = customerVolumeRows.map(r => r.displayLabel);
@@ -2171,7 +2200,6 @@
       renderTable(STATE.filtered);
     } catch (error) {
       console.error('[dashboard-render-failure]', error);
-      setStatus(`Dashboard render failure: ${error.message || error}`, 'error');
       ['pressChart', 'subsystemChart', 'alertChart', 'versionChart', 'customerVolumeChart'].forEach(id => setCanvasState(id, `Failed to render ${id}.`, 'error'));
     }
   }
@@ -2181,7 +2209,7 @@
     const headers = ['customer', 'site', 'press', 'model', 'subsystem', 'version', 'name', 'alertTitle', 'day', 'durationSeconds', 'productionVolume'];
     const quote = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
     const lines = [headers.map(quote).join(',')];
-    rows.forEach(r => lines.push([r.customer, r.site, r.press, r.model, r.subsystem, r.version, r.name, r.alertTitle, r.day, r.durationSeconds, r.volume.productionVolume].map(quote).join(',')));
+    rows.forEach(r => lines.push([r.customer, r.site, r.press, r.model, r.subsystem, r.version, r.name, r.alertTitle, r.day, r.durationSeconds, r?.volume?.productionVolume || 0].map(quote).join(',')));
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([lines.join('\n')], { type: 'text/csv' }));
     a.download = 'merged-operational-export.csv';
