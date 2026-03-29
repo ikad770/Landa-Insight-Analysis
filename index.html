@@ -255,7 +255,7 @@
       </article>
 
       <article class="card span-6">
-        <div class="chart-head"><h3>Print Volume By Press</h3><div class="chart-tools"><select id="customerVolumeUnit" class="select"><option value="productionPrintedSheets">Production-only Printed Sheets</option><option value="printedSheets">Total Printed Sheets</option><option value="printedFlats">Printed Flats</option></select><select id="customerVolumeSort" class="select"><option value="desc">Highest first</option><option value="asc">Lowest first</option></select><label style="display:flex;align-items:center;gap:6px;color:var(--muted);font-size:.8rem;"><input id="customerVolumeOthersToggle" type="checkbox" /> Group remainder</label><button id="customerVolumeExpand" class="btn secondary">Show all</button></div></div>
+        <div class="chart-head"><h3>Print Volume By Press</h3><div class="chart-tools"><select id="customerVolumeUnit" class="select"><option value="productionPrintedSheets">Production-only Printed Sheets</option><option value="printedSheets">Total Printed Sheets</option><option value="printedFlats">Printed Flats</option></select><select id="customerVolumeSort" class="select"><option value="desc">Highest first</option><option value="asc">Lowest first</option></select><button id="customerVolumeExpand" class="btn secondary">Show all</button></div></div>
         <div class="micro" id="customerVolumeNote">Press-level workload from volumeAgg only.</div><div class="chart-area"><canvas id="customerVolumeChart"></canvas></div>
       </article>
 
@@ -280,7 +280,7 @@
     <div class="summary-actions">
       <button id="summaryPreviewBtn" class="btn secondary">Preview Email</button>
       <button id="summaryCopyBtn" class="btn secondary">Copy Email Summary</button>
-      <button id="summaryExportBtn" class="btn primary">Export Email HTML</button>
+      <button id="summaryExportBtn" class="btn primary">Open in Outlook</button>
     </div>
     <div id="summaryScopeMeta" class="summary-scope"></div>
     <div id="summaryContent" class="summary-layout"></div>
@@ -337,7 +337,6 @@
     customerVolumeMetric: 'productionPrintedSheets',
     customerVolumeSort: 'desc',
     customerVolumeExpanded: false,
-    customerVolumeShowOthers: true,
     customerVolumeLookup: new Map(),
     customerVolumeRows: [],
     customerVolumeAllRows: [],
@@ -1793,8 +1792,8 @@
     const kpiCell = (label, value) => `<td style="padding:8px;border:1px solid #bfe0ff;background:#f5fbff;"><div style="font-size:11px;color:#3a5c8a;">${esc(label)}</div><div style="font-size:20px;font-weight:700;color:#123f70;">${esc(value)}</div></td>`;
     const buildTable = (rowsHtml, headers, accent = '#d8e0ed') => `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;border:1px solid ${accent};background:#ffffff;"><tr>${headers.map(h => `<th style="padding:8px 10px;text-align:left;font-size:12px;border-bottom:1px solid ${accent};background:#f9fbff;color:#1f2a3a;">${esc(h)}</th>`).join('')}</tr>${rowsHtml || `<tr><td colspan="${headers.length}" style="padding:10px;color:#5f6f85;">No records in current scope.</td></tr>`}</table>`;
     const section = (title, accent, bodyHtml) => `<tr><td style="padding:0 0 12px;"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;border:1px solid ${accent};background:#ffffff;"><tr><td style="padding:10px 12px;background:${accent};color:#ffffff;font-size:15px;font-weight:700;">${esc(title)}</td></tr><tr><td style="padding:12px;">${bodyHtml}</td></tr></table></td></tr>`;
-    const compositionRows = chartInsights.downtimeComposition.map((item, idx) => `<tr><td style="padding:6px 8px;font-size:12px;color:#1f2a3a;">${esc(item.label)}</td><td style="padding:6px 8px;" width="60%"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;background:#edf2f9;"><tr><td style="height:10px;background:${idx === 0 ? '#e56739' : '#7c4dff'};width:${item.pct.toFixed(2)}%;"></td><td style="height:10px;"></td></tr></table></td><td style="padding:6px 8px;text-align:right;font-size:12px;color:#1f2a3a;">${item.pct.toFixed(1)}%</td></tr>`).join('');
-    const pressImpactRows = chartInsights.topPressImpact.map(i => `<tr><td style="padding:6px 8px;font-size:12px;color:#1f2a3a;">${esc(i.name)}</td><td style="padding:6px 8px;" width="60%"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;background:#edf2f9;"><tr><td style="height:10px;background:#25a65b;width:${i.pct.toFixed(2)}%;"></td><td style="height:10px;"></td></tr></table></td><td style="padding:6px 8px;text-align:right;font-size:12px;color:#1f2a3a;">${i.pct.toFixed(1)}%</td></tr>`).join('');
+    const downtimeSplitCards = chartInsights.downtimeComposition.map((item, idx) => `<td style="padding:0 8px 8px 0;"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;border:1px solid #d7deea;background:#f9fbff;"><tr><td style="padding:8px 10px;font-size:11px;color:#5a6980;text-transform:uppercase;font-weight:700;">${esc(item.label)} Downtime</td></tr><tr><td style="padding:0 10px 10px;font-size:22px;font-weight:700;color:${idx === 0 ? '#d0552b' : '#6940d6'};">${item.pct.toFixed(1)}%</td></tr><tr><td style="padding:0 10px 10px;font-size:12px;color:#465a76;">${formatDuration(item.value)} (${(item.value / 3600).toFixed(2)}h)</td></tr></table></td>`).join('');
+    const contributorsRows = chartInsights.topPressImpact.slice(0, 5).map((i, idx) => `<tr><td style="padding:7px 8px;border-bottom:1px solid #e2e8f2;color:#1f2a3a;">${idx + 1}. ${esc(i.name)}</td><td style="padding:7px 8px;border-bottom:1px solid #e2e8f2;color:#1f2a3a;">${(i.value / 3600).toFixed(2)}h</td><td style="padding:7px 8px;border-bottom:1px solid #e2e8f2;color:#1f2a3a;">${i.pct.toFixed(1)}%</td></tr>`).join('');
     const html = `<!doctype html><html><head><meta charset="utf-8"><title>Landa InsightPro+ Summary</title></head><body style="margin:0;padding:20px;background:#f4f7fb;font-family:Segoe UI,Arial,sans-serif;color:#1d2430;">
       <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;max-width:980px;margin:0 auto;background:#f4f7fb;">
         <tr><td style="padding:0 0 14px;">
@@ -1803,8 +1802,7 @@
           <div style="font-size:12px;color:#5a6980;margin-top:4px;">Generated on: ${esc(generatedAtLabel)}</div>
           <div style="font-size:12px;color:#5a6980;margin-top:2px;">${esc(scopeLabel)} • Source rows (errors/availability/volume): ${sourceCounts.errors}/${sourceCounts.availability}/${sourceCounts.volume}</div>
         </td></tr>
-        ${section('1) Executive Snapshot', '#1f8bff', `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;"><tr>${kpiCell('Availability', executiveSnapshot.availability)}${kpiCell('Production Volume', executiveSnapshot.productionVolume)}${kpiCell('Downtime / Volume', executiveSnapshot.downtimePerVolume)}${kpiCell('Events / Volume', executiveSnapshot.eventsPerVolume)}</tr></table>`)}
-        ${section('Operational Visual Highlights', '#35507a', `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;"><tr><td width="50%" style="padding:0 10px 0 0;vertical-align:top;"><div style="font-size:13px;font-weight:700;color:#1f2a3a;padding-bottom:8px;">Downtime Composition</div><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;">${compositionRows || `<tr><td style="padding:6px 8px;color:#5f6f85;">No downtime data.</td></tr>`}</table></td><td width="50%" style="padding:0 0 0 10px;vertical-align:top;"><div style="font-size:13px;font-weight:700;color:#1f2a3a;padding-bottom:8px;">Top Press Downtime Impact</div><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;">${pressImpactRows || `<tr><td style="padding:6px 8px;color:#5f6f85;">No press downtime data.</td></tr>`}</table></td></tr></table>`)}
+        ${section('1) Executive Snapshot', '#1f8bff', `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;"><tr>${kpiCell('Availability', executiveSnapshot.availability)}${kpiCell('Production Volume', executiveSnapshot.productionVolume)}${kpiCell('Downtime / Volume', executiveSnapshot.downtimePerVolume)}${kpiCell('Events / Volume', executiveSnapshot.eventsPerVolume)}</tr></table><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;margin-top:12px;"><tr><td style="padding:0 0 8px;font-size:13px;font-weight:700;color:#1f2a3a;">Downtime Split (Planned vs Unplanned)</td></tr><tr>${downtimeSplitCards || `<td style="padding:6px 8px;color:#5f6f85;">No downtime data.</td>`}</tr></table><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;margin-top:8px;border:1px solid #d7deea;"><tr><td colspan="3" style="padding:8px 10px;font-size:13px;font-weight:700;color:#1f2a3a;background:#f4f8ff;">Top Downtime Contributors (share of total downtime)</td></tr><tr><th style="padding:7px 8px;text-align:left;border-bottom:1px solid #d7deea;background:#f9fbff;font-size:12px;">Press</th><th style="padding:7px 8px;text-align:left;border-bottom:1px solid #d7deea;background:#f9fbff;font-size:12px;">Downtime (h)</th><th style="padding:7px 8px;text-align:left;border-bottom:1px solid #d7deea;background:#f9fbff;font-size:12px;">Share</th></tr>${contributorsRows || `<tr><td colspan="3" style="padding:8px;color:#5f6f85;">No press downtime data.</td></tr>`}</table>`)}
         ${section('2) Top Presses Downtime', '#e56739', buildTable(topPressDowntime.map(i => `<tr><td style="padding:8px 10px;border-bottom:1px solid #f5d2c6;">${esc(i.name)}</td><td style="padding:8px 10px;border-bottom:1px solid #f5d2c6;">${formatDuration(i.downtime)}</td><td style="padding:8px 10px;border-bottom:1px solid #f5d2c6;">${(i.downtime / 3600).toFixed(2)}</td></tr>`).join(''), ['Press', 'Downtime', 'Downtime (h)'], '#f5d2c6'))}
         ${section('3) Print Volume', '#25a65b', buildTable(topPrintVolume.map(i => `<tr><td style="padding:8px 10px;border-bottom:1px solid #cfead8;">${esc(i.name)}</td><td style="padding:8px 10px;border-bottom:1px solid #cfead8;">${Number(i.value || 0).toLocaleString()}</td></tr>`).join(''), ['Press', 'Production Printed Sheets'], '#cfead8'))}
         ${section('4) Top Subsystems', '#7c4dff', buildTable(topSubsystems.map(i => `<tr><td style="padding:8px 10px;border-bottom:1px solid #ddd0ff;">${esc(i.name)}</td><td style="padding:8px 10px;border-bottom:1px solid #ddd0ff;">${i.events.toLocaleString()}</td><td style="padding:8px 10px;border-bottom:1px solid #ddd0ff;">${formatDuration(i.downtime)}</td></tr>`).join(''), ['Subsystem', 'Events', 'Downtime'], '#ddd0ff'))}
@@ -1829,9 +1827,9 @@
       `- Downtime / Volume: ${executiveSnapshot.downtimePerVolume}`,
       `- Events / Volume: ${executiveSnapshot.eventsPerVolume}`,
       '',
-      'Operational Visual Highlights',
-      ...chartInsights.downtimeComposition.map(x => `- Downtime composition ${x.label}: ${x.pct.toFixed(1)}%`),
-      ...chartInsights.topPressImpact.map(x => `- Press downtime impact ${x.name}: ${x.pct.toFixed(1)}%`),
+      'Downtime Split & Top Contributors',
+      ...chartInsights.downtimeComposition.map(x => `- ${x.label}: ${x.pct.toFixed(1)}% (${formatDuration(x.value)})`),
+      ...chartInsights.topPressImpact.slice(0, 5).map(x => `- ${x.name}: ${(x.value / 3600).toFixed(2)}h (${x.pct.toFixed(1)}% of total downtime)`),
       '',
       '2) Top Presses Downtime',
       ...topPressDowntime.map(x => `- ${x.name}: ${formatDuration(x.downtime)}`),
@@ -1866,7 +1864,6 @@
     const totalPlanned = Number(kpis.totalPlanned || 0);
     const totalUnplanned = Number(kpis.totalUnplanned || 0);
     const totalDowntime = Math.max(0, totalPlanned + totalUnplanned);
-    const topPressTotal = topPressDowntime.reduce((acc, row) => acc + Number(row.downtime || 0), 0);
     return {
       summary,
       kpis,
@@ -1900,43 +1897,20 @@
         topPressImpact: topPressDowntime.slice(0, 5).map(row => ({
           name: row.name,
           value: row.downtime,
-          pct: topPressTotal > 0 ? (row.downtime / topPressTotal) * 100 : 0,
+          pct: totalDowntime > 0 ? (row.downtime / totalDowntime) * 100 : 0,
         })),
+        totalDowntimeHours: totalDowntime / 3600,
       },
     };
-  }
-
-  function buildEmailFileContent(model, html, text) {
-    const boundary = `landainsight-${Date.now()}`;
-    return [
-      'MIME-Version: 1.0',
-      `Date: ${new Date().toUTCString()}`,
-      'From: Landa InsightPro+ <no-reply@landa-insight.local>',
-      `Subject: Landa InsightPro+ Summary — ${model.reportingPeriodLabel}`,
-      'X-Unsent: 1',
-      `Content-Type: multipart/alternative; boundary="${boundary}"`,
-      '',
-      `--${boundary}`,
-      'Content-Type: text/plain; charset="UTF-8"',
-      'Content-Transfer-Encoding: 8bit',
-      '',
-      text,
-      '',
-      `--${boundary}`,
-      'Content-Type: text/html; charset="UTF-8"',
-      'Content-Transfer-Encoding: 8bit',
-      '',
-      html,
-      '',
-      `--${boundary}--`,
-      ''
-    ].join('\r\n');
   }
 
   function renderSummarySections(model, host) {
     const tableRows = (rows, cellsFn, emptyColumns = 3) => rows.length
       ? rows.map(cellsFn).join('')
       : `<tr><td colspan="${emptyColumns}" style="padding:8px;color:#9fb0ca;">No records in current scope.</td></tr>`;
+    const splitCards = model.chartInsights.downtimeComposition.length
+      ? model.chartInsights.downtimeComposition.map((item, idx) => `<div class="summary-kpi-card" style="border-color:rgba(143,211,255,.36);background:${idx === 0 ? 'rgba(229,103,57,.14)' : 'rgba(124,77,255,.14)'};"><div class="label">${esc(item.label)} Downtime</div><div class="value">${item.pct.toFixed(1)}%</div><div style="margin-top:4px;color:#c9d7ee;font-size:.8rem;">${formatDuration(item.value)} (${(item.value / 3600).toFixed(2)}h)</div></div>`).join('')
+      : `<div class="summary-kpi-card" style="grid-column:1/-1;">No downtime data in current scope.</div>`;
     host.innerHTML = `
       <section class="summary-section">
         <div class="summary-section-head" style="background:#1f8bff;">1) Executive Snapshot</div>
@@ -1947,6 +1921,10 @@
             <div class="summary-kpi-card"><div class="label">Downtime / Volume</div><div class="value">${esc(model.executiveSnapshot.downtimePerVolume)}</div></div>
             <div class="summary-kpi-card"><div class="label">Events / Volume</div><div class="value">${esc(model.executiveSnapshot.eventsPerVolume)}</div></div>
           </div>
+          <div style="margin-top:10px;font-size:.82rem;color:#b9c8e2;font-weight:650;">Downtime Split (Planned vs Unplanned)</div>
+          <div class="summary-kpi-grid" style="margin-top:6px;grid-template-columns:repeat(2,minmax(0,1fr));">${splitCards}</div>
+          <div style="margin-top:10px;font-size:.82rem;color:#b9c8e2;font-weight:650;">Top Downtime Contributors (share of total downtime)</div>
+          <table style="margin-top:6px;"><thead><tr><th>Press</th><th>Downtime (h)</th><th>Share</th></tr></thead><tbody>${tableRows(model.chartInsights.topPressImpact.slice(0, 5), i => `<tr><td>${esc(i.name)}</td><td>${(i.value / 3600).toFixed(2)}</td><td>${i.pct.toFixed(1)}%</td></tr>`, 3)}</tbody></table>
         </div>
       </section>
       <section class="summary-section">
@@ -2272,12 +2250,12 @@
 
   function filteredErrorEvents() { return filterErrorsNativeRows(currentFilterValues()); }
 
-  function buildCustomerVolumeChart(volumeAggRows, metric = 'printedSheets', sort = 'desc', expanded = false, showOthers = false) {
+  function buildCustomerVolumeChart(volumeAggRows, metric = 'printedSheets', sort = 'desc', expanded = false) {
     const byPress = new Map();
     STATE.customerVolumeLookup = new Map();
     volumeAggRows.forEach(r => {
       const entityKey = r.canonicalPress || 'Unspecified';
-      const slot = byPress.get(entityKey) || { entityKey, displayLabel: entityKey, canonicalPress: entityKey, productionPrintedSheets: 0, printedSheets: 0, printedFlats: 0, customers: new Set(), models: new Set(), sourceRows: 0, isGroupedRemainder: false };
+      const slot = byPress.get(entityKey) || { entityKey, displayLabel: entityKey, canonicalPress: entityKey, productionPrintedSheets: 0, printedSheets: 0, printedFlats: 0, customers: new Set(), models: new Set(), sourceRows: 0 };
       slot.productionPrintedSheets += r.productionPrintedSheets || 0;
       slot.printedSheets += r.printedSheets || 0;
       slot.printedFlats += r.printedFlats || 0;
@@ -2296,37 +2274,8 @@
       metric,
       parentContext: { path: [] }
     })).sort((a, b) => (a[metric] - b[metric]) * dir);
-    const fullRows = expanded ? sorted : sorted.slice(0, Math.max(sorted.length, 12));
-    if (expanded || sorted.length <= 12 || !showOthers) return { chartRows: sorted.slice(0, expanded ? sorted.length : 12), fullRows };
-    const topRows = sorted.slice(0, 12);
-    const remainder = sorted.slice(12);
-    if (!remainder.length) return { chartRows: topRows, fullRows };
-    const remainingBucket = remainder.reduce((acc, row) => {
-      acc.productionPrintedSheets += row.productionPrintedSheets || 0;
-      acc.printedSheets += row.printedSheets || 0;
-      acc.printedFlats += row.printedFlats || 0;
-      acc.sourceRows += row.sourceRows || 0;
-      (row.customers || []).forEach(c => acc.customers.add(c));
-      (row.models || []).forEach(m => acc.models.add(m));
-      acc.groupedPresses.push(row.entityKey);
-      return acc;
-    }, {
-      entityKey: '__other_volume_presses__',
-      displayLabel: `Other presses (${remainder.length})`,
-      canonicalPress: 'Other presses',
-      productionPrintedSheets: 0,
-      printedSheets: 0,
-      printedFlats: 0,
-      customers: new Set(),
-      models: new Set(),
-      sourceRows: 0,
-      sourceType: 'volumeJobs',
-      metric,
-      isGroupedRemainder: true,
-      groupedPresses: [],
-      parentContext: { path: [] }
-    });
-    return { chartRows: [...topRows, remainingBucket], fullRows };
+    const fullRows = sorted;
+    return { chartRows: sorted.slice(0, expanded ? sorted.length : 12), fullRows };
   }
 
   function eventValueForDimension(row, dimension) {
@@ -2482,12 +2431,7 @@
       parentPath.forEach(node => {
         rows = rows.filter(row => volumeValueForDimension(row, node.dimension) === node.entityKey);
       });
-      if (payload?.isGroupedRemainder && Array.isArray(payload?.groupedPresses)) {
-        const grouped = new Set(payload.groupedPresses);
-        if (dimension === 'customerVolume' || dimension === 'press') rows = rows.filter(r => grouped.has(volumeValueForDimension(r, dimension)));
-      } else {
-        rows = rows.filter(r => volumeValueForDimension(r, dimension) === entityKey);
-      }
+      rows = rows.filter(r => volumeValueForDimension(r, dimension) === entityKey);
     } else if (sourceType === 'availabilityNative' || sourceType === 'availabilityAgg') {
       rows = STATE.lastSourceScope?.filteredAvailabilityRowsNative || [];
       parentPath.forEach(node => {
@@ -3046,7 +2990,7 @@
     const subsystemRankings = safeRankingRender('subsystem');
     const alertRankings = safeRankingRender('alert');
     const versionRankings = safeRankingRender('version');
-    const { chartRows: customerVolumeRows, fullRows: customerVolumeAllRows } = buildCustomerVolumeChart(sourceScope.volumeAgg, STATE.customerVolumeMetric, STATE.customerVolumeSort, STATE.customerVolumeExpanded, STATE.customerVolumeShowOthers);
+    const { chartRows: customerVolumeRows, fullRows: customerVolumeAllRows } = buildCustomerVolumeChart(sourceScope.volumeAgg, STATE.customerVolumeMetric, STATE.customerVolumeSort, STATE.customerVolumeExpanded);
     STATE.customerVolumeRows = customerVolumeRows;
     STATE.customerVolumeAllRows = customerVolumeAllRows;
     const labels = customerVolumeRows.map(r => r.displayLabel);
@@ -3064,9 +3008,7 @@
       });
       if (!customerVolumeRows.length) setCanvasState('customerVolumeChart', 'No print volume rows after source-native scope (volume owns press/day and native job metadata).');
       if (!customerVolumeRendered) setCanvasState('customerVolumeChart', 'Chart library failed to load. Charts cannot render.', 'error');
-    document.getElementById('customerVolumeNote').textContent = `${STATE.customerVolumeExpanded ? 'Full press ranking' : 'Top 12'} by ${volumeMetricLabel(STATE.customerVolumeMetric)} (${STATE.customerVolumeSort === 'asc' ? 'lowest first' : 'highest first'}) from source volume aggregates (canonical press grouping). ${STATE.customerVolumeShowOthers ? 'Grouped remainder is enabled to preserve full source totals.' : 'Grouped remainder is disabled (chart shows only the visible top 12 presses).'} `;
-    const othersToggle = document.getElementById('customerVolumeOthersToggle');
-    if (othersToggle) othersToggle.checked = !!STATE.customerVolumeShowOthers;
+    document.getElementById('customerVolumeNote').textContent = `${STATE.customerVolumeExpanded ? 'Full press ranking' : 'Top 12'} by ${volumeMetricLabel(STATE.customerVolumeMetric)} (${STATE.customerVolumeSort === 'asc' ? 'lowest first' : 'highest first'}) from source volume aggregates (canonical press grouping).`;
     document.getElementById('customerVolumeExpand').textContent = STATE.customerVolumeExpanded ? 'Collapse' : 'Show all';
     console.info('[consistency-debug] print-volume-chart-plot', {
       source: 'volumeAgg',
@@ -3497,6 +3439,22 @@
       if (!model) return null;
       return { model, ...buildExecutiveEmailPayload(model) };
     };
+    const toMailtoBody = (payload) => {
+      const maxLen = 1800;
+      const text = payload.text.length > maxLen ? `${payload.text.slice(0, maxLen)}\n\n(Email preview text truncated for mailto length limits. Full rich email HTML is in clipboard.)` : payload.text;
+      return text;
+    };
+    const tryOpenOutlookCompose = (payload) => {
+      const subject = `Landa InsightPro+ Summary — ${payload.model.reportingPeriodLabel}`;
+      const body = toMailtoBody(payload);
+      const outlookUrl = `https://outlook.office.com/mail/deeplink/compose?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+      const webWindow = window.open(outlookUrl, '_blank', 'noopener,noreferrer');
+      if (webWindow) return { success: true, channel: 'outlook-web' };
+      const mailtoUrl = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+      const mailtoWindow = window.open(mailtoUrl, '_self');
+      if (mailtoWindow != null) return { success: true, channel: 'mailto' };
+      return { success: false, channel: 'blocked' };
+    };
     summaryBtnEl.addEventListener('click', () => {
       const model = ensureSummaryModel();
       if (!model) return;
@@ -3527,24 +3485,26 @@
       }
       catch { setStatus('Clipboard copy failed in this browser context.', 'warning'); }
     });
-    summaryExportBtnEl.addEventListener('click', () => {
+    summaryExportBtnEl.addEventListener('click', async () => {
       const payload = getExecutiveEmailPayload();
       if (!payload) return;
-      const eml = buildEmailFileContent(payload.model, payload.html, payload.text);
       try {
         if (navigator.clipboard?.write && window.ClipboardItem) {
-          navigator.clipboard.write([new ClipboardItem({ 'text/plain': new Blob([payload.text], { type: 'text/plain' }), 'text/html': new Blob([payload.html], { type: 'text/html' }) })]).catch(() => {});
+          await navigator.clipboard.write([new ClipboardItem({ 'text/plain': new Blob([payload.text], { type: 'text/plain' }), 'text/html': new Blob([payload.html], { type: 'text/html' }) })]);
         }
-      } catch {}
-      const url = URL.createObjectURL(new Blob([eml], { type: 'message/rfc822;charset=utf-8' }));
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `landa-insight-executive-summary-${new Date().toISOString().slice(0,10)}.eml`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-      setStatus('Downloaded Outlook-ready .eml using the same HTML shown in Preview and copied to clipboard.', 'ok');
+      } catch {
+        // Clipboard can fail in some restricted browser contexts; compose flow should still continue.
+      }
+      const compose = tryOpenOutlookCompose(payload);
+      if (compose.success && compose.channel === 'outlook-web') {
+        setStatus('Opened Outlook Web compose with the scoped summary. Full HTML + text summary copied to clipboard for rich-body paste if needed.', 'ok');
+        return;
+      }
+      if (compose.success && compose.channel === 'mailto') {
+        setStatus('Opened your default mail client compose window (mailto fallback). Full HTML + text summary copied to clipboard for rich-body paste if needed.', 'warning');
+        return;
+      }
+      setStatus('Could not open Outlook compose automatically (popup/protocol blocked). Use Preview or Copy Email Summary; no file was downloaded.', 'warning');
     });
     summaryPreviewBtnEl.addEventListener('click', () => {
       const payload = getExecutiveEmailPayload();
@@ -3593,9 +3553,6 @@
     customerVolumeUnit.addEventListener('change', e => { STATE.customerVolumeMetric = e.target.value; scheduleRender(); });
     customerVolumeSort.addEventListener('change', e => { STATE.customerVolumeSort = e.target.value; scheduleRender(); });
     customerVolumeExpand.addEventListener('click', () => { STATE.customerVolumeExpanded = !STATE.customerVolumeExpanded; scheduleRender(); });
-    const customerVolumeOthersToggle = document.getElementById('customerVolumeOthersToggle');
-    customerVolumeOthersToggle.addEventListener('change', e => { STATE.customerVolumeShowOthers = !!e.target.checked; scheduleRender(); });
-
     closeDrilldown.addEventListener('click', () => drilldownDrawer.classList.remove('show'));
     drilldownDrawer.addEventListener('click', e => { if (e.target.id === 'drilldownDrawer') drilldownDrawer.classList.remove('show'); });
     drilldownSearch.addEventListener('input', e => { STATE.drilldown.search = e.target.value || ''; renderDrilldown(); });
