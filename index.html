@@ -280,7 +280,7 @@
     <div class="summary-actions">
       <button id="summaryPreviewBtn" class="btn secondary">Preview Email</button>
       <button id="summaryCopyBtn" class="btn secondary">Copy Email Summary</button>
-      <button id="summaryExportBtn" class="btn primary">Export to Email (Outlook)</button>
+      <button id="summaryExportBtn" class="btn primary">Export Email HTML</button>
     </div>
     <div id="summaryScopeMeta" class="summary-scope"></div>
     <div id="summaryContent" class="summary-layout"></div>
@@ -1698,6 +1698,19 @@
       map.set(key, slot);
     });
     return [...map.values()].map(s => ({ ...s, normalized: s.events, recurrence: s.events > 1 ? s.events / Math.max(1, s.subsystems.size) : 0, risk: 0 }));
+  }
+
+  function aggregateMetricRows(rows, keyFn, metricFn = (r => r?.value || 0)) {
+    const map = new Map();
+    (rows || []).forEach(r => {
+      if (!r) return;
+      const key = keyFn(r) || 'Unspecified';
+      const slot = map.get(key) || { name: key, value: 0, rows: 0 };
+      slot.value += Number(metricFn(r) || 0);
+      slot.rows += 1;
+      map.set(key, slot);
+    });
+    return [...map.values()];
   }
 
   function computeRiskScores(rows) {
@@ -3424,7 +3437,13 @@
         setStatus('Summary unavailable. Run analysis or refresh dashboard scope.', 'warning');
         return null;
       }
-      return buildSummaryModel(STATE.merged.summary, STATE.kpis, STATE.filteredErrors || [], STATE.lastSourceScope);
+      try {
+        return buildSummaryModel(STATE.merged.summary, STATE.kpis, STATE.filteredErrors || [], STATE.lastSourceScope);
+      } catch (e) {
+        console.error('[summary-model-error]', e);
+        setStatus('Summary failed to generate due to an internal error. Check console logs.', 'error');
+        return null;
+      }
     };
     summaryBtnEl.addEventListener('click', () => {
       const model = ensureSummaryModel();
@@ -3469,7 +3488,6 @@
           navigator.clipboard.write([new ClipboardItem({ 'text/plain': new Blob([text], { type: 'text/plain' }), 'text/html': new Blob([html], { type: 'text/html' }) })]).catch(() => {});
         }
       } catch {}
-      window.location.href = mailto;
       const url = URL.createObjectURL(new Blob([eml], { type: 'message/rfc822;charset=utf-8' }));
       const a = document.createElement('a');
       a.href = url;
@@ -3478,7 +3496,8 @@
       a.click();
       a.remove();
       URL.revokeObjectURL(url);
-      setStatus('Opened default email client (Outlook if configured) and downloaded Outlook-ready .eml fallback.', 'ok');
+      window.location.href = mailto;
+      setStatus('Downloaded Outlook-ready .eml and opened default mail client using current validated scope.', 'ok');
     });
     summaryPreviewBtnEl.addEventListener('click', () => {
       const model = ensureSummaryModel();
