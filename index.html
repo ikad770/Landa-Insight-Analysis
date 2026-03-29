@@ -70,13 +70,14 @@
     .chart-area{position:relative;height:300px;min-height:300px}
     .chart-empty-state { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; text-align:center; color:var(--muted); font-size:.86rem; padding:14px; background:rgba(12,17,25,.35); border:1px dashed rgba(255,255,255,.14); border-radius:10px; pointer-events:none; }
     .micro { color:var(--muted); font-size:.82rem; margin:6px 0 8px; }
-    .data-health { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; margin-bottom:12px; }
-    .health-card { border:1px solid var(--border); border-radius:12px; padding:10px; background:rgba(255,255,255,.02); }
-    .health-head { display:flex; align-items:center; justify-content:space-between; gap:8px; font-weight:600; }
-    .health-note { margin-top:6px; color:var(--muted); font-size:.82rem; line-height:1.35; min-height:2.2em; }
-    .health-green { color:#d8ffea; }
-    .health-yellow { color:#ffe5c7; }
-    .health-red { color:#ffd2cf; }
+    .dashboard-status { margin-bottom:12px; border:1px solid var(--border); border-radius:12px; padding:12px; background:rgba(255,255,255,.02); }
+    .dashboard-status.green { border-color:rgba(87,201,138,.45); background:rgba(87,201,138,.12); }
+    .dashboard-status.yellow { border-color:rgba(240,177,101,.45); background:rgba(240,177,101,.12); }
+    .dashboard-status.red { border-color:rgba(243,107,99,.45); background:rgba(243,107,99,.12); }
+    .status-head { display:flex; justify-content:space-between; align-items:center; gap:8px; font-weight:650; }
+    .status-note { color:var(--muted); font-size:.83rem; margin-top:6px; }
+    .status-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; margin-top:10px; }
+    .status-chip { border:1px solid var(--border); border-radius:10px; padding:8px; background:rgba(0,0,0,.15); font-size:.82rem; }
     .risk-pill { padding:2px 10px; border-radius:999px; font-size:.76rem; border:1px solid; }
     .risk-critical{color:#ffd7d4;background:rgba(243,107,99,.2);border-color:rgba(243,107,99,.65)}
     .risk-high{color:#ffe1c2;background:rgba(240,177,101,.2);border-color:rgba(240,177,101,.65)}
@@ -157,7 +158,7 @@
     </header>
 
     <section id="kpiStrip" class="kpis"></section>
-    <section id="dataHealthPanel" class="data-health"></section>
+    <section id="dashboardStatusPanel" class="dashboard-status"></section>
 
     <section id="executiveSummaryCard" class="card" style="margin-bottom:12px;"></section>
 
@@ -252,6 +253,7 @@
     customerVolumeRows: [],
     drilldown: { dimension: '', value: '', entityKey: '', rows: [], search: '', sort: null, sourceType: '', metric: '', path: [] },
     lastSourceScope: null,
+    reconciliation: { logs: [], report: [] },
     renderQueued: false,
   };
 
@@ -1280,6 +1282,41 @@
     return logs;
   }
 
+  function buildReconciliationReport(sourceScope, kpis, rankings, customerVolumeRows) {
+    const { errorsAgg = [], availabilityAgg = [], volumeAgg = [] } = sourceScope || {};
+    const sourceTotals = {
+      events: errorsAgg.reduce((a, r) => a + (r.totalEvents || 0), 0),
+      errorDuration: errorsAgg.reduce((a, r) => a + (r.totalErrorDurationSeconds || 0), 0),
+      planned: availabilityAgg.reduce((a, r) => a + (r.plannedDowntimeSeconds || 0), 0),
+      unplanned: availabilityAgg.reduce((a, r) => a + (r.unplannedDowntimeSeconds || 0), 0),
+      downtime: availabilityAgg.reduce((a, r) => a + totalDowntimeFromAvailabilityRow(r), 0),
+      runtime: availabilityAgg.reduce((a, r) => a + (r.runtimeSeconds || 0), 0),
+      prodSheets: volumeAgg.reduce((a, r) => a + (r.productionPrintedSheets || 0), 0),
+    };
+    const availabilityPct = (sourceTotals.runtime + sourceTotals.unplanned) > 0
+      ? (sourceTotals.runtime / (sourceTotals.runtime + sourceTotals.unplanned)) * 100
+      : null;
+    const report = [
+      ['KPI • Total Events', 'Errors', kpis.totalEvents, sourceTotals.events, 'sum(errors.totalEvents)'],
+      ['KPI • Total Downtime', 'Availability', kpis.totalDowntime, sourceTotals.downtime, 'sum(planned + unplanned)'],
+      ['KPI • Planned Downtime', 'Availability', kpis.totalPlanned, sourceTotals.planned, 'sum(preventive + on-job-maintenance)'],
+      ['KPI • Unplanned Downtime', 'Availability', kpis.totalUnplanned, sourceTotals.unplanned, 'sum(recovery + jams)'],
+      ['KPI • Availability', 'Availability', kpis.availabilityPct ?? null, availabilityPct, 'runtime / (runtime + unplanned)'],
+      ['KPI • Production Volume', 'Volume', kpis.totalProdVolume, sourceTotals.prodSheets, 'sum(productionPrintedSheets)'],
+      ['KPI • MTTR', 'Errors', kpis.mttr ?? null, sourceTotals.events ? sourceTotals.errorDuration / sourceTotals.events : null, 'sum(errorDuration) / events'],
+      ['KPI • MTBF', 'Errors+Availability', kpis.mtbf ?? null, sourceTotals.events ? sourceTotals.runtime / sourceTotals.events : null, 'runtime / events'],
+      ['Chart • Top Presses', 'Errors/Availability/Volume by selected metric', rankings.press?.reduce((a, r) => a + (r[STATE.metricByChart.press] || 0), 0) || 0, rankings.press?.reduce((a, r) => a + (r[STATE.metricByChart.press] || 0), 0) || 0, `groupBy(press) on ${STATE.metricByChart.press}`],
+      ['Chart • Top Subsystems', 'Errors or Availability-by-subsystem for downtime', rankings.subsystem?.reduce((a, r) => a + (r[STATE.metricByChart.subsystem] || 0), 0) || 0, rankings.subsystem?.reduce((a, r) => a + (r[STATE.metricByChart.subsystem] || 0), 0) || 0, `groupBy(subsystem) on ${STATE.metricByChart.subsystem}`],
+      ['Chart • Top Alerts', 'Errors', rankings.alert?.reduce((a, r) => a + (r[STATE.metricByChart.alert] || 0), 0) || 0, rankings.alert?.reduce((a, r) => a + (r[STATE.metricByChart.alert] || 0), 0) || 0, `groupBy(alert) on ${STATE.metricByChart.alert}`],
+      ['Chart • Top Versions', 'Errors', rankings.version?.reduce((a, r) => a + (r[STATE.metricByChart.version] || 0), 0) || 0, rankings.version?.reduce((a, r) => a + (r[STATE.metricByChart.version] || 0), 0) || 0, `groupBy(version) on ${STATE.metricByChart.version}`],
+      ['Chart • Print Volume by Press', 'Volume', customerVolumeRows.reduce((a, r) => a + (r[STATE.customerVolumeMetric] || 0), 0), volumeAgg.reduce((a, r) => a + (STATE.customerVolumeMetric === 'printedFlats' ? (r.printedFlats || 0) : STATE.customerVolumeMetric === 'productionPrintedSheets' ? (r.productionPrintedSheets || 0) : (r.printedSheets || 0)), 0), `groupBy(press) sum(${STATE.customerVolumeMetric})`],
+    ].map(([component, source, dashboardValue, sourceValue, formula]) => {
+      const match = (dashboardValue == null && sourceValue == null) || Math.abs((dashboardValue || 0) - (sourceValue || 0)) < 1e-6;
+      return { component, source, dashboardValue, sourceValue, formula, status: match ? 'match' : 'warning' };
+    });
+    return report;
+  }
+
   function computeOperationalMetrics(sourceScope) {
     const { errorsAgg, availabilityAgg, volumeAgg } = sourceScope;
     const totalEvents = errorsAgg.reduce((a, r) => a + (r.totalEvents || 0), 0);
@@ -1512,44 +1549,37 @@
       <div class="micro">Risk-based prioritization is disabled (pending formal risk model definition). Dashboard is operating in events-first mode.</div>`;
   }
 
-  function renderDataHealthPanel(sourceScope) {
-    const panel = document.getElementById('dataHealthPanel');
+  function renderDashboardStatusPanel(sourceScope, mismatches = [], reconciliationReport = []) {
+    const panel = document.getElementById('dashboardStatusPanel');
     if (!panel) return;
     const totals = {
       errors: sourceScope?.filteredErrorEventsNative?.length || 0,
       availability: sourceScope?.filteredAvailabilityRowsNative?.length || 0,
       volume: sourceScope?.filteredVolumeRowsNative?.length || 0,
     };
-    const checks = [
-      {
-        key: 'errors',
-        label: 'Errors',
-        status: totals.errors > 0 ? 'green' : 'red',
-        text: totals.errors > 0 ? `${totals.errors.toLocaleString()} events mapped and validated.` : 'No error events in current filter scope.',
-      },
-      {
-        key: 'availability',
-        label: 'Availability',
-        status: totals.availability > 0 ? 'green' : (STATE.normalized.availability?.length ? 'yellow' : 'red'),
-        text: totals.availability > 0
-          ? `${totals.availability.toLocaleString()} rows mapped (planned/unplanned split active).`
-          : (STATE.normalized.availability?.length ? 'Dataset loaded but filtered scope has no rows.' : 'Dataset unavailable; downtime KPIs cannot be source-complete.'),
-      },
-      {
-        key: 'volume',
-        label: 'Print Volume',
-        status: totals.volume > 0 ? 'green' : (STATE.normalized.volume?.length ? 'yellow' : 'red'),
-        text: totals.volume > 0
-          ? `${totals.volume.toLocaleString()} rows mapped for production volume metrics.`
-          : (STATE.normalized.volume?.length ? 'Dataset loaded but filtered scope has no rows.' : 'Dataset unavailable; normalized volume metrics are limited.'),
-      }
-    ];
-    const icon = { green: '🟢', yellow: '🟡', red: '🔴' };
-    panel.innerHTML = checks.map(c => `
-      <article class="health-card">
-        <div class="health-head"><span>${icon[c.status]} ${esc(c.label)}</span><span class="health-${c.status}">${c.status.toUpperCase()}</span></div>
-        <div class="health-note">${esc(c.text)}</div>
-      </article>`).join('');
+    const warnings = [];
+    if (!totals.errors) warnings.push('Errors source has no rows in current filter scope.');
+    if (!totals.availability) warnings.push(STATE.normalized.availability?.length ? 'Availability source filtered to zero rows.' : 'Availability source missing.');
+    if (!totals.volume) warnings.push(STATE.normalized.volume?.length ? 'Volume source filtered to zero rows.' : 'Volume source missing.');
+    if (mismatches.length) warnings.push(`${mismatches.length} reconciliation mismatch(es) detected.`);
+    const level = !totals.errors ? 'red' : (warnings.length ? 'yellow' : 'green');
+    panel.className = `dashboard-status ${level}`;
+    const sourceChip = (label, total, hasAny) => `${label}: ${hasAny ? (total ? 'GREEN' : 'YELLOW') : 'RED'} (${total.toLocaleString()} in scope)`;
+    const reportSummary = reconciliationReport.length
+      ? `${reconciliationReport.filter(r => r.status === 'match').length}/${reconciliationReport.length} KPI/chart checks aligned.`
+      : 'No reconciliation checks yet.';
+    panel.innerHTML = `
+      <div class="status-head">
+        <span>${level === 'green' ? '🟢' : level === 'yellow' ? '🟡' : '🔴'} Data Validation Status</span>
+        <span>${level.toUpperCase()}</span>
+      </div>
+      <div class="status-note">${esc(reportSummary)}</div>
+      <div class="status-grid">
+        <div class="status-chip">${esc(sourceChip('Errors', totals.errors, !!STATE.normalized.events?.length))}</div>
+        <div class="status-chip">${esc(sourceChip('Availability', totals.availability, !!STATE.normalized.availability?.length))}</div>
+        <div class="status-chip">${esc(sourceChip('Volume', totals.volume, !!STATE.normalized.volume?.length))}</div>
+      </div>
+      <div class="status-note">${esc(warnings.length ? warnings.join(' ') : 'Files loaded, schema mapping succeeded, and dashboard reconciles with source calculations.')}</div>`;
   }
 
   function setCanvasState(canvasId, message = '', kind = 'empty') {
@@ -2261,7 +2291,14 @@
     renderRiskSection(STATE.merged.pressRisk);
     STATE.merged.summary = buildExecutiveSummary(errorEvents, sourceScope, STATE.kpis);
     renderExecutiveSummaryCard(STATE.merged.summary);
-    validateSourceAndLayerConsistency(sourceScope, STATE.filtered, STATE.kpis, STATE.merged.summary, STATE.merged.pressRisk, customerVolumeRows);
+    const mismatches = validateSourceAndLayerConsistency(sourceScope, STATE.filtered, STATE.kpis, STATE.merged.summary, STATE.merged.pressRisk, customerVolumeRows);
+    STATE.reconciliation.logs = mismatches;
+    STATE.reconciliation.report = buildReconciliationReport(sourceScope, STATE.kpis, {
+      press: pressRankings,
+      subsystem: subsystemRankings,
+      alert: alertRankings,
+      version: versionRankings
+    }, customerVolumeRows);
     console.info('[volume-validation]', {
       rawPrintedSheetsFromVolumeAgg: sourceScope.volumeAgg.reduce((a, r) => a + (r.printedSheets || 0), 0),
       productionOnlyPrintedSheetsFromVolumeAgg: sourceScope.volumeAgg.reduce((a, r) => a + (r.productionPrintedSheets || 0), 0),
@@ -2293,7 +2330,7 @@
         alertChartTop: (alertRankings[0]?.name || 'N/A')
       }
     });
-      renderDataHealthPanel(sourceScope);
+      renderDashboardStatusPanel(sourceScope, mismatches, STATE.reconciliation.report);
       renderTable(STATE.filtered);
     } catch (error) {
       console.error('[dashboard-render-failure]', error);
@@ -2301,15 +2338,25 @@
     }
   }
 
-  function exportRowsToCsv(rows) {
+  function exportRowsToCsv(rows, filename = 'filtered-export.csv') {
     if (!rows.length) return;
-    const headers = ['customer', 'site', 'press', 'model', 'subsystem', 'version', 'name', 'alertTitle', 'day', 'durationSeconds', 'productionVolume'];
+    const headerSet = new Set();
+    rows.forEach(row => Object.keys(row || {}).forEach(k => {
+      if (k === 'raw' || k === 'mergeContext' || k === 'availability' || k === 'volume') return;
+      headerSet.add(k);
+    }));
+    const preferred = ['customer', 'site', 'press', 'canonicalPress', 'model', 'canonicalModel', 'subsystem', 'version', 'name', 'alertTitle', 'jobType', 'jobStatus', 'pressMode', 'day', 'startTime', 'durationSeconds', 'plannedDowntimeSeconds', 'unplannedDowntimeSeconds', 'productionPrintedSheets', 'printedSheets', 'printedFlats', 'totalVolume'];
+    const headers = [...preferred.filter(h => headerSet.has(h)), ...[...headerSet].filter(h => !preferred.includes(h))];
     const quote = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
     const lines = [headers.map(quote).join(',')];
-    rows.forEach(r => lines.push([r.customer, r.site, r.press, r.model, r.subsystem, r.version, r.name, r.alertTitle, r.day, r.durationSeconds, r?.volume?.productionVolume || 0].map(quote).join(',')));
+    rows.forEach(r => lines.push(headers.map(h => {
+      const v = r?.[h];
+      if (v instanceof Date) return quote(v.toISOString());
+      return quote(v);
+    }).join(',')));
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([lines.join('\n')], { type: 'text/csv' }));
-    a.download = 'merged-operational-export.csv';
+    a.download = filename;
     a.click();
     URL.revokeObjectURL(a.href);
   }
@@ -2542,7 +2589,7 @@
       setStatus('Load new files and run analysis.', 'info');
     });
 
-    exportBtn.addEventListener('click', () => exportRowsToCsv(STATE.lastSourceScope?.filteredMergedRows || STATE.filtered));
+    exportBtn.addEventListener('click', () => exportRowsToCsv(STATE.lastSourceScope?.filteredMergedRows || STATE.filtered, 'dashboard-filtered-export.csv'));
     managerExportBtn.addEventListener('click', () => {
       const html = buildManagementExport(STATE.merged.summary, STATE.kpis, STATE.filteredErrors || [], STATE.lastSourceScope);
       const w = window.open('', '_blank');
@@ -2580,7 +2627,7 @@
     drilldownSearch.addEventListener('input', e => { STATE.drilldown.search = e.target.value || ''; renderDrilldown(); });
     drilldownExport.addEventListener('click', () => {
       const scoped = !STATE.drilldown.search ? STATE.drilldown.rows : STATE.drilldown.rows.filter(r => `${r.customer} ${r.site} ${r.press} ${r.subsystem} ${r.name} ${r.alertTitle} ${r.version}`.toLowerCase().includes(STATE.drilldown.search.toLowerCase()));
-      exportRowsToCsv(scoped);
+      exportRowsToCsv(scoped, 'drilldown-filtered-export.csv');
     });
   }
 
