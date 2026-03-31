@@ -1264,6 +1264,61 @@
     };
   }
 
+  function buildScopedAnalysisLink() {
+    const state = {
+      filters: currentFilterValues(),
+      metrics: STATE.metricByChart,
+      volumeMetric: STATE.customerVolumeMetric,
+      volumeSort: STATE.customerVolumeSort,
+      simExclusions: [...(STATE.drilldown?.simulation?.appliedExcluded || [])],
+    };
+    const encoded = encodeURIComponent(btoa(unescape(encodeURIComponent(JSON.stringify(state)))));
+    return `${window.location.origin}${window.location.pathname}#analysis=${encoded}`;
+  }
+
+  function parseAnalysisStateFromHash() {
+    const hash = window.location.hash || '';
+    const match = hash.match(/analysis=([^&]+)/);
+    if (!match) return null;
+    try {
+      return JSON.parse(decodeURIComponent(escape(atob(decodeURIComponent(match[1])))));
+    } catch (e) {
+      console.warn('[analysis-link-parse-failed]', e);
+      return null;
+    }
+  }
+
+  function applyAnalysisStateFromHash() {
+    const state = parseAnalysisStateFromHash();
+    if (!state) return false;
+    const filters = state.filters || {};
+    if (filters.press != null) pressFilter.value = filters.press;
+    if (filters.subsystem != null) subsystemFilter.value = filters.subsystem;
+    if (filters.version != null) versionFilter.value = filters.version;
+    if (filters.startDay != null) startDateFilter.value = filters.startDay;
+    if (filters.endDay != null) endDateFilter.value = filters.endDay;
+    if (filters.query != null) searchFilter.value = filters.query;
+    if (state.metrics && typeof state.metrics === 'object') {
+      STATE.metricByChart = { ...STATE.metricByChart, ...state.metrics };
+      document.querySelectorAll('[data-metric]').forEach(sel => {
+        const key = sel.dataset.metric;
+        if (STATE.metricByChart[key]) sel.value = STATE.metricByChart[key];
+      });
+    }
+    if (state.volumeMetric) {
+      STATE.customerVolumeMetric = state.volumeMetric;
+      if (customerVolumeUnit) customerVolumeUnit.value = state.volumeMetric;
+    }
+    if (state.volumeSort) {
+      STATE.customerVolumeSort = state.volumeSort;
+      if (customerVolumeSort) customerVolumeSort.value = state.volumeSort;
+    }
+    if (Array.isArray(state.simExclusions)) {
+      STATE.drilldown.simulation.appliedExcluded = new Set(state.simExclusions);
+    }
+    return true;
+  }
+
   function rowPassesGlobalFilters(row, filterValues, options = {}) {
     const text = options.searchText ? options.searchText(row).toLowerCase() : '';
     const day = options.dayOf ? options.dayOf(row) : row.day;
@@ -1752,6 +1807,11 @@
     });
     const topDowntimePresses = [...downtimeByPress.entries()].map(([entity, downtime]) => ({ entity, downtime })).sort((a, b) => b.downtime - a.downtime);
     const topErrorDowntimePress = topDowntimePresses[0] || null;
+    const totalDowntime = Math.max(0, Number(kpis.totalPlanned || 0) + Number(kpis.totalUnplanned || 0));
+    const top3Downtime = topDowntimePresses.slice(0, 3).reduce((sum, row) => sum + Number(row.downtime || 0), 0);
+    const downtimeConcentrationPct = totalDowntime > 0 ? (top3Downtime / totalDowntime) * 100 : 0;
+    const unplannedPct = totalDowntime > 0 ? ((Number(kpis.totalUnplanned || 0) / totalDowntime) * 100) : 0;
+    const dominantPressShare = totalDowntime > 0 && topErrorDowntimePress ? ((Number(topErrorDowntimePress.downtime || 0) / totalDowntime) * 100) : 0;
 
     console.info('[events-first-summary]', {
       topPressByEvents: topPressByEvents ? { press: topPressByEvents.name, events: topPressByEvents.events } : null,
@@ -1768,15 +1828,21 @@
       topSubsystem,
       topAlert,
       topErrorDowntimePress,
+      downtimeConcentrationPct,
+      unplannedPct,
+      dominantPressShare,
       interpretation: [
-        `${kpis.totalEvents.toLocaleString()} events in current scope (events-first mode).`,
-        `Top press by events: ${topPressByEvents?.name || 'N/A'}; top subsystem by events: ${topSubsystem?.name || 'N/A'}.`,
-        kpis.availabilityPct == null ? 'Availability cannot be computed for this slice due to missing availability context.' : `Availability is ${kpis.availabilityPct.toFixed(1)}% (${kpis.availabilityFormula}).`
+        topPressByEvents ? `${topPressByEvents.name} is the dominant disruption source by recurrence, indicating where reliability gains will have the highest immediate impact.` : 'No clear press leader is visible in the current scope.',
+        topSubsystem ? `${topSubsystem.name} is the primary subsystem bottleneck by event frequency and should be prioritized for root-cause containment.` : 'Subsystem impact is broadly distributed without a single dominant bottleneck.',
+        topAlert ? `The recurring error cluster is led by "${topAlert.name}", signaling repeat failure patterns rather than isolated incidents.` : 'No repeated alert pattern is dominant in this scope.',
+        totalDowntime > 0 ? `Downtime is ${downtimeConcentrationPct.toFixed(1)}% concentrated in the top 3 presses${dominantPressShare ? `, with ${topErrorDowntimePress?.entity || 'the top press'} contributing ${dominantPressShare.toFixed(1)}% alone` : ''}.` : 'Downtime concentration cannot be profiled because downtime is not available in this slice.',
+        totalDowntime > 0 ? `Operational balance is ${unplannedPct.toFixed(1)}% unplanned downtime, which reflects current schedule volatility and firefighting load.` : 'Planned versus unplanned balance is unavailable in this slice.'
       ],
       actions: [
-        `Prioritize alert recurrence on ${topPressByEvents?.name || 'top press'} (by events).`,
-        `Contain ${topSubsystem?.name || 'top subsystem'} event concentration with targeted root-cause work.`,
-        `Investigate ${topErrorDowntimePress?.entity || 'top press'} for highest downtime from availabilityAgg.`
+        `Stabilize ${topPressByEvents?.name || 'the highest-event press'} first to reduce repeated interruptions at source.`,
+        `Launch focused corrective action for ${topSubsystem?.name || 'the top subsystem'} to break the highest-frequency failure loop.`,
+        `Reduce recurrence of ${topAlert?.name || 'the leading error cluster'} through standard fix verification and prevention controls.`,
+        `Target downtime concentration on ${topErrorDowntimePress?.entity || 'the top downtime press'} to rebalance operational load.`
       ],
     };
   }
@@ -1788,12 +1854,20 @@
   }
 
   function buildExecutiveEmailPayload(model) {
-    const { scopeLabel, generatedAtIso, generatedAtLabel, sourceCounts, executiveSnapshot, topPressDowntime, topPrintVolume, topSubsystems, topErrors, reportingPeriodLabel, chartInsights } = model;
+    const { scopeLabel, generatedAtIso, generatedAtLabel, sourceCounts, executiveSnapshot, topPressDowntime, topPrintVolume, topSubsystems, topErrors, reportingPeriodLabel, chartInsights, executiveInterpretation, recommendedFocus, fullAnalysisLink } = model;
     const kpiCell = (label, value) => `<td style="padding:8px;border:1px solid #bfe0ff;background:#f5fbff;"><div style="font-size:11px;color:#3a5c8a;">${esc(label)}</div><div style="font-size:20px;font-weight:700;color:#123f70;">${esc(value)}</div></td>`;
     const buildTable = (rowsHtml, headers, accent = '#d8e0ed') => `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;border:1px solid ${accent};background:#ffffff;"><tr>${headers.map(h => `<th style="padding:8px 10px;text-align:left;font-size:12px;border-bottom:1px solid ${accent};background:#f9fbff;color:#1f2a3a;">${esc(h)}</th>`).join('')}</tr>${rowsHtml || `<tr><td colspan="${headers.length}" style="padding:10px;color:#5f6f85;">No records in current scope.</td></tr>`}</table>`;
     const section = (title, accent, bodyHtml) => `<tr><td style="padding:0 0 12px;"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;border:1px solid ${accent};background:#ffffff;"><tr><td style="padding:10px 12px;background:${accent};color:#ffffff;font-size:15px;font-weight:700;">${esc(title)}</td></tr><tr><td style="padding:12px;">${bodyHtml}</td></tr></table></td></tr>`;
-    const downtimeSplitCards = chartInsights.downtimeComposition.map((item, idx) => `<td style="padding:0 8px 8px 0;"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;border:1px solid #d7deea;background:#f9fbff;"><tr><td style="padding:8px 10px;font-size:11px;color:#5a6980;text-transform:uppercase;font-weight:700;">${esc(item.label)} Downtime</td></tr><tr><td style="padding:0 10px 10px;font-size:22px;font-weight:700;color:${idx === 0 ? '#d0552b' : '#6940d6'};">${item.pct.toFixed(1)}%</td></tr><tr><td style="padding:0 10px 10px;font-size:12px;color:#465a76;">${formatDuration(item.value)} (${(item.value / 3600).toFixed(2)}h)</td></tr></table></td>`).join('');
-    const contributorsRows = chartInsights.topPressImpact.slice(0, 5).map((i, idx) => `<tr><td style="padding:7px 8px;border-bottom:1px solid #e2e8f2;color:#1f2a3a;">${idx + 1}. ${esc(i.name)}</td><td style="padding:7px 8px;border-bottom:1px solid #e2e8f2;color:#1f2a3a;">${(i.value / 3600).toFixed(2)}h</td><td style="padding:7px 8px;border-bottom:1px solid #e2e8f2;color:#1f2a3a;">${i.pct.toFixed(1)}%</td></tr>`).join('');
+    const impactCards = [
+      { label: 'Top Press Impact', value: chartInsights.topPressImpact?.[0] ? `${chartInsights.topPressImpact[0].pct.toFixed(1)}% (${chartInsights.topPressImpact[0].name})` : 'N/A' },
+      { label: 'Critical Subsystem', value: topSubsystems?.[0]?.name || 'N/A' },
+      { label: 'Most Repeated Error', value: topErrors?.[0]?.name || 'N/A' },
+      { label: 'Top 3 Concentration', value: `${Number(chartInsights.top3DowntimeConcentrationPct || 0).toFixed(1)}% of downtime` }
+    ];
+    const operationalBars = chartInsights.topPressImpact.slice(0, 3).map((i, idx) => `<tr>
+      <td style="padding:6px 8px;border-bottom:1px solid #e2e8f2;color:#1f2a3a;">${idx + 1}. ${esc(i.name)}</td>
+      <td style="padding:6px 8px;border-bottom:1px solid #e2e8f2;"><div style="height:8px;background:#e7ecf5;border-radius:999px;overflow:hidden;"><div style="height:8px;background:#2a80ff;width:${Math.min(100, i.pct).toFixed(1)}%;"></div></div></td>
+      <td style="padding:6px 8px;border-bottom:1px solid #e2e8f2;color:#1f2a3a;">${i.pct.toFixed(1)}%</td></tr>`).join('');
     const html = `<!doctype html><html><head><meta charset="utf-8"><title>Landa InsightPro+ Summary</title></head><body style="margin:0;padding:20px;background:#f4f7fb;font-family:Segoe UI,Arial,sans-serif;color:#1d2430;">
       <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;max-width:980px;margin:0 auto;background:#f4f7fb;">
         <tr><td style="padding:0 0 14px;">
@@ -1802,11 +1876,15 @@
           <div style="font-size:12px;color:#5a6980;margin-top:4px;">Generated on: ${esc(generatedAtLabel)}</div>
           <div style="font-size:12px;color:#5a6980;margin-top:2px;">${esc(scopeLabel)} • Source rows (errors/availability/volume): ${sourceCounts.errors}/${sourceCounts.availability}/${sourceCounts.volume}</div>
         </td></tr>
-        ${section('1) Executive Snapshot', '#1f8bff', `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;"><tr>${kpiCell('Availability', executiveSnapshot.availability)}${kpiCell('Production Volume', executiveSnapshot.productionVolume)}${kpiCell('Downtime / Volume', executiveSnapshot.downtimePerVolume)}${kpiCell('Events / Volume', executiveSnapshot.eventsPerVolume)}</tr></table><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;margin-top:12px;"><tr><td style="padding:0 0 8px;font-size:13px;font-weight:700;color:#1f2a3a;">Downtime Split (Planned vs Unplanned)</td></tr><tr>${downtimeSplitCards || `<td style="padding:6px 8px;color:#5f6f85;">No downtime data.</td>`}</tr></table><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;margin-top:8px;border:1px solid #d7deea;"><tr><td colspan="3" style="padding:8px 10px;font-size:13px;font-weight:700;color:#1f2a3a;background:#f4f8ff;">Top Downtime Contributors (share of total downtime)</td></tr><tr><th style="padding:7px 8px;text-align:left;border-bottom:1px solid #d7deea;background:#f9fbff;font-size:12px;">Press</th><th style="padding:7px 8px;text-align:left;border-bottom:1px solid #d7deea;background:#f9fbff;font-size:12px;">Downtime (h)</th><th style="padding:7px 8px;text-align:left;border-bottom:1px solid #d7deea;background:#f9fbff;font-size:12px;">Share</th></tr>${contributorsRows || `<tr><td colspan="3" style="padding:8px;color:#5f6f85;">No press downtime data.</td></tr>`}</table>`)}
-        ${section('2) Top Presses Downtime', '#e56739', buildTable(topPressDowntime.map(i => `<tr><td style="padding:8px 10px;border-bottom:1px solid #f5d2c6;">${esc(i.name)}</td><td style="padding:8px 10px;border-bottom:1px solid #f5d2c6;">${formatDuration(i.downtime)}</td><td style="padding:8px 10px;border-bottom:1px solid #f5d2c6;">${(i.downtime / 3600).toFixed(2)}</td></tr>`).join(''), ['Press', 'Downtime', 'Downtime (h)'], '#f5d2c6'))}
-        ${section('3) Print Volume', '#25a65b', buildTable(topPrintVolume.map(i => `<tr><td style="padding:8px 10px;border-bottom:1px solid #cfead8;">${esc(i.name)}</td><td style="padding:8px 10px;border-bottom:1px solid #cfead8;">${Number(i.value || 0).toLocaleString()}</td></tr>`).join(''), ['Press', 'Production Printed Sheets'], '#cfead8'))}
-        ${section('4) Top Subsystems', '#7c4dff', buildTable(topSubsystems.map(i => `<tr><td style="padding:8px 10px;border-bottom:1px solid #ddd0ff;">${esc(i.name)}</td><td style="padding:8px 10px;border-bottom:1px solid #ddd0ff;">${i.events.toLocaleString()}</td><td style="padding:8px 10px;border-bottom:1px solid #ddd0ff;">${formatDuration(i.downtime)}</td></tr>`).join(''), ['Subsystem', 'Events', 'Downtime'], '#ddd0ff'))}
-        ${section('5) Top Errors', '#d39a1f', buildTable(topErrors.map(i => `<tr><td style="padding:8px 10px;border-bottom:1px solid #f3e1b8;">${esc(i.name)}</td><td style="padding:8px 10px;border-bottom:1px solid #f3e1b8;">${i.events.toLocaleString()}</td><td style="padding:8px 10px;border-bottom:1px solid #f3e1b8;">${formatDuration(i.downtime)}</td></tr>`).join(''), ['Error', 'Events', 'Downtime'], '#f3e1b8'))}
+        ${section('1) Executive Interpretation', '#0f5eb9', `<ul style="margin:0;padding-left:18px;color:#1f2a3a;font-size:13px;line-height:1.45;">${(executiveInterpretation || []).slice(0, 5).map(i => `<li style="margin:0 0 6px;">${esc(i)}</li>`).join('')}</ul>`)}
+        ${section('2) Executive Snapshot', '#1f8bff', `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;"><tr>${kpiCell('Availability', executiveSnapshot.availability)}${kpiCell('Production Volume', executiveSnapshot.productionVolume)}${kpiCell('Downtime / Volume', executiveSnapshot.downtimePerVolume)}${kpiCell('Events / Volume', executiveSnapshot.eventsPerVolume)}</tr></table>`)}
+        ${section('3) Visual Operational Overview', '#4d6cfa', `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;"><tr>${impactCards.map(card => `<td style="padding:0 8px 8px 0;"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;border:1px solid #d7deea;background:#f9fbff;"><tr><td style="padding:8px 10px;font-size:11px;color:#5a6980;text-transform:uppercase;font-weight:700;">${esc(card.label)}</td></tr><tr><td style="padding:0 10px 10px;font-size:14px;font-weight:700;color:#1f2a3a;">${esc(card.value)}</td></tr></table></td>`).join('')}</tr></table><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;margin-top:8px;border:1px solid #d7deea;"><tr><td colspan="3" style="padding:8px 10px;font-size:13px;font-weight:700;color:#1f2a3a;background:#f4f8ff;">Downtime contributor dominance (Top 3)</td></tr><tr><th style="padding:7px 8px;text-align:left;border-bottom:1px solid #d7deea;background:#f9fbff;font-size:12px;">Press</th><th style="padding:7px 8px;text-align:left;border-bottom:1px solid #d7deea;background:#f9fbff;font-size:12px;">Contribution bar</th><th style="padding:7px 8px;text-align:left;border-bottom:1px solid #d7deea;background:#f9fbff;font-size:12px;">Share</th></tr>${operationalBars || `<tr><td colspan="3" style="padding:8px;color:#5f6f85;">No press downtime data.</td></tr>`}</table>`)}
+        ${section('4) Top Presses Downtime (Top 5)', '#e56739', buildTable(topPressDowntime.map(i => `<tr><td style="padding:8px 10px;border-bottom:1px solid #f5d2c6;">${esc(i.name)}</td><td style="padding:8px 10px;border-bottom:1px solid #f5d2c6;">${formatDuration(i.downtime)}</td><td style="padding:8px 10px;border-bottom:1px solid #f5d2c6;">${(i.downtime / 3600).toFixed(2)}</td></tr>`).join(''), ['Press', 'Downtime', 'Downtime (h)'], '#f5d2c6'))}
+        ${section('5) Print Volume (Top 5)', '#25a65b', buildTable(topPrintVolume.map(i => `<tr><td style="padding:8px 10px;border-bottom:1px solid #cfead8;">${esc(i.name)}</td><td style="padding:8px 10px;border-bottom:1px solid #cfead8;">${Number(i.value || 0).toLocaleString()}</td></tr>`).join(''), ['Press', 'Production Printed Sheets'], '#cfead8'))}
+        ${section('6) Top Subsystems (Top 5)', '#7c4dff', buildTable(topSubsystems.map(i => `<tr><td style="padding:8px 10px;border-bottom:1px solid #ddd0ff;">${esc(i.name)}</td><td style="padding:8px 10px;border-bottom:1px solid #ddd0ff;">${i.events.toLocaleString()}</td><td style="padding:8px 10px;border-bottom:1px solid #ddd0ff;">${formatDuration(i.downtime)}</td></tr>`).join(''), ['Subsystem', 'Events', 'Downtime'], '#ddd0ff'))}
+        ${section('7) Top Errors (Top 5)', '#d39a1f', buildTable(topErrors.map(i => `<tr><td style="padding:8px 10px;border-bottom:1px solid #f3e1b8;">${esc(i.name)}</td><td style="padding:8px 10px;border-bottom:1px solid #f3e1b8;">${i.events.toLocaleString()}</td><td style="padding:8px 10px;border-bottom:1px solid #f3e1b8;">${formatDuration(i.downtime)}</td></tr>`).join(''), ['Error', 'Events', 'Downtime'], '#f3e1b8'))}
+        ${section('8) Recommended Focus', '#116e45', `<ul style="margin:0;padding-left:18px;color:#1f2a3a;font-size:13px;line-height:1.45;">${(recommendedFocus || []).slice(0, 4).map(i => `<li style="margin:0 0 6px;">${esc(i)}</li>`).join('')}</ul>`)}
+        ${section('9) View Full Analysis', '#36455f', `<div style="font-size:13px;color:#1f2a3a;line-height:1.45;">Open the same dashboard scope (filters and analytic state):<br><a href="${esc(fullAnalysisLink)}" style="color:#1459c6;text-decoration:underline;word-break:break-all;">${esc(fullAnalysisLink)}</a></div>`)}
       </table>
     </body></html>`;
     const text = buildExecutiveEmailText(model);
@@ -1814,34 +1892,46 @@
   }
 
   function buildExecutiveEmailText(model) {
-    const { scopeLabel, executiveSnapshot, topErrors, topSubsystems, topPressDowntime, topPrintVolume, sourceCounts, reportingPeriodLabel, generatedAtLabel, chartInsights } = model;
+    const { scopeLabel, executiveSnapshot, topErrors, topSubsystems, topPressDowntime, topPrintVolume, sourceCounts, reportingPeriodLabel, generatedAtLabel, chartInsights, executiveInterpretation, recommendedFocus, fullAnalysisLink } = model;
     return [
       'Landa InsightPro+ Summary',
       `Reporting period: ${reportingPeriodLabel}`,
       `Generated on: ${generatedAtLabel}`,
       `Scope: ${scopeLabel}`,
       '',
-      '1) Executive Snapshot',
+      '1) Executive Interpretation',
+      ...(executiveInterpretation || []).slice(0, 5).map(x => `- ${x}`),
+      '',
+      '2) Executive Snapshot',
       `- Availability: ${executiveSnapshot.availability}`,
       `- Production Volume: ${executiveSnapshot.productionVolume}`,
       `- Downtime / Volume: ${executiveSnapshot.downtimePerVolume}`,
       `- Events / Volume: ${executiveSnapshot.eventsPerVolume}`,
       '',
-      'Downtime Split & Top Contributors',
-      ...chartInsights.downtimeComposition.map(x => `- ${x.label}: ${x.pct.toFixed(1)}% (${formatDuration(x.value)})`),
-      ...chartInsights.topPressImpact.slice(0, 5).map(x => `- ${x.name}: ${(x.value / 3600).toFixed(2)}h (${x.pct.toFixed(1)}% of total downtime)`),
+      '3) Visual Operational Overview',
+      `- Top press impact: ${chartInsights.topPressImpact?.[0] ? `${chartInsights.topPressImpact[0].name} (${chartInsights.topPressImpact[0].pct.toFixed(1)}% of downtime)` : 'N/A'}`,
+      `- Most critical subsystem: ${topSubsystems?.[0]?.name || 'N/A'}`,
+      `- Most repeated error: ${topErrors?.[0]?.name || 'N/A'}`,
+      `- Downtime concentration score (Top 3): ${Number(chartInsights.top3DowntimeConcentrationPct || 0).toFixed(1)}%`,
+      ...chartInsights.topPressImpact.slice(0, 3).map(x => `- ${x.name}: ${(x.value / 3600).toFixed(2)}h (${x.pct.toFixed(1)}% of total downtime)`),
       '',
-      '2) Top Presses Downtime',
+      '4) Top Presses Downtime (Top 5)',
       ...topPressDowntime.map(x => `- ${x.name}: ${formatDuration(x.downtime)}`),
       '',
-      '3) Print Volume',
+      '5) Print Volume (Top 5)',
       ...topPrintVolume.map(x => `- ${x.name}: ${Number(x.value || 0).toLocaleString()} production sheets`),
       '',
-      '4) Top Subsystems',
+      '6) Top Subsystems (Top 5)',
       ...topSubsystems.map(x => `- ${x.name}: ${x.events.toLocaleString()} events (${formatDuration(x.downtime)})`),
       '',
-      '5) Top Errors',
+      '7) Top Errors (Top 5)',
       ...topErrors.map(x => `- ${x.name}: ${x.events.toLocaleString()} events`),
+      '',
+      '8) Recommended Focus',
+      ...(recommendedFocus || []).slice(0, 4).map(x => `- ${x}`),
+      '',
+      '9) View Full Analysis',
+      fullAnalysisLink,
       '',
       `Source rows (errors/availability/volume): ${sourceCounts.errors}/${sourceCounts.availability}/${sourceCounts.volume}`,
     ].join('\n');
@@ -1860,7 +1950,7 @@
     const generatedAtDate = new Date();
     const generatedAtIso = generatedAtDate.toISOString();
     const generatedAtLabel = generatedAtDate.toLocaleString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-    const topPressDowntime = aggregateDurationRows(availabilityAgg.map(r => ({ subsystem: r.canonicalPress, durationSeconds: totalDowntimeFromAvailabilityRow(r) })), r => r.subsystem).sort((a, b) => b.downtime - a.downtime).slice(0, 8);
+    const topPressDowntime = aggregateDurationRows(availabilityAgg.map(r => ({ subsystem: r.canonicalPress, durationSeconds: totalDowntimeFromAvailabilityRow(r) })), r => r.subsystem).sort((a, b) => b.downtime - a.downtime).slice(0, 5);
     const totalPlanned = Number(kpis.totalPlanned || 0);
     const totalUnplanned = Number(kpis.totalUnplanned || 0);
     const totalDowntime = Math.max(0, totalPlanned + totalUnplanned);
@@ -1883,10 +1973,13 @@
         downtimePerVolume: kpis.downtimePerVolume == null ? 'N/A' : kpis.downtimePerVolume.toFixed(4),
         eventsPerVolume: kpis.eventPerVolume == null ? 'N/A' : kpis.eventPerVolume.toFixed(4),
       },
-      topErrors: aggregateErrorEvents(safeRows, r => (r.name !== 'Unspecified' ? r.name : r.alertTitle)).sort((a, b) => b.events - a.events).slice(0, 8),
-      topSubsystems: aggregateErrorEvents(safeRows, r => r.subsystem).sort((a, b) => b.events - a.events).slice(0, 8),
+      topErrors: aggregateErrorEvents(safeRows, r => (r.name !== 'Unspecified' ? r.name : r.alertTitle)).sort((a, b) => b.events - a.events).slice(0, 5),
+      topSubsystems: aggregateErrorEvents(safeRows, r => r.subsystem).sort((a, b) => b.events - a.events).slice(0, 5),
       topPressDowntime,
-      topPrintVolume: aggregateMetricRows(volumeAgg, r => r.canonicalPress, r => r.productionPrintedSheets || 0).sort((a, b) => b.value - a.value).slice(0, 8),
+      topPrintVolume: aggregateMetricRows(volumeAgg, r => r.canonicalPress, r => r.productionPrintedSheets || 0).sort((a, b) => b.value - a.value).slice(0, 5),
+      executiveInterpretation: (summary?.interpretation || []).slice(0, 5),
+      recommendedFocus: (summary?.actions || []).slice(0, 4),
+      fullAnalysisLink: buildScopedAnalysisLink(),
       chartInsights: {
         downtimeComposition: totalDowntime > 0
           ? [
@@ -1899,6 +1992,9 @@
           value: row.downtime,
           pct: totalDowntime > 0 ? (row.downtime / totalDowntime) * 100 : 0,
         })),
+        top3DowntimeConcentrationPct: totalDowntime > 0
+          ? (topPressDowntime.slice(0, 3).reduce((sum, row) => sum + Number(row.downtime || 0), 0) / totalDowntime) * 100
+          : 0,
         totalDowntimeHours: totalDowntime / 3600,
       },
     };
@@ -1908,12 +2004,19 @@
     const tableRows = (rows, cellsFn, emptyColumns = 3) => rows.length
       ? rows.map(cellsFn).join('')
       : `<tr><td colspan="${emptyColumns}" style="padding:8px;color:#9fb0ca;">No records in current scope.</td></tr>`;
-    const splitCards = model.chartInsights.downtimeComposition.length
-      ? model.chartInsights.downtimeComposition.map((item, idx) => `<div class="summary-kpi-card" style="border-color:rgba(143,211,255,.36);background:${idx === 0 ? 'rgba(229,103,57,.14)' : 'rgba(124,77,255,.14)'};"><div class="label">${esc(item.label)} Downtime</div><div class="value">${item.pct.toFixed(1)}%</div><div style="margin-top:4px;color:#c9d7ee;font-size:.8rem;">${formatDuration(item.value)} (${(item.value / 3600).toFixed(2)}h)</div></div>`).join('')
-      : `<div class="summary-kpi-card" style="grid-column:1/-1;">No downtime data in current scope.</div>`;
+    const operationalCards = [
+      { label: 'Top Press Impact', value: model.chartInsights.topPressImpact?.[0] ? `${model.chartInsights.topPressImpact[0].pct.toFixed(1)}% (${model.chartInsights.topPressImpact[0].name})` : 'N/A' },
+      { label: 'Most Critical Subsystem', value: model.topSubsystems?.[0]?.name || 'N/A' },
+      { label: 'Most Repeated Error', value: model.topErrors?.[0]?.name || 'N/A' },
+      { label: 'Downtime Concentration', value: `${Number(model.chartInsights.top3DowntimeConcentrationPct || 0).toFixed(1)}% (Top 3 presses)` }
+    ];
     host.innerHTML = `
       <section class="summary-section">
-        <div class="summary-section-head" style="background:#1f8bff;">1) Executive Snapshot</div>
+        <div class="summary-section-head" style="background:#0f5eb9;">1) Executive Interpretation</div>
+        <div class="summary-section-body"><ul class="list-compact">${(model.executiveInterpretation || []).slice(0, 5).map(i => `<li>${esc(i)}</li>`).join('')}</ul></div>
+      </section>
+      <section class="summary-section">
+        <div class="summary-section-head" style="background:#1f8bff;">2) Executive Snapshot</div>
         <div class="summary-section-body">
           <div class="summary-kpi-grid">
             <div class="summary-kpi-card"><div class="label">Availability</div><div class="value">${esc(model.executiveSnapshot.availability)}</div></div>
@@ -1921,27 +2024,39 @@
             <div class="summary-kpi-card"><div class="label">Downtime / Volume</div><div class="value">${esc(model.executiveSnapshot.downtimePerVolume)}</div></div>
             <div class="summary-kpi-card"><div class="label">Events / Volume</div><div class="value">${esc(model.executiveSnapshot.eventsPerVolume)}</div></div>
           </div>
-          <div style="margin-top:10px;font-size:.82rem;color:#b9c8e2;font-weight:650;">Downtime Split (Planned vs Unplanned)</div>
-          <div class="summary-kpi-grid" style="margin-top:6px;grid-template-columns:repeat(2,minmax(0,1fr));">${splitCards}</div>
-          <div style="margin-top:10px;font-size:.82rem;color:#b9c8e2;font-weight:650;">Top Downtime Contributors (share of total downtime)</div>
-          <table style="margin-top:6px;"><thead><tr><th>Press</th><th>Downtime (h)</th><th>Share</th></tr></thead><tbody>${tableRows(model.chartInsights.topPressImpact.slice(0, 5), i => `<tr><td>${esc(i.name)}</td><td>${(i.value / 3600).toFixed(2)}</td><td>${i.pct.toFixed(1)}%</td></tr>`, 3)}</tbody></table>
         </div>
       </section>
       <section class="summary-section">
-        <div class="summary-section-head" style="background:#e56739;">2) Top Presses Downtime</div>
+        <div class="summary-section-head" style="background:#4d6cfa;">3) Visual Operational Overview</div>
+        <div class="summary-section-body">
+          <div class="summary-kpi-grid">${operationalCards.map(card => `<div class="summary-kpi-card"><div class="label">${esc(card.label)}</div><div class="value" style="font-size:.95rem;line-height:1.35;">${esc(card.value)}</div></div>`).join('')}</div>
+          <div style="margin-top:10px;font-size:.82rem;color:#b9c8e2;font-weight:650;">Downtime contributor dominance (Top 3)</div>
+          <table style="margin-top:6px;"><thead><tr><th>Press</th><th>Share of downtime</th><th>Contribution bar</th></tr></thead><tbody>${tableRows(model.chartInsights.topPressImpact.slice(0, 3), i => `<tr><td>${esc(i.name)}</td><td>${i.pct.toFixed(1)}%</td><td><div style="height:8px;background:rgba(255,255,255,.12);border-radius:999px;overflow:hidden;"><div style="height:8px;width:${Math.min(100, i.pct).toFixed(1)}%;background:#63a7ff;"></div></div></td></tr>`, 3)}</tbody></table>
+        </div>
+      </section>
+      <section class="summary-section">
+        <div class="summary-section-head" style="background:#e56739;">4) Top Presses Downtime (Top 5)</div>
         <div class="summary-section-body"><table><thead><tr><th>Press</th><th>Downtime</th><th>Downtime (h)</th></tr></thead><tbody>${tableRows(model.topPressDowntime, i => `<tr><td>${esc(i.name)}</td><td>${formatDuration(i.downtime)}</td><td>${(i.downtime / 3600).toFixed(2)}</td></tr>`, 3)}</tbody></table></div>
       </section>
       <section class="summary-section">
-        <div class="summary-section-head" style="background:#25a65b;">3) Print Volume</div>
+        <div class="summary-section-head" style="background:#25a65b;">5) Print Volume (Top 5)</div>
         <div class="summary-section-body"><table><thead><tr><th>Press</th><th>Production Printed Sheets</th></tr></thead><tbody>${tableRows(model.topPrintVolume, i => `<tr><td>${esc(i.name)}</td><td>${Number(i.value || 0).toLocaleString()}</td></tr>`, 2)}</tbody></table></div>
       </section>
       <section class="summary-section">
-        <div class="summary-section-head" style="background:#7c4dff;">4) Top Subsystems</div>
+        <div class="summary-section-head" style="background:#7c4dff;">6) Top Subsystems (Top 5)</div>
         <div class="summary-section-body"><table><thead><tr><th>Subsystem</th><th>Events</th><th>Downtime</th></tr></thead><tbody>${tableRows(model.topSubsystems, i => `<tr><td>${esc(i.name)}</td><td>${i.events.toLocaleString()}</td><td>${formatDuration(i.downtime)}</td></tr>`, 3)}</tbody></table></div>
       </section>
       <section class="summary-section">
-        <div class="summary-section-head" style="background:#d39a1f;">5) Top Errors</div>
+        <div class="summary-section-head" style="background:#d39a1f;">7) Top Errors (Top 5)</div>
         <div class="summary-section-body"><table><thead><tr><th>Error</th><th>Events</th><th>Downtime</th></tr></thead><tbody>${tableRows(model.topErrors, i => `<tr><td>${esc(i.name)}</td><td>${i.events.toLocaleString()}</td><td>${formatDuration(i.downtime)}</td></tr>`, 3)}</tbody></table></div>
+      </section>
+      <section class="summary-section">
+        <div class="summary-section-head" style="background:#116e45;">8) Recommended Focus</div>
+        <div class="summary-section-body"><ul class="list-compact">${(model.recommendedFocus || []).slice(0, 4).map(i => `<li>${esc(i)}</li>`).join('')}</ul></div>
+      </section>
+      <section class="summary-section">
+        <div class="summary-section-head" style="background:#36455f;">9) View Full Analysis</div>
+        <div class="summary-section-body"><a href="${esc(model.fullAnalysisLink)}" target="_blank" rel="noopener noreferrer" style="color:#8fd3ff;word-break:break-all;">${esc(model.fullAnalysisLink)}</a></div>
       </section>`;
   }
 
@@ -3256,6 +3371,7 @@
       populateFilter('subsystemFilter', [...new Set(merged.events.map(r => r.subsystem))].sort(), 'subsystems');
       populateFilter('versionFilter', [...new Set(merged.events.map(r => r.version))].sort(), 'software versions');
       document.getElementById('datasetMeta').textContent = `${STATE.files.errors.name} • ${merged.events.length.toLocaleString()} merged events • ${STATE.mode}`;
+      applyAnalysisStateFromHash();
 
       setProcessingState({ stage: 'preparing', status: 'running', percent: 1, detail: 'Rendering dashboard view…' });
       setStatus(`Analysis complete in ${(performance.now() - t0).toFixed(0)}ms`, 'ok');
