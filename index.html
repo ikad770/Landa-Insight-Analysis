@@ -3605,19 +3605,54 @@
     }
   }
 
-  async function assignFileByDetection(file) {
+  function inferDatasetFromFileName(name = '') {
+    const normalizedName = String(name).toLowerCase();
+    if (/(availability|uptime|downtime|oee)/.test(normalizedName)) return 'availability';
+    if (/(volume|print[\s_-]*volume|printed[\s_-]*sheets|jobs?)/.test(normalizedName)) return 'volume';
+    if (/(error|alert|event|fault|alarm)/.test(normalizedName)) return 'errors';
+    return 'unknown';
+  }
+
+  function getLikelyDatasetKeys(files = []) {
+    const keys = new Set();
+    [...files].forEach(file => {
+      const inferred = inferDatasetFromFileName(file?.name || '');
+      if (inferred === 'unknown') {
+        keys.add('errors');
+        keys.add('availability');
+        keys.add('volume');
+        return;
+      }
+      keys.add(inferred);
+    });
+    return keys.size ? [...keys] : ['errors', 'availability', 'volume'];
+  }
+
+  async function classifyIncomingFile(file) {
     try {
       const rows = await loadRowsFromFile(file);
       const detected = detectDatasetType(rows);
-      if (detected === 'availability') STATE.files.availability = file;
-      else if (detected === 'volume') STATE.files.volume = file;
-      else STATE.files.errors = file;
-      if (detected !== 'unknown') {
-        STATE.cachedRaw[detected === 'errors' ? 'errors' : detected] = rows;
-      }
+      const key = detected === 'availability' || detected === 'volume' ? detected : 'errors';
+      return { key, file, rows };
     } catch {
-      STATE.files.errors = file;
+      return { key: 'errors', file, rows: null };
     }
+  }
+
+  async function processIncomingFiles(fileList) {
+    const files = [...(fileList || [])];
+    if (!files.length) return;
+    const likelyKeys = getLikelyDatasetKeys(files);
+    likelyKeys.forEach(startFileProgress);
+    await shortYield();
+
+    const assignments = await Promise.all(files.map(classifyIncomingFile));
+    assignments.forEach(({ key, file, rows }) => {
+      STATE.files[key] = file;
+      STATE.cachedRaw[key] = rows;
+      setFileUI(key);
+    });
+    await Promise.all(likelyKeys.map(key => validateSingleFile(key, { progressStarted: true })));
   }
 
   function clearFiles() {
@@ -3633,7 +3668,17 @@
     STATE.mode = '';
     STATE.lastRunSnapshot = null;
     STATE.analysisRunId += 1;
+    STATE.processingStage = 'idle';
+    STATE.processingStatus = 'idle';
+    STATE.processingDetail = '';
+    STATE.processingPercent = 0;
     ['errors', 'availability', 'volume'].forEach(resetFileProgress);
+    ['bulkInput', 'errorsPicker', 'availabilityPicker', 'volumePicker'].forEach(id => {
+      const input = document.getElementById(id);
+      if (input) input.value = '';
+    });
+    const dropZone = document.getElementById('dropZone');
+    if (dropZone) dropZone.classList.remove('drag');
     setFileUI('errors');
     setFileUI('availability');
     setFileUI('volume');
@@ -3669,7 +3714,7 @@
     runAnalysisFlow(STATE.lastRunSnapshot);
   }
 
-  async function validateSingleFile(key) {
+  async function validateSingleFile(key, { progressStarted = false } = {}) {
     const file = STATE.files[key];
     if (!file) {
       STATE.validation[key] = false;
@@ -3678,9 +3723,9 @@
       setFileUI(key);
       return;
     }
-    startFileProgress(key);
+    if (!progressStarted) startFileProgress(key);
     try {
-      const rows = await loadRowsFromFile(file);
+      const rows = Array.isArray(STATE.cachedRaw[key]) ? STATE.cachedRaw[key] : await loadRowsFromFile(file);
       STATE.cachedRaw[key] = rows;
       if (key === 'errors') await normalizeErrorsRows(rows.slice(0, Math.min(rows.length, 120)));
       if (key === 'availability') await normalizeAvailabilityRows(rows.slice(0, Math.min(rows.length, 120)));
@@ -3711,21 +3756,32 @@
     });
 
     document.querySelectorAll('[data-pick]').forEach(btn => btn.addEventListener('click', () => document.getElementById(`${btn.dataset.pick}Picker`).click()));
-    errorsPicker.addEventListener('change', async e => { STATE.files.errors = e.target.files?.[0] || null; await validateSingleFile('errors'); });
-    availabilityPicker.addEventListener('change', async e => { STATE.files.availability = e.target.files?.[0] || null; await validateSingleFile('availability'); });
-    volumePicker.addEventListener('change', async e => { STATE.files.volume = e.target.files?.[0] || null; await validateSingleFile('volume'); });
+    errorsPicker.addEventListener('change', async e => {
+      STATE.files.errors = e.target.files?.[0] || null;
+      await validateSingleFile('errors');
+      e.target.value = '';
+    });
+    availabilityPicker.addEventListener('change', async e => {
+      STATE.files.availability = e.target.files?.[0] || null;
+      await validateSingleFile('availability');
+      e.target.value = '';
+    });
+    volumePicker.addEventListener('change', async e => {
+      STATE.files.volume = e.target.files?.[0] || null;
+      await validateSingleFile('volume');
+      e.target.value = '';
+    });
 
     bulkInput.addEventListener('change', async e => {
-      for (const f of [...(e.target.files || [])]) await assignFileByDetection(f);
-      await Promise.all([validateSingleFile('errors'), validateSingleFile('availability'), validateSingleFile('volume')]);
+      await processIncomingFiles(e.target.files || []);
+      e.target.value = '';
     });
 
     const dropZone = document.getElementById('dropZone');
     ['dragenter', 'dragover'].forEach(ev => dropZone.addEventListener(ev, e => { e.preventDefault(); dropZone.classList.add('drag'); }));
     ['dragleave', 'drop'].forEach(ev => dropZone.addEventListener(ev, e => { e.preventDefault(); dropZone.classList.remove('drag'); }));
     dropZone.addEventListener('drop', async e => {
-      for (const f of [...(e.dataTransfer?.files || [])]) await assignFileByDetection(f);
-      await Promise.all([validateSingleFile('errors'), validateSingleFile('availability'), validateSingleFile('volume')]);
+      await processIncomingFiles(e.dataTransfer?.files || []);
     });
 
     clearBtn.addEventListener('click', clearFiles);
