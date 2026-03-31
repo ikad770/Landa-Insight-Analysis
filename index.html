@@ -42,8 +42,18 @@
     .file-label strong{display:block}
     .file-label small{color:var(--muted)}
     .picker-wrap { display:flex; gap:8px; align-items:center; }
+    .picker-stack { display:grid; gap:7px; min-width:0; }
     .picker-wrap .file-token { color:#c9d7f0; font-size:.85rem; max-width:320px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .file-state { display:flex; gap:10px; align-items:center; justify-content:flex-end; }
+    .file-progress { display:grid; gap:5px; opacity:0; transform:translateY(-2px); max-height:0; overflow:hidden; transition:opacity .22s ease, transform .22s ease, max-height .26s ease, margin .22s ease; margin-top:0; }
+    .file-progress.visible { opacity:1; transform:translateY(0); max-height:56px; margin-top:2px; }
+    .file-progress.fade-out { opacity:0; transform:translateY(-2px); max-height:0; margin-top:0; }
+    .file-progress-meta { display:flex; justify-content:space-between; align-items:center; gap:8px; font-size:.75rem; color:var(--muted); }
+    .file-progress-track { height:6px; border-radius:999px; background:rgba(255,255,255,.08); overflow:hidden; }
+    .file-progress-fill { height:100%; width:0; border-radius:inherit; background:linear-gradient(90deg,#7b8dff,#57c98a); transition:width .2s ease, background .2s ease; }
+    .file-progress.loading .file-progress-fill { animation:pulse-progress 1.25s ease-in-out infinite alternate; }
+    .file-progress.success .file-progress-fill { background:linear-gradient(90deg,#57c98a,#3fbf7a); animation:none; }
+    .file-progress.error .file-progress-fill { background:linear-gradient(90deg,#f36b63,#df5a52); animation:none; }
     .badge { border-radius:999px; padding:4px 10px; font-size:.74rem; border:1px solid; }
     .missing{color:#ffcbc8;background:rgba(243,107,99,.15);border-color:rgba(243,107,99,.45)}
     .loaded{color:#ffe5c7;background:rgba(240,177,101,.16);border-color:rgba(240,177,101,.45)}
@@ -167,17 +177,35 @@
         <section class="assignment">
           <div class="file-row">
             <div class="file-label"><strong>Errors dataset</strong><small>Required</small></div>
-            <div class="picker-wrap"><button class="btn" data-pick="errors">Choose file</button><span id="errorsToken" class="file-token">No file selected</span><input id="errorsPicker" class="hidden" type="file" accept=".csv,.xlsx,.xls,.json" /></div>
+            <div class="picker-stack">
+              <div class="picker-wrap"><button class="btn" data-pick="errors">Choose file</button><span id="errorsToken" class="file-token">No file selected</span><input id="errorsPicker" class="hidden" type="file" accept=".csv,.xlsx,.xls,.json" /></div>
+              <div id="errorsProgress" class="file-progress">
+                <div class="file-progress-meta"><span id="errorsProgressLabel">Processing…</span><span id="errorsProgressPercent">0%</span></div>
+                <div class="file-progress-track"><div id="errorsProgressFill" class="file-progress-fill"></div></div>
+              </div>
+            </div>
             <div class="file-state"><span id="errorsBadge" class="badge missing">missing</span></div>
           </div>
           <div class="file-row">
             <div class="file-label"><strong>Availability dataset</strong><small>Recommended</small></div>
-            <div class="picker-wrap"><button class="btn" data-pick="availability">Choose file</button><span id="availabilityToken" class="file-token">No file selected</span><input id="availabilityPicker" class="hidden" type="file" accept=".csv,.xlsx,.xls,.json" /></div>
+            <div class="picker-stack">
+              <div class="picker-wrap"><button class="btn" data-pick="availability">Choose file</button><span id="availabilityToken" class="file-token">No file selected</span><input id="availabilityPicker" class="hidden" type="file" accept=".csv,.xlsx,.xls,.json" /></div>
+              <div id="availabilityProgress" class="file-progress">
+                <div class="file-progress-meta"><span id="availabilityProgressLabel">Processing…</span><span id="availabilityProgressPercent">0%</span></div>
+                <div class="file-progress-track"><div id="availabilityProgressFill" class="file-progress-fill"></div></div>
+              </div>
+            </div>
             <div class="file-state"><span id="availabilityBadge" class="badge optional">optional</span></div>
           </div>
           <div class="file-row">
             <div class="file-label"><strong>Print volume dataset</strong><small>Recommended for normalized KPIs</small></div>
-            <div class="picker-wrap"><button class="btn" data-pick="volume">Choose file</button><span id="volumeToken" class="file-token">No file selected</span><input id="volumePicker" class="hidden" type="file" accept=".csv,.xlsx,.xls,.json" /></div>
+            <div class="picker-stack">
+              <div class="picker-wrap"><button class="btn" data-pick="volume">Choose file</button><span id="volumeToken" class="file-token">No file selected</span><input id="volumePicker" class="hidden" type="file" accept=".csv,.xlsx,.xls,.json" /></div>
+              <div id="volumeProgress" class="file-progress">
+                <div class="file-progress-meta"><span id="volumeProgressLabel">Processing…</span><span id="volumeProgressPercent">0%</span></div>
+                <div class="file-progress-track"><div id="volumeProgressFill" class="file-progress-fill"></div></div>
+              </div>
+            </div>
             <div class="file-state"><span id="volumeBadge" class="badge optional">optional</span></div>
           </div>
         </section>
@@ -331,6 +359,11 @@
     processingStatus: 'idle',
     processingDetail: '',
     processingPercent: 0,
+    fileProgress: {
+      errors: { state: 'idle', progress: 0, label: '', startedAt: 0, timer: null },
+      availability: { state: 'idle', progress: 0, label: '', startedAt: 0, timer: null },
+      volume: { state: 'idle', progress: 0, label: '', startedAt: 0, timer: null },
+    },
     lastRunSnapshot: null,
     expand: { press: false, subsystem: false, alert: false, version: false },
     metricByChart: { press: 'events', subsystem: 'events', alert: 'events', version: 'events' },
@@ -580,6 +613,74 @@
       badge.textContent = 'loaded';
     }
     document.getElementById('runBtn').disabled = !STATE.validation.errors;
+  }
+
+  function setFileProgressUI(key, { state = 'idle', progress = 0, label = '' } = {}) {
+    const root = document.getElementById(`${key}Progress`);
+    const fill = document.getElementById(`${key}ProgressFill`);
+    const pct = document.getElementById(`${key}ProgressPercent`);
+    const text = document.getElementById(`${key}ProgressLabel`);
+    if (!root || !fill || !pct || !text) return;
+    const bounded = Math.max(0, Math.min(100, Math.round(progress)));
+    const entry = STATE.fileProgress[key];
+    entry.state = state;
+    entry.progress = bounded;
+    entry.label = label || entry.label || 'Processing…';
+    fill.style.width = `${bounded}%`;
+    pct.textContent = `${bounded}%`;
+    text.textContent = entry.label;
+    root.className = `file-progress ${state}`;
+    root.classList.toggle('visible', state !== 'idle');
+  }
+
+  function resetFileProgress(key) {
+    const entry = STATE.fileProgress[key];
+    if (!entry) return;
+    if (entry.timer) clearInterval(entry.timer);
+    entry.timer = null;
+    entry.startedAt = 0;
+    setFileProgressUI(key, { state: 'idle', progress: 0, label: 'Processing…' });
+  }
+
+  function startFileProgress(key) {
+    const entry = STATE.fileProgress[key];
+    if (!entry) return;
+    resetFileProgress(key);
+    entry.startedAt = performance.now();
+    const labels = ['Uploading file…', 'Processing rows…', 'Normalizing data…', 'Validating schema…'];
+    setFileProgressUI(key, { state: 'loading', progress: 6, label: labels[0] });
+    entry.timer = setInterval(() => {
+      const current = STATE.fileProgress[key].progress;
+      const next = Math.min(94, current + Math.max(1, Math.round((98 - current) * (0.06 + Math.random() * 0.04))));
+      const phase = next < 24 ? labels[0] : next < 54 ? labels[1] : next < 82 ? labels[2] : labels[3];
+      setFileProgressUI(key, { state: 'loading', progress: next, label: phase });
+    }, 140);
+  }
+
+  async function finishFileProgress(key, success = true, message = '') {
+    const entry = STATE.fileProgress[key];
+    if (!entry) return;
+    const visibleFor = performance.now() - (entry.startedAt || performance.now());
+    const minVisibleMs = 420;
+    if (visibleFor < minVisibleMs) await new Promise(resolve => setTimeout(resolve, minVisibleMs - visibleFor));
+    if (entry.timer) {
+      clearInterval(entry.timer);
+      entry.timer = null;
+    }
+    if (success) {
+      setFileProgressUI(key, { state: 'success', progress: 100, label: 'Validated' });
+      await new Promise(resolve => setTimeout(resolve, 260));
+      const root = document.getElementById(`${key}Progress`);
+      if (root) {
+        root.classList.add('fade-out');
+        await new Promise(resolve => setTimeout(resolve, 220));
+      }
+      resetFileProgress(key);
+      const progressRoot = document.getElementById(`${key}Progress`);
+      if (progressRoot) progressRoot.classList.remove('fade-out');
+      return;
+    }
+    setFileProgressUI(key, { state: 'error', progress: 100, label: message || 'Validation failed' });
   }
 
   function detectDelimiter(text) {
@@ -3532,6 +3633,7 @@
     STATE.mode = '';
     STATE.lastRunSnapshot = null;
     STATE.analysisRunId += 1;
+    ['errors', 'availability', 'volume'].forEach(resetFileProgress);
     setFileUI('errors');
     setFileUI('availability');
     setFileUI('volume');
@@ -3569,7 +3671,14 @@
 
   async function validateSingleFile(key) {
     const file = STATE.files[key];
-    if (!file) { STATE.validation[key] = false; setFileUI(key); return; }
+    if (!file) {
+      STATE.validation[key] = false;
+      STATE.cachedRaw[key] = null;
+      resetFileProgress(key);
+      setFileUI(key);
+      return;
+    }
+    startFileProgress(key);
     try {
       const rows = await loadRowsFromFile(file);
       STATE.cachedRaw[key] = rows;
@@ -3577,8 +3686,10 @@
       if (key === 'availability') await normalizeAvailabilityRows(rows.slice(0, Math.min(rows.length, 120)));
       if (key === 'volume') await normalizeVolumeRows(rows.slice(0, Math.min(rows.length, 120)));
       STATE.validation[key] = true;
+      await finishFileProgress(key, true);
     } catch {
       STATE.validation[key] = false;
+      await finishFileProgress(key, false, 'Validation failed');
       if (key === 'errors') setStatus('Errors schema is invalid. Expected press/name/start-time compatible columns.', 'error');
     }
     setFileUI(key);
