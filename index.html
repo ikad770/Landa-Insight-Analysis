@@ -2029,7 +2029,7 @@
   }
 
 
-  function defineSummaryStructure() {
+  function defineExecutiveSummarySections() {
     return [
       { id: 'executiveStatus', title: 'Executive Status', accent: model => model.overallStatus.styles.color, type: 'status' },
       { id: 'situationSnapshot', title: 'Situation Snapshot', accent: () => '#1f8bff', type: 'snapshot' },
@@ -2044,15 +2044,16 @@
   }
 
   function buildExecutiveEmailPayload(model) {
-    const structure = defineSummaryStructure();
+    const structure = defineExecutiveSummarySections();
     return {
-      html: renderEmailSummary(model, structure),
-      text: buildExecutiveEmailText(model, structure),
+      html: renderSummaryEmailHtml(model, structure),
+      previewHtml: renderSummaryPreview(model, structure),
+      text: renderSummaryPlainText(model, structure),
       generatedAtIso: model.generatedAtIso,
     };
   }
 
-  function buildExecutiveEmailText(model, structure = defineSummaryStructure()) {
+  function renderSummaryPlainText(model, structure = defineExecutiveSummarySections()) {
     const lines = [
       'Landa InsightPro+ Summary',
       `Reporting period: ${model.reportingPeriodLabel}`,
@@ -2152,19 +2153,15 @@
     };
   }
 
-  function buildSummaryModel(summary, kpis, rows, sourceScope) {
-    return buildExecutiveSummaryModel(summary, kpis, rows, sourceScope);
-  }
-
-  function renderSummarySections(model, host) {
-    return renderDashboardSummary(model, host, defineSummaryStructure());
-  }
-
-  function renderDashboardSummary(model, host, structure = defineSummaryStructure()) {
+  function renderSummaryModal(model, host, structure = defineExecutiveSummarySections()) {
     host.innerHTML = renderSummaryHtmlByStructure(model, structure, 'dashboard');
   }
 
-  function renderEmailSummary(model, structure = defineSummaryStructure()) {
+  function renderSummaryPreview(model, structure = defineExecutiveSummarySections()) {
+    return renderSummaryEmailHtml(model, structure);
+  }
+
+  function renderSummaryEmailHtml(model, structure = defineExecutiveSummarySections()) {
     return `<!doctype html><html><head><meta charset="utf-8"><title>Landa InsightPro+ Summary</title></head><body style="margin:0;padding:20px;background:#f4f7fb;font-family:Segoe UI,Arial,sans-serif;color:#1d2430;">${renderSummaryHtmlByStructure(model, structure, 'email')}</body></html>`;
   }
 
@@ -3877,13 +3874,14 @@
       }
       try {
         summaryScopeMeta.textContent = `Reporting period: ${model.reportingPeriodLabel} • Generated on: ${model.generatedAtLabel} • Source rows (errors/availability/volume): ${model.sourceCounts.errors}/${model.sourceCounts.availability}/${model.sourceCounts.volume}`;
-        renderDashboardSummary(model, summaryContent);
+        renderSummaryModal(model, summaryContent);
         summaryModal.classList.add('show');
         summaryPreview.classList.add('hidden');
         summaryPreview.innerHTML = '';
       } catch (error) {
         console.error('[summary-render-error]', error);
-        renderSummaryFailureState('The summary renderer hit an unexpected error. Preview/Copy/Export stay available once the scope is valid again.');
+        const reason = error?.message ? ` ${error.message}` : '';
+        renderSummaryFailureState(`The summary renderer hit an unexpected error.${reason}`);
       }
     };
     const getExecutiveEmailPayload = () => {
@@ -3954,7 +3952,7 @@
       const payload = getExecutiveEmailPayload();
       if (!payload) return;
       summaryPreview.classList.remove('hidden');
-      summaryPreview.innerHTML = `<iframe title="Email preview" srcdoc="${esc(payload.html)}"></iframe>`;
+      summaryPreview.innerHTML = `<iframe title="Email preview" srcdoc="${esc(payload.previewHtml)}"></iframe>`;
     });
 
     document.querySelectorAll('[data-expand]').forEach(btn => btn.addEventListener('click', () => {
