@@ -119,6 +119,28 @@
     .summary-stat { background:rgba(255,255,255,.03); border:1px solid var(--border); border-radius:10px; padding:10px; }
     .summary-stat .label{color:var(--muted);font-size:.75rem;text-transform:uppercase;letter-spacing:.08em}
     .summary-stat .value{font-size:1rem;font-weight:650;margin-top:4px}
+    .exec-brief{display:grid;grid-template-columns:1fr;gap:12px}
+    .exec-status-banner{border:1px solid var(--border);border-radius:14px;padding:14px;background:linear-gradient(145deg,rgba(11,20,35,.88),rgba(16,26,44,.72));box-shadow:inset 0 1px 0 rgba(255,255,255,.05)}
+    .exec-status-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap}
+    .exec-status-kicker{color:#9fb6d7;font-size:.72rem;letter-spacing:.11em;text-transform:uppercase}
+    .exec-status-value{margin-top:4px;font-size:1.3rem;font-weight:760;line-height:1.1}
+    .exec-status-verdict{margin-top:8px;color:#dbe7fa;font-size:.89rem;line-height:1.45}
+    .exec-tag-row{margin-top:10px;display:flex;gap:8px;flex-wrap:wrap}
+    .exec-tag{display:inline-flex;align-items:center;gap:6px;padding:4px 9px;border-radius:999px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.04);font-size:.73rem;color:#d3e1f5}
+    .exec-dot{width:7px;height:7px;border-radius:999px;background:currentColor;opacity:.85}
+    .exec-signal-grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:10px}
+    .exec-signal-card{grid-column:span 3;border:1px solid var(--border);border-radius:12px;padding:10px;background:linear-gradient(180deg,rgba(255,255,255,.045),rgba(255,255,255,.02))}
+    .exec-signal-title{color:#9cb1cf;font-size:.71rem;text-transform:uppercase;letter-spacing:.08em}
+    .exec-signal-value{margin-top:6px;color:#f2f7ff;font-size:1rem;font-weight:700;line-height:1.25}
+    .exec-signal-note{margin-top:6px;color:#b4c5de;font-size:.77rem;line-height:1.35}
+    .exec-story-grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:10px}
+    .exec-story-card{grid-column:span 6;border:1px solid var(--border);border-radius:12px;padding:12px;background:rgba(255,255,255,.02)}
+    .exec-story-head{display:flex;justify-content:space-between;align-items:center;gap:8px}
+    .exec-story-title{font-size:.8rem;letter-spacing:.07em;text-transform:uppercase;font-weight:700}
+    .exec-priority-strip{height:5px;border-radius:999px;background:rgba(255,255,255,.08);margin-top:10px;overflow:hidden}
+    .exec-priority-fill{height:100%;border-radius:999px}
+    .exec-list{margin:9px 0 0;padding-left:16px;color:#dce7f8}
+    .exec-list li{margin:5px 0;line-height:1.38}
     .list-compact { margin:8px 0 0; padding-left:18px; color:#d8e2f2; }
     table { width:100%; border-collapse:collapse; font-size:.86rem; }
     th,td { border-bottom:1px solid rgba(255,255,255,.08); padding:8px; text-align:left; }
@@ -155,7 +177,7 @@
     .summary-preview iframe{width:100%;height:380px;border:0}
 
     @media(max-width:1000px){ .kpis{grid-template-columns:repeat(2,minmax(140px,1fr));}.topbar{grid-template-columns:1fr}.span-6,.span-4,.span-8,.span-3{grid-column:span 12}.file-row{grid-template-columns:1fr} .file-state{justify-content:flex-start} }
-    @media(max-width:760px){ .summary-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr));} }
+    @media(max-width:760px){ .summary-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr));}.exec-signal-card,.exec-story-card{grid-column:span 12;} }
   </style>
 </head>
 <body>
@@ -2289,17 +2311,67 @@
   }
 
   function renderExecutiveSummaryCard(summary) {
+    const statusTone = summary.statusTone === 'critical'
+      ? { color: '#ffb7b2', border: 'rgba(243,107,99,.6)', glow: 'rgba(243,107,99,.32)', accent: '#f36b63' }
+      : summary.statusTone === 'watch'
+        ? { color: '#ffd7a8', border: 'rgba(240,177,101,.58)', glow: 'rgba(240,177,101,.28)', accent: '#f0b165' }
+        : { color: '#c8f6db', border: 'rgba(87,201,138,.58)', glow: 'rgba(87,201,138,.28)', accent: '#57c98a' };
+    const concentrationPct = Number(summary.downtimeConcentrationPct || 0);
+    const concentrationWidth = Math.max(8, Math.min(100, concentrationPct));
+    const unplannedWidth = Math.max(8, Math.min(100, Number(summary.unplannedSharePct || 0)));
+    const contextTags = [
+      `Top risk: ${summary.topPressByEvents?.name || 'N/A'}`,
+      `Main bottleneck: ${summary.topSubsystem?.name || 'N/A'}`,
+      `Recurring error: ${summary.topAlert?.name || 'N/A'}`
+    ];
     document.getElementById('executiveSummaryCard').innerHTML = `
-      <div class="chart-head"><h3>Executive Situation Overview</h3><span class="risk-pill ${summary.statusClass}">${summary.status}</span></div>
-      <div class="summary-grid">
-        <div class="summary-stat span-3"><div class="label">Top press (by events)</div><div class="value">${esc(summary.topPressByEvents?.name || 'N/A')}</div></div>
-        <div class="summary-stat span-3"><div class="label">Top subsystem by events</div><div class="value">${esc(summary.topSubsystem?.name || 'N/A')}</div></div>
-        <div class="summary-stat span-3"><div class="label">Most repeated alert (by events)</div><div class="value">${esc(summary.topAlert?.name || 'N/A')}</div></div>
-        <div class="summary-stat span-3"><div class="label">Highest error downtime press (by downtime)</div><div class="value">${esc(summary.topErrorDowntimePress?.entity || 'N/A')}</div></div>
-      </div>
-      <div class="summary-grid" style="margin-top:10px;">
-        <div class="summary-stat span-6"><div class="label">Executive interpretation</div><ul class="list-compact">${summary.interpretation.map(i => `<li>${esc(i)}</li>`).join('')}</ul></div>
-        <div class="summary-stat span-6"><div class="label">Recommended immediate focus</div><ul class="list-compact">${summary.actions.map(i => `<li>${esc(i)}</li>`).join('')}</ul></div>
+      <div class="chart-head"><h3>Executive Situation Overview</h3></div>
+      <div class="exec-brief">
+        <section class="exec-status-banner" style="border-color:${statusTone.border};box-shadow:inset 0 1px 0 rgba(255,255,255,.05),0 0 0 1px ${statusTone.glow};">
+          <div class="exec-status-top">
+            <div>
+              <div class="exec-status-kicker">Operational Status</div>
+              <div class="exec-status-value" style="color:${statusTone.color};">${esc(summary.status)}</div>
+            </div>
+            <span class="risk-pill ${summary.statusClass}">Leadership brief</span>
+          </div>
+          <div class="exec-status-verdict">${esc(summary.statusVerdict || 'Operational performance should be monitored closely.')}</div>
+          <div class="exec-tag-row">${contextTags.map(tag => `<span class="exec-tag"><span class="exec-dot" style="color:${statusTone.accent};"></span>${esc(tag)}</span>`).join('')}</div>
+        </section>
+        <section class="exec-signal-grid">
+          <article class="exec-signal-card">
+            <div class="exec-signal-title">Top Press (Events)</div>
+            <div class="exec-signal-value">${esc(summary.topPressByEvents?.name || 'N/A')}</div>
+            <div class="exec-signal-note">${summary.topPressByEvents ? `${summary.topPressByEvents.events.toLocaleString()} events are concentrated here.` : 'No concentrated press signal in this scope.'}</div>
+          </article>
+          <article class="exec-signal-card">
+            <div class="exec-signal-title">Top Subsystem</div>
+            <div class="exec-signal-value">${esc(summary.topSubsystem?.name || 'N/A')}</div>
+            <div class="exec-signal-note">${summary.topSubsystem ? `Primary failure cluster with ${summary.topSubsystem.events.toLocaleString()} events.` : 'No subsystem cluster identified in this scope.'}</div>
+          </article>
+          <article class="exec-signal-card">
+            <div class="exec-signal-title">Most Repeated Error</div>
+            <div class="exec-signal-value">${esc(summary.topAlert?.name || 'N/A')}</div>
+            <div class="exec-signal-note">${summary.topAlert ? `Recurring ${summary.topAlert.events.toLocaleString()} times across impacted presses.` : 'No dominant recurring error in current scope.'}</div>
+          </article>
+          <article class="exec-signal-card">
+            <div class="exec-signal-title">Highest Downtime Press</div>
+            <div class="exec-signal-value">${esc(summary.topErrorDowntimePress?.entity || 'N/A')}</div>
+            <div class="exec-signal-note">${summary.topErrorDowntimePress ? `${formatDuration(summary.topErrorDowntimePress.downtime)} downtime impact.` : 'No downtime concentration identified in this scope.'}</div>
+          </article>
+        </section>
+        <section class="exec-story-grid">
+          <article class="exec-story-card">
+            <div class="exec-story-head"><div class="exec-story-title" style="color:#95b6ff;">Executive Findings</div><span class="micro" style="margin:0;">What is happening and why</span></div>
+            <div class="exec-priority-strip"><div class="exec-priority-fill" style="width:${concentrationWidth}%;background:linear-gradient(90deg,#4d6cfa,#8fd3ff);"></div></div>
+            <ul class="exec-list">${summary.interpretation.map(i => `<li>${esc(i)}</li>`).join('')}</ul>
+          </article>
+          <article class="exec-story-card">
+            <div class="exec-story-head"><div class="exec-story-title" style="color:#85e2b4;">Recommended Immediate Focus</div><span class="micro" style="margin:0;">What to do next</span></div>
+            <div class="exec-priority-strip"><div class="exec-priority-fill" style="width:${unplannedWidth}%;background:linear-gradient(90deg,#25a65b,#7de3ac);"></div></div>
+            <ul class="exec-list">${summary.actions.map(i => `<li>${esc(i)}</li>`).join('')}</ul>
+          </article>
+        </section>
       </div>`;
   }
 
