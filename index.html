@@ -3822,16 +3822,51 @@
     const summaryScopeMeta = document.getElementById('summaryScopeMeta');
     const summaryContent = document.getElementById('summaryContent');
     const ensureSummaryModel = () => {
-      if (!STATE.merged.summary || !STATE.kpis || !STATE.lastSourceScope) {
-        setStatus('Summary unavailable. Run analysis or refresh dashboard scope.', 'warning');
+      if (!STATE.merged?.events?.length && !STATE.filtered?.length) {
+        setStatus('Summary unavailable. Run analysis first.', 'warning');
         return null;
       }
       try {
-        return buildExecutiveSummaryModel(STATE.merged.summary, STATE.kpis, STATE.filteredErrors || [], STATE.lastSourceScope);
+        const filters = currentFilterValues();
+        const scopedMergedRows = filteredRows();
+        const scopedErrorRows = filteredErrorEvents();
+        const scopedSource = buildSourceScope(filters, scopedMergedRows, scopedErrorRows);
+        const scopedKpis = computeOperationalMetrics(scopedSource);
+        const executiveSummary = buildExecutiveSummary(scopedErrorRows, scopedSource, scopedKpis);
+        STATE.filtered = scopedMergedRows;
+        STATE.filteredErrors = scopedErrorRows;
+        STATE.lastSourceScope = scopedSource;
+        STATE.kpis = scopedKpis;
+        STATE.merged.summary = executiveSummary;
+        return buildExecutiveSummaryModel(executiveSummary, scopedKpis, scopedErrorRows, scopedSource);
       } catch (e) {
         console.error('[summary-model-error]', e);
-        setStatus('Summary failed to generate due to an internal error. Check console logs.', 'error');
+        setStatus('Summary failed to generate. Please verify the current scope and retry.', 'error');
         return null;
+      }
+    };
+    const renderSummaryFailureState = (message) => {
+      summaryScopeMeta.textContent = 'Summary unavailable for the current scope.';
+      summaryContent.innerHTML = `<section class="summary-section"><div class="summary-section-head" style="background:#d35a3a;">Summary error</div><div class="summary-section-body"><div class="micro" style="margin:0;color:#ffd7cf;">${esc(message)}</div></div></section>`;
+      summaryPreview.classList.add('hidden');
+      summaryPreview.innerHTML = '';
+      summaryModal.classList.add('show');
+    };
+    const openSummaryModal = () => {
+      const model = ensureSummaryModel();
+      if (!model) {
+        renderSummaryFailureState('Run analysis and keep at least one scoped data row to generate the executive summary.');
+        return;
+      }
+      try {
+        summaryScopeMeta.textContent = `Reporting period: ${model.reportingPeriodLabel} • Generated on: ${model.generatedAtLabel} • Source rows (errors/availability/volume): ${model.sourceCounts.errors}/${model.sourceCounts.availability}/${model.sourceCounts.volume}`;
+        renderDashboardSummary(model, summaryContent);
+        summaryModal.classList.add('show');
+        summaryPreview.classList.add('hidden');
+        summaryPreview.innerHTML = '';
+      } catch (error) {
+        console.error('[summary-render-error]', error);
+        renderSummaryFailureState('The summary renderer hit an unexpected error. Preview/Copy/Export stay available once the scope is valid again.');
       }
     };
     const getExecutiveEmailPayload = () => {
@@ -3855,15 +3890,7 @@
       if (mailtoWindow != null) return { success: true, channel: 'mailto' };
       return { success: false, channel: 'blocked' };
     };
-    summaryBtnEl.addEventListener('click', () => {
-      const model = ensureSummaryModel();
-      if (!model) return;
-      summaryScopeMeta.textContent = `Reporting period: ${model.reportingPeriodLabel} • Generated on: ${model.generatedAtLabel} • Source rows (errors/availability/volume): ${model.sourceCounts.errors}/${model.sourceCounts.availability}/${model.sourceCounts.volume}`;
-      renderDashboardSummary(model, summaryContent);
-      summaryModal.classList.add('show');
-      summaryPreview.classList.add('hidden');
-      summaryPreview.innerHTML = '';
-    });
+    summaryBtnEl.addEventListener('click', openSummaryModal);
     closeSummaryBtnEl.addEventListener('click', () => summaryModal.classList.remove('show'));
     summaryModal.addEventListener('click', e => { if (e.target.id === 'summaryModal') summaryModal.classList.remove('show'); });
     summaryCopyBtnEl.addEventListener('click', async () => {
