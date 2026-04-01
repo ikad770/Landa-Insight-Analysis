@@ -2583,6 +2583,21 @@
 
   function filteredErrorEvents() { return filterErrorsNativeRows(currentFilterValues()); }
 
+  function getCurrentDashboardScopeModel() {
+    const filters = currentFilterValues();
+    const scopedMergedRows = filteredRows();
+    const scopedErrorRows = filteredErrorEvents();
+    const scopedSource = buildSourceScope(filters, scopedMergedRows, scopedErrorRows);
+    const scopedKpis = computeOperationalMetrics(scopedSource);
+    const executiveSummary = buildExecutiveSummary(scopedErrorRows, scopedSource, scopedKpis);
+    const hasScopedData =
+      scopedSource.errorsAgg.length > 0 ||
+      scopedSource.availabilityAgg.length > 0 ||
+      scopedSource.volumeAgg.length > 0 ||
+      scopedSource.filteredMergedRows.length > 0;
+    return { filters, scopedMergedRows, scopedErrorRows, scopedSource, scopedKpis, executiveSummary, hasScopedData };
+  }
+
   function buildCustomerVolumeChart(volumeAggRows, metric = 'printedSheets', sort = 'desc', expanded = false) {
     const byPress = new Map();
     STATE.customerVolumeLookup = new Map();
@@ -3282,11 +3297,11 @@
 
   function renderDashboard() {
     try {
-      const filters = currentFilterValues();
-      STATE.filtered = filteredRows();
-      const errorEvents = filteredErrorEvents();
+      const { filters, scopedMergedRows, scopedErrorRows, scopedSource, scopedKpis, executiveSummary } = getCurrentDashboardScopeModel();
+      STATE.filtered = scopedMergedRows;
+      const errorEvents = scopedErrorRows;
       STATE.filteredErrors = errorEvents;
-      const sourceScope = buildSourceScope(filters, STATE.filtered, errorEvents);
+      const sourceScope = scopedSource;
     console.info('[scope-debug]', {
       activeFilters: filters,
       filteredEventsCount: STATE.filtered.length,
@@ -3306,7 +3321,7 @@
     STATE.baselineData = null;
     STATE.simulationData = null;
     STATE.lastSourceScope = sourceScope;
-    STATE.kpis = computeOperationalMetrics(sourceScope);
+    STATE.kpis = scopedKpis;
     renderKpis(STATE.kpis);
     const safeRankingRender = (key) => {
       try {
@@ -3350,7 +3365,7 @@
     });
     STATE.merged.pressRisk = [];
     renderRiskSection(STATE.merged.pressRisk);
-    STATE.merged.summary = buildExecutiveSummary(errorEvents, sourceScope, STATE.kpis);
+    STATE.merged.summary = executiveSummary;
     renderExecutiveSummaryCard(STATE.merged.summary);
     const mismatches = validateSourceAndLayerConsistency(sourceScope, STATE.filtered, STATE.kpis, STATE.merged.summary, STATE.merged.pressRisk, customerVolumeAllRows);
     STATE.reconciliation.logs = mismatches;
@@ -3822,17 +3837,19 @@
     const summaryScopeMeta = document.getElementById('summaryScopeMeta');
     const summaryContent = document.getElementById('summaryContent');
     const ensureSummaryModel = () => {
-      if (!STATE.merged?.events?.length && !STATE.filtered?.length) {
-        setStatus('Summary unavailable. Run analysis first.', 'warning');
-        return null;
-      }
       try {
-        const filters = currentFilterValues();
-        const scopedMergedRows = filteredRows();
-        const scopedErrorRows = filteredErrorEvents();
-        const scopedSource = buildSourceScope(filters, scopedMergedRows, scopedErrorRows);
-        const scopedKpis = computeOperationalMetrics(scopedSource);
-        const executiveSummary = buildExecutiveSummary(scopedErrorRows, scopedSource, scopedKpis);
+        const {
+          scopedMergedRows,
+          scopedErrorRows,
+          scopedSource,
+          scopedKpis,
+          executiveSummary,
+          hasScopedData
+        } = getCurrentDashboardScopeModel();
+        if (!hasScopedData) {
+          setStatus('Summary unavailable. Run analysis and keep at least one scoped source row.', 'warning');
+          return null;
+        }
         STATE.filtered = scopedMergedRows;
         STATE.filteredErrors = scopedErrorRows;
         STATE.lastSourceScope = scopedSource;
