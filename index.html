@@ -547,11 +547,29 @@
   };
 
   const toDayBucket = d => (d ? toDay(d) : '');
+  const FAILURE_DURATION_THRESHOLD_SECONDS = 5 * 60;
+  const PLANNED_DOWNTIME_TOKENS = ['maintenance', 'preventive', 'setup'];
+  const UNPLANNED_DOWNTIME_TOKENS = ['recovery', 'jam', 'failure', 'error'];
   const DOWNTIME_DEFINITION = {
-    planned: 'Preventive Maintenance + On Job Maintenance',
-    unplanned: 'Recovery + Jams',
+    planned: 'Maintenance + Preventive + Setup',
+    unplanned: 'Recovery + Jam + Failure + Error',
     total: 'Planned + Unplanned',
   };
+
+  function classifyDowntimeCategory(rawCategory) {
+    const normalized = String(rawCategory || '').trim().toLowerCase();
+    if (!normalized) return 'unspecified';
+    if (PLANNED_DOWNTIME_TOKENS.some(token => normalized.includes(token))) return 'planned';
+    if (UNPLANNED_DOWNTIME_TOKENS.some(token => normalized.includes(token))) return 'unplanned';
+    return 'unspecified';
+  }
+
+  function isFailureEvent(row) {
+    if (!row) return false;
+    const durationSeconds = Number(row.durationSeconds || 0);
+    const severity = String(row.severity || '').trim().toLowerCase();
+    return durationSeconds > FAILURE_DURATION_THRESHOLD_SECONDS || severity === 'critical';
+  }
   const PROCESS_STAGES = [
     { id: 'reading', label: 'Reading files', base: 0, span: 12 },
     { id: 'detecting', label: 'Detecting source types', base: 12, span: 10 },
@@ -869,6 +887,7 @@
         subsystem: String(getField(r, ['Subsystem', 'Module'])).trim() || 'Unspecified',
         preErrorState: String(getField(r, ['Pre Error State', 'Pre-State', 'Pre State'])).trim() || 'Unspecified',
         errorState: String(getField(r, ['Error State', 'State'])).trim() || 'Unspecified',
+        severity: String(getField(r, ['Severity', 'Alert Severity', 'Priority', 'Level'])).trim() || 'Unspecified',
         version: String(getField(r, ['Version', 'SW Version', 'Firmware'])).trim() || 'Unspecified',
         startTime,
         day: toDayBucket(startTime),
@@ -927,20 +946,26 @@
       const availableWithoutPrintSeconds = readSeconds(r, ['Available Without Print']);
       const preventiveMaintenanceSeconds = readSeconds(r, ['Preventive Maintenance']);
       const onJobMaintenanceSeconds = readSeconds(r, ['On Job Maintenance']);
+      const setupSeconds = readSeconds(r, ['Setup']);
       const recoverySeconds = readSeconds(r, ['Recovery']);
       const jamsSeconds = readSeconds(r, ['Jams']);
       const subsystem = String(getField(r, ['Subsystem', 'Module'])).trim() || 'Unspecified';
       const downtimeCategory = String(getField(r, ['Downtime Type', 'Type'])).trim() || 'Unspecified';
+      const downtimeCategoryClass = classifyDowntimeCategory(downtimeCategory);
+      const downtimeDurationSeconds = readSeconds(r, ['Downtime', 'Downtime Duration', 'Duration', 'Duration (sec)', 'DurationSeconds']);
       const runtimeSeconds = printSeconds + availableWithoutPrintSeconds;
-      const plannedDowntimeSeconds = preventiveMaintenanceSeconds;
-      const unplannedDowntimeSeconds = recoverySeconds + jamsSeconds;
+      const explicitPlannedDowntimeSeconds = preventiveMaintenanceSeconds + onJobMaintenanceSeconds + setupSeconds;
+      const explicitUnplannedDowntimeSeconds = recoverySeconds + jamsSeconds;
+      const classifiedPlannedDowntimeSeconds = downtimeCategoryClass === 'planned' ? downtimeDurationSeconds : 0;
+      const classifiedUnplannedDowntimeSeconds = downtimeCategoryClass === 'unplanned' ? downtimeDurationSeconds : 0;
+      const plannedDowntimeSeconds = explicitPlannedDowntimeSeconds + classifiedPlannedDowntimeSeconds;
+      const unplannedDowntimeSeconds = explicitUnplannedDowntimeSeconds + classifiedUnplannedDowntimeSeconds;
       const serviceDowntimeSeconds = 0;
-      const alignedPlannedDowntimeSeconds = plannedDowntimeSeconds + onJobMaintenanceSeconds;
 
       let availabilityPct = parsePercent(getField(r, ['Availability']));
       if (availabilityPct == null && String(getField(r, ['Availability'])).trim()) diagnostics.invalidAvailabilityPct += 1;
       if (availabilityPct == null) {
-        const denom = runtimeSeconds + alignedPlannedDowntimeSeconds + unplannedDowntimeSeconds;
+        const denom = runtimeSeconds + plannedDowntimeSeconds + unplannedDowntimeSeconds;
         availabilityPct = denom > 0 ? (runtimeSeconds / denom) * 100 : null;
       }
       const canonicalPress = resolvePressFromCodeAndModel(canonicalPressCode, canonicalModel, pressLookup, diagnostics);
@@ -978,14 +1003,16 @@
         availableWithoutPrintSeconds,
         preventiveMaintenanceSeconds,
         onJobMaintenanceSeconds,
+        setupSeconds,
         recoverySeconds,
         jamsSeconds,
         runtimeSeconds,
-        plannedDowntimeSeconds: alignedPlannedDowntimeSeconds,
+        plannedDowntimeSeconds,
         unplannedDowntimeSeconds,
         serviceDowntimeSeconds,
         subsystem,
         downtimeCategory,
+        downtimeCategoryClass,
         raw: r
       });
       diagnostics.normalizedRowsCreated += 1;
@@ -1240,10 +1267,14 @@
       if (controller) assertAnalysisActive(controller);
       const ev = events[i];
       const rowKey = ev.key || buildKey({ canonicalPress: ev.canonicalPress || ev.press, canonicalModel: ev.canonicalModel || ev.model, day: ev.day || toDay(ev.startTime) });
-      if (!errorsByPressModelDay.has(rowKey)) errorsByPressModelDay.set(rowKey, { totalEvents: 0, totalErrorDurationSeconds: 0 });
+      if (!errorsByPressModelDay.has(rowKey)) errorsByPressModelDay.set(rowKey, { totalEvents: 0, totalErrorDurationSeconds: 0, totalFailures: 0, totalFailureDurationSeconds: 0 });
       const bucket = errorsByPressModelDay.get(rowKey);
       bucket.totalEvents += 1;
       bucket.totalErrorDurationSeconds += ev.durationSeconds || 0;
+      if (isFailureEvent(ev)) {
+        bucket.totalFailures += 1;
+        bucket.totalFailureDurationSeconds += ev.durationSeconds || 0;
+      }
       if (i % 2500 === 0 && controller) await yieldAnalysisFrame(controller);
     }
 
@@ -1275,6 +1306,8 @@
           key: rowKey,
           totalEvents: 0,
           totalErrorDurationSeconds: 0,
+          totalFailures: 0,
+          totalFailureDurationSeconds: 0,
           printSeconds: 0,
           availableWithoutPrintSeconds: 0,
           runtimeSeconds: 0,
@@ -1292,6 +1325,10 @@
       const slot = mergedByPMD.get(rowKey);
       slot.totalEvents += 1;
       slot.totalErrorDurationSeconds += ev.durationSeconds || 0;
+      if (isFailureEvent(ev)) {
+        slot.totalFailures += 1;
+        slot.totalFailureDurationSeconds += ev.durationSeconds || 0;
+      }
 
       if (avMatch && slot.matchedAvailabilityRows === 0) {
         slot.printSeconds += avMatch.printSeconds || 0;
@@ -1336,7 +1373,9 @@
       canonicalModel: (mergedByPMD.get(key)?.canonicalModel) || 'Unspecified',
       day: (mergedByPMD.get(key)?.day) || '',
       totalEvents: bucket.totalEvents || 0,
-      totalErrorDurationSeconds: bucket.totalErrorDurationSeconds || 0
+      totalErrorDurationSeconds: bucket.totalErrorDurationSeconds || 0,
+      totalFailures: bucket.totalFailures || 0,
+      totalFailureDurationSeconds: bucket.totalFailureDurationSeconds || 0
     }));
     const availabilityAgg = [...availabilityByPressModelDay.values()].map(row => ({
       key: row.key,
@@ -1619,22 +1658,13 @@
     const sourceAverage = totals.sourceRows ? totals.sourcePctSum / totals.sourceRows : null;
     const sourceWeighted = totals.sourceWeight > 0 ? totals.sourceWeightedPct / totals.sourceWeight : null;
     const hasSourceAvailabilityColumn = totals.sourceRows > 0;
-
-    const selected = hasSourceAvailabilityColumn
-      ? {
-          key: 'sourceWeighted',
-          value: sourceWeighted,
-          label: 'Source weighted availability',
-          formula: 'weighted avg(Availability %) by (runtime + planned + unplanned)',
-          reason: 'Availability column exists in source and is used as business-defined KPI.',
-        }
-      : {
-          key: 'runtimeOverTotal',
-          value: runtimeOverTotal,
-          label: 'Runtime over total observed time',
-          formula: 'runtime / (runtime + planned + unplanned)',
-          reason: 'Source availability column missing; computed directly from source duration fields.',
-        };
+    const selected = {
+      key: 'runtimeOverRuntimePlusUnplanned',
+      value: runtimeOverRuntimePlusUnplanned,
+      label: 'Industry availability (ignores planned downtime)',
+      formula: 'runtime / (runtime + unplanned downtime)',
+      reason: 'Industry-standard availability excludes planned downtime from the denominator.',
+    };
 
     return {
       totals,
@@ -1655,6 +1685,8 @@
     const sourceTotals = {
       events: errorsAgg.reduce((a, r) => a + (r.totalEvents || 0), 0),
       errorDowntime: errorsAgg.reduce((a, r) => a + (r.totalErrorDurationSeconds || 0), 0),
+      failures: errorsAgg.reduce((a, r) => a + (r.totalFailures || 0), 0),
+      failureDowntime: errorsAgg.reduce((a, r) => a + (r.totalFailureDurationSeconds || 0), 0),
       planned: availabilityAgg.reduce((a, r) => a + (r.plannedDowntimeSeconds || 0), 0),
       unplanned: availabilityAgg.reduce((a, r) => a + (r.unplannedDowntimeSeconds || 0), 0),
       runtime: availabilityAgg.reduce((a, r) => a + (r.runtimeSeconds || 0), 0),
@@ -1687,6 +1719,7 @@
     })();
     const checks = [
       ['kpi.totalEvents', kpis.totalEvents, sourceTotals.events],
+      ['kpi.totalFailures', kpis.totalFailures, sourceTotals.failures],
       ['kpi.totalDowntime', kpis.totalDowntime, sourceTotals.totalDowntime],
       ['kpi.totalPlanned', kpis.totalPlanned, sourceTotals.planned],
       ['kpi.totalUnplanned', kpis.totalUnplanned, sourceTotals.unplanned],
@@ -1721,6 +1754,8 @@
     const sourceTotals = {
       events: errorsAgg.reduce((a, r) => a + (r.totalEvents || 0), 0),
       errorDuration: errorsAgg.reduce((a, r) => a + (r.totalErrorDurationSeconds || 0), 0),
+      failures: errorsAgg.reduce((a, r) => a + (r.totalFailures || 0), 0),
+      failureDuration: errorsAgg.reduce((a, r) => a + (r.totalFailureDurationSeconds || 0), 0),
       planned: availabilityAgg.reduce((a, r) => a + (r.plannedDowntimeSeconds || 0), 0),
       unplanned: availabilityAgg.reduce((a, r) => a + (r.unplannedDowntimeSeconds || 0), 0),
       downtime: availabilityAgg.reduce((a, r) => a + totalDowntimeFromAvailabilityRow(r), 0),
@@ -1747,12 +1782,12 @@
     const report = [
       ['KPI • Total Events', 'Errors', kpis.totalEvents, sourceTotals.events, 'sum(errors.totalEvents)'],
       ['KPI • Total Downtime', 'Availability', kpis.totalDowntime, sourceTotals.downtime, 'sum(planned + unplanned)'],
-      ['KPI • Planned Downtime', 'Availability', kpis.totalPlanned, sourceTotals.planned, 'sum(preventive + on-job-maintenance)'],
-      ['KPI • Unplanned Downtime', 'Availability', kpis.totalUnplanned, sourceTotals.unplanned, 'sum(recovery + jams)'],
+      ['KPI • Planned Downtime', 'Availability', kpis.totalPlanned, sourceTotals.planned, 'sum(planned downtime categories + planned duration columns)'],
+      ['KPI • Unplanned Downtime', 'Availability', kpis.totalUnplanned, sourceTotals.unplanned, 'sum(unplanned downtime categories + unplanned duration columns)'],
       ['KPI • Availability', 'Availability', kpis.availabilityPct ?? null, availabilityPct, availabilityDefinitions.selected.formula],
       ['KPI • Production Volume', 'Volume', kpis.totalProdVolume, sourceTotals.prodSheets, 'sum(productionPrintedSheets)'],
-      ['KPI • MTTR', 'Errors', kpis.mttr ?? null, sourceTotals.events ? sourceTotals.errorDuration / sourceTotals.events : null, 'sum(errorDuration) / events'],
-      ['KPI • MTBF', 'Errors+Availability', kpis.mtbf ?? null, sourceTotals.events ? sourceTotals.runtime / sourceTotals.events : null, 'runtime / events'],
+      ['KPI • MTTR', 'Errors (failures only)', kpis.mttr ?? null, sourceTotals.failures ? sourceTotals.failureDuration / sourceTotals.failures : null, 'sum(failure durations) / failure count'],
+      ['KPI • MTBF', 'Errors+Availability (failures only)', kpis.mtbf ?? null, sourceTotals.failures ? sourceTotals.runtime / sourceTotals.failures : null, 'runtime / failure count'],
       ['Chart • Top Presses by Error Events', 'Errors/Availability/Volume by selected metric', rankings.press?.reduce((a, r) => a + (r[STATE.metricByChart.press] || 0), 0) || 0, rankingSources.press, `groupBy(press) on ${STATE.metricByChart.press}`],
       ['Chart • Top Subsystems', 'Errors or Availability-by-subsystem for downtime', rankings.subsystem?.reduce((a, r) => a + (r[STATE.metricByChart.subsystem] || 0), 0) || 0, rankingSources.subsystem, `groupBy(subsystem) on ${STATE.metricByChart.subsystem}`],
       ['Chart • Top Alerts', 'Errors', rankings.alert?.reduce((a, r) => a + (r[STATE.metricByChart.alert] || 0), 0) || 0, rankingSources.alert, `groupBy(alert) on ${STATE.metricByChart.alert}`],
@@ -1791,6 +1826,8 @@
     const { errorsAgg, availabilityAgg, volumeAgg } = sourceScope;
     const totalEvents = errorsAgg.reduce((a, r) => a + (r.totalEvents || 0), 0);
     const errorDowntime = errorsAgg.reduce((a, r) => a + (r.totalErrorDurationSeconds || 0), 0);
+    const totalFailures = errorsAgg.reduce((a, r) => a + (r.totalFailures || 0), 0);
+    const totalFailureDurationSeconds = errorsAgg.reduce((a, r) => a + (r.totalFailureDurationSeconds || 0), 0);
     const totals = {
       planned: availabilityAgg.reduce((a, r) => a + (r.plannedDowntimeSeconds || 0), 0),
       unplanned: availabilityAgg.reduce((a, r) => a + (r.unplannedDowntimeSeconds || 0), 0),
@@ -1807,8 +1844,8 @@
     };
 
     const totalDowntime = totals.availabilityCount ? totals.totalAvailDowntime : errorDowntime;
-    const mttr = totalEvents ? (errorDowntime / totalEvents) : null;
-    const mtbf = totalEvents && totals.runtime > 0 ? (totals.runtime / totalEvents) : null;
+    const mttr = totalFailures ? (totalFailureDurationSeconds / totalFailures) : null;
+    const mtbf = totalFailures && totals.runtime > 0 ? (totals.runtime / totalFailures) : null;
     const availabilityDefinitions = computeAvailabilityDefinitions(availabilityAgg);
     STATE.availabilityDefinitions = availabilityDefinitions;
     const availabilityPct = availabilityDefinitions.selected.value;
@@ -1820,6 +1857,7 @@
 
     return {
       totalEvents,
+      totalFailures,
       totalDowntime,
       totalUnplanned: totals.unplanned,
       totalPlanned: totals.planned,
@@ -2284,9 +2322,9 @@
       ['Total Downtime', 'totalDowntime', formatDuration(k.totalDowntime), 'Availability downtime (Planned + Unplanned)'],
       ['Unplanned DT', 'totalUnplanned', formatDuration(k.totalUnplanned), DOWNTIME_DEFINITION.unplanned],
       ['Planned DT', 'totalPlanned', formatDuration(k.totalPlanned), DOWNTIME_DEFINITION.planned],
-      ['MTTR', 'mttr', k.mttr == null ? na : formatDuration(k.mttr), 'Mean Time To Repair from error durations'],
-      ['MTBF', 'mtbf', k.mtbf == null ? na : formatDuration(k.mtbf), 'Mean Time Between Failures from runtime/event rate'],
-      ['Availability', 'availabilityPct', k.availabilityPct == null ? na : `${k.availabilityPct.toFixed(1)}%`, k.availabilityFormula || 'Source-defined availability'],
+      ['MTTR', 'mttr', k.mttr == null ? na : formatDuration(k.mttr), `Mean Time To Repair = sum(failure durations) / failures (failure if duration > ${FAILURE_DURATION_THRESHOLD_SECONDS}s or severity = critical)`],
+      ['MTBF', 'mtbf', k.mtbf == null ? na : formatDuration(k.mtbf), 'Mean Time Between Failures = runtime / failures'],
+      ['Availability', 'availabilityPct', k.availabilityPct == null ? na : `${k.availabilityPct.toFixed(1)}%`, k.availabilityFormula || 'runtime / (runtime + unplanned downtime)'],
       ['Production Volume', 'totalProdVolume', k.totalProdVolume.toLocaleString(), `Basis: ${k.volumeBasis}`],
       ['Downtime / Volume', 'downtimePerVolume', k.downtimePerVolume == null ? na : k.downtimePerVolume.toFixed(4), 'seconds per production unit'],
       ['Events / Volume', 'eventPerVolume', k.eventPerVolume == null ? na : k.eventPerVolume.toFixed(4), 'events per production unit'],
@@ -2703,11 +2741,11 @@
     const map = {
       totalEvents: { source: 'errorsAgg', formula: 'Sum of all error events in current scope.', primary: 'events', unit: 'events' },
       totalDowntime: { source: 'availabilityAgg', formula: 'Planned downtime + Unplanned downtime.', primary: 'downtime', unit: 'seconds' },
-      totalUnplanned: { source: 'availabilityAgg', formula: 'Recovery + Jams duration.', primary: 'unplannedDowntimeSeconds', unit: 'seconds' },
-      totalPlanned: { source: 'availabilityAgg', formula: 'Preventive Maintenance + On Job Maintenance.', primary: 'plannedDowntimeSeconds', unit: 'seconds' },
-      mttr: { source: 'errorsAgg', formula: 'Total error duration / total events.', primary: 'durationSeconds', unit: 'seconds' },
-      mtbf: { source: 'errorsAgg + availabilityAgg', formula: 'Runtime / total events.', primary: 'mtbf', unit: 'seconds' },
-      availabilityPct: { source: 'availabilityAgg', formula: 'Runtime / (Runtime + Planned + Unplanned) × 100.', primary: 'availability', unit: '%' },
+      totalUnplanned: { source: 'availabilityAgg', formula: 'Unplanned categories (Recovery/Jam/Failure/Error).', primary: 'unplannedDowntimeSeconds', unit: 'seconds' },
+      totalPlanned: { source: 'availabilityAgg', formula: 'Planned categories (Maintenance/Preventive/Setup).', primary: 'plannedDowntimeSeconds', unit: 'seconds' },
+      mttr: { source: 'errorsAgg', formula: `Failure duration / failure count (failure if duration > ${FAILURE_DURATION_THRESHOLD_SECONDS}s or severity = critical).`, primary: 'totalFailureDurationSeconds', unit: 'seconds' },
+      mtbf: { source: 'errorsAgg + availabilityAgg', formula: 'Runtime / failure count.', primary: 'mtbf', unit: 'seconds' },
+      availabilityPct: { source: 'availabilityAgg', formula: 'Runtime / (Runtime + Unplanned) × 100.', primary: 'availability', unit: '%' },
       totalProdVolume: { source: 'volumeAgg', formula: 'Sum of productionPrintedSheets.', primary: 'productionPrintedSheets', unit: 'units' },
       downtimePerVolume: { source: 'availabilityAgg + volumeAgg', formula: 'Total downtime seconds / production volume.', primary: 'ratio', unit: 'ratio' },
       eventPerVolume: { source: 'errorsAgg + volumeAgg', formula: 'Total events / production volume.', primary: 'ratio', unit: 'ratio' },
@@ -3470,7 +3508,7 @@
       if (k === 'raw' || k === 'mergeContext' || k === 'availability' || k === 'volume') return;
       headerSet.add(k);
     }));
-    const preferred = ['customer', 'site', 'press', 'canonicalPress', 'model', 'canonicalModel', 'subsystem', 'version', 'name', 'alertTitle', 'jobType', 'jobStatus', 'pressMode', 'day', 'startTime', 'durationSeconds', 'plannedDowntimeSeconds', 'unplannedDowntimeSeconds', 'productionPrintedSheets', 'printedSheets', 'printedFlats', 'totalVolume'];
+    const preferred = ['customer', 'site', 'press', 'canonicalPress', 'model', 'canonicalModel', 'subsystem', 'version', 'name', 'alertTitle', 'severity', 'jobType', 'jobStatus', 'pressMode', 'day', 'startTime', 'durationSeconds', 'plannedDowntimeSeconds', 'unplannedDowntimeSeconds', 'productionPrintedSheets', 'printedSheets', 'printedFlats', 'totalVolume'];
     const headers = [...preferred.filter(h => headerSet.has(h)), ...[...headerSet].filter(h => !preferred.includes(h))];
     const quote = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
     const lines = [headers.map(quote).join(',')];
