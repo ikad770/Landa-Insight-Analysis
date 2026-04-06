@@ -1918,6 +1918,46 @@
     return `${x}s`;
   }
 
+  function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], topSubsystems = [], topErrors = [] } = {}) {
+    const asPct = (num, den) => den > 0 ? ((num / den) * 100) : 0;
+    const leaderSummary = (rows, valueKey, unitLabel, labelPlural) => {
+      if (!rows.length) return `No ${labelPlural} were identified in the current scope.`;
+      const leader = rows[0];
+      const total = rows.reduce((sum, row) => sum + Number(row?.[valueKey] || 0), 0);
+      const leaderValue = Number(leader?.[valueKey] || 0);
+      const share = asPct(leaderValue, total);
+      const top3Share = asPct(rows.slice(0, 3).reduce((sum, row) => sum + Number(row?.[valueKey] || 0), 0), total);
+      return `${leader.name} leads at ${leaderValue.toLocaleString()} ${unitLabel} (${share.toFixed(1)}% of top-5 ${unitLabel}); top-3 account for ${top3Share.toFixed(1)}%.`;
+    };
+
+    const downtimeSummary = (() => {
+      if (!topPressDowntime.length) return 'No downtime concentration is available in the current scope.';
+      const leader = topPressDowntime[0];
+      const total = topPressDowntime.reduce((sum, row) => sum + Number(row?.downtime || 0), 0);
+      const top3 = topPressDowntime.slice(0, 3).reduce((sum, row) => sum + Number(row?.downtime || 0), 0);
+      const leaderShare = asPct(Number(leader?.downtime || 0), total);
+      const top3Share = asPct(top3, total);
+      return `${leader.name} is the primary downtime driver at ${formatDuration(leader.downtime)} (${leaderShare.toFixed(1)}% of top-5 downtime), with top-3 presses contributing ${top3Share.toFixed(1)}%.`;
+    })();
+
+    const printVolumeSummary = (() => {
+      if (!topPrintVolume.length) return 'No production print-volume concentration is available in the current scope.';
+      const leader = topPrintVolume[0];
+      const total = topPrintVolume.reduce((sum, row) => sum + Number(row?.value || 0), 0);
+      const top3 = topPrintVolume.slice(0, 3).reduce((sum, row) => sum + Number(row?.value || 0), 0);
+      const leaderShare = asPct(Number(leader?.value || 0), total);
+      const top3Share = asPct(top3, total);
+      return `${leader.name} carries the largest production share at ${Number(leader.value || 0).toLocaleString()} sheets (${leaderShare.toFixed(1)}% of top-5 volume), while top-3 presses deliver ${top3Share.toFixed(1)}%.`;
+    })();
+
+    return {
+      topPressDowntime: downtimeSummary,
+      printVolume: printVolumeSummary,
+      topSubsystems: leaderSummary(topSubsystems, 'events', 'events', 'subsystems'),
+      topErrors: leaderSummary(topErrors, 'events', 'events', 'errors'),
+    };
+  }
+
   function volumeMetricLabel(metric) {
     if (metric === 'productionPrintedSheets') return 'Production-only Printed Sheets';
     if (metric === 'printedFlats') return 'Printed Flats';
@@ -3848,33 +3888,42 @@
         } = STATE.dashboardScopeModel || getCurrentDashboardScopeModel();
         if (!hasScopedData) {
           setStatus('Summary unavailable. Run analysis and keep at least one scoped source row.', 'warning');
-          return null;
+          return { state: 'no-data', model: null };
         }
         STATE.filtered = scopedMergedRows;
         STATE.filteredErrors = scopedErrorRows;
         STATE.lastSourceScope = scopedSource;
         STATE.kpis = scopedKpis;
         STATE.merged.summary = executiveSummary;
-        return buildExecutiveSummaryModel(executiveSummary, scopedKpis, scopedErrorRows, scopedSource);
+        const model = buildExecutiveSummaryModel(executiveSummary, scopedKpis, scopedErrorRows, scopedSource);
+        return { state: 'ok', model };
       } catch (e) {
         console.error('[summary-model-error]', e);
-        setStatus('Summary failed to generate. Please verify the current scope and retry.', 'error');
-        return null;
+        setStatus('Summary generation failed due to an internal model error. Review console details and retry.', 'error');
+        return { state: 'error', model: null, error: e };
       }
     };
-    const renderSummaryFailureState = (message) => {
-      summaryScopeMeta.textContent = 'Summary unavailable for the current scope.';
+    const renderSummaryFailureState = (message, state = 'error') => {
+      summaryScopeMeta.textContent = state === 'no-data'
+        ? 'Summary unavailable for the current scope.'
+        : 'Summary generation error for the current scope.';
       summaryContent.innerHTML = `<section class="summary-section"><div class="summary-section-head" style="background:#d35a3a;">Summary error</div><div class="summary-section-body"><div class="micro" style="margin:0;color:#ffd7cf;">${esc(message)}</div></div></section>`;
       summaryPreview.classList.add('hidden');
       summaryPreview.innerHTML = '';
       summaryModal.classList.add('show');
     };
     const openSummaryModal = () => {
-      const model = ensureSummaryModel();
-      if (!model) {
-        renderSummaryFailureState('Run analysis and keep at least one scoped data row to generate the executive summary.');
+      const summaryResult = ensureSummaryModel();
+      if (!summaryResult?.model) {
+        if (summaryResult?.state === 'no-data') {
+          renderSummaryFailureState('Run analysis and keep at least one scoped data row to generate the executive summary.', 'no-data');
+          return;
+        }
+        const errorMessage = summaryResult?.error?.message ? ` Details: ${summaryResult.error.message}` : '';
+        renderSummaryFailureState(`Summary generation failed due to an internal model error.${errorMessage}`, 'error');
         return;
       }
+      const model = summaryResult.model;
       try {
         summaryScopeMeta.textContent = `Reporting period: ${model.reportingPeriodLabel} • Generated on: ${model.generatedAtLabel} • Source rows (errors/availability/volume): ${model.sourceCounts.errors}/${model.sourceCounts.availability}/${model.sourceCounts.volume}`;
         renderSummaryModal(model, summaryContent);
@@ -3888,8 +3937,16 @@
       }
     };
     const getExecutiveEmailPayload = () => {
-      const model = ensureSummaryModel();
-      if (!model) return null;
+      const summaryResult = ensureSummaryModel();
+      if (!summaryResult?.model) {
+        if (summaryResult?.state === 'no-data') {
+          setStatus('Email summary unavailable because the current scope has no source rows.', 'warning');
+        } else {
+          setStatus('Email summary generation failed due to an internal model error.', 'error');
+        }
+        return null;
+      }
+      const model = summaryResult.model;
       return { model, ...buildExecutiveEmailPayload(model) };
     };
     const toMailtoBody = (payload) => {
