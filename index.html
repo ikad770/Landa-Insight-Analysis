@@ -407,6 +407,7 @@
     appliedSimulationData: null,
     lastSourceScope: null,
     reconciliation: { logs: [], report: [] },
+    dashboardScopeModel: null,
     availabilityDefinitions: null,
     renderQueued: false,
   };
@@ -2588,10 +2589,9 @@
     const scopedKpis = computeOperationalMetrics(scopedSource);
     const executiveSummary = buildExecutiveSummary(scopedErrorRows, scopedSource, scopedKpis);
     const hasScopedData =
-      scopedSource.errorsAgg.length > 0 ||
-      scopedSource.availabilityAgg.length > 0 ||
-      scopedSource.volumeAgg.length > 0 ||
-      scopedSource.filteredMergedRows.length > 0;
+      scopedSource.filteredErrorEventsNative.length > 0 ||
+      scopedSource.filteredAvailabilityRowsNative.length > 0 ||
+      scopedSource.filteredVolumeRowsNative.length > 0;
     return { filters, scopedMergedRows, scopedErrorRows, scopedSource, scopedKpis, executiveSummary, hasScopedData };
   }
 
@@ -3294,7 +3294,8 @@
 
   function renderDashboard() {
     try {
-      const { filters, scopedMergedRows, scopedErrorRows, scopedSource, scopedKpis, executiveSummary } = getCurrentDashboardScopeModel();
+      const { filters, scopedMergedRows, scopedErrorRows, scopedSource, scopedKpis, executiveSummary, hasScopedData } = getCurrentDashboardScopeModel();
+      STATE.dashboardScopeModel = { filters, scopedMergedRows, scopedErrorRows, scopedSource, scopedKpis, executiveSummary, hasScopedData };
       STATE.filtered = scopedMergedRows;
       const errorEvents = scopedErrorRows;
       STATE.filteredErrors = errorEvents;
@@ -3684,6 +3685,7 @@
     STATE.merged = { events: [], mergedRows: [], stats: {}, summary: null, pressRisk: [], sourceTables: { errorsAgg: [], availabilityAgg: [], volumeAgg: [] } };
     STATE.filtered = [];
     STATE.filteredErrors = [];
+    STATE.dashboardScopeModel = null;
     STATE.kpis = null;
     STATE.mode = '';
     STATE.lastRunSnapshot = null;
@@ -3715,6 +3717,7 @@
     STATE.merged = { events: [], mergedRows: [], stats: {}, summary: null, pressRisk: [], sourceTables: { errorsAgg: [], availabilityAgg: [], volumeAgg: [] } };
     STATE.filtered = [];
     STATE.filteredErrors = [];
+    STATE.dashboardScopeModel = null;
     STATE.kpis = null;
     STATE.mode = '';
     setStatus('Run state reset. Existing files are still loaded and ready to retry.', 'info');
@@ -3842,7 +3845,7 @@
           scopedKpis,
           executiveSummary,
           hasScopedData
-        } = getCurrentDashboardScopeModel();
+        } = STATE.dashboardScopeModel || getCurrentDashboardScopeModel();
         if (!hasScopedData) {
           setStatus('Summary unavailable. Run analysis and keep at least one scoped source row.', 'warning');
           return null;
