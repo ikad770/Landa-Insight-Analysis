@@ -358,9 +358,9 @@
     <div id="drilldownInsight" class="card" style="margin-bottom:10px;"></div>
     <div class="grid" style="margin-bottom:10px;">
       <article class="card span-6"><h4 style="margin:0 0 8px;">Top breakdown</h4><div class="chart-area" style="height:220px;min-height:220px;"><canvas id="drilldownTopChart"></canvas></div></article>
-      <article class="card span-6"><h4 style="margin:0 0 8px;">Trend</h4><div class="chart-area" style="height:220px;min-height:220px;"><canvas id="drilldownTrendChart"></canvas></div></article>
+      <article class="card span-6"><h4 id="drilldownTrendHeading" style="margin:0 0 8px;">Trend</h4><div class="chart-area" style="height:220px;min-height:220px;"><canvas id="drilldownTrendChart"></canvas></div></article>
       <article class="card span-6"><h4 style="margin:0 0 8px;">Secondary split</h4><div class="chart-area" style="height:220px;min-height:220px;"><canvas id="drilldownSecondaryChart"></canvas></div></article>
-      <article class="card span-6"><h4 style="margin:0 0 8px;">Operational split</h4><div class="chart-area" style="height:220px;min-height:220px;"><canvas id="drilldownOpsChart"></canvas></div></article>
+      <article class="card span-6"><h4 id="drilldownOpsHeading" style="margin:0 0 8px;">Operational split</h4><div class="chart-area" style="height:220px;min-height:220px;"><canvas id="drilldownOpsChart"></canvas></div></article>
     </div>
     <div id="simulationStateStrip" class="sim-state-strip hidden"></div>
     <div class="table-wrap"><table id="drilldownTable"></table></div>
@@ -2459,6 +2459,23 @@
     }
   }
 
+  function destroyChart(id) {
+    if (CHARTS.has(id)) {
+      CHARTS.get(id).destroy();
+      CHARTS.delete(id);
+    }
+  }
+
+  function showNoDataChart(id, message = 'No data available for current selection') {
+    destroyChart(id);
+    setCanvasState(id, message);
+  }
+
+  function setDrilldownHeading(id, text) {
+    const node = document.getElementById(id);
+    if (node) node.textContent = text;
+  }
+
   function baseOptions(key, labels, payloads = null) {
     return {
       responsive: true,
@@ -2876,11 +2893,12 @@
     const topStates = topBy(r => r.errorState, 5);
     const trend = new Map();
     rows.forEach(r => {
-      if (!r.day) return;
-      const slot = trend.get(r.day) || { events: 0, downtime: 0 };
+      const day = r.day || toDayBucket(r.startTime || r.date || r.timestamp);
+      if (!day) return;
+      const slot = trend.get(day) || { events: 0, downtime: 0 };
       slot.events += isVolume ? (r.totalVolume || r.volume || 0) : 1;
       slot.downtime += r.durationSeconds || 0;
-      trend.set(r.day, slot);
+      trend.set(day, slot);
     });
     const trendPoints = [...trend.entries()].sort((a, b) => a[0].localeCompare(b[0]));
     const dominant = topAlerts[0]?.[0] || 'Unspecified';
@@ -3024,6 +3042,8 @@
     const scoped = !search ? rows : rows.filter(r => `${r.customer} ${r.site} ${r.press} ${r.subsystem || ''} ${r.name || ''} ${r.alertTitle || ''} ${r.version || ''} ${r.jobType || ''} ${r.jobStatus || ''}`.toLowerCase().includes(search.toLowerCase()));
     renderDrilldownBreadcrumbs();
     renderSimulationControls(0);
+    setDrilldownHeading('drilldownTrendHeading', 'Trend');
+    setDrilldownHeading('drilldownOpsHeading', 'Operational split');
     if (STATE.drilldown.mode === 'kpi' || sourceType === 'kpi') {
       const metricKey = STATE.drilldown.metricKey || STATE.drilldown.metric;
       const metricName = STATE.drilldown.value;
@@ -3079,6 +3099,8 @@
       return;
     }
     if (isAvailability) {
+      setDrilldownHeading('drilldownTrendHeading', 'Downtime Trend');
+      setDrilldownHeading('drilldownOpsHeading', 'Planned vs Unplanned');
       const total = scoped.reduce((a, r) => a + totalDowntimeFromAvailabilityRow(r), 0);
       const planned = scoped.reduce((a, r) => a + (r.plannedDowntimeSeconds || 0), 0);
       const unplanned = scoped.reduce((a, r) => a + (r.unplannedDowntimeSeconds || 0), 0);
@@ -3096,7 +3118,18 @@
       const subs = aggregateDurationRows(scoped.map(r => ({ subsystem: r.subsystem, durationSeconds: totalDowntimeFromAvailabilityRow(r) })), r => r.subsystem).slice(0, 10);
       const subPayloads = nextDimension ? subs.map(x => ({ entityKey: x.name, displayLabel: x.name, sourceType: 'availabilityNative', metric: 'downtime', parentContext: { path: STATE.drilldown.path || [] } })) : null;
       replaceChart('drilldownTrendChart', { type: 'bar', data: { labels: subs.map(x => x.name), datasets: [{ data: subs.map(x => x.downtime), backgroundColor: COLORS, borderRadius: 6 }] }, options: baseOptions(nextDimension || 'drilldown', subs.map(x => x.name), subPayloads) });
-      replaceChart('drilldownSecondaryChart', { type: 'line', data: { labels: scoped.map(r => r.day), datasets: [{ data: scoped.map(r => totalDowntimeFromAvailabilityRow(r)), borderColor: '#7b8dff', fill: false, tension: 0.2 }] }, options: baseOptions('drilldown', scoped.map(r => r.day)) });
+      const daySeries = new Map();
+      scoped.forEach(r => {
+        const day = r.day || toDayBucket(r.date || r.startTime);
+        if (!day) return;
+        daySeries.set(day, (daySeries.get(day) || 0) + totalDowntimeFromAvailabilityRow(r));
+      });
+      const dayLabels = [...daySeries.keys()].sort((a, b) => a.localeCompare(b));
+      if (dayLabels.length) {
+        replaceChart('drilldownSecondaryChart', { type: 'line', data: { labels: dayLabels, datasets: [{ data: dayLabels.map(day => daySeries.get(day) || 0), borderColor: '#7b8dff', fill: false, tension: 0.2 }] }, options: baseOptions('drilldown', dayLabels) });
+      } else {
+        showNoDataChart('drilldownSecondaryChart');
+      }
       const categoryMap = new Map();
       scoped.forEach(r => {
         const key = r.downtimeCategory || 'Unspecified';
@@ -3106,12 +3139,18 @@
       const catPayloads = nextDimension === 'availabilityCategory'
         ? catRows.map(([k]) => ({ entityKey: k, displayLabel: k, sourceType: 'availabilityNative', metric: 'downtime', parentContext: { path: STATE.drilldown.path || [] } }))
         : null;
-      replaceChart('drilldownOpsChart', { type: 'bar', data: { labels: catRows.map(x => x[0]), datasets: [{ data: catRows.map(x => x[1]), backgroundColor: COLORS, borderRadius: 6 }] }, options: baseOptions(nextDimension === 'availabilityCategory' ? 'availabilityCategory' : 'drilldown', catRows.map(x => x[0]), catPayloads) });
+      if (catRows.length) {
+        replaceChart('drilldownOpsChart', { type: 'bar', data: { labels: catRows.map(x => x[0]), datasets: [{ data: catRows.map(x => x[1]), backgroundColor: COLORS, borderRadius: 6 }] }, options: baseOptions(nextDimension === 'availabilityCategory' ? 'availabilityCategory' : 'drilldown', catRows.map(x => x[0]), catPayloads) });
+      } else {
+        showNoDataChart('drilldownOpsChart');
+      }
       document.getElementById('drilldownTransparency').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Calculation transparency table</h4><span class="impact-chip">Availability components</span></div><div class="table-wrap" style="max-height:220px;margin-top:8px;"><table><thead><tr><th>Component</th><th>Planned</th><th>Unplanned</th><th>Total</th><th>Contribution %</th></tr></thead><tbody>${subs.slice(0,25).map(x=>`<tr><td>${esc(x.name)}</td><td>${esc(formatDuration(scoped.filter(r=>r.subsystem===x.name).reduce((a,r)=>a+(r.plannedDowntimeSeconds||0),0)))}</td><td>${esc(formatDuration(scoped.filter(r=>r.subsystem===x.name).reduce((a,r)=>a+(r.unplannedDowntimeSeconds||0),0)))}</td><td>${esc(formatDuration(x.downtime))}</td><td>${total?((x.downtime/total)*100).toFixed(2):'0.00'}%</td></tr>`).join('')}</tbody></table></div>`;
       document.getElementById('drilldownTable').innerHTML = `<thead><tr><th>press</th><th>day</th><th>subsystem</th><th>category</th><th>planned</th><th>unplanned</th><th>total</th></tr></thead><tbody>${scoped.slice(0, 1000).map(r => `<tr><td>${esc(r.canonicalPress || '')}</td><td>${esc(r.day)}</td><td>${esc(r.subsystem)}</td><td>${esc(r.downtimeCategory || 'Unspecified')}</td><td>${esc(formatDuration(r.plannedDowntimeSeconds || 0))}</td><td>${esc(formatDuration(r.unplannedDowntimeSeconds || 0))}</td><td>${esc(formatDuration(totalDowntimeFromAvailabilityRow(r)))}</td></tr>`).join('')}</tbody>`;
       return;
     }
     if (isVolume) {
+      setDrilldownHeading('drilldownTrendHeading', 'Volume Trend');
+      setDrilldownHeading('drilldownOpsHeading', 'Production Categories');
       const measure = STATE.customerVolumeMetric;
       const totalSheets = scoped.reduce((a, r) => a + (r.printedSheets || 0), 0);
       const totalFlats = scoped.reduce((a, r) => a + (r.printedFlats || 0), 0);
@@ -3165,18 +3204,30 @@
       const wasteRows = [...wasteSplit.entries()];
       replaceChart('drilldownSecondaryChart', { type: 'bar', data: { labels: maintenanceRows.map(x => `Maintenance ${x[0]}`), datasets: [{ label: 'Maintenance', data: maintenanceRows.map(x => x[1]), backgroundColor: '#f0b165', borderRadius: 6 }, { label: 'Waste-oriented', data: wasteRows.map(x => x[1]), backgroundColor: '#f36b63', borderRadius: 6 }] }, options: { ...baseOptions('drilldown', maintenanceRows.map(x => x[0])), plugins: { legend: { labels: { color: '#c6d3ea' } } } } });
       const topJobs = [...byJobName.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6);
-      replaceChart('drilldownOpsChart', { type: 'bar', data: { labels: topJobs.map(x => x[0]), datasets: [{ data: topJobs.map(x => x[1]), backgroundColor: COLORS, borderRadius: 6 }] }, options: baseOptions('drilldown', topJobs.map(x => x[0])) });
+      const productionCategoryRows = [
+        ['Production', [...productionSplit.values()].reduce((a, v) => a + v, 0)],
+        ['Maintenance', [...maintenanceSplit.values()].reduce((a, v) => a + v, 0)],
+        ['Waste', wasteSplit.get('Waste') || 0],
+        ['Non-waste', wasteSplit.get('Non-waste') || 0],
+      ].filter(([, value]) => Number(value || 0) > 0);
+      if (productionCategoryRows.length) {
+        replaceChart('drilldownOpsChart', { type: 'bar', data: { labels: productionCategoryRows.map(x => x[0]), datasets: [{ data: productionCategoryRows.map(x => x[1]), backgroundColor: COLORS, borderRadius: 6 }] }, options: baseOptions('drilldown', productionCategoryRows.map(x => x[0])) });
+      } else if (topJobs.length) {
+        replaceChart('drilldownOpsChart', { type: 'bar', data: { labels: topJobs.map(x => x[0]), datasets: [{ data: topJobs.map(x => x[1]), backgroundColor: COLORS, borderRadius: 6 }] }, options: baseOptions('drilldown', topJobs.map(x => x[0])) });
+      } else {
+        showNoDataChart('drilldownOpsChart');
+      }
       document.getElementById('drilldownTransparency').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Calculation transparency table</h4><span class="impact-chip">Source-native job contributions</span></div><div class="table-wrap" style="max-height:220px;margin-top:8px;"><table><thead><tr><th>Include</th><th>Component</th><th>Source contribution</th><th>Amount</th><th>Contribution %</th></tr></thead><tbody>${topJobs.map(([name,val])=>`<tr><td>✓</td><td>${esc(name)}</td><td>volumeJobs</td><td>${Number(val).toLocaleString()}</td><td>${(totalSheets?((val/totalSheets)*100):0).toFixed(2)}%</td></tr>`).join('')}</tbody></table></div>`;
       const columns = ['jobName', 'jobType', 'simplexDuplex', 'substrate', 'printedSheets', 'printedFlats', 'durationSeconds'];
       document.getElementById('drilldownTable').innerHTML = `<thead><tr>${columns.map(col => `<th>${esc(col)}</th>`).join('')}</tr></thead><tbody>${scoped.slice(0, 1000).map(r => `<tr><td>${esc(r.jobName)}</td><td>${esc(r.jobType)}</td><td>${esc(r.simplexDuplex)}</td><td>${esc(r.substrate)}</td><td>${(r.printedSheets || 0).toLocaleString()}</td><td>${(r.printedFlats || 0).toLocaleString()}</td><td>${esc(formatDuration(r.durationSeconds || 0))}</td></tr>`).join('')}</tbody>`;
       return;
     }
+    setDrilldownHeading('drilldownTrendHeading', 'Events over Time');
+    setDrilldownHeading('drilldownOpsHeading', 'Error Composition');
     const count = scoped.length;
     const downtime = scoped.reduce((a, r) => a + (r.durationSeconds || 0), 0);
     const totalVolume = scoped.reduce((a, r) => a + (isVolume ? (r.totalVolume || r.volume || 0) : (r.volume?.productionVolume || 0)), 0);
     const avg = count ? (isVolume ? totalVolume / count : downtime / count) : 0;
-    const prodSplit = scoped.reduce((a, r) => a + (isVolume ? (r.productionVolume || 0) : (r?.volume?.productionVolume || 0)), 0);
-    const maintSplit = scoped.reduce((a, r) => a + (isVolume ? (r.maintenanceVolume || 0) : (r?.volume?.maintenanceVolume || 0)), 0);
     document.getElementById('drilldownContext').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Context header</h4><span class="risk-pill risk-medium">Event source</span></div><div class="micro">Source: normalized errors events in active scope. Formula: direct event count and duration rollups for the selected breadcrumb.</div>`;
     document.getElementById('drilldownFilters').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Interactive filtering</h4><span class="impact-chip">Press/subsystem/error/version/time</span></div><div class="micro">Click charts recursively to preserve breadcrumb context and move deeper into subsystem, error, and version slices.</div>`;
     document.getElementById('drilldownTitle').textContent = `Drilldown • ${dimension} = ${value}`;
@@ -3208,22 +3259,41 @@
       data: { labels: topLabels, datasets: [{ data: topValues, backgroundColor: topLabels.map((_, i) => COLORS[i % COLORS.length]), borderRadius: 6 }] },
       options: { ...baseOptions(nextDimension || 'drilldown', topLabels, nextDimension ? topPayloads : null), plugins: { legend: { display: false } } }
     });
-    replaceChart('drilldownTrendChart', {
-      type: 'line',
-      data: { labels: analytics.trendPoints.map(x => x[0]), datasets: [{ label: 'Events', data: analytics.trendPoints.map(x => x[1].events), borderColor: '#7b8dff', backgroundColor: 'rgba(123,141,255,.25)', tension: 0.25, fill: true }] },
-      options: { ...baseOptions('drilldown', analytics.trendPoints.map(x => x[0])), plugins: { legend: { display: false } } }
-    });
+    const trendPoints = analytics.trendPoints.filter(([day]) => !!day);
+    if (trendPoints.length) {
+      replaceChart('drilldownTrendChart', {
+        type: 'line',
+        data: { labels: trendPoints.map(x => x[0]), datasets: [{ label: 'Events', data: trendPoints.map(x => x[1].events), borderColor: '#7b8dff', backgroundColor: 'rgba(123,141,255,.25)', tension: 0.25, fill: true }] },
+        options: { ...baseOptions('drilldown', trendPoints.map(x => x[0])), plugins: { legend: { display: false } } }
+      });
+    } else if (topRows.length) {
+      setDrilldownHeading('drilldownTrendHeading', 'Events by Top Group (fallback)');
+      replaceChart('drilldownTrendChart', {
+        type: 'bar',
+        data: { labels: topLabels, datasets: [{ data: topValues, backgroundColor: topLabels.map((_, i) => COLORS[i % COLORS.length]), borderRadius: 6 }] },
+        options: { ...baseOptions(nextDimension || 'drilldown', topLabels, nextDimension ? topPayloads : null), plugins: { legend: { display: false } } }
+      });
+    } else {
+      showNoDataChart('drilldownTrendChart');
+    }
     const secondary = isVolume ? analytics.topPresses : analytics.topStates;
     replaceChart('drilldownSecondaryChart', {
       type: 'bar',
       data: { labels: secondary.map(x => x[0]), datasets: [{ data: secondary.map(x => x[1]), backgroundColor: secondary.map((_, i) => COLORS[i % COLORS.length]), borderRadius: 6 }] },
       options: { ...baseOptions('drilldown', secondary.map(x => x[0])), plugins: { legend: { display: false } } }
     });
-    replaceChart('drilldownOpsChart', {
-      type: 'doughnut',
-      data: { labels: ['Production', 'Maintenance'], datasets: [{ data: [prodSplit, maintSplit], backgroundColor: ['#51c285', '#f0b165'] }] },
-      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: '#c6d3ea' } } } }
-    });
+    const subsystemRows = analytics.topSubsystems;
+    const alertRows = analytics.topAlerts;
+    const compositionRows = subsystemRows.length ? subsystemRows : alertRows;
+    if (compositionRows.length) {
+      replaceChart('drilldownOpsChart', {
+        type: 'doughnut',
+        data: { labels: compositionRows.map(x => x[0]), datasets: [{ data: compositionRows.map(x => x[1]), backgroundColor: compositionRows.map((_, i) => COLORS[i % COLORS.length]) }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: '#c6d3ea' } } } }
+      });
+    } else {
+      showNoDataChart('drilldownOpsChart');
+    }
     document.getElementById('drilldownTransparency').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Calculation transparency table</h4><span class="impact-chip">Top component contributions</span></div><div class="table-wrap" style="max-height:220px;margin-top:8px;"><table><thead><tr><th>Component</th><th>Events</th><th>Contribution %</th></tr></thead><tbody>${topRows.map(([name,val])=>`<tr><td>${esc(name)}</td><td>${Number(val).toLocaleString()}</td><td>${count?((val/count)*100).toFixed(2):'0.00'}%</td></tr>`).join('')}</tbody></table></div>`;
     const columns = isVolume
       ? ['customer', 'site', 'press', 'day', 'jobType', 'jobStatus', 'pressMode', 'totalVolume']
