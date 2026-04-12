@@ -356,14 +356,14 @@
     <div id="drilldownFilters" class="card" style="margin-bottom:10px;"></div>
     <div id="drilldownTransparency" class="card" style="margin-bottom:10px;"></div>
     <div id="drilldownInsight" class="card" style="margin-bottom:10px;"></div>
-    <div class="grid" style="margin-bottom:10px;">
+    <div id="drilldownChartsContainer" class="grid" style="margin-bottom:10px;">
       <article class="card span-6"><h4 style="margin:0 0 8px;">Top breakdown</h4><div class="chart-area" style="height:220px;min-height:220px;"><canvas id="drilldownTopChart"></canvas></div></article>
       <article class="card span-6"><h4 id="drilldownTrendHeading" style="margin:0 0 8px;">Trend</h4><div class="chart-area" style="height:220px;min-height:220px;"><canvas id="drilldownTrendChart"></canvas></div></article>
       <article class="card span-6"><h4 style="margin:0 0 8px;">Secondary split</h4><div class="chart-area" style="height:220px;min-height:220px;"><canvas id="drilldownSecondaryChart"></canvas></div></article>
       <article class="card span-6"><h4 id="drilldownOpsHeading" style="margin:0 0 8px;">Operational split</h4><div class="chart-area" style="height:220px;min-height:220px;"><canvas id="drilldownOpsChart"></canvas></div></article>
     </div>
     <div id="simulationStateStrip" class="sim-state-strip hidden"></div>
-    <div class="table-wrap"><table id="drilldownTable"></table></div>
+    <div id="drilldownTableWrap" class="table-wrap"><table id="drilldownTable"></table></div>
   </section>
 </div>
 
@@ -2801,14 +2801,31 @@
     STATE.simulationData = null;
     STATE.pendingSimulationChanges = new Set();
     STATE.appliedSimulationData = null;
+    showBreakdown = false;
     renderDrilldown();
     document.getElementById('drilldownDrawer').classList.add('show');
+    scrollDrilldownChartsIntoView();
+  }
+
+  let showBreakdown = false;
+
+  function getSourceLabel(source) {
+    if (source === 'errorsAgg') return 'Events';
+    if (source === 'availabilityAgg') return 'Availability';
+    if (source === 'volumeAgg') return 'Production Volume';
+    return source;
+  }
+
+  function scrollDrilldownChartsIntoView() {
+    const chartsContainer = document.getElementById('drilldownChartsContainer');
+    if (!chartsContainer) return;
+    chartsContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   function renderDrilldownContext(metricName, currentValue, profile) {
     const scope = currentFilterValues();
     const scopeTxt = Object.entries(scope || {}).filter(([,v]) => String(v||'all') !== 'all' && String(v||'').trim() !== '').map(([k,v]) => `${k}: ${v}`).join(' • ') || 'All active dashboard data';
-    document.getElementById('drilldownContext').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Metric context</h4><span class="risk-pill risk-medium">Traceable calculation</span></div><div class="summary-grid" style="margin-top:8px;"><div class="summary-stat span-3"><div class="label">Metric</div><div class="value">${esc(metricName)}</div></div><div class="summary-stat span-3"><div class="label">Current value</div><div class="value">${esc(currentValue)}</div></div><div class="summary-stat span-3"><div class="label">Source used</div><div class="value">${esc(profile.source)}</div></div><div class="summary-stat span-3"><div class="label">Formula</div><div class="value" style="font-size:.87rem;line-height:1.35;">${esc(profile.formula)}</div></div></div><div class="micro" style="margin-top:8px;">Current scope / filters: ${esc(scopeTxt)}.</div>`;
+    document.getElementById('drilldownContext').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Metric context</h4><span class="risk-pill risk-medium">Traceable calculation</span></div><div class="summary-grid" style="margin-top:8px;"><div class="summary-stat span-3"><div class="label">Metric</div><div class="value">${esc(metricName)}</div></div><div class="summary-stat span-3"><div class="label">Current value</div><div class="value">${esc(currentValue)}</div></div><div class="summary-stat span-3"><div class="label">Source used</div><div class="value">${esc(getSourceLabel(profile.source))}</div></div><div class="summary-stat span-3"><div class="label">Formula</div><div class="value" style="font-size:.87rem;line-height:1.35;">${esc(profile.formula)}</div></div></div><div class="micro" style="margin-top:8px;">Current scope / filters: ${esc(scopeTxt)}.</div>`;
   }
 
   function computeKpiComponents(metricKey, rows) {
@@ -2873,8 +2890,10 @@
       sort: null,
       simulation: { pendingExcluded: new Set(existingSimulation.pendingExcluded || []), appliedExcluded: new Set(existingSimulation.appliedExcluded || []) }
     };
+    showBreakdown = false;
     renderDrilldown();
     document.getElementById('drilldownDrawer').classList.add('show');
+    scrollDrilldownChartsIntoView();
   }
 
   function buildDrilldownAnalytics(rows, dimension, isVolume = false) {
@@ -3039,12 +3058,24 @@
     const { dimension, value, rows, search, sourceType } = STATE.drilldown;
     const isVolume = sourceType === 'volumeJobs';
     const isAvailability = sourceType === 'availabilityNative' || sourceType === 'availabilityAgg';
+    const isKpiDrilldown = STATE.drilldown.mode === 'kpi' || sourceType === 'kpi';
+    if (!isKpiDrilldown) {
+      const tableWrap = document.getElementById('drilldownTableWrap');
+      if (tableWrap) tableWrap.style.display = 'block';
+    }
     const scoped = !search ? rows : rows.filter(r => `${r.customer} ${r.site} ${r.press} ${r.subsystem || ''} ${r.name || ''} ${r.alertTitle || ''} ${r.version || ''} ${r.jobType || ''} ${r.jobStatus || ''}`.toLowerCase().includes(search.toLowerCase()));
     renderDrilldownBreadcrumbs();
     renderSimulationControls(0);
     setDrilldownHeading('drilldownTrendHeading', 'Trend');
     setDrilldownHeading('drilldownOpsHeading', 'Operational split');
-    if (STATE.drilldown.mode === 'kpi' || sourceType === 'kpi') {
+    if (isKpiDrilldown) {
+      const drilldownPanel = document.querySelector('#drilldownDrawer .drawer-panel');
+      const chartsContainer = document.getElementById('drilldownChartsContainer');
+      const transparencyCard = document.getElementById('drilldownTransparency');
+      const simulationStrip = document.getElementById('simulationStateStrip');
+      if (drilldownPanel && chartsContainer && transparencyCard && simulationStrip) {
+        drilldownPanel.insertBefore(transparencyCard, simulationStrip);
+      }
       const metricKey = STATE.drilldown.metricKey || STATE.drilldown.metric;
       const metricName = STATE.drilldown.value;
       const profile = kpiMetricProfile(metricKey, metricName);
@@ -3092,10 +3123,31 @@
       const alerts = [...alertBaseMap.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);
       replaceChart('drilldownOpsChart', { type: 'bar', data: { labels: alerts.map(x => x[0]), datasets: simulationActive ? [{ label: 'Baseline', simRole: 'baseline', data: alerts.map(x => x[1]), backgroundColor: 'rgba(151,167,194,.24)', borderColor: 'rgba(151,167,194,.48)', borderWidth: 1, borderRadius: 6 }, { label: 'Current', simRole: 'current', data: alerts.map(x => alertMap.get(x[0]) || 0), backgroundColor: COLORS, borderRadius: 6 }] : [{ simRole: 'current', data: alerts.map(x => alertMap.get(x[0]) || 0), backgroundColor: COLORS, borderRadius: 6 }] }, options: { ...baseOptions('alert', alerts.map(x => x[0]), alerts.map(x => ({ entityKey: x[0], displayLabel: x[0], sourceType: 'errorEvents', metric: 'events', parentContext: { path: [] } }))), plugins: { legend: { display: simulationActive, labels: { color: '#c6d3ea' } }, tooltip: simulationActive ? { callbacks: { label: simulationTooltipLabel } } : { callbacks: { label: ctx => `${ctx.parsed.y.toLocaleString()}` } } } } });
       document.getElementById('drilldownInsight').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Explanation & calculation logic</h4><span class="risk-pill risk-medium">Metric-specific narrative</span></div><div class="micro">${esc(profile.formula)} Contributions are aggregated by press and can be recursively explored through subsystem, alert, version, and trend views.</div>`;
-      document.getElementById('drilldownTransparency').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Calculation transparency table</h4><span class="impact-chip">Staged include/exclude simulation</span></div><div class="table-wrap" style="max-height:260px;margin-top:8px;"><table><thead><tr><th>Include</th><th>Component</th><th>Source contribution</th><th>Amount</th><th>Contribution %</th></tr></thead><tbody>${components.slice(0,200).map(c=>`<tr><td><input type="checkbox" data-kpi-inc="${esc(c.name)}" ${pendingExcluded.has(c.name)?'':'checked'} /></td><td>${esc(c.name)}</td><td>${esc(c.source)}</td><td>${Number(c.metricValue).toLocaleString(undefined,{maximumFractionDigits:2})}</td><td>${c.contributionPct.toFixed(2)}%</td></tr>`).join('')}</tbody></table></div>`;
+      const tableToggleLabel = showBreakdown ? 'Hide Breakdown' : 'Show Breakdown';
+      document.getElementById('drilldownTransparency').innerHTML = `<div class="chart-head"><h4 style="margin:0;">KPI Calculation Breakdown</h4><span class="impact-chip">Staged include/exclude simulation</span></div><div class="micro" style="margin-top:6px;">Shows how this KPI is built from underlying scoped operational data.</div><div style="margin-top:10px;"><button id="toggleBreakdownBtn" class="btn secondary">${tableToggleLabel}</button></div><div class="table-wrap" style="max-height:260px;margin-top:8px;"><table><thead><tr><th>Include</th><th>Component</th><th>Source contribution</th><th>Amount</th><th>Contribution %</th></tr></thead><tbody>${components.slice(0,200).map(c=>`<tr><td><input type="checkbox" data-kpi-inc="${esc(c.name)}" ${pendingExcluded.has(c.name)?'':'checked'} /></td><td>${esc(c.name)}</td><td>${esc(getSourceLabel(c.source))}</td><td>${Number(c.metricValue).toLocaleString(undefined,{maximumFractionDigits:2})}</td><td>${c.contributionPct.toFixed(2)}%</td></tr>`).join('')}</tbody></table></div>`;
       document.querySelectorAll('[data-kpi-inc]').forEach(el=>el.addEventListener('change',()=>{const key=el.getAttribute('data-kpi-inc'); if(el.checked) pendingExcluded.delete(key); else pendingExcluded.add(key); STATE.drilldown.simulation.pendingExcluded = pendingExcluded; renderSimulationControls(pendingExcluded.size); }));
       renderSimulationControls(appliedExcluded.size);
-      document.getElementById('drilldownTable').innerHTML = `<thead><tr><th>component</th><th>source</th><th>day</th><th>metric value</th></tr></thead><tbody>${appliedRows.slice(0,1000).map(r=>`<tr><td>${esc(r.component || r.press || 'Unspecified')}</td><td>${esc(r.source || 'N/A')}</td><td>${esc(r.day || '')}</td><td>${esc(Number(r.metricValue || 0).toLocaleString(undefined,{maximumFractionDigits:2}))}</td></tr>`).join('')}</tbody>`;
+      const tableRows = appliedRows.slice(0,1000).map(r => ({ ...r, metric_value: r.metric_value !== undefined ? r.metric_value : r.metricValue }));
+      const rows = tableRows.filter(r =>
+        r &&
+        r.component &&
+        r.metric_value !== undefined &&
+        r.metric_value !== null
+      );
+      document.getElementById('drilldownTable').innerHTML = rows.length
+        ? `<thead><tr><th>component</th><th>source</th><th>day</th><th>metric value</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${esc(r.component || r.press || 'Unspecified')}</td><td>${esc(getSourceLabel(r.source || 'N/A'))}</td><td>${esc(r.day || '')}</td><td>${esc(Number(r.metric_value || 0).toLocaleString(undefined,{maximumFractionDigits:2}))}</td></tr>`).join('')}</tbody>`
+        : `<tbody><tr><td colspan="4">No breakdown data available for current selection.</td></tr></tbody>`;
+      const drilldownTableWrap = document.getElementById('drilldownTableWrap');
+      if (drilldownTableWrap) {
+        drilldownTableWrap.style.display = showBreakdown ? 'block' : 'none';
+      }
+      document.getElementById('toggleBreakdownBtn')?.addEventListener('click', () => {
+        showBreakdown = !showBreakdown;
+        const wrap = document.getElementById('drilldownTableWrap');
+        const btn = document.getElementById('toggleBreakdownBtn');
+        if (wrap) wrap.style.display = showBreakdown ? 'block' : 'none';
+        if (btn) btn.textContent = showBreakdown ? 'Hide Breakdown' : 'Show Breakdown';
+      });
       return;
     }
     if (isAvailability) {
