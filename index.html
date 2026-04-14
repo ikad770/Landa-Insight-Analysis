@@ -349,6 +349,72 @@
     @media(max-width:1180px){.topbar{grid-template-columns:1fr}.command-banner{grid-template-columns:1fr}.command-signals{grid-template-columns:1fr}.kpis{grid-template-columns:repeat(3,minmax(0,1fr))}.intelligence-band{grid-template-columns:1fr}}
     @media(max-width:1000px){ .kpis{grid-template-columns:repeat(2,minmax(140px,1fr));}.span-6,.span-4,.span-8,.span-3{grid-column:span 12}.file-row{grid-template-columns:1fr} .file-state{justify-content:flex-start} .rank-hero .chart-area{height:380px;min-height:380px} }
     @media(max-width:760px){ .summary-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr));}.exec-signal-card,.exec-story-card,.exec-insight-card,.exec-action-card,.hero-signal{grid-column:span 12;} .hero-signals{grid-template-columns:1fr;} .risk-row{grid-template-columns:1fr;} }
+
+
+    /* --- 2026 redesign language replacement --- */
+    .redesign-shell{gap:22px}
+    .hero-surface{padding:34px 36px;border:none;border-radius:30px;background:linear-gradient(125deg,#e9f0ff 0%,#d9e9ff 28%,#0f1d36 100%);color:#0e1627;box-shadow:0 22px 54px rgba(3,10,24,.34);}
+    .hero-surface::after{background:radial-gradient(circle,rgba(255,255,255,.75),transparent 70%);right:-16%;bottom:-48%}
+    .hero-surface .eyebrow,.hero-surface .subtitle{color:rgba(13,24,44,.72)}
+    .hero-surface .brand-title{color:#09162c;font-size:2.2rem;letter-spacing:.02em}
+    .hero-surface .brand-plus{color:#356dff;text-shadow:none}
+    .hero-actions .btn{border:none;background:rgba(9,22,44,.08);color:#0f1d37;backdrop-filter:blur(4px)}
+    .hero-actions .btn:hover{background:rgba(9,22,44,.16)}
+    .hero-actions .btn.primary{background:linear-gradient(120deg,#1d3f82,#356dff);color:#edf3ff}
+
+    .analytics-surface,.supporting-surface,.detail-surface,.kpi-ribbon-surface{border:none;border-radius:24px;box-shadow:0 16px 42px rgba(3,10,24,.24)}
+    .command-banner{padding:16px 20px;border:none;background:linear-gradient(130deg,#132743 0%,#1b3155 46%,#223f6f 100%)}
+    .command-left{padding:12px 12px 10px}
+    .signal-tile{border:none;background:rgba(255,255,255,.08)}
+
+    .kpi-ribbon-shell{padding:12px 16px;border:none;background:linear-gradient(140deg,#0d1a2f 0%,#12253f 52%,#173156 100%)}
+    .kpis{gap:12px}
+    .kpi{border:none;border-radius:14px;padding:14px 12px;background:linear-gradient(180deg,rgba(255,255,255,.13),rgba(255,255,255,.02));min-height:94px}
+    .kpi .k{font-size:.62rem;color:#9fb6db}
+    .kpi .v{font-size:1.7rem;color:#f8fbff}
+    .kpi.clickable:hover{background:linear-gradient(180deg,rgba(95,153,255,.34),rgba(76,112,189,.2));transform:translateY(-3px)}
+
+    .dashboard-status{border:none;padding:16px 18px;border-radius:20px;background:linear-gradient(140deg,#111f36,#152a49)}
+    .filters-shell{padding:14px;border:none;background:linear-gradient(160deg,#edf3ff 0%,#dde9ff 100%)}
+    .filters .select,.filters input{border:none;border-radius:12px;background:rgba(255,255,255,.95);color:#18243d;box-shadow:0 4px 16px rgba(24,36,61,.1)}
+
+    .dashboard-flow{gap:20px}
+    .section-shell{padding:20px;border:none;border-radius:24px;background:linear-gradient(165deg,#111f36 0%,#152a48 100%);box-shadow:0 14px 36px rgba(2,8,20,.34)}
+    .section-title{font-size:1.04rem;letter-spacing:.02em}
+    .section-note{font-size:.8rem;color:#9db4d8}
+    .rank-hero{padding:20px;border:none;background:linear-gradient(160deg,#1a3358 0%,#10213a 45%,#0b1628 100%);box-shadow:0 28px 58px rgba(2,8,20,.5)}
+    .rank-hero .chart-area{height:620px;min-height:620px}
+    .card{border:none;border-radius:18px;background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.03));box-shadow:none}
+
+    .supporting-surface{background:linear-gradient(170deg,#0e1a2d,#12223c)}
+    .secondary-quiet .card{background:linear-gradient(180deg,rgba(255,255,255,.04),rgba(255,255,255,.015))}
+    .risk-intel{border:none;border-radius:20px;padding:20px;background:linear-gradient(160deg,#21416e,#152a49 62%,#0f1d34);box-shadow:0 20px 40px rgba(0,0,0,.3)}
+    .risk-baseline{gap:12px}
+    .baseline-card{border:none;border-radius:14px;background:rgba(255,255,255,.1)}
+    .risk-table-wrap{border:none;border-radius:14px}
+
+    .detail-surface{background:linear-gradient(150deg,#121f35 0%,#0f1b2e 100%)}
+    .section-disclosure{transition:all .24s ease}
+    .section-disclosure[open]{box-shadow:0 22px 44px rgba(2,8,20,.44)}
+
+    .summary-modal{background:rgba(4,9,18,.74);backdrop-filter:blur(8px)}
+    .summary-panel{width:min(1120px,95vw);border:none;border-radius:26px;background:linear-gradient(155deg,#f4f8ff 0%,#eaf2ff 54%,#dce9ff 100%);box-shadow:0 34px 80px rgba(0,0,0,.45)}
+    .summary-shell{padding:20px;color:#11213a}
+    .summary-header{border:none;border-radius:20px;background:linear-gradient(130deg,#17345d 0%,#22497f 48%,#2c5a9b 100%);color:#f5f9ff}
+    .summary-kicker,.summary-intro{color:#d9e6fb}
+    .summary-actions .btn{border:none;background:rgba(17,33,58,.12);color:#142846}
+    .summary-actions .btn.primary{background:linear-gradient(120deg,#17345d,#2c5a9b);color:#edf4ff}
+    .summary-scope{color:#24395c;font-weight:500}
+    .summary-section{border:none;border-radius:16px;background:rgba(255,255,255,.7);box-shadow:0 10px 30px rgba(15,27,46,.12)}
+    .summary-section-head{background:transparent!important;color:#16315a;border-bottom:1px solid rgba(17,33,58,.08)}
+    .summary-section-body{color:#12243f}
+    .summary-kpi-card{border:none;background:linear-gradient(160deg,#f0f6ff,#e3efff)}
+    .summary-kpi-card .label{color:#3b5783}
+    .summary-preview{margin:0 20px 20px;border:none;box-shadow:0 6px 20px rgba(0,0,0,.18)}
+
+    .btn,.select,input,.card,.kpi,.section-shell{transition:all .2s ease}
+    @media(max-width:1180px){.rank-hero .chart-area{height:430px;min-height:430px}}
+
   </style>
 </head>
 <body>
@@ -425,26 +491,30 @@
     </article>
   </section>
 
-  <section id="dashboardScreen" class="hidden dashboard-stage">
-    <header class="topbar">
-      <div>
-        <div class="eyebrow">Operational Dashboard</div>
+  <section id="dashboardScreen" class="hidden dashboard-stage redesign-shell">
+    <header class="topbar hero-surface">
+      <div class="hero-content">
+        <div class="eyebrow">Command Center</div>
         <h1 class="brand-title">Landa Insight<span class="brand-plus">Pro+</span></h1>
-        <p class="subtitle">Operational intelligence platform for press performance, downtime analysis, and production insights.</p>
+        <p class="subtitle">Executive-grade operational intelligence for uptime, quality risk, and production confidence.</p>
         <p id="datasetMeta" class="subtitle">Dataset not loaded</p>
       </div>
-      <div class="controls">
+      <div class="controls hero-actions">
         <button id="replaceBtn" class="btn">Load new dataset</button>
         <button id="exportBtn" class="btn secondary">Export filtered CSV</button>
-        <button id="summaryBtn" class="btn secondary">Summary</button>
+        <button id="summaryBtn" class="btn secondary">Executive brief</button>
       </div>
     </header>
 
-    <section id="executiveSummaryCard" class="command-banner"></section>
-    <section class="kpi-ribbon-shell"><section id="kpiStrip" class="kpis"></section></section>
-    <section id="dashboardStatusPanel" class="dashboard-status"></section>
+    <section id="executiveSummaryCard" class="command-banner analytics-surface"></section>
 
-    <section class="filters-shell">
+    <section class="kpi-ribbon-shell kpi-ribbon-surface">
+      <section id="kpiStrip" class="kpis"></section>
+    </section>
+
+    <section id="dashboardStatusPanel" class="dashboard-status detail-surface"></section>
+
+    <section class="filters-shell detail-surface">
       <section class="filters">
         <select id="pressFilter" class="select"><option value="all">All presses</option></select>
         <select id="subsystemFilter" class="select"><option value="all">All subsystems</option></select>
@@ -454,11 +524,12 @@
         <input id="searchFilter" placeholder="Search press, alert, subsystem, version" />
       </section>
     </section>
+
     <main class="dashboard-flow">
-      <section class="section-shell primary-layer">
+      <section class="section-shell primary-layer analytics-surface">
         <div class="section-head">
-          <h2 class="section-title">Top Presses by Downtime Impact</h2>
-          <p class="section-note">Which machines are hurting operations the most right now.</p>
+          <h2 class="section-title">Main Decision Canvas · Top Presses by Downtime Impact</h2>
+          <p class="section-note">Downtime is primary. Event count is support context.</p>
         </div>
         <article class="card span-12 rank-hero" data-rank-card="press">
           <div class="chart-head"><h3>Downtime impact ranking</h3><div class="chart-tools"><select data-metric="press" class="select"><option value="downtime">Sort by downtime (default)</option><option value="events">Sort by events</option></select><button class="btn secondary" data-expand="press">Show all</button></div></div>
@@ -466,29 +537,29 @@
         </article>
       </section>
 
-      <section class="section-shell intelligence-layer">
+      <section class="section-shell intelligence-layer supporting-surface">
         <div class="section-head">
-          <h2 class="section-title">Operational Risk Intelligence</h2>
-          <p class="section-note">Trusted baseline context and ranked machine risk priorities.</p>
+          <h2 class="section-title">Intelligence Layer · Risk & Baseline Confidence</h2>
+          <p class="section-note">Ranked risk focus with transparent baseline methodology.</p>
         </div>
         <div class="intelligence-band">
           <article class="risk-intel" id="riskSection"></article>
-          <article class="card">
-            <div class="chart-head"><h3 style="margin:0;">Baseline trust model</h3><button id="baselineInfoBtnSecondary" class="btn secondary">How this works</button></div>
-            <p class="micro" style="margin-top:8px;">Median is the primary baseline. Presses are flagged when downtime and MTTR move outside expected percentile ranges with volume context applied.</p>
+          <article class="card baseline-explain detail-surface">
+            <div class="chart-head"><h3 style="margin:0;">Baseline trust model</h3><button id="baselineInfoBtnSecondary" class="btn secondary">Open method</button></div>
+            <p class="micro" style="margin-top:8px;">Baseline intelligence is simplified for leadership consumption and expandable for technical transparency.</p>
             <ul class="list-compact" style="margin-top:0;">
-              <li>Expected range: median to P75 (watch), P90 (critical).</li>
-              <li>Risk score blends downtime, event load, MTTR, and production deficit.</li>
-              <li>Reasons show threshold crossed and measured deviation.</li>
+              <li>Expected range uses median and percentile thresholds.</li>
+              <li>Severity score blends downtime, frequency, MTTR, and production deficit.</li>
+              <li>Ranked reasons explain exactly what crossed baseline.</li>
             </ul>
           </article>
         </div>
       </section>
 
-      <section class="section-shell intelligence-layer">
+      <section class="section-shell intelligence-layer supporting-surface secondary-quiet">
         <div class="section-head">
-          <h2 class="section-title">Secondary Analytics</h2>
-          <p class="section-note">Supporting diagnostics kept intentionally subordinate to the hero signal.</p>
+          <h2 class="section-title">Supporting Analytics</h2>
+          <p class="section-note">Secondary diagnostics intentionally quieter than the decision canvas.</p>
         </div>
         <div class="secondary-band">
           <article class="card span-6" data-rank-card="subsystem">
@@ -503,18 +574,18 @@
             <div class="chart-head"><h3>Top Versions</h3><div class="chart-tools"><select data-metric="version" class="select"><option value="events">By events</option><option value="downtime">By downtime</option><option value="normalized">By events/volume</option></select><button class="btn secondary" data-expand="version">Show all</button></div></div>
             <div class="micro">Exposure context by software version.</div><div class="chart-area compact"><canvas id="versionChart"></canvas></div>
           </article>
-          <article class="card span-8">
+          <article class="card span-8" data-rank-card="volume">
             <div class="chart-head"><h3>Print Volume By Press</h3><div class="chart-tools"><select id="customerVolumeUnit" class="select"><option value="productionPrintedSheets">Production-only Printed Sheets</option><option value="printedSheets">Total Printed Sheets</option><option value="printedFlats">Printed Flats</option></select><select id="customerVolumeSort" class="select"><option value="desc">Highest first</option><option value="asc">Lowest first</option></select><button id="customerVolumeExpand" class="btn secondary">Show all</button></div></div>
             <div class="micro" id="customerVolumeNote">Production context with selectable unit basis.</div><div class="chart-area compact"><canvas id="customerVolumeChart"></canvas></div>
           </article>
         </div>
       </section>
 
-      <details class="section-shell secondary section-disclosure">
+      <details class="section-shell secondary section-disclosure detail-surface">
         <summary class="section-head">
           <div>
-            <h2 class="section-title">Detailed Event Explorer</h2>
-            <p class="section-note">Full merged evidence table (errors + availability + volume context) with drilldown support.</p>
+            <h2 class="section-title">Detail & Validation Explorer</h2>
+            <p class="section-note">Merged evidence table (errors + availability + volume context) with full drilldown.</p>
           </div>
           <span class="impact-chip detail-toggle">Expand full table</span>
         </summary>
@@ -534,9 +605,9 @@
         <div>
           <div class="summary-kicker">Executive Brief</div>
           <h3 class="summary-title">Landa Insight<span class="brand-plus">Pro+</span> Leadership Summary</h3>
-          <p class="summary-intro">Concise, leadership-ready readout generated from the currently validated dashboard scope.</p>
+          <p class="summary-intro">Concise leadership briefing generated from current validated scope. Data and formulas are unchanged.</p>
         </div>
-        <button id="closeSummaryBtn" class="btn">Close</button>
+        <button id="closeSummaryBtn" class="btn">Close brief</button>
       </div>
       <div class="summary-actions">
         <button id="summaryPreviewBtn" class="btn secondary">Preview Email</button>
