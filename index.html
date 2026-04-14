@@ -239,17 +239,6 @@
             </div>
             <div class="file-state"><span id="volumeBadge" class="badge optional">optional</span></div>
           </div>
-          <div class="file-row">
-            <div class="file-label"><strong>Salesforce datasets</strong><small>Optional (cases / parts / mixed service exports)</small></div>
-            <div class="picker-stack">
-              <div class="picker-wrap"><button class="btn" data-pick="salesforce">Choose file(s)</button><span id="salesforceToken" class="file-token">No Salesforce file selected</span><input id="salesforcePicker" class="hidden" type="file" accept=".csv,.xlsx,.xls,.json" multiple /></div>
-              <div id="salesforceProgress" class="file-progress">
-                <div class="file-progress-meta"><span id="salesforceProgressLabel">Processing…</span><span id="salesforceProgressPercent">0%</span></div>
-                <div class="file-progress-track"><div id="salesforceProgressFill" class="file-progress-fill"></div></div>
-              </div>
-            </div>
-            <div class="file-state"><span id="salesforceBadge" class="badge sf">optional</span></div>
-          </div>
         </section>
 
         <div class="intake-actions">
@@ -307,7 +296,6 @@
       <button class="tab-btn" data-tab="operations">Operations</button>
       <button class="tab-btn" data-tab="production">Production</button>
       <button class="tab-btn" data-tab="reliability">Reliability</button>
-      <button class="tab-btn" data-tab="service">Service / Salesforce</button>
       <button class="tab-btn" data-tab="all">All</button>
     </section>
 
@@ -334,11 +322,10 @@
 
       <article class="card span-6" data-zone="production">
         <div class="chart-head"><h3>Print Volume By Press</h3><div class="chart-tools"><select id="customerVolumeUnit" class="select"><option value="productionPrintedSheets">Production-only Printed Sheets</option><option value="printedSheets">Total Printed Sheets</option><option value="printedFlats">Printed Flats</option></select><select id="customerVolumeSort" class="select"><option value="desc">Highest first</option><option value="asc">Lowest first</option></select><button id="customerVolumeExpand" class="btn secondary">Show all</button></div></div>
-        <div class="micro" id="customerVolumeNote">Press-level workload from volumeAgg only.</div><div class="chart-area"><canvas id="customerVolumeChart"></canvas></div>
+        <div class="micro" id="customerVolumeNote">Press-level workload from Production data only.</div><div class="chart-area"><canvas id="customerVolumeChart"></canvas></div>
       </article>
 
       <article class="card span-12" id="riskSection" data-zone="executive reliability"></article>
-      <article class="card span-12 hidden" id="serviceSection" data-zone="service"></article>
 
       <article class="card span-12" data-zone="operations production">
         <h3>Merged Event Explorer</h3>
@@ -387,6 +374,7 @@
       <article class="card span-6"><h4 id="drilldownOpsHeading" style="margin:0 0 8px;">Operational split</h4><div class="chart-area" style="height:220px;min-height:220px;"><canvas id="drilldownOpsChart"></canvas></div></article>
     </div>
     <div id="simulationStateStrip" class="sim-state-strip hidden"></div>
+    <div style="display:flex;justify-content:flex-end;margin-bottom:8px;"><button id="drilldownTableToggle" class="btn secondary">👁 Show Table</button></div>
     <div id="drilldownTableWrap" class="table-wrap"><table id="drilldownTable"></table></div>
   </section>
 </div>
@@ -394,11 +382,11 @@
 <script>
 (() => {
   const STATE = {
-    files: { errors: null, availability: null, volume: null, salesforce: [] },
-    validation: { errors: false, availability: false, volume: false, salesforce: true },
-    cachedRaw: { errors: null, availability: null, volume: null, salesforce: [] },
-    normalized: { events: [], availability: [], volume: [], salesforce: { rows: [], cases: [], parts: [], diagnostics: {} } },
-    merged: { events: [], mergedRows: [], stats: {}, summary: null, pressRisk: [], service: null, sourceTables: { errorsAgg: [], availabilityAgg: [], volumeAgg: [] } },
+    files: { errors: null, availability: null, volume: null },
+    validation: { errors: false, availability: false, volume: false },
+    cachedRaw: { errors: null, availability: null, volume: null },
+    normalized: { events: [], availability: [], volume: [] },
+    merged: { events: [], mergedRows: [], stats: {}, summary: null, pressRisk: [], sourceTables: { errorsAgg: [], availabilityAgg: [], volumeAgg: [] } },
     filtered: [],
     filteredErrors: [],
     kpis: null,
@@ -414,7 +402,6 @@
       errors: { state: 'idle', progress: 0, label: '', startedAt: 0, timer: null },
       availability: { state: 'idle', progress: 0, label: '', startedAt: 0, timer: null },
       volume: { state: 'idle', progress: 0, label: '', startedAt: 0, timer: null },
-      salesforce: { state: 'idle', progress: 0, label: '', startedAt: 0, timer: null },
     },
     lastRunSnapshot: null,
     expand: { press: false, subsystem: false, alert: false, version: false },
@@ -478,9 +465,9 @@
     return 'Unspecified';
   }
   const metricMeta = metric => ({
-    events: { unit: 'events', axisLabel: 'Events', source: 'errorsAgg.totalEvents', tooltip: 'events', subtitle: 'Errors aggregated events.' },
-    downtime: { unit: 'hours', axisLabel: 'Downtime (hours)', source: 'availabilityAgg.planned+unplanned', tooltip: 'hours', subtitle: 'Availability aggregated downtime (Planned + Unplanned).' },
-    normalized: { unit: 'events per volume', axisLabel: 'Events per volume unit', source: 'errorsAgg + volumeAgg', tooltip: 'events/volume', subtitle: 'Normalized events using errorsAgg totals divided by production volume.' },
+    events: { unit: 'events', axisLabel: 'Events', source: 'Events', tooltip: 'events', subtitle: 'Events aggregated by selected scope.' },
+    downtime: { unit: 'hours', axisLabel: 'Downtime (hours)', source: 'Downtime', tooltip: 'hours', subtitle: 'Downtime aggregated (Planned + Unplanned).' },
+    normalized: { unit: 'events per volume', axisLabel: 'Events per volume unit', source: 'Events + Production', tooltip: 'events/volume', subtitle: 'Normalized events divided by production volume.' },
   }[metric] || { unit: 'value', axisLabel: 'Value', source: 'unknown', tooltip: 'value', subtitle: 'Ranking.' });
   function classifyPressMode(model, perfector = '') {
     const modelToken = String(model || '').trim().toUpperCase();
@@ -691,20 +678,18 @@
   }
 
   function setFileUI(key) {
-    const file = key === 'salesforce' ? (STATE.files.salesforce || []) : STATE.files[key];
+    const file = STATE.files[key];
     const token = document.getElementById(`${key}Token`);
     if (!token) return;
-    token.textContent = key === 'salesforce'
-      ? (file.length ? `${file.length} Salesforce file(s) selected` : 'No Salesforce file selected')
-      : (file ? file.name : 'No file selected');
+    token.textContent = file ? file.name : 'No file selected';
     const badge = document.getElementById(`${key}Badge`);
-    const hasFile = key === 'salesforce' ? file.length > 0 : !!file;
+    const hasFile = !!file;
     if (!hasFile) {
-      badge.className = `badge ${key === 'errors' ? 'missing' : (key === 'salesforce' ? 'sf' : 'optional')}`;
+      badge.className = `badge ${key === 'errors' ? 'missing' : 'optional'}`;
       badge.textContent = key === 'errors' ? 'missing' : 'optional';
     } else if (STATE.validation[key]) {
       badge.className = 'badge validated';
-      badge.textContent = key === 'salesforce' ? 'classified' : 'validated';
+      badge.textContent = 'validated';
     } else {
       badge.className = 'badge loaded';
       badge.textContent = 'loaded';
@@ -849,7 +834,7 @@
   function detectDatasetType(rows = []) {
     const sample = rows.slice(0, 60);
     if (!sample.length) return 'unknown';
-    const score = { errors: 0, availability: 0, volume: 0, salesforceCases: 0, salesforceParts: 0 };
+    const score = { errors: 0, availability: 0, volume: 0 };
     sample.forEach(row => {
       if (hasAnyField(row, ['Start Time', 'Start', 'Event Time', 'Timestamp']) && hasAnyField(row, ['Name', 'Alert Name', 'Alert Title'])) score.errors += 3;
       if (hasAnyField(row, ['Subsystem', 'Module'])) score.errors += 1;
@@ -861,11 +846,6 @@
 
       if (hasAnyField(row, ['Print Start']) || hasAnyField(row, ['Printed Sheets']) || hasAnyField(row, ['Printed Flats'])) score.volume += 3;
       if (hasAnyField(row, ['Job Type', 'Job Status', 'Press Mode'])) score.volume += 1;
-      if (hasAnyField(row, ['Case Number', 'Case', 'Case Id']) || hasAnyField(row, ['Case Tier', 'Tier', 'Severity'])) score.salesforceCases += 3;
-      if (hasAnyField(row, ['Machine Down', 'Machine Down Flag', 'Is Machine Down'])) score.salesforceCases += 2;
-      if (hasAnyField(row, ['Account Name', 'Customer', 'Contact Name'])) score.salesforceCases += 1;
-      if (hasAnyField(row, ['Part Number', 'Part #', 'SKU'])) score.salesforceParts += 3;
-      if (hasAnyField(row, ['Part Description', 'Quantity', 'Qty'])) score.salesforceParts += 1;
     });
     return Object.entries(score).sort((a, b) => b[1] - a[1])[0][1] > 0 ? Object.entries(score).sort((a, b) => b[1] - a[1])[0][0] : 'unknown';
   }
@@ -1201,80 +1181,6 @@
       diagnostics: { parsedRows: rows.length, sourceRowsUsed, normalizedRowsCreated: jobs.length, aggregatedRowsCreated: byKey.size },
     };
   }
-
-  async function normalizeSalesforceRows(rows, options = {}) {
-    const { controller = null, onProgress = null } = options;
-    const out = [];
-    const total = Math.max(1, rows.length);
-    for (let i = 0; i < rows.length; i++) {
-      if (controller) assertAnalysisActive(controller);
-      const r = rows[i];
-      const caseNumber = String(getField(r, ['Case Number', 'Case', 'Case Id', 'CaseNumber'])).trim();
-      const partNumber = String(getField(r, ['Part Number', 'Part #', 'SKU'])).trim();
-      const pressRaw = String(getField(r, ['Press', 'Machine', 'Asset Name', 'Machine Name'])).trim();
-      const { canonicalPress } = canonicalizePressName(pressRaw);
-      const customer = String(getField(r, ['Account Name', 'Customer', 'Client'])).trim() || 'Unspecified';
-      const tierRaw = String(getField(r, ['Case Tier', 'Tier', 'Severity', 'Priority'])).trim() || 'Unspecified';
-      const tier = /machine\s*down|down/.test(tierRaw.toLowerCase()) ? 'Machine Down' : tierRaw;
-      const machineDown = /^(true|yes|1|y)$/i.test(String(getField(r, ['Machine Down', 'Machine Down Flag', 'Is Machine Down'])).trim()) || tier === 'Machine Down';
-      const openedAt = parseUsDateTime(getField(r, ['Created Date', 'Opened', 'Open Date', 'Date']));
-      const closedAt = parseUsDateTime(getField(r, ['Closed Date', 'Resolved Date']));
-      const isOpen = !closedAt || /open|new|working|pending/i.test(String(getField(r, ['Status'])));
-      out.push({
-        caseNumber: caseNumber || '',
-        partNumber: partNumber || '',
-        canonicalPress: canonicalPress || 'Unspecified',
-        customer,
-        tier,
-        machineDown,
-        openedAt,
-        closedAt,
-        isOpen,
-      });
-      if (i % 2000 === 0) {
-        if (onProgress) onProgress({ completed: i + 1, total, detail: `Salesforce rows: ${(i + 1).toLocaleString()} / ${total.toLocaleString()}` });
-        if (controller) await yieldAnalysisFrame(controller); else await shortYield();
-      }
-    }
-    if (onProgress) onProgress({ completed: rows.length, total, detail: `Salesforce rows: ${rows.length.toLocaleString()} / ${total.toLocaleString()}` });
-    return out;
-  }
-
-  function buildSalesforceServiceLayer(sfRows = [], errors = [], availability = []) {
-    if (!sfRows.length) return null;
-    const byPress = new Map();
-    sfRows.forEach(r => {
-      const key = r.canonicalPress || 'Unspecified';
-      if (!byPress.has(key)) byPress.set(key, { press: key, cases: 0, machineDownCases: 0, openCases: 0, tiers: {}, partNumbers: new Set() });
-      const slot = byPress.get(key);
-      slot.cases += r.caseNumber ? 1 : 0;
-      slot.machineDownCases += r.machineDown ? 1 : 0;
-      slot.openCases += r.isOpen ? 1 : 0;
-      slot.tiers[r.tier] = (slot.tiers[r.tier] || 0) + 1;
-      if (r.partNumber) slot.partNumbers.add(r.partNumber);
-    });
-    const errorByPress = aggregateErrorEvents(errors, r => r.canonicalPress || r.press || 'Unspecified');
-    const errorMap = new Map(errorByPress.map(r => [r.name, r]));
-    const availabilityMap = new Map();
-    availability.forEach(r => {
-      const p = r.canonicalPress || 'Unspecified';
-      availabilityMap.set(p, (availabilityMap.get(p) || 0) + totalDowntimeFromAvailabilityRow(r));
-    });
-    const combined = [...byPress.values()].map(row => {
-      const err = errorMap.get(row.press);
-      const downtime = availabilityMap.get(row.press) || 0;
-      return {
-        ...row,
-        partNumbers: row.partNumbers.size,
-        events: err?.events || 0,
-        errorDuration: err?.downtime || 0,
-        downtimeSeconds: downtime,
-        combinedPressureScore: (err?.events || 0) + (row.cases * 2) + (row.machineDownCases * 5),
-      };
-    }).sort((a, b) => b.combinedPressureScore - a.combinedPressureScore);
-    return { rows: combined, totalCases: sfRows.filter(r => r.caseNumber).length, machineDownCases: sfRows.filter(r => r.machineDown).length };
-  }
-
   async function mergeOperationalData(events, availabilityRows, volumeRows, diagnostics = {}, options = {}) {
     const { controller = null, onProgress = null } = options;
     const availabilityByPressModelDay = new Map();
@@ -2274,7 +2180,7 @@
         (model.operationalInsights || []).forEach(item => lines.push(`- ${item.title}: ${item.detail}`));
       } else if (section.id === 'serviceSignal') {
         if (model.serviceSignal) lines.push(`- ${model.serviceSignal.title}: ${model.serviceSignal.detail}`);
-        else lines.push('- No critical Salesforce-linked escalation in this scope.');
+        else lines.push('- No critical escalation in this scope.');
       } else if (section.id === 'topActionCards') {
         (model.topActionCards || []).forEach(item => lines.push(`- ${item.title}: ${item.reason} ${item.impact}`));
       } else if (section.id === 'topPressDowntime') {
@@ -2332,7 +2238,7 @@
       generatedAtIso,
       generatedAtLabel,
       reportingPeriodLabel,
-      sourceCounts: { errors: (scope.errorsAgg || []).length, availability: availabilityAgg.length, volume: volumeAgg.length, salesforce: (STATE.normalized.salesforce?.rows || []).length },
+      sourceCounts: { errors: (scope.errorsAgg || []).length, availability: availabilityAgg.length, volume: volumeAgg.length },
       executiveSnapshot: {
         availability: kpis.availabilityPct == null ? 'N/A' : `${kpis.availabilityPct.toFixed(1)}%`,
         productionVolume: kpis.totalProdVolume.toLocaleString(),
@@ -2383,7 +2289,7 @@
     const tableWrapperStart = isEmail ? '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;max-width:860px;margin:0 auto;background:#f4f7fb;">' : '';
     const tableWrapperEnd = isEmail ? '</table>' : '';
     const headerBlock = isEmail
-      ? `<tr><td style="padding:0 0 14px;"><div style="font-size:26px;font-weight:700;color:#1d2430;line-height:1.2;">Landa Insight<span style="color:#1f8bff;">Pro+</span> Summary</div><div style="font-size:13px;color:#334560;margin-top:6px;line-height:1.6;font-weight:600;">Reporting period: ${esc(model.reportingPeriodLabel)}</div><div style="font-size:12px;color:#5a6980;margin-top:4px;line-height:1.6;">Generated on: ${esc(model.generatedAtLabel)}</div><div style="font-size:12px;color:#5a6980;margin-top:4px;line-height:1.6;">${esc(model.scopeLabel)} • Source rows (errors/availability/volume/salesforce): ${model.sourceCounts.errors}/${model.sourceCounts.availability}/${model.sourceCounts.volume}/${model.sourceCounts.salesforce || 0}</div></td></tr>`
+      ? `<tr><td style="padding:0 0 14px;"><div style="font-size:26px;font-weight:700;color:#1d2430;line-height:1.2;">Landa Insight<span style="color:#1f8bff;">Pro+</span> Summary</div><div style="font-size:13px;color:#334560;margin-top:6px;line-height:1.6;font-weight:600;">Reporting period: ${esc(model.reportingPeriodLabel)}</div><div style="font-size:12px;color:#5a6980;margin-top:4px;line-height:1.6;">Generated on: ${esc(model.generatedAtLabel)}</div><div style="font-size:12px;color:#5a6980;margin-top:4px;line-height:1.6;">${esc(model.scopeLabel)} • Source rows (events/downtime/production): ${model.sourceCounts.errors}/${model.sourceCounts.availability}/${model.sourceCounts.volume}</div></td></tr>`
       : '';
 
     const sections = structure.map((section, sectionIdx) => {
@@ -2408,7 +2314,7 @@
       if (section.id === 'serviceSignal') {
         const body = model.serviceSignal
           ? `<div class="micro" style="margin:0;color:${isEmail ? '#2f3f55' : '#d3def2'};line-height:1.6;"><strong>${esc(model.serviceSignal.title)}</strong> — ${esc(model.serviceSignal.detail)}</div>`
-          : `<div class="micro" style="margin:0;color:${isEmail ? '#2f3f55' : '#d3def2'};line-height:1.6;">No critical Salesforce-linked escalation in this scope.</div>`;
+          : `<div class="micro" style="margin:0;color:${isEmail ? '#2f3f55' : '#d3def2'};line-height:1.6;">No critical escalation in this scope.</div>`;
         return wrapSection(section.title, accent, body, sectionIdx);
       }
       if (section.id === 'topActionCards') {
@@ -2681,10 +2587,12 @@
       return 'Unspecified';
     };
     if (key === 'press') {
-      errorsAgg.forEach(r => add(r.canonicalPress || 'Unspecified', { events: (baseMap.get(r.canonicalPress || 'Unspecified')?.events || 0) + (r.totalEvents || 0) }));
-      availabilityAgg.forEach(r => {
+      errorsAgg.forEach(r => {
         const n = r.canonicalPress || 'Unspecified';
-        add(n, { downtime: (baseMap.get(n)?.downtime || 0) + totalDowntimeFromAvailabilityRow(r) });
+        add(n, {
+          events: (baseMap.get(n)?.events || 0) + (r.totalEvents || 0),
+          downtime: (baseMap.get(n)?.downtime || 0) + (r.totalErrorDurationSeconds || 0),
+        });
       });
       volumeAgg.forEach(r => {
         const n = r.canonicalPress || 'Unspecified';
@@ -2725,6 +2633,20 @@
 
   function setRankingChartEmptyState(key, message = '') {
     setCanvasState(`${key}Chart`, message, message && message.toLowerCase().includes('failed') ? 'error' : 'empty');
+  }
+
+  function buildPressAggregation(errorsAgg = []) {
+    return (errorsAgg || []).map(r => ({
+      name: r.canonicalPress || 'Unspecified',
+      entityKey: r.canonicalPress || 'Unspecified',
+      displayLabel: r.canonicalPress || 'Unspecified',
+      events: r.totalEvents || 0,
+      downtime: r.totalErrorDurationSeconds || 0,
+      totalEvents: r.totalEvents || 0,
+      totalDurationHours: (r.totalErrorDurationSeconds || 0) / 3600,
+      sourceType: 'errorEvents',
+      metric: 'events'
+    })).sort((a, b) => (b.totalEvents || 0) - (a.totalEvents || 0));
   }
 
   function renderRankingChart(key, items) {
@@ -2769,7 +2691,7 @@
         labels,
         datasets: isPressEventsView ? [
           { type: 'bar', label: 'Error events', data, backgroundColor: view.map((_, i) => COLORS[i % COLORS.length]), borderRadius: 6, yAxisID: 'y' },
-          { type: 'line', label: 'Error duration (hrs)', data: durationHours, borderColor: '#f0b165', backgroundColor: '#f0b165', yAxisID: 'y1', tension: 0.25, pointRadius: 4, pointHoverRadius: 5 }
+          { type: 'line', label: 'Total downtime (hrs)', data: durationHours, borderColor: '#ffd166', backgroundColor: '#ffd166', borderWidth: 4, yAxisID: 'y1', tension: 0.25, pointRadius: 4, pointHoverRadius: 5 }
         ] : [{ data, backgroundColor: view.map((_, i) => COLORS[i % COLORS.length]), borderRadius: 6 }]
       },
       options: {
@@ -2777,7 +2699,7 @@
         scales: {
           ...baseOptions(key, labels, payloads).scales,
           y: { ...baseOptions(key, labels, payloads).scales.y, title: { display: true, text: meta.axisLabel, color: '#c6d3ea' } },
-          ...(isPressEventsView ? { y1: { position: 'right', beginAtZero: true, grid: { drawOnChartArea: false }, ticks: { color: '#f0b165' }, title: { display: true, text: 'Error duration (hours)', color: '#f0b165' } } } : {})
+          ...(isPressEventsView ? { y1: { position: 'right', beginAtZero: true, grid: { drawOnChartArea: false }, ticks: { color: '#ffd166' }, title: { display: true, text: 'Total downtime (hours)', color: '#ffd166' } } } : {})
         },
         plugins: {
           legend: { display: isPressEventsView },
@@ -2785,9 +2707,8 @@
             if (!isPressEventsView) return `${ctx.parsed.y.toLocaleString(undefined, { maximumFractionDigits: 3 })} ${meta.tooltip}`;
             const row = view[ctx.dataIndex];
             const avg = (row.events || 0) > 0 ? (row.downtime || 0) / row.events : 0;
-            const share = ((row.downtime || 0) / totalDuration) * 100;
             if (ctx.datasetIndex === 0) return `Events: ${(row.events || 0).toLocaleString()}`;
-            return `Duration: ${formatDuration(row.downtime || 0)} • Avg/event: ${formatDuration(avg)} • Duration share: ${share.toFixed(1)}%`;
+            return `Total downtime: ${Number(((row.downtime || 0) / 3600)).toFixed(2)}h • Avg/event: ${formatDuration(avg)}`;
           } } }
         }
       }
@@ -3653,23 +3574,6 @@
       emptyReasons
     });
   }
-
-  function renderServiceSection() {
-    const host = document.getElementById('serviceSection');
-    if (!host) return;
-    const service = STATE.merged.service;
-    if (!service || !service.rows?.length) {
-      host.innerHTML = `<h3>Service Pressure Overview</h3><div class="micro">Upload optional Salesforce files to unlock case pressure, machine-down concentration, and combined operational-service hotspots.</div>`;
-      return;
-    }
-    const top = service.rows.slice(0, 8);
-    host.innerHTML = `
-      <div class="chart-head"><h3>Service Pressure Overview</h3><span class="impact-chip">${service.totalCases.toLocaleString()} cases • ${service.machineDownCases.toLocaleString()} machine-down</span></div>
-      <div class="micro">Combined score blends event concentration + case pressure + machine-down escalation. Salesforce is optional and additive.</div>
-      <div class="table-wrap"><table><thead><tr><th>Press</th><th>Cases</th><th>Machine Down</th><th>Open</th><th>Events</th><th>Error Duration</th><th>Downtime</th><th>Score</th></tr></thead>
-      <tbody>${top.map(r => `<tr><td>${esc(r.press)}</td><td>${(r.cases || 0).toLocaleString()}</td><td>${(r.machineDownCases || 0).toLocaleString()}</td><td>${(r.openCases || 0).toLocaleString()}</td><td>${(r.events || 0).toLocaleString()}</td><td>${esc(formatDuration(r.errorDuration || 0))}</td><td>${esc(formatDuration(r.downtimeSeconds || 0))}</td><td>${(r.combinedPressureScore || 0).toLocaleString()}</td></tr>`).join('')}</tbody></table></div>`;
-  }
-
   function applyActiveZone() {
     const zone = STATE.activeZone || 'executive';
     document.querySelectorAll('#dashboardTabs .tab-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.tab === zone));
@@ -3691,6 +3595,10 @@
       const errorEvents = scopedErrorRows;
       STATE.filteredErrors = errorEvents;
       const sourceScope = scopedSource;
+    if (!sourceScope || !Array.isArray(sourceScope.errorsAgg) || !Array.isArray(sourceScope.availabilityAgg) || !Array.isArray(sourceScope.volumeAgg)) {
+      ['pressChart', 'subsystemChart', 'alertChart', 'versionChart', 'customerVolumeChart'].forEach(id => setCanvasState(id, 'Data not available for current selection'));
+      return;
+    }
     console.info('[scope-debug]', {
       activeFilters: filters,
       filteredEventsCount: STATE.filtered.length,
@@ -3723,7 +3631,14 @@
         return [];
       }
     };
-    const pressRankings = safeRankingRender('press');
+    const pressData = buildPressAggregation(sourceScope.errorsAgg);
+    if (!pressData || pressData.length === 0) {
+      setCanvasState('pressChart', 'No data available');
+    }
+    console.log('pressData:', pressData);
+    const pressRankings = (pressData && pressData.length > 0)
+      ? (renderRankingChart('press', pressData), pressData)
+      : [];
     const subsystemRankings = safeRankingRender('subsystem');
     const alertRankings = safeRankingRender('alert');
     const versionRankings = safeRankingRender('version');
@@ -3754,7 +3669,6 @@
     });
     STATE.merged.pressRisk = [];
     renderRiskSection(STATE.merged.pressRisk);
-    renderServiceSection();
     STATE.merged.summary = executiveSummary;
     renderExecutiveSummaryCard(STATE.merged.summary);
     const mismatches = validateSourceAndLayerConsistency(sourceScope, STATE.filtered, STATE.kpis, STATE.merged.summary, STATE.merged.pressRisk, customerVolumeAllRows);
@@ -3851,7 +3765,6 @@
           errors: STATE.cachedRaw.errors ? [...STATE.cachedRaw.errors] : null,
           availability: STATE.cachedRaw.availability ? [...STATE.cachedRaw.availability] : null,
           volume: STATE.cachedRaw.volume ? [...STATE.cachedRaw.volume] : null,
-          salesforce: STATE.cachedRaw.salesforce ? [...STATE.cachedRaw.salesforce] : [],
         }
       };
       document.getElementById('runBtn').disabled = true;
@@ -3866,7 +3779,6 @@
       setProcessingState({ stage: 'reading', status: 'running', percent: 1, detail: 'Loading Print Volume dataset…' });
       await yieldAnalysisFrame(controller);
       const volumeRaw = STATE.files.volume ? (STATE.cachedRaw.volume || await parsePrintVolumeFile(STATE.files.volume)) : [];
-      const salesforceRaw = (STATE.cachedRaw.salesforce || []);
 
       setProcessingState({ stage: 'detecting', status: 'running', percent: 1, detail: `Detected rows — Errors: ${errorsRaw.length.toLocaleString()}, Availability: ${availabilityRaw.length.toLocaleString()}, Volume: ${volumeRaw.length.toLocaleString()}.` });
       await yieldAnalysisFrame(controller);
@@ -3876,7 +3788,6 @@
       await normalizeErrorsRows(errorsRaw.slice(0, Math.min(errorsRaw.length, 120)), { controller });
       if (availabilityRaw.length) await normalizeAvailabilityRows(availabilityRaw.slice(0, Math.min(availabilityRaw.length, 120)), new Map(), { controller });
       if (volumeRaw.length) await normalizeVolumeRows(volumeRaw.slice(0, Math.min(volumeRaw.length, 120)), { controller });
-      if (salesforceRaw.length) await normalizeSalesforceRows(salesforceRaw.slice(0, Math.min(salesforceRaw.length, 120)), { controller });
       setProcessingState({ stage: 'validating', status: 'running', percent: 1, detail: 'Schema validation complete.' });
       await yieldAnalysisFrame(controller);
 
@@ -3899,13 +3810,6 @@
       availabilityResult.diagnostics.pressCodeToCanonicalPressExamples = [...pressLookup.entries()]
         .slice(0, 20)
         .map(([pressCode, options]) => ({ pressCode, canonicalPresses: options.map(o => o.canonicalPress) }));
-      setProcessingState({ stage: 'normalizing', status: 'running', percent: 0.92, detail: 'Normalizing Salesforce service rows…' });
-      const salesforceRows = salesforceRaw.length
-        ? await normalizeSalesforceRows(salesforceRaw, {
-          controller,
-          onProgress: ({ completed, total, detail }) => setProcessingState({ stage: 'normalizing', status: 'running', percent: 0.92 + ((completed / Math.max(1, total)) * 0.08), detail })
-        })
-        : [];
 
       setProcessingState({ stage: 'indexing', status: 'running', percent: 0.05, detail: 'Building aggregated source indexes and merged event model…' });
       const merged = await mergeOperationalData(errors, availabilityResult.rows, volumeResult.rows, {
@@ -3973,10 +3877,8 @@
         throw new Error('Merged operational table is empty after normalization and aggregation.');
       }
 
-      const serviceLayer = buildSalesforceServiceLayer(salesforceRows, errors, availabilityResult.rows);
-      STATE.normalized = { events: errors, availability: availabilityResult.rows, volume: volumeResult.rows, volumeJobs: volumeResult.jobs || [], salesforce: { rows: salesforceRows, cases: salesforceRows.filter(r => r.caseNumber), parts: salesforceRows.filter(r => r.partNumber), diagnostics: { parsedRows: salesforceRaw.length } } };
+      STATE.normalized = { events: errors, availability: availabilityResult.rows, volume: volumeResult.rows, volumeJobs: volumeResult.jobs || [] };
       STATE.merged = merged;
-      STATE.merged.service = serviceLayer;
       console.info('[dataset-debug]', {
         errorsRowsParsed: errorsRaw.length,
         availabilityRowsParsed: availabilityResult.diagnostics.parsedRows,
@@ -4000,7 +3902,6 @@
         : availabilityResult.rows.length && volumeResult.rows.length
           ? 'Full mode: Errors + Availability + Print Volume'
           : `Partial mode: Errors + ${availabilityResult.rows.length ? 'Availability' : 'Print Volume'}`;
-      if (salesforceRows.length) STATE.mode += ` + Salesforce (${salesforceRows.length.toLocaleString()} rows)`;
 
       setProcessingState({ stage: 'preparing', status: 'running', percent: 0.35, detail: 'Preparing filters, source summaries, and dashboard state…' });
       await yieldAnalysisFrame(controller);
@@ -4034,8 +3935,7 @@
 
   function inferDatasetFromFileName(name = '') {
     const normalizedName = String(name).toLowerCase();
-    if (/(salesforce|sfdc|case|service|support|part)/.test(normalizedName)) return 'salesforce';
-    if (/(availability|uptime|downtime|oee)/.test(normalizedName)) return 'availability';
+        if (/(availability|uptime|downtime|oee)/.test(normalizedName)) return 'availability';
     if (/(volume|print[\s_-]*volume|printed[\s_-]*sheets|jobs?)/.test(normalizedName)) return 'volume';
     if (/(error|alert|event|fault|alarm)/.test(normalizedName)) return 'errors';
     return 'unknown';
@@ -4049,12 +3949,11 @@
         keys.add('errors');
         keys.add('availability');
         keys.add('volume');
-        keys.add('salesforce');
         return;
       }
       keys.add(inferred);
     });
-    return keys.size ? [...keys] : ['errors', 'availability', 'volume', 'salesforce'];
+    return keys.size ? [...keys] : ['errors', 'availability', 'volume'];
   }
 
   async function classifyIncomingFile(file) {
@@ -4063,7 +3962,7 @@
       const detected = detectDatasetType(rows);
       const key = detected === 'availability' || detected === 'volume'
         ? detected
-        : (detected === 'salesforceCases' || detected === 'salesforceParts' ? 'salesforce' : 'errors');
+        : 'errors';
       return { key, file, rows };
     } catch {
       return { key: 'errors', file, rows: null };
@@ -4073,30 +3972,30 @@
   async function processIncomingFiles(fileList) {
     const files = [...(fileList || [])];
     if (!files.length) return;
-    const likelyKeys = getLikelyDatasetKeys(files);
-    likelyKeys.forEach(startFileProgress);
-    await shortYield();
-
-    const assignments = await Promise.all(files.map(classifyIncomingFile));
-    assignments.forEach(({ key, file, rows }) => {
-      if (key === 'salesforce') {
-        STATE.files.salesforce = [...(STATE.files.salesforce || []), file];
-        STATE.cachedRaw.salesforce = [...(STATE.cachedRaw.salesforce || []), ...(Array.isArray(rows) ? rows : [])];
-      } else {
-        STATE.files[key] = file;
-        STATE.cachedRaw[key] = rows;
+    files.forEach(file => {
+      const quickKey = inferDatasetFromFileName(file?.name || '');
+      if (quickKey !== 'unknown') {
+        STATE.files[quickKey] = file;
+        setFileUI(quickKey);
+        startFileProgress(quickKey);
       }
-      setFileUI(key);
+      classifyIncomingFile(file)
+        .then(async ({ key, file: classifiedFile, rows }) => {
+          STATE.files[key] = classifiedFile;
+          STATE.cachedRaw[key] = rows;
+          setFileUI(key);
+          await validateSingleFile(key, { progressStarted: true });
+        })
+        .catch(() => {});
     });
-    await Promise.all(likelyKeys.map(key => validateSingleFile(key, { progressStarted: true })));
   }
 
   function clearFiles() {
     markAnalysisCanceled('Canceled due to file reset.');
-    STATE.files = { errors: null, availability: null, volume: null, salesforce: [] };
-    STATE.cachedRaw = { errors: null, availability: null, volume: null, salesforce: [] };
-    STATE.validation = { errors: false, availability: false, volume: false, salesforce: true };
-    STATE.normalized = { events: [], availability: [], volume: [], salesforce: { rows: [], cases: [], parts: [], diagnostics: {} } };
+    STATE.files = { errors: null, availability: null, volume: null };
+    STATE.cachedRaw = { errors: null, availability: null, volume: null };
+    STATE.validation = { errors: false, availability: false, volume: false };
+    STATE.normalized = { events: [], availability: [], volume: [] };
     STATE.merged = { events: [], mergedRows: [], stats: {}, summary: null, pressRisk: [], service: null, sourceTables: { errorsAgg: [], availabilityAgg: [], volumeAgg: [] } };
     STATE.filtered = [];
     STATE.filteredErrors = [];
@@ -4109,8 +4008,8 @@
     STATE.processingStatus = 'idle';
     STATE.processingDetail = '';
     STATE.processingPercent = 0;
-    ['errors', 'availability', 'volume', 'salesforce'].forEach(resetFileProgress);
-    ['bulkInput', 'errorsPicker', 'availabilityPicker', 'volumePicker', 'salesforcePicker'].forEach(id => {
+    ['errors', 'availability', 'volume'].forEach(resetFileProgress);
+    ['bulkInput', 'errorsPicker', 'availabilityPicker', 'volumePicker'].forEach(id => {
       const input = document.getElementById(id);
       if (input) input.value = '';
     });
@@ -4119,8 +4018,7 @@
     setFileUI('errors');
     setFileUI('availability');
     setFileUI('volume');
-    setFileUI('salesforce');
-    setStatus('Files cleared. Select datasets to continue.', 'info');
+        setStatus('Files cleared. Select datasets to continue.', 'info');
     setProcessingState({ stage: 'reading', status: 'idle', percent: 0, detail: 'Upload and validate files to begin processing.' });
   }
 
@@ -4129,7 +4027,7 @@
     STATE.analysisRunId += 1;
     STATE.analysisRunning = false;
     STATE.analysisController = null;
-    STATE.normalized = { events: [], availability: [], volume: [], salesforce: { rows: [], cases: [], parts: [], diagnostics: {} } };
+    STATE.normalized = { events: [], availability: [], volume: [] };
     STATE.merged = { events: [], mergedRows: [], stats: {}, summary: null, pressRisk: [], service: null, sourceTables: { errorsAgg: [], availabilityAgg: [], volumeAgg: [] } };
     STATE.filtered = [];
     STATE.filteredErrors = [];
@@ -4148,33 +4046,29 @@
       errors: STATE.lastRunSnapshot.cachedRaw.errors ? [...STATE.lastRunSnapshot.cachedRaw.errors] : null,
       availability: STATE.lastRunSnapshot.cachedRaw.availability ? [...STATE.lastRunSnapshot.cachedRaw.availability] : null,
       volume: STATE.lastRunSnapshot.cachedRaw.volume ? [...STATE.lastRunSnapshot.cachedRaw.volume] : null,
-      salesforce: STATE.lastRunSnapshot.cachedRaw.salesforce ? [...STATE.lastRunSnapshot.cachedRaw.salesforce] : [],
     };
-    ['errors', 'availability', 'volume', 'salesforce'].forEach(setFileUI);
+    ['errors', 'availability', 'volume'].forEach(setFileUI);
     runAnalysisFlow(STATE.lastRunSnapshot);
   }
 
   async function validateSingleFile(key, { progressStarted = false } = {}) {
-    const file = key === 'salesforce' ? STATE.files.salesforce : STATE.files[key];
-    const hasFile = key === 'salesforce' ? (file || []).length > 0 : !!file;
+    const file = STATE.files[key];
+    const hasFile = !!file;
     if (!hasFile) {
       STATE.validation[key] = false;
-      STATE.cachedRaw[key] = key === 'salesforce' ? [] : null;
+      STATE.cachedRaw[key] = null;
       resetFileProgress(key);
       setFileUI(key);
       return;
     }
     if (!progressStarted) startFileProgress(key);
     try {
-      const rows = key === 'salesforce'
-        ? (Array.isArray(STATE.cachedRaw.salesforce) ? STATE.cachedRaw.salesforce : [])
-        : (Array.isArray(STATE.cachedRaw[key]) ? STATE.cachedRaw[key] : await loadRowsFromFile(file));
+      const rows = Array.isArray(STATE.cachedRaw[key]) ? STATE.cachedRaw[key] : await loadRowsFromFile(file);
       STATE.cachedRaw[key] = rows;
       if (key === 'errors') await normalizeErrorsRows(rows.slice(0, Math.min(rows.length, 120)));
       if (key === 'availability') await normalizeAvailabilityRows(rows.slice(0, Math.min(rows.length, 120)));
       if (key === 'volume') await normalizeVolumeRows(rows.slice(0, Math.min(rows.length, 120)));
-      if (key === 'salesforce') await normalizeSalesforceRows(rows.slice(0, Math.min(rows.length, 120)));
-      STATE.validation[key] = true;
+            STATE.validation[key] = true;
       await finishFileProgress(key, true);
     } catch {
       STATE.validation[key] = false;
@@ -4185,7 +4079,7 @@
   }
 
   function bind() {
-    ['errors', 'availability', 'volume', 'salesforce'].forEach(setFileUI);
+    ['errors', 'availability', 'volume'].forEach(setFileUI);
     applyActiveZone();
     setStatus('Assign datasets and run analysis. Errors dataset is required.', 'info');
     setProcessingState({ stage: 'reading', status: 'idle', percent: 0, detail: 'Upload and validate files to begin processing.' });
@@ -4218,11 +4112,6 @@
     volumePicker.addEventListener('change', async e => {
       STATE.files.volume = e.target.files?.[0] || null;
       await validateSingleFile('volume');
-      e.target.value = '';
-    });
-    salesforcePicker.addEventListener('change', async e => {
-      const files = [...(e.target.files || [])];
-      if (files.length) await processIncomingFiles(files);
       e.target.value = '';
     });
 
@@ -4258,6 +4147,16 @@
     });
 
     exportBtn.addEventListener('click', () => exportRowsToCsv(STATE.lastSourceScope?.filteredMergedRows || STATE.filtered, 'dashboard-filtered-export.csv'));
+    const drilldownTableToggle = document.getElementById('drilldownTableToggle');
+    const drilldownTableWrap = document.getElementById('drilldownTableWrap');
+    if (drilldownTableToggle && drilldownTableWrap) {
+      drilldownTableWrap.style.display = 'none';
+      drilldownTableToggle.addEventListener('click', () => {
+        const show = drilldownTableWrap.style.display === 'none';
+        drilldownTableWrap.style.display = show ? 'block' : 'none';
+        drilldownTableToggle.textContent = show ? '👁 Hide Table' : '👁 Show Table';
+      });
+    }
     const summaryBtnEl = document.getElementById('summaryBtn');
     const summaryModal = document.getElementById('summaryModal');
     const closeSummaryBtnEl = document.getElementById('closeSummaryBtn');
@@ -4316,7 +4215,7 @@
       }
       const model = summaryResult.model;
       try {
-        summaryScopeMeta.textContent = `Reporting period: ${model.reportingPeriodLabel} • Generated on: ${model.generatedAtLabel} • Source rows (errors/availability/volume/salesforce): ${model.sourceCounts.errors}/${model.sourceCounts.availability}/${model.sourceCounts.volume}/${model.sourceCounts.salesforce || 0}`;
+        summaryScopeMeta.textContent = `Reporting period: ${model.reportingPeriodLabel} • Generated on: ${model.generatedAtLabel} • Source rows (events/downtime/production): ${model.sourceCounts.errors}/${model.sourceCounts.availability}/${model.sourceCounts.volume}`;
         renderSummaryModal(model, summaryContent);
         summaryModal.classList.add('show');
         summaryPreview.classList.add('hidden');
