@@ -94,19 +94,28 @@
     .k { color:var(--muted); font-size:.72rem; text-transform:uppercase; letter-spacing:.08em; }
     .v { font-size:1.05rem; margin-top:5px; font-weight:650; }
     .d { color:var(--muted); font-size:.8rem; margin-top:4px; min-height:2.2em; }
-    .filters { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px; }
+    .filters { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px; padding:10px; border:1px solid var(--border); border-radius:12px; background:rgba(255,255,255,.02); }
     .dashboard-flow{display:grid;gap:14px}
-    .section-shell{border:1px solid var(--border);border-radius:14px;background:rgba(255,255,255,.02);padding:12px}
+    .section-shell{border:1px solid var(--border);border-radius:16px;background:linear-gradient(180deg,rgba(255,255,255,.03),rgba(255,255,255,.015));padding:14px}
     .section-shell.secondary{background:rgba(255,255,255,.01)}
     .section-title{margin:0;font-size:1.02rem}
     .section-note{margin:6px 0 0;color:var(--muted);font-size:.82rem}
     .section-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;margin-bottom:10px}
     .grid { display:grid; grid-template-columns:repeat(12,minmax(0,1fr)); gap:10px; }
     .span-3{grid-column:span 3}.span-4{grid-column:span 4}.span-6{grid-column:span 6}.span-8{grid-column:span 8}.span-12{grid-column:span 12}
-    .card { padding:12px; }
+    .card { padding:12px; background:linear-gradient(180deg,rgba(255,255,255,.04),rgba(255,255,255,.015)); }
     .chart-head { display:flex; justify-content:space-between; align-items:center; gap:8px; }
     .chart-tools { display:flex; gap:8px; }
     .chart-area{position:relative;height:300px;min-height:300px}
+    .chart-area.compact{height:240px;min-height:240px}
+    .rank-hero .chart-area{height:360px;min-height:360px}
+    .rank-hero{border-color:rgba(143,211,255,.3);box-shadow:0 18px 40px rgba(0,0,0,.34),inset 0 1px 0 rgba(255,255,255,.05)}
+    .muted-note{color:#a8bad7;font-size:.78rem}
+    .detail-toggle{margin-top:4px}
+    details.section-disclosure summary{cursor:pointer;list-style:none}
+    details.section-disclosure summary::-webkit-details-marker{display:none}
+    details.section-disclosure .section-head{margin-bottom:0}
+    details.section-disclosure[open] .section-head{margin-bottom:10px}
     .chart-empty-state { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; text-align:center; color:var(--muted); font-size:.86rem; padding:14px; background:rgba(12,17,25,.35); border:1px dashed rgba(255,255,255,.14); border-radius:10px; pointer-events:none; }
     .micro { color:var(--muted); font-size:.82rem; margin:6px 0 8px; }
     .dashboard-status { margin-bottom:12px; border:1px solid var(--border); border-radius:12px; padding:12px; background:rgba(255,255,255,.02); }
@@ -188,7 +197,7 @@
     .summary-preview{border:1px solid var(--border);background:#fff;border-radius:10px;padding:10px;max-height:420px;overflow:auto}
     .summary-preview iframe{width:100%;height:380px;border:0}
 
-    @media(max-width:1000px){ .kpis{grid-template-columns:repeat(2,minmax(140px,1fr));}.topbar{grid-template-columns:1fr}.span-6,.span-4,.span-8,.span-3{grid-column:span 12}.file-row{grid-template-columns:1fr} .file-state{justify-content:flex-start} }
+    @media(max-width:1000px){ .kpis{grid-template-columns:repeat(2,minmax(140px,1fr));}.topbar{grid-template-columns:1fr}.span-6,.span-4,.span-8,.span-3{grid-column:span 12}.file-row{grid-template-columns:1fr} .file-state{justify-content:flex-start} .rank-hero .chart-area{height:300px;min-height:300px} }
     @media(max-width:760px){ .summary-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr));}.exec-signal-card,.exec-story-card,.exec-insight-card,.exec-action-card{grid-column:span 12;} }
   </style>
 </head>
@@ -297,18 +306,18 @@
     <main class="dashboard-flow">
       <section class="section-shell">
         <div class="section-head">
-          <h2 class="section-title">Primary Reliability Signals</h2>
-          <p class="section-note">Start here for top disruption drivers and system-level pressure.</p>
+          <h2 class="section-title">Executive Priority View</h2>
+          <p class="section-note">Read this section first: identify the presses creating the highest downtime burden, then inspect root-cause clusters.</p>
         </div>
         <div class="grid">
-      <article class="card span-6" data-rank-card="press">
-        <div class="chart-head"><h3>Top Presses by Error Events</h3><div class="chart-tools"><select data-metric="press" class="select"><option value="events">By events</option><option value="downtime">By downtime</option><option value="normalized">By events/volume</option></select><button class="btn secondary" data-expand="press">Show all</button></div></div>
-        <div class="micro">Metric source shown dynamically by mode.</div><div class="chart-area"><canvas id="pressChart"></canvas></div>
+      <article class="card span-8 rank-hero" data-rank-card="press">
+        <div class="chart-head"><h3>Top Presses by Downtime Impact</h3><div class="chart-tools"><select data-metric="press" class="select"><option value="downtime">Sort by downtime (default)</option><option value="events">Sort by events</option></select><button class="btn secondary" data-expand="press">Show all</button></div></div>
+        <div class="micro">Primary signal = total downtime hours per press. Secondary badges = event counts.</div><div class="chart-area"><canvas id="pressChart"></canvas></div>
       </article>
 
-      <article class="card span-6" data-rank-card="subsystem">
+      <article class="card span-4" data-rank-card="subsystem">
         <div class="chart-head"><h3>Top Subsystems</h3><div class="chart-tools"><select data-metric="subsystem" class="select"><option value="events">By events</option><option value="downtime">By downtime</option><option value="normalized">By events/volume</option></select><button class="btn secondary" data-expand="subsystem">Show all</button></div></div>
-        <div class="micro">Metric source shown dynamically by mode.</div><div class="chart-area"><canvas id="subsystemChart"></canvas></div>
+        <div class="micro">Metric source shown dynamically by mode.</div><div class="chart-area compact"><canvas id="subsystemChart"></canvas></div>
       </article>
 
       <article class="card span-6" data-rank-card="alert">
@@ -336,21 +345,32 @@
         </div>
       </section>
 
-      <section class="section-shell secondary">
-        <div class="section-head">
-          <h2 class="section-title">Secondary Analysis</h2>
-          <p class="section-note">Detailed context stays on this page and can be expanded on demand.</p>
-        </div>
+      <details class="section-shell secondary section-disclosure" open>
+        <summary class="section-head">
+          <div>
+            <h2 class="section-title">Secondary Analysis</h2>
+            <p class="section-note">Detailed context stays on this page and can be expanded on demand.</p>
+          </div>
+          <span class="impact-chip detail-toggle">Toggle detail section</span>
+        </summary>
         <div class="grid">
-      <article class="card span-12" id="riskSection"></article>
-
-      <article class="card span-12">
-        <h3>Merged Event Explorer</h3>
-        <div class="micro">Each row combines Errors with matching Availability and Print Volume bucket context.</div>
-        <div class="table-wrap"><table id="eventTable"></table></div>
-      </article>
+          <article class="card span-12" id="riskSection"></article>
         </div>
-      </section>
+      </details>
+
+      <details class="section-shell secondary section-disclosure">
+        <summary class="section-head">
+          <div>
+            <h2 class="section-title">Detailed Event Explorer</h2>
+            <p class="section-note">Full merged evidence table (errors + availability + volume context) with drilldown support.</p>
+          </div>
+          <span class="impact-chip detail-toggle">Expand full table</span>
+        </summary>
+        <article class="card span-12">
+          <div class="micro">Each row combines Errors with matching Availability and Print Volume bucket context.</div>
+          <div class="table-wrap"><table id="eventTable"></table></div>
+        </article>
+      </details>
     </main>
   </section>
 </div>
@@ -424,7 +444,7 @@
     },
     lastRunSnapshot: null,
     expand: { press: false, subsystem: false, alert: false, version: false },
-    metricByChart: { press: 'events', subsystem: 'events', alert: 'events', version: 'events' },
+    metricByChart: { press: 'downtime', subsystem: 'events', alert: 'events', version: 'events' },
     customerVolumeMetric: 'productionPrintedSheets',
     customerVolumeSort: 'desc',
     customerVolumeExpanded: false,
@@ -2583,7 +2603,12 @@
         const n = r.canonicalPress || 'Unspecified';
         add(n, {
           events: (baseMap.get(n)?.events || 0) + (r.totalEvents || 0),
-          downtime: (baseMap.get(n)?.downtime || 0) + (r.totalErrorDurationSeconds || 0),
+        });
+      });
+      availabilityAgg.forEach(r => {
+        const n = r.canonicalPress || 'Unspecified';
+        add(n, {
+          downtime: (baseMap.get(n)?.downtime || 0) + totalDowntimeFromAvailabilityRow(r),
         });
       });
       volumeAgg.forEach(r => {
@@ -2627,20 +2652,6 @@
     setCanvasState(`${key}Chart`, message, message && message.toLowerCase().includes('failed') ? 'error' : 'empty');
   }
 
-  function buildPressAggregation(errorsAgg = []) {
-    return (errorsAgg || []).map(r => ({
-      name: r.canonicalPress || 'Unspecified',
-      entityKey: r.canonicalPress || 'Unspecified',
-      displayLabel: r.canonicalPress || 'Unspecified',
-      events: r.totalEvents || 0,
-      downtime: r.totalErrorDurationSeconds || 0,
-      totalEvents: r.totalEvents || 0,
-      totalDurationHours: (r.totalErrorDurationSeconds || 0) / 3600,
-      sourceType: 'errorEvents',
-      metric: 'events'
-    })).sort((a, b) => (b.totalEvents || 0) - (a.totalEvents || 0));
-  }
-
   function renderRankingChart(key, items) {
     const metric = STATE.metricByChart[key];
     const expanded = STATE.expand[key];
@@ -2674,40 +2685,95 @@
       rowsReceived: items.length,
       first5Labels: labels.slice(0, 5),
     });
-    const isPressEventsView = key === 'press' && metric === 'events';
+    const isPressChart = key === 'press';
     const totalDuration = view.reduce((acc, x) => acc + (x.downtime || 0), 0) || 1;
-    const durationHours = view.map(x => (x.downtime || 0) / 3600);
+    const pressBarData = view.map(x => (x.downtime || 0) / 3600);
+    const eventBadgePlugin = {
+      id: 'pressEventBadge',
+      afterDatasetsDraw(chart) {
+        if (!isPressChart) return;
+        const { ctx } = chart;
+        const meta = chart.getDatasetMeta(0);
+        ctx.save();
+        meta.data.forEach((bar, idx) => {
+          const events = view[idx]?.events || 0;
+          const text = `${events.toLocaleString()} evt`;
+          ctx.font = '600 11px Inter, Segoe UI, sans-serif';
+          const textW = ctx.measureText(text).width;
+          const padX = 8;
+          const width = textW + (padX * 2);
+          const height = 18;
+          const x = Math.min(bar.x + 10, chart.chartArea.right - width - 4);
+          const y = bar.y - (height / 2);
+          ctx.fillStyle = 'rgba(143,211,255,0.16)';
+          ctx.strokeStyle = 'rgba(143,211,255,0.5)';
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.roundRect(x, y, width, height, 9);
+          ctx.fill();
+          ctx.stroke();
+          ctx.fillStyle = '#d8ecff';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(text, x + padX, bar.y + 0.5);
+        });
+        ctx.restore();
+      }
+    };
     const rendered = replaceChart(`${key}Chart`, {
       type: 'bar',
       data: {
         labels,
-        datasets: isPressEventsView ? [
-          { type: 'bar', label: 'Error events', data, backgroundColor: view.map((_, i) => COLORS[i % COLORS.length]), borderRadius: 6, yAxisID: 'y' },
-          { type: 'line', label: 'Total downtime (hrs)', data: durationHours, borderColor: '#ffd166', backgroundColor: '#ffd166', borderWidth: 4, yAxisID: 'y1', tension: 0.25, pointRadius: 4, pointHoverRadius: 5 }
-        ] : [{ data, backgroundColor: view.map((_, i) => COLORS[i % COLORS.length]), borderRadius: 6 }]
+        datasets: isPressChart
+          ? [{
+              label: 'Total downtime (hours)',
+              data: pressBarData,
+              backgroundColor: view.map((_, i) => i === 0 ? '#8fd3ff' : '#5f79f5'),
+              borderColor: 'rgba(255,255,255,.15)',
+              borderWidth: 1,
+              borderRadius: 8
+            }]
+          : [{ data, backgroundColor: view.map((_, i) => COLORS[i % COLORS.length]), borderRadius: 6 }]
       },
       options: {
         ...baseOptions(key, labels, payloads),
+        indexAxis: isPressChart ? 'y' : 'x',
         scales: {
           ...baseOptions(key, labels, payloads).scales,
-          y: { ...baseOptions(key, labels, payloads).scales.y, title: { display: true, text: meta.axisLabel, color: '#c6d3ea' } },
-          ...(isPressEventsView ? { y1: { position: 'right', beginAtZero: true, grid: { drawOnChartArea: false }, ticks: { color: '#ffd166' }, title: { display: true, text: 'Total downtime (hours)', color: '#ffd166' } } } : {})
+          ...(isPressChart
+            ? {
+                x: { ...baseOptions(key, labels, payloads).scales.x, title: { display: true, text: 'Total downtime (hours)', color: '#c6d3ea' } },
+                y: { ...baseOptions(key, labels, payloads).scales.y, ticks: { color: '#d6e2f5', font: { weight: 600 } } }
+              }
+            : {
+                y: { ...baseOptions(key, labels, payloads).scales.y, title: { display: true, text: meta.axisLabel, color: '#c6d3ea' } }
+              })
         },
         plugins: {
-          legend: { display: isPressEventsView },
-          tooltip: { callbacks: { label: ctx => {
-            if (!isPressEventsView) return `${ctx.parsed.y.toLocaleString(undefined, { maximumFractionDigits: 3 })} ${meta.tooltip}`;
-            const row = view[ctx.dataIndex];
-            const avg = (row.events || 0) > 0 ? (row.downtime || 0) / row.events : 0;
-            if (ctx.datasetIndex === 0) return `Events: ${(row.events || 0).toLocaleString()}`;
-            return `Total downtime: ${Number(((row.downtime || 0) / 3600)).toFixed(2)}h • Avg/event: ${formatDuration(avg)}`;
-          } } }
+          legend: { display: false },
+          tooltip: { callbacks: isPressChart ? {
+            title: ctx => `Press: ${ctx?.[0]?.label || ''}`,
+            label: ctx => {
+              const row = view[ctx.dataIndex] || {};
+              const downtimeHours = (row.downtime || 0) / 3600;
+              const avgDuration = (row.events || 0) > 0 ? (row.downtime || 0) / row.events : 0;
+              const sharePct = ((row.downtime || 0) / totalDuration) * 100;
+              return [
+                `Total downtime: ${downtimeHours.toFixed(2)} h`,
+                `Event count: ${(row.events || 0).toLocaleString()}`,
+                `Avg duration/event: ${formatDuration(avgDuration)}`,
+                `Share of scoped downtime: ${sharePct.toFixed(1)}%`
+              ];
+            }
+          } : {
+            label: ctx => `${ctx.parsed.y.toLocaleString(undefined, { maximumFractionDigits: 3 })} ${meta.tooltip}`
+          } }
         }
-      }
+      },
+      plugins: isPressChart ? [eventBadgePlugin] : []
     });
     if (!rendered && !view.length) setRankingChartEmptyState(key, 'No ranking data available for current filters/metric.');
-    document.querySelector(`[data-rank-card="${key}"] .micro`).textContent = isPressEventsView
-      ? `${expanded ? 'Full ranking' : 'Top 8'} by events with overlaid duration severity (line). Source: errors + availability.`
+    document.querySelector(`[data-rank-card="${key}"] .micro`).textContent = isPressChart
+      ? `${expanded ? 'Full ranked list' : 'Top 8'} presses sorted by ${metric === 'events' ? 'event count' : 'downtime hours'} (duration from availabilityAgg, events from errorsAgg).`
       : `${expanded ? 'Full ranking' : 'Top 8'} by ${metric}. Source: ${meta.source}. ${meta.subtitle}`;
     document.querySelector(`[data-expand="${key}"]`).textContent = expanded ? 'Collapse' : 'Show all';
     if ((key === 'press' || key === 'subsystem') && metric === 'events') {
@@ -3610,14 +3676,7 @@
         return [];
       }
     };
-    const pressData = buildPressAggregation(sourceScope.errorsAgg);
-    if (!pressData || pressData.length === 0) {
-      setCanvasState('pressChart', 'No data available');
-    }
-    console.log('pressData:', pressData);
-    const pressRankings = (pressData && pressData.length > 0)
-      ? (renderRankingChart('press', pressData), pressData)
-      : [];
+    const pressRankings = safeRankingRender('press');
     const subsystemRankings = safeRankingRender('subsystem');
     const alertRankings = safeRankingRender('alert');
     const versionRankings = safeRankingRender('version');
