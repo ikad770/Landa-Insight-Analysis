@@ -59,7 +59,6 @@
     .loaded{color:#ffe5c7;background:rgba(240,177,101,.16);border-color:rgba(240,177,101,.45)}
     .validated{color:#d2ffe8;background:rgba(87,201,138,.15);border-color:rgba(87,201,138,.45)}
     .optional{color:#d8e3ff;background:rgba(123,141,255,.14);border-color:rgba(123,141,255,.45)}
-    .sf{color:#d8f1ff;background:rgba(82,174,255,.15);border-color:rgba(82,174,255,.45)}
     .intake-actions { display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap; }
     .status { border-radius: 10px; border:1px solid; padding:10px 12px; display:none; }
     .status.show{display:block}
@@ -378,16 +377,19 @@
     .filters-shell{padding:14px;border:none;background:linear-gradient(160deg,#edf3ff 0%,#dde9ff 100%)}
     .filters .select,.filters input{border:none;border-radius:12px;background:rgba(255,255,255,.95);color:#18243d;box-shadow:0 4px 16px rgba(24,36,61,.1)}
 
-    .dashboard-flow{gap:20px}
-    .section-shell{padding:20px;border:none;border-radius:24px;background:linear-gradient(165deg,#111f36 0%,#152a48 100%);box-shadow:0 14px 36px rgba(2,8,20,.34)}
+    .dashboard-flow{gap:24px}
+    .section-shell{padding:22px;border:none;border-radius:24px;background:linear-gradient(165deg,#111f36 0%,#152a48 100%);box-shadow:0 14px 36px rgba(2,8,20,.34)}
     .section-title{font-size:1.04rem;letter-spacing:.02em}
     .section-note{font-size:.8rem;color:#9db4d8}
     .rank-hero{padding:20px;border:none;background:linear-gradient(160deg,#1a3358 0%,#10213a 45%,#0b1628 100%);box-shadow:0 28px 58px rgba(2,8,20,.5)}
-    .rank-hero .chart-area{height:620px;min-height:620px}
+    .rank-hero .chart-area{height:520px;min-height:520px}
     .card{border:none;border-radius:18px;background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.03));box-shadow:none}
 
     .supporting-surface{background:linear-gradient(170deg,#0e1a2d,#12223c)}
+    .intelligence-layer{padding:20px 22px}
     .secondary-quiet .card{background:linear-gradient(180deg,rgba(255,255,255,.04),rgba(255,255,255,.015))}
+    .secondary-quiet{background:linear-gradient(160deg,#0e1a2d 0%,#11213b 100%)}
+    .secondary-band{gap:14px}
     .risk-intel{border:none;border-radius:20px;padding:20px;background:linear-gradient(160deg,#21416e,#152a49 62%,#0f1d34);box-shadow:0 20px 40px rgba(0,0,0,.3)}
     .risk-baseline{gap:12px}
     .baseline-card{border:none;border-radius:14px;background:rgba(255,255,255,.1)}
@@ -399,13 +401,13 @@
 
     .summary-modal{background:rgba(4,9,18,.74);backdrop-filter:blur(8px)}
     .summary-panel{width:min(1120px,95vw);border:none;border-radius:26px;background:linear-gradient(155deg,#f4f8ff 0%,#eaf2ff 54%,#dce9ff 100%);box-shadow:0 34px 80px rgba(0,0,0,.45)}
-    .summary-shell{padding:20px;color:#11213a}
-    .summary-header{border:none;border-radius:20px;background:linear-gradient(130deg,#17345d 0%,#22497f 48%,#2c5a9b 100%);color:#f5f9ff}
+    .summary-shell{padding:22px;color:#11213a}
+    .summary-header{border:none;border-radius:20px;background:linear-gradient(130deg,#17345d 0%,#22497f 48%,#2c5a9b 100%);color:#f5f9ff;box-shadow:0 12px 28px rgba(16,33,59,.2)}
     .summary-kicker,.summary-intro{color:#d9e6fb}
     .summary-actions .btn{border:none;background:rgba(17,33,58,.12);color:#142846}
     .summary-actions .btn.primary{background:linear-gradient(120deg,#17345d,#2c5a9b);color:#edf4ff}
-    .summary-scope{color:#24395c;font-weight:500}
-    .summary-section{border:none;border-radius:16px;background:rgba(255,255,255,.7);box-shadow:0 10px 30px rgba(15,27,46,.12)}
+    .summary-scope{color:#24395c;font-weight:500;background:rgba(255,255,255,.64);border-radius:12px;padding:10px 12px}
+    .summary-section{border:none;border-radius:16px;background:rgba(255,255,255,.76);box-shadow:0 10px 30px rgba(15,27,46,.12)}
     .summary-section-head{background:transparent!important;color:#16315a;border-bottom:1px solid rgba(17,33,58,.08)}
     .summary-section-body{color:#12243f}
     .summary-kpi-card{border:none;background:linear-gradient(160deg,#f0f6ff,#e3efff)}
@@ -413,7 +415,7 @@
     .summary-preview{margin:0 20px 20px;border:none;box-shadow:0 6px 20px rgba(0,0,0,.18)}
 
     .btn,.select,input,.card,.kpi,.section-shell{transition:all .2s ease}
-    @media(max-width:1180px){.rank-hero .chart-area{height:430px;min-height:430px}}
+    @media(max-width:1180px){.rank-hero .chart-area{height:420px;min-height:420px}}
 
   </style>
 </head>
@@ -533,7 +535,7 @@
         </div>
         <article class="card span-12 rank-hero" data-rank-card="press">
           <div class="chart-head"><h3>Downtime impact ranking</h3><div class="chart-tools"><select data-metric="press" class="select"><option value="downtime">Sort by downtime (default)</option><option value="events">Sort by events</option></select><button class="btn secondary" data-expand="press">Show all</button></div></div>
-          <div class="micro">Bars = downtime (hours). Inline badge = event count.</div><div class="chart-area"><canvas id="pressChart"></canvas></div>
+          <div class="micro">Horizontal bars show downtime hours (primary severity). Marker line on top axis shows event count context.</div><div class="chart-area"><canvas id="pressChart"></canvas></div>
         </article>
       </section>
 
@@ -780,7 +782,14 @@
     const n = Number(cleaned);
     return Number.isFinite(n) ? n : NaN;
   };
-  const shortYield = () => new Promise(resolve => (window.requestIdleCallback ? requestIdleCallback(() => resolve(), { timeout: 30 }) : setTimeout(resolve, 0)));
+  const shortYield = () => {
+    if (document.hidden) return Promise.resolve();
+    return new Promise(resolve => (
+      window.requestIdleCallback
+        ? requestIdleCallback(() => resolve(), { timeout: 30 })
+        : setTimeout(resolve, 0)
+    ));
+  };
   const hasChartLibrary = () => typeof window.Chart === 'function';
   const hasSpreadsheetLibrary = () => !!window.XLSX;
   const hasWorkerSupport = () => typeof window.Worker === 'function';
@@ -2982,50 +2991,36 @@
     const isPressChart = key === 'press';
     const totalDuration = view.reduce((acc, x) => acc + (x.downtime || 0), 0) || 1;
     const pressBarData = view.map(x => (x.downtime || 0) / 3600);
-    const eventBadgePlugin = {
-      id: 'pressEventBadge',
-      afterDatasetsDraw(chart) {
-        if (!isPressChart) return;
-        const { ctx } = chart;
-        const meta = chart.getDatasetMeta(0);
-        ctx.save();
-        meta.data.forEach((bar, idx) => {
-          const events = view[idx]?.events || 0;
-          const text = `${events.toLocaleString()} evt`;
-          ctx.font = '600 11px Inter, Segoe UI, sans-serif';
-          const textW = ctx.measureText(text).width;
-          const padX = 8;
-          const width = textW + (padX * 2);
-          const height = 18;
-          const x = Math.min(bar.x + 10, chart.chartArea.right - width - 4);
-          const y = bar.y - (height / 2);
-          ctx.fillStyle = 'rgba(143,211,255,0.16)';
-          ctx.strokeStyle = 'rgba(143,211,255,0.5)';
-          ctx.lineWidth = 1;
-          ctx.beginPath();
-          ctx.roundRect(x, y, width, height, 9);
-          ctx.fill();
-          ctx.stroke();
-          ctx.fillStyle = '#d8ecff';
-          ctx.textBaseline = 'middle';
-          ctx.fillText(text, x + padX, bar.y + 0.5);
-        });
-        ctx.restore();
-      }
-    };
+    const pressEventData = view.map(x => x.events || 0);
     const rendered = replaceChart(`${key}Chart`, {
       type: 'bar',
       data: {
         labels,
         datasets: isPressChart
-          ? [{
-              label: 'Total downtime (hours)',
-              data: pressBarData,
-              backgroundColor: view.map((_, i) => i === 0 ? '#8fd3ff' : '#5f79f5'),
-              borderColor: 'rgba(255,255,255,.15)',
-              borderWidth: 1,
-              borderRadius: 8
-            }]
+          ? [
+              {
+                type: 'bar',
+                label: 'Total downtime (hours)',
+                data: pressBarData,
+                xAxisID: 'x',
+                backgroundColor: view.map((_, i) => i === 0 ? '#8fd3ff' : '#5f79f5'),
+                borderColor: 'rgba(255,255,255,.15)',
+                borderWidth: 1,
+                borderRadius: 8
+              },
+              {
+                type: 'line',
+                label: 'Event count',
+                data: pressEventData,
+                xAxisID: 'xEvents',
+                borderColor: '#f0b165',
+                backgroundColor: '#f0b165',
+                borderWidth: 2,
+                pointRadius: 3,
+                pointHoverRadius: 5,
+                tension: 0.25
+              }
+            ]
           : [{ data, backgroundColor: view.map((_, i) => COLORS[i % COLORS.length]), borderRadius: 6 }]
       },
       options: {
@@ -3036,6 +3031,13 @@
           ...(isPressChart
             ? {
                 x: { ...baseOptions(key, labels, payloads).scales.x, title: { display: true, text: 'Total downtime (hours)', color: '#c6d3ea' } },
+                xEvents: {
+                  position: 'top',
+                  grid: { drawOnChartArea: false, color: 'rgba(240,177,101,.2)' },
+                  ticks: { color: '#f8cd9e', precision: 0 },
+                  title: { display: true, text: 'Event count', color: '#f8cd9e' },
+                  beginAtZero: true
+                },
                 y: { ...baseOptions(key, labels, payloads).scales.y, ticks: { color: '#d6e2f5', font: { weight: 600 } } }
               }
             : {
@@ -3062,12 +3064,11 @@
             label: ctx => `${ctx.parsed.y.toLocaleString(undefined, { maximumFractionDigits: 3 })} ${meta.tooltip}`
           } }
         }
-      },
-      plugins: isPressChart ? [eventBadgePlugin] : []
+      }
     });
     if (!rendered && !view.length) setRankingChartEmptyState(key, 'No ranking data available for current filters/metric.');
     document.querySelector(`[data-rank-card="${key}"] .micro`).textContent = isPressChart
-      ? `${expanded ? 'Full ranked list' : 'Top 8'} presses sorted by ${metric === 'events' ? 'event count' : 'downtime hours'} (duration from availabilityAgg, events from errorsAgg).`
+      ? `${expanded ? 'Full ranked list' : 'Top 8'} presses sorted by ${metric === 'events' ? 'event count' : 'downtime hours'} (downtime bar + event marker context from source-of-truth aggregates).`
       : `${expanded ? 'Full ranking' : 'Top 8'} by ${metric}. Source: ${meta.source}. ${meta.subtitle}`;
     document.querySelector(`[data-expand="${key}"]`).textContent = expanded ? 'Collapse' : 'Show all';
     if ((key === 'press' || key === 'subsystem') && metric === 'events') {
