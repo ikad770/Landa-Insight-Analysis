@@ -81,11 +81,11 @@
     .progress-actions { display:flex; justify-content:flex-end; gap:8px; flex-wrap:wrap; }
     @keyframes pulse-progress { from{filter:brightness(1)} to{filter:brightness(1.2)} }
 
-    .topbar,.card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow)}
-    .topbar { display:grid; grid-template-columns:1fr auto; gap:12px; align-items:start; padding:16px; margin-bottom:12px; }
+    .topbar,.card{background:var(--panel);border:1px solid rgba(255,255,255,.08);border-radius:var(--radius);box-shadow:var(--shadow)}
+    .topbar { display:grid; grid-template-columns:1fr auto; gap:12px; align-items:start; padding:16px; margin-bottom:18px; border-color:rgba(255,255,255,.06); }
     .controls { display:flex; gap:8px; flex-wrap:wrap; }
-    .kpis { display:grid; grid-template-columns: repeat(5,minmax(140px,1fr)); gap:10px; margin-bottom:12px; position:relative; z-index:2; }
-    .kpi { padding:11px; border:1px solid var(--border); border-radius:12px; background:rgba(255,255,255,.02); }
+    .kpis { display:grid; grid-template-columns: repeat(5,minmax(140px,1fr)); gap:10px; margin:14px 0 18px; position:relative; z-index:2; }
+    .kpi { padding:14px 10px; border:1px solid rgba(255,255,255,.08); border-radius:14px; background:rgba(255,255,255,.015); }
     .kpi.clickable{cursor:pointer;transition:all .18s ease;position:relative;z-index:1;pointer-events:auto}
     .kpi.clickable:hover{border-color:rgba(123,141,255,.65);background:rgba(123,141,255,.09);transform:translateY(-1px)}
     .inline-filters{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
@@ -93,23 +93,23 @@
     .impact-chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);padding:4px 8px;border-radius:999px;background:rgba(255,255,255,.02);font-size:.78rem;color:#d2ddf2}
     .k { color:var(--muted); font-size:.72rem; text-transform:uppercase; letter-spacing:.08em; }
     .v { font-size:1.05rem; margin-top:5px; font-weight:650; }
-    .d { color:var(--muted); font-size:.8rem; margin-top:4px; min-height:2.2em; }
+    .d { color:var(--muted); font-size:.73rem; margin-top:6px; min-height:1em; }
     .filters { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px; padding:10px; border:1px solid var(--border); border-radius:12px; background:rgba(255,255,255,.02); }
-    .dashboard-flow{display:grid;gap:14px}
-    .section-shell{border:1px solid var(--border);border-radius:16px;background:linear-gradient(180deg,rgba(255,255,255,.03),rgba(255,255,255,.015));padding:14px}
-    .section-shell.secondary{background:rgba(255,255,255,.01)}
+    .dashboard-flow{display:grid;gap:20px}
+    .section-shell{border:1px solid rgba(255,255,255,.07);border-radius:16px;background:linear-gradient(180deg,rgba(255,255,255,.02),rgba(255,255,255,.008));padding:14px}
+    .section-shell.secondary{background:rgba(255,255,255,.006)}
     .section-title{margin:0;font-size:1.02rem}
     .section-note{margin:6px 0 0;color:var(--muted);font-size:.82rem}
     .section-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;margin-bottom:10px}
     .grid { display:grid; grid-template-columns:repeat(12,minmax(0,1fr)); gap:10px; }
     .span-3{grid-column:span 3}.span-4{grid-column:span 4}.span-6{grid-column:span 6}.span-8{grid-column:span 8}.span-12{grid-column:span 12}
-    .card { padding:12px; background:linear-gradient(180deg,rgba(255,255,255,.04),rgba(255,255,255,.015)); }
+    .card { padding:12px; background:linear-gradient(180deg,rgba(255,255,255,.025),rgba(255,255,255,.01)); }
     .chart-head { display:flex; justify-content:space-between; align-items:center; gap:8px; }
     .chart-tools { display:flex; gap:8px; }
     .chart-area{position:relative;height:300px;min-height:300px}
     .chart-area.compact{height:240px;min-height:240px}
-    .rank-hero .chart-area{height:360px;min-height:360px}
-    .rank-hero{border-color:rgba(143,211,255,.3);box-shadow:0 18px 40px rgba(0,0,0,.34),inset 0 1px 0 rgba(255,255,255,.05)}
+    .rank-hero .chart-area{height:420px;min-height:420px}
+    .rank-hero{border-color:rgba(143,211,255,.26);box-shadow:0 18px 40px rgba(0,0,0,.34),inset 0 1px 0 rgba(255,255,255,.05)}
     .muted-note{color:#a8bad7;font-size:.78rem}
     .detail-toggle{margin-top:4px}
     details.section-disclosure summary{cursor:pointer;list-style:none}
@@ -118,7 +118,7 @@
     details.section-disclosure[open] .section-head{margin-bottom:10px}
     .chart-empty-state { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; text-align:center; color:var(--muted); font-size:.86rem; padding:14px; background:rgba(12,17,25,.35); border:1px dashed rgba(255,255,255,.14); border-radius:10px; pointer-events:none; }
     .micro { color:var(--muted); font-size:.82rem; margin:6px 0 8px; }
-    .dashboard-status { margin-bottom:12px; border:1px solid var(--border); border-radius:12px; padding:12px; background:rgba(255,255,255,.02); }
+    .dashboard-status { margin-bottom:14px; border:1px solid rgba(255,255,255,.09); border-radius:12px; padding:12px; background:rgba(255,255,255,.015); }
     .dashboard-status.green { border-color:rgba(87,201,138,.45); background:rgba(87,201,138,.12); }
     .dashboard-status.yellow { border-color:rgba(240,177,101,.45); background:rgba(240,177,101,.12); }
     .dashboard-status.red { border-color:rgba(243,107,99,.45); background:rgba(243,107,99,.12); }
@@ -132,6 +132,22 @@
     .risk-medium{color:#f8ecb8;background:rgba(208,183,86,.2);border-color:rgba(208,183,86,.65)}
     .risk-stable{color:#d9ffe9;background:rgba(87,201,138,.16);border-color:rgba(87,201,138,.55)}
     .summary-grid { display:grid; grid-template-columns:repeat(12,minmax(0,1fr)); gap:10px; }
+    .executive-hero{margin-bottom:0;border-radius:20px;padding:16px 18px;background:linear-gradient(140deg,rgba(38,53,83,.62),rgba(14,22,37,.68));border:1px solid rgba(255,255,255,.08)}
+    .hero-title{font-size:1.42rem;font-weight:770;line-height:1.1;margin:0}
+    .hero-note{margin:8px 0 0;color:#c4d3e9;font-size:.88rem}
+    .hero-signals{margin-top:12px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+    .hero-signal{padding:8px 10px;border-radius:10px;background:rgba(255,255,255,.04)}
+    .hero-signal .label{font-size:.7rem;color:#a9bad4;text-transform:uppercase;letter-spacing:.08em}
+    .hero-signal .value{margin-top:4px;font-size:.9rem;font-weight:700}
+    .status-indicator{padding:3px 10px;border-radius:999px;font-size:.73rem;font-weight:700;border:1px solid}
+    .status-indicator.critical{color:#ffd6d2;border-color:rgba(243,107,99,.7);background:rgba(243,107,99,.2)}
+    .status-indicator.warning{color:#ffe3c6;border-color:rgba(240,177,101,.7);background:rgba(240,177,101,.2)}
+    .status-indicator.stable{color:#d6ffe7;border-color:rgba(87,201,138,.68);background:rgba(87,201,138,.2)}
+    .risk-board{display:grid;gap:10px}
+    .risk-group{background:rgba(255,255,255,.015);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:9px}
+    .risk-row{display:grid;grid-template-columns:1.2fr auto 1.6fr;gap:8px;padding:6px 0;border-bottom:1px dashed rgba(255,255,255,.08);font-size:.8rem}
+    .risk-row:last-child{border-bottom:none}
+    .risk-badge{font-size:.7rem;padding:2px 8px;border-radius:999px;border:1px solid}
     .summary-stat { background:rgba(255,255,255,.03); border:1px solid var(--border); border-radius:10px; padding:10px; }
     .summary-stat .label{color:var(--muted);font-size:.75rem;text-transform:uppercase;letter-spacing:.08em}
     .summary-stat .value{font-size:1rem;font-weight:650;margin-top:4px}
@@ -198,7 +214,7 @@
     .summary-preview iframe{width:100%;height:380px;border:0}
 
     @media(max-width:1000px){ .kpis{grid-template-columns:repeat(2,minmax(140px,1fr));}.topbar{grid-template-columns:1fr}.span-6,.span-4,.span-8,.span-3{grid-column:span 12}.file-row{grid-template-columns:1fr} .file-state{justify-content:flex-start} .rank-hero .chart-area{height:300px;min-height:300px} }
-    @media(max-width:760px){ .summary-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr));}.exec-signal-card,.exec-story-card,.exec-insight-card,.exec-action-card{grid-column:span 12;} }
+    @media(max-width:760px){ .summary-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr));}.exec-signal-card,.exec-story-card,.exec-insight-card,.exec-action-card,.hero-signal{grid-column:span 12;} .hero-signals{grid-template-columns:1fr;} .risk-row{grid-template-columns:1fr;} }
   </style>
 </head>
 <body>
@@ -290,10 +306,9 @@
       </div>
     </header>
 
+    <section id="executiveSummaryCard" class="executive-hero"></section>
     <section id="kpiStrip" class="kpis"></section>
     <section id="dashboardStatusPanel" class="dashboard-status"></section>
-
-    <section id="executiveSummaryCard" class="card" style="margin-bottom:12px;"></section>
 
     <section class="filters">
       <select id="pressFilter" class="select"><option value="all">All presses</option></select>
@@ -304,59 +319,42 @@
       <input id="searchFilter" placeholder="Search press, alert, subsystem, version" />
     </section>
     <main class="dashboard-flow">
-      <section class="section-shell">
+      <section class="section-shell primary-layer">
         <div class="section-head">
-          <h2 class="section-title">Executive Priority View</h2>
-          <p class="section-note">Read this section first: identify the presses creating the highest downtime burden, then inspect root-cause clusters.</p>
+          <h2 class="section-title">Top Presses by Downtime Impact</h2>
+          <p class="section-note">Which machines are hurting operations the most right now.</p>
         </div>
-        <div class="grid">
-      <article class="card span-8 rank-hero" data-rank-card="press">
-        <div class="chart-head"><h3>Top Presses by Downtime Impact</h3><div class="chart-tools"><select data-metric="press" class="select"><option value="downtime">Sort by downtime (default)</option><option value="events">Sort by events</option></select><button class="btn secondary" data-expand="press">Show all</button></div></div>
-        <div class="micro">Primary signal = total downtime hours per press. Secondary badges = event counts.</div><div class="chart-area"><canvas id="pressChart"></canvas></div>
-      </article>
-
-      <article class="card span-4" data-rank-card="subsystem">
-        <div class="chart-head"><h3>Top Subsystems</h3><div class="chart-tools"><select data-metric="subsystem" class="select"><option value="events">By events</option><option value="downtime">By downtime</option><option value="normalized">By events/volume</option></select><button class="btn secondary" data-expand="subsystem">Show all</button></div></div>
-        <div class="micro">Metric source shown dynamically by mode.</div><div class="chart-area compact"><canvas id="subsystemChart"></canvas></div>
-      </article>
-
-      <article class="card span-6" data-rank-card="alert">
-        <div class="chart-head"><h3>Top Errors</h3><div class="chart-tools"><select data-metric="alert" class="select"><option value="events">By events</option><option value="downtime">By downtime</option><option value="normalized">By events/volume</option></select><button class="btn secondary" data-expand="alert">Show all</button></div></div>
-        <div class="micro">Alert ranking uses Name, with Alert Title fallback.</div><div class="chart-area"><canvas id="alertChart"></canvas></div>
-      </article>
-        </div>
+        <article class="card span-12 rank-hero" data-rank-card="press">
+          <div class="chart-head"><h3>Downtime impact ranking</h3><div class="chart-tools"><select data-metric="press" class="select"><option value="downtime">Sort by downtime (default)</option><option value="events">Sort by events</option></select><button class="btn secondary" data-expand="press">Show all</button></div></div>
+          <div class="micro">Bars = downtime (hours). Inline badge = event count.</div><div class="chart-area"><canvas id="pressChart"></canvas></div>
+        </article>
       </section>
 
-      <section class="section-shell">
+      <section class="section-shell intelligence-layer">
         <div class="section-head">
-          <h2 class="section-title">Production + Exposure Context</h2>
-          <p class="section-note">Correlate reliability impact with output and software exposure.</p>
+          <h2 class="section-title">Intelligence + Context</h2>
+          <p class="section-note">Operational risk overview with supporting contributors and exposure context.</p>
         </div>
         <div class="grid">
-      <article class="card span-6" data-rank-card="version">
-        <div class="chart-head"><h3>Top Versions</h3><div class="chart-tools"><select data-metric="version" class="select"><option value="events">By events</option><option value="downtime">By downtime</option><option value="normalized">By events/volume</option></select><button class="btn secondary" data-expand="version">Show all</button></div></div>
-        <div class="micro">Version exposure with production-normalized context.</div><div class="chart-area"><canvas id="versionChart"></canvas></div>
-      </article>
-
-      <article class="card span-6">
-        <div class="chart-head"><h3>Print Volume By Press</h3><div class="chart-tools"><select id="customerVolumeUnit" class="select"><option value="productionPrintedSheets">Production-only Printed Sheets</option><option value="printedSheets">Total Printed Sheets</option><option value="printedFlats">Printed Flats</option></select><select id="customerVolumeSort" class="select"><option value="desc">Highest first</option><option value="asc">Lowest first</option></select><button id="customerVolumeExpand" class="btn secondary">Show all</button></div></div>
-        <div class="micro" id="customerVolumeNote">Press-level workload from Production data only.</div><div class="chart-area"><canvas id="customerVolumeChart"></canvas></div>
-      </article>
+          <article class="card span-6" id="riskSection"></article>
+          <article class="card span-6" data-rank-card="subsystem">
+            <div class="chart-head"><h3>Top Subsystems</h3><div class="chart-tools"><select data-metric="subsystem" class="select"><option value="events">By events</option><option value="downtime">By downtime</option><option value="normalized">By events/volume</option></select><button class="btn secondary" data-expand="subsystem">Show all</button></div></div>
+            <div class="micro">Secondary contributor view.</div><div class="chart-area compact"><canvas id="subsystemChart"></canvas></div>
+          </article>
+          <article class="card span-6" data-rank-card="alert">
+            <div class="chart-head"><h3>Top Errors</h3><div class="chart-tools"><select data-metric="alert" class="select"><option value="events">By events</option><option value="downtime">By downtime</option><option value="normalized">By events/volume</option></select><button class="btn secondary" data-expand="alert">Show all</button></div></div>
+            <div class="micro">Recurring issue view with same drilldown behavior.</div><div class="chart-area compact"><canvas id="alertChart"></canvas></div>
+          </article>
+          <article class="card span-6" data-rank-card="version">
+            <div class="chart-head"><h3>Top Versions</h3><div class="chart-tools"><select data-metric="version" class="select"><option value="events">By events</option><option value="downtime">By downtime</option><option value="normalized">By events/volume</option></select><button class="btn secondary" data-expand="version">Show all</button></div></div>
+            <div class="micro">Exposure context by software version.</div><div class="chart-area compact"><canvas id="versionChart"></canvas></div>
+          </article>
+          <article class="card span-6">
+            <div class="chart-head"><h3>Print Volume By Press</h3><div class="chart-tools"><select id="customerVolumeUnit" class="select"><option value="productionPrintedSheets">Production-only Printed Sheets</option><option value="printedSheets">Total Printed Sheets</option><option value="printedFlats">Printed Flats</option></select><select id="customerVolumeSort" class="select"><option value="desc">Highest first</option><option value="asc">Lowest first</option></select><button id="customerVolumeExpand" class="btn secondary">Show all</button></div></div>
+            <div class="micro" id="customerVolumeNote">Production context with selectable unit basis.</div><div class="chart-area compact"><canvas id="customerVolumeChart"></canvas></div>
+          </article>
         </div>
       </section>
-
-      <details class="section-shell secondary section-disclosure" open>
-        <summary class="section-head">
-          <div>
-            <h2 class="section-title">Secondary Analysis</h2>
-            <p class="section-note">Detailed context stays on this page and can be expanded on demand.</p>
-          </div>
-          <span class="impact-chip detail-toggle">Toggle detail section</span>
-        </summary>
-        <div class="grid">
-          <article class="card span-12" id="riskSection"></article>
-        </div>
-      </details>
 
       <details class="section-shell secondary section-disclosure">
         <summary class="section-head">
@@ -1984,18 +1982,79 @@
     return [...map.values()];
   }
 
-  function computeRiskScores(rows) {
-    const pressStats = aggregateErrorEvents(rows, r => r.press).sort((a, b) => b.risk - a.risk);
-    return pressStats.map(item => {
-      const reasons = [];
-      if (item.events > 5) reasons.push('high recurrence');
-      if (item.downtime > 2 * 3600) reasons.push('high downtime');
-      if (item.normalized > 0.02) reasons.push('high events per volume');
-      if (item.recent > 0) reasons.push('recent activity');
-      const score = item.risk;
-      const tier = score >= 45 ? 'Critical' : score >= 25 ? 'High Risk' : score >= 12 ? 'Medium Risk' : 'Stable';
-      return { entity: item.name, tier, score, events: item.events, downtime: item.downtime, reason: reasons.join(' + ') || 'low composite signal' };
+  function percentile(values, p) {
+    const sorted = [...values].filter(Number.isFinite).sort((a, b) => a - b);
+    if (!sorted.length) return 0;
+    const idx = (sorted.length - 1) * p;
+    const lo = Math.floor(idx);
+    const hi = Math.ceil(idx);
+    if (lo === hi) return sorted[lo];
+    const w = idx - lo;
+    return sorted[lo] * (1 - w) + sorted[hi] * w;
+  }
+
+  function computeOutlierRiskModel(sourceScope = {}) {
+    const pressMap = new Map();
+    const addPress = (name) => {
+      const key = name || 'Unspecified';
+      if (!pressMap.has(key)) pressMap.set(key, { press: key, downtime: 0, events: 0, productionVolume: 0, mttr: 0, errorDuration: 0 });
+      return pressMap.get(key);
+    };
+    (sourceScope.availabilityAgg || []).forEach(r => { addPress(r.canonicalPress).downtime += totalDowntimeFromAvailabilityRow(r); });
+    (sourceScope.errorsAgg || []).forEach(r => {
+      const slot = addPress(r.canonicalPress);
+      slot.events += Number(r.totalEvents || 0);
+      slot.errorDuration += Number(r.totalErrorDurationSeconds || 0);
     });
+    (sourceScope.volumeAgg || []).forEach(r => { addPress(r.canonicalPress).productionVolume += Number(r.productionPrintedSheets || 0); });
+    const rows = [...pressMap.values()].map(r => ({ ...r, mttr: r.events > 0 ? r.errorDuration / r.events : 0 }));
+    const metricKeys = ['downtime', 'events', 'productionVolume', 'mttr'];
+    const baselines = {};
+    metricKeys.forEach(key => {
+      const vals = rows.map(r => Number(r[key] || 0));
+      const mean = vals.reduce((a, b) => a + b, 0) / Math.max(1, vals.length);
+      const median = percentile(vals, 0.5);
+      const p25 = percentile(vals, 0.25);
+      const p75 = percentile(vals, 0.75);
+      const p90 = percentile(vals, 0.9);
+      const variance = vals.reduce((a, v) => a + ((v - mean) ** 2), 0) / Math.max(1, vals.length);
+      baselines[key] = { mean, median, stdDev: Math.sqrt(variance), p25, p50: median, p75, p90 };
+    });
+    const maxRisk = Math.max(1, ...rows.map(row => {
+      const dm = baselines.downtime.median > 0 ? row.downtime / baselines.downtime.median : row.downtime;
+      const em = baselines.events.median > 0 ? row.events / baselines.events.median : row.events;
+      const mt = baselines.mttr.median > 0 ? row.mttr / baselines.mttr.median : row.mttr;
+      const volDeficit = baselines.productionVolume.median > 0 ? Math.max(0, (baselines.productionVolume.median - row.productionVolume) / baselines.productionVolume.median) : 0;
+      return (dm * 0.45) + (em * 0.25) + (mt * 0.2) + (volDeficit * 0.1);
+    }));
+    const scored = rows.map(row => {
+      const dm = baselines.downtime.median > 0 ? row.downtime / baselines.downtime.median : row.downtime;
+      const em = baselines.events.median > 0 ? row.events / baselines.events.median : row.events;
+      const mt = baselines.mttr.median > 0 ? row.mttr / baselines.mttr.median : row.mttr;
+      const volDeficit = baselines.productionVolume.median > 0 ? Math.max(0, (baselines.productionVolume.median - row.productionVolume) / baselines.productionVolume.median) : 0;
+      const rawRisk = (dm * 0.45) + (em * 0.25) + (mt * 0.2) + (volDeficit * 0.1);
+      const normalizedRiskScore = (rawRisk / maxRisk) * 100;
+      const varianceSignal = baselines.downtime.stdDev > 0 && (Math.abs(row.downtime - baselines.downtime.mean) / baselines.downtime.stdDev) >= 1.5;
+      let tier = 'STABLE';
+      if (row.downtime >= baselines.downtime.p90 || normalizedRiskScore >= 80) tier = 'CRITICAL OUTLIER';
+      else if (row.downtime >= baselines.downtime.p75 || normalizedRiskScore >= 60) tier = 'HIGH RISK';
+      else if (varianceSignal || row.mttr >= baselines.mttr.p75) tier = 'UNSTABLE';
+      const prodDropPct = baselines.productionVolume.median > 0 ? ((1 - (row.productionVolume / baselines.productionVolume.median)) * 100) : 0;
+      const explanation = row.productionVolume < baselines.productionVolume.p25 && prodDropPct > 0
+        ? `Production ${Math.max(0, prodDropPct).toFixed(0)}% below expected range`
+        : (varianceSignal ? 'High variance versus baseline' : `Downtime ${(dm || 0).toFixed(1)}x above baseline`);
+      return {
+        press: row.press,
+        tier,
+        normalizedRiskScore,
+        metrics: row,
+        deviationFromMedian: { downtime: dm, events: em, mttr: mt },
+        deviationFromPercentile: { p75: row.downtime - baselines.downtime.p75, p90: row.downtime - baselines.downtime.p90 },
+        badges: [row.downtime > baselines.downtime.median ? 'Above baseline' : 'Below baseline', varianceSignal ? 'High variance' : ''],
+        explanation,
+      };
+    }).sort((a, b) => b.normalizedRiskScore - a.normalizedRiskScore);
+    return { baselines, rows: scored };
   }
 
   function formatDuration(sec) {
@@ -2368,90 +2427,46 @@
   function renderKpis(k) {
     const na = 'N/A';
     const cards = [
-      ['Total Events', 'totalEvents', k.totalEvents.toLocaleString(), 'Events from source-native Errors records'],
-      ['Total Downtime', 'totalDowntime', formatDuration(k.totalDowntime), 'Availability downtime (Planned + Unplanned)'],
-      ['Unplanned DT', 'totalUnplanned', formatDuration(k.totalUnplanned), DOWNTIME_DEFINITION.unplanned],
-      ['Planned DT', 'totalPlanned', formatDuration(k.totalPlanned), DOWNTIME_DEFINITION.planned],
-      ['MTTR', 'mttr', k.mttr == null ? na : formatDuration(k.mttr), 'Mean Time To Repair from error durations'],
-      ['MTBF', 'mtbf', k.mtbf == null ? na : formatDuration(k.mtbf), 'Mean Time Between Failures from runtime/event rate'],
-      ['Availability', 'availabilityPct', k.availabilityPct == null ? na : `${k.availabilityPct.toFixed(1)}%`, k.availabilityFormula || 'Source-defined availability'],
-      ['Production Volume', 'totalProdVolume', k.totalProdVolume.toLocaleString(), `Basis: ${k.volumeBasis}`],
-      ['Downtime / Volume', 'downtimePerVolume', k.downtimePerVolume == null ? na : k.downtimePerVolume.toFixed(4), 'seconds per production unit'],
-      ['Events / Volume', 'eventPerVolume', k.eventPerVolume == null ? na : k.eventPerVolume.toFixed(4), 'events per production unit'],
+      ['Availability', 'availabilityPct', k.availabilityPct == null ? na : `${k.availabilityPct.toFixed(1)}%`, 'Availability'],
+      ['Production Volume', 'totalProdVolume', k.totalProdVolume.toLocaleString(), 'Production volume'],
+      ['Total Downtime', 'totalDowntime', formatDuration(k.totalDowntime), 'Planned + unplanned'],
+      ['MTTR', 'mttr', k.mttr == null ? na : formatDuration(k.mttr), 'Mean time to repair'],
+      ['Events', 'totalEvents', k.totalEvents.toLocaleString(), 'Total events'],
     ];
-    const helper = `<div class="micro">Volume perspective: Total Printed Sheets ${k.rawPrintedSheets.toLocaleString()} • Production Printed Sheets ${k.productionOnlyPrintedSheets.toLocaleString()} • Primary KPI basis: ${esc(k.volumeBasis)}.</div><div class="micro">Availability method: ${esc(k.availabilityLabel || 'Source-defined availability')} (${esc(k.availabilityFormula || 'N/A')}).</div>${k.reasons.length ? `<div class="micro">KPI guidance: ${esc(k.reasons.join(' '))}</div>` : ''}`;
-    document.getElementById('kpiStrip').innerHTML = cards.map(([a, metricKey, b, c]) => `<article class="kpi clickable" role="button" tabindex="0" data-kpi-metric="${metricKey}"><div class="k">${a}</div><div class="v">${b}</div><div class="d">${c}</div></article>`).join('') + helper;
+    document.getElementById('kpiStrip').innerHTML = cards.map(([a, metricKey, b, c]) => `<article class="kpi clickable" role="button" tabindex="0" data-kpi-metric="${metricKey}"><div class="k">${a}</div><div class="v">${b}</div><div class="d">${c}</div></article>`).join('');
   }
 
   function renderExecutiveSummaryCard(summary) {
-    const statusTone = summary.statusTone === 'critical'
-      ? { color: '#ffb7b2', border: 'rgba(243,107,99,.6)', glow: 'rgba(243,107,99,.32)', accent: '#f36b63' }
-      : summary.statusTone === 'watch'
-        ? { color: '#ffd7a8', border: 'rgba(240,177,101,.58)', glow: 'rgba(240,177,101,.28)', accent: '#f0b165' }
-        : { color: '#c8f6db', border: 'rgba(87,201,138,.58)', glow: 'rgba(87,201,138,.28)', accent: '#57c98a' };
-    const concentrationPct = Number(summary.downtimeConcentrationPct || 0);
-    const concentrationWidth = Math.max(8, Math.min(100, concentrationPct));
-    const unplannedWidth = Math.max(8, Math.min(100, Number(summary.unplannedPct || 0)));
-    const contextTags = [
-      `Top risk: ${summary.topPressByEvents?.name || 'N/A'}`,
-      `Main bottleneck: ${summary.topSubsystem?.name || 'N/A'}`,
-      `Recurring error: ${summary.topAlert?.name || 'N/A'}`
-    ];
+    const statusClass = summary.statusTone === 'critical' ? 'critical' : summary.statusTone === 'watch' ? 'warning' : 'stable';
+    const oneLine = summary.statusVerdict || 'Operational performance should be monitored closely.';
     document.getElementById('executiveSummaryCard').innerHTML = `
-      <div class="chart-head"><h3>Executive Situation Overview</h3></div>
-      <div class="exec-brief">
-        <section class="exec-status-banner" style="border-color:${statusTone.border};box-shadow:inset 0 1px 0 rgba(255,255,255,.05),0 0 0 1px ${statusTone.glow};">
-          <div class="exec-status-top">
-            <div>
-              <div class="exec-status-kicker">Operational Status</div>
-              <div class="exec-status-value" style="color:${statusTone.color};">${esc(summary.status)}</div>
-            </div>
-            <span class="risk-pill ${summary.statusClass}">Leadership brief</span>
-          </div>
-          <div class="exec-status-verdict">${esc(summary.statusVerdict || 'Operational performance should be monitored closely.')}</div>
-          <div class="exec-tag-row">${contextTags.map(tag => `<span class="exec-tag"><span class="exec-dot" style="color:${statusTone.accent};"></span>${esc(tag)}</span>`).join('')}</div>
-        </section>
-        <section class="exec-signal-grid">
-          <article class="exec-signal-card">
-            <div class="exec-signal-title">Top Press (Events)</div>
-            <div class="exec-signal-value">${esc(summary.topPressByEvents?.name || 'N/A')}</div>
-            <div class="exec-signal-note">${summary.topPressByEvents ? `${summary.topPressByEvents.events.toLocaleString()} events are concentrated here.` : 'No concentrated press signal in this scope.'}</div>
-          </article>
-          <article class="exec-signal-card">
-            <div class="exec-signal-title">Top Subsystem</div>
-            <div class="exec-signal-value">${esc(summary.topSubsystem?.name || 'N/A')}</div>
-            <div class="exec-signal-note">${summary.topSubsystem ? `Primary failure cluster with ${summary.topSubsystem.events.toLocaleString()} events.` : 'No subsystem cluster identified in this scope.'}</div>
-          </article>
-          <article class="exec-signal-card">
-            <div class="exec-signal-title">Most Repeated Error</div>
-            <div class="exec-signal-value">${esc(summary.topAlert?.name || 'N/A')}</div>
-            <div class="exec-signal-note">${summary.topAlert ? `Recurring ${summary.topAlert.events.toLocaleString()} times across impacted presses.` : 'No dominant recurring error in current scope.'}</div>
-          </article>
-          <article class="exec-signal-card">
-            <div class="exec-signal-title">Highest Downtime Press</div>
-            <div class="exec-signal-value">${esc(summary.topErrorDowntimePress?.entity || 'N/A')}</div>
-            <div class="exec-signal-note">${summary.topErrorDowntimePress ? `${formatDuration(summary.topErrorDowntimePress.downtime)} downtime impact.` : 'No downtime concentration identified in this scope.'}</div>
-          </article>
-        </section>
-        <section class="exec-story-grid">
-          <article class="exec-story-card">
-            <div class="exec-story-head"><div class="exec-story-title" style="color:#95b6ff;">Insight Cards</div><span class="micro" style="margin:0;">Data-backed signals</span></div>
-            <div class="exec-priority-strip"><div class="exec-priority-fill" style="width:${concentrationWidth}%;background:linear-gradient(90deg,#4d6cfa,#8fd3ff);"></div></div>
-            <div class="exec-card-grid">${(summary.insightCards || []).map(card => `<article class="exec-insight-card"><div class="exec-mini-title">${esc(card.title)}</div><div class="exec-mini-note">${esc(card.detail)}</div></article>`).join('')}</div>
-          </article>
-          <article class="exec-story-card">
-            <div class="exec-story-head"><div class="exec-story-title" style="color:#85e2b4;">Top 3 Action Cards</div><span class="micro" style="margin:0;">Immediate leadership moves</span></div>
-            <div class="exec-priority-strip"><div class="exec-priority-fill" style="width:${unplannedWidth}%;background:linear-gradient(90deg,#25a65b,#7de3ac);"></div></div>
-            <div class="exec-card-grid">${(summary.actionCards || []).slice(0, 3).map(card => `<article class="exec-action-card"><div class="exec-mini-title">${esc(card.title)}</div><div class="exec-mini-note">${esc(card.reason)}</div><div class="exec-action-impact">${esc(card.impact)}</div></article>`).join('')}</div>
-          </article>
-        </section>
-      </div>`;
+      <div class="chart-head">
+        <h3 class="hero-title">Operational status: ${esc(summary.status || 'Stable')}</h3>
+        <span class="status-indicator ${statusClass}">${esc(summary.status || 'Stable')}</span>
+      </div>
+      <p class="hero-note">${esc(oneLine)}</p>
+      <section class="hero-signals">
+        <article class="hero-signal"><div class="label">Top failing press</div><div class="value">${esc(summary.topErrorDowntimePress?.entity || summary.topPressByEvents?.name || 'N/A')}</div></article>
+        <article class="hero-signal"><div class="label">Subsystem bottleneck</div><div class="value">${esc(summary.topSubsystem?.name || 'N/A')}</div></article>
+        <article class="hero-signal"><div class="label">Critical recurring error</div><div class="value">${esc(summary.topAlert?.name || 'N/A')}</div></article>
+      </section>`;
   }
 
   function renderRiskSection(riskRows) {
+    const byTier = (tier) => (riskRows || []).filter(r => r.tier === tier).slice(0, 5);
+    const renderGroup = (title, tier, cls) => {
+      const rows = byTier(tier);
+      if (!rows.length) return `<div class="risk-group"><div class="chart-head"><h4 style="margin:0;">${title}</h4><span class="risk-badge ${cls}">${tier}</span></div><div class="micro">No presses in this class for current scope.</div></div>`;
+      return `<div class="risk-group"><div class="chart-head"><h4 style="margin:0;">${title}</h4><span class="risk-badge ${cls}">${tier}</span></div>${rows.map(r => `<div class="risk-row"><div><strong>${esc(r.press)}</strong></div><div><span class="risk-badge ${cls}">${esc((r.normalizedRiskScore || 0).toFixed(0))}</span></div><div>${esc(r.explanation)} ${r.badges.filter(Boolean).map(b => `<span class="impact-chip">${esc(b)}</span>`).join(' ')}</div></div>`).join('')}</div>`;
+    };
     document.getElementById('riskSection').innerHTML = `
-      <h3>Risk Prioritization</h3>
-      <div class="micro">Risk-based prioritization is disabled (pending formal risk model definition). Dashboard is operating in events-first mode.</div>`;
+      <div class="chart-head"><h3 style="margin:0;">Operational Risk Overview</h3></div>
+      <div class="micro">Baseline engine uses mean, median (primary), standard deviation, and percentiles (P25/P50/P75/P90) across downtime, events, production volume, and MTTR.</div>
+      <div class="risk-board">
+        ${renderGroup('Top 5 Critical Presses', 'CRITICAL OUTLIER', 'risk-critical')}
+        ${renderGroup('Top 5 High Risk Presses', 'HIGH RISK', 'risk-high')}
+        ${renderGroup('Top 5 Unstable Presses', 'UNSTABLE', 'risk-medium')}
+      </div>`;
   }
 
   function renderDashboardStatusPanel(sourceScope, mismatches = [], reconciliationReport = []) {
@@ -3705,7 +3720,8 @@
       metric: STATE.customerVolumeMetric,
       first10Plotted: customerVolumeRows.slice(0, 10).map((r, i) => ({ rank: i + 1, entityKey: r.entityKey, displayLabel: r.displayLabel, value: r[STATE.customerVolumeMetric] || 0 }))
     });
-    STATE.merged.pressRisk = [];
+    const outlierModel = computeOutlierRiskModel(sourceScope);
+    STATE.merged.pressRisk = outlierModel.rows;
     renderRiskSection(STATE.merged.pressRisk);
     STATE.merged.summary = executiveSummary;
     renderExecutiveSummaryCard(STATE.merged.summary);
