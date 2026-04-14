@@ -94,10 +94,13 @@
     .k { color:var(--muted); font-size:.72rem; text-transform:uppercase; letter-spacing:.08em; }
     .v { font-size:1.05rem; margin-top:5px; font-weight:650; }
     .d { color:var(--muted); font-size:.8rem; margin-top:4px; min-height:2.2em; }
-    .filters { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; }
-    .section-tabs{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 12px}
-    .tab-btn{border:1px solid var(--border);border-radius:999px;background:rgba(255,255,255,.03);color:#d6e3f9;padding:7px 12px;cursor:pointer;font-weight:600}
-    .tab-btn.active{background:rgba(123,141,255,.2);border-color:rgba(123,141,255,.65);color:#fff}
+    .filters { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px; }
+    .dashboard-flow{display:grid;gap:14px}
+    .section-shell{border:1px solid var(--border);border-radius:14px;background:rgba(255,255,255,.02);padding:12px}
+    .section-shell.secondary{background:rgba(255,255,255,.01)}
+    .section-title{margin:0;font-size:1.02rem}
+    .section-note{margin:6px 0 0;color:var(--muted);font-size:.82rem}
+    .section-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;margin-bottom:10px}
     .grid { display:grid; grid-template-columns:repeat(12,minmax(0,1fr)); gap:10px; }
     .span-3{grid-column:span 3}.span-4{grid-column:span 4}.span-6{grid-column:span 6}.span-8{grid-column:span 8}.span-12{grid-column:span 12}
     .card { padding:12px; }
@@ -291,47 +294,63 @@
       <input id="endDateFilter" type="date" title="End date" />
       <input id="searchFilter" placeholder="Search press, alert, subsystem, version" />
     </section>
-    <section id="dashboardTabs" class="section-tabs">
-      <button class="tab-btn active" data-tab="executive">Executive</button>
-      <button class="tab-btn" data-tab="operations">Operations</button>
-      <button class="tab-btn" data-tab="production">Production</button>
-      <button class="tab-btn" data-tab="reliability">Reliability</button>
-      <button class="tab-btn" data-tab="all">All</button>
-    </section>
-
-    <main class="grid">
-      <article class="card span-6" data-rank-card="press" data-zone="executive operations reliability">
+    <main class="dashboard-flow">
+      <section class="section-shell">
+        <div class="section-head">
+          <h2 class="section-title">Primary Reliability Signals</h2>
+          <p class="section-note">Start here for top disruption drivers and system-level pressure.</p>
+        </div>
+        <div class="grid">
+      <article class="card span-6" data-rank-card="press">
         <div class="chart-head"><h3>Top Presses by Error Events</h3><div class="chart-tools"><select data-metric="press" class="select"><option value="events">By events</option><option value="downtime">By downtime</option><option value="normalized">By events/volume</option></select><button class="btn secondary" data-expand="press">Show all</button></div></div>
         <div class="micro">Metric source shown dynamically by mode.</div><div class="chart-area"><canvas id="pressChart"></canvas></div>
       </article>
 
-      <article class="card span-6" data-rank-card="subsystem" data-zone="operations reliability">
+      <article class="card span-6" data-rank-card="subsystem">
         <div class="chart-head"><h3>Top Subsystems</h3><div class="chart-tools"><select data-metric="subsystem" class="select"><option value="events">By events</option><option value="downtime">By downtime</option><option value="normalized">By events/volume</option></select><button class="btn secondary" data-expand="subsystem">Show all</button></div></div>
         <div class="micro">Metric source shown dynamically by mode.</div><div class="chart-area"><canvas id="subsystemChart"></canvas></div>
       </article>
 
-      <article class="card span-6" data-rank-card="alert" data-zone="reliability">
+      <article class="card span-6" data-rank-card="alert">
         <div class="chart-head"><h3>Top Errors</h3><div class="chart-tools"><select data-metric="alert" class="select"><option value="events">By events</option><option value="downtime">By downtime</option><option value="normalized">By events/volume</option></select><button class="btn secondary" data-expand="alert">Show all</button></div></div>
         <div class="micro">Alert ranking uses Name, with Alert Title fallback.</div><div class="chart-area"><canvas id="alertChart"></canvas></div>
       </article>
+        </div>
+      </section>
 
-      <article class="card span-6" data-rank-card="version" data-zone="operations">
+      <section class="section-shell">
+        <div class="section-head">
+          <h2 class="section-title">Production + Exposure Context</h2>
+          <p class="section-note">Correlate reliability impact with output and software exposure.</p>
+        </div>
+        <div class="grid">
+      <article class="card span-6" data-rank-card="version">
         <div class="chart-head"><h3>Top Versions</h3><div class="chart-tools"><select data-metric="version" class="select"><option value="events">By events</option><option value="downtime">By downtime</option><option value="normalized">By events/volume</option></select><button class="btn secondary" data-expand="version">Show all</button></div></div>
         <div class="micro">Version exposure with production-normalized context.</div><div class="chart-area"><canvas id="versionChart"></canvas></div>
       </article>
 
-      <article class="card span-6" data-zone="production">
+      <article class="card span-6">
         <div class="chart-head"><h3>Print Volume By Press</h3><div class="chart-tools"><select id="customerVolumeUnit" class="select"><option value="productionPrintedSheets">Production-only Printed Sheets</option><option value="printedSheets">Total Printed Sheets</option><option value="printedFlats">Printed Flats</option></select><select id="customerVolumeSort" class="select"><option value="desc">Highest first</option><option value="asc">Lowest first</option></select><button id="customerVolumeExpand" class="btn secondary">Show all</button></div></div>
         <div class="micro" id="customerVolumeNote">Press-level workload from Production data only.</div><div class="chart-area"><canvas id="customerVolumeChart"></canvas></div>
       </article>
+        </div>
+      </section>
 
-      <article class="card span-12" id="riskSection" data-zone="executive reliability"></article>
+      <section class="section-shell secondary">
+        <div class="section-head">
+          <h2 class="section-title">Secondary Analysis</h2>
+          <p class="section-note">Detailed context stays on this page and can be expanded on demand.</p>
+        </div>
+        <div class="grid">
+      <article class="card span-12" id="riskSection"></article>
 
-      <article class="card span-12" data-zone="operations production">
+      <article class="card span-12">
         <h3>Merged Event Explorer</h3>
         <div class="micro">Each row combines Errors with matching Availability and Print Volume bucket context.</div>
         <div class="table-wrap"><table id="eventTable"></table></div>
       </article>
+        </div>
+      </section>
     </main>
   </section>
 </div>
@@ -422,7 +441,6 @@
     dashboardScopeModel: null,
     availabilityDefinitions: null,
     renderQueued: false,
-    activeZone: 'executive',
   };
 
   const CHARTS = new Map();
@@ -995,7 +1013,6 @@
       const runtimeSeconds = printSeconds + availableWithoutPrintSeconds;
       const plannedDowntimeSeconds = preventiveMaintenanceSeconds;
       const unplannedDowntimeSeconds = recoverySeconds + jamsSeconds;
-      const serviceDowntimeSeconds = 0;
       const alignedPlannedDowntimeSeconds = plannedDowntimeSeconds + onJobMaintenanceSeconds;
 
       let availabilityPct = parsePercent(getField(r, ['Availability']));
@@ -1044,7 +1061,6 @@
         runtimeSeconds,
         plannedDowntimeSeconds: alignedPlannedDowntimeSeconds,
         unplannedDowntimeSeconds,
-        serviceDowntimeSeconds,
         subsystem,
         downtimeCategory,
         raw: r
@@ -1058,7 +1074,6 @@
     }
     if (onProgress) onProgress({ completed: rows.length, total, detail: `Availability rows: ${rows.length.toLocaleString()} / ${total.toLocaleString()}` });
 
-    const serviceTop = STATE.merged?.service?.rows?.[0] || null;
     return {
       rows: out,
       diagnostics: {
@@ -1077,7 +1092,7 @@
     const classifyMaintenance = row => {
       const jobType = String(getField(row, ['Job Type'])).toLowerCase();
       const pressMode = String(getField(row, ['Press Mode', 'Mode'])).toLowerCase();
-      return /maintenance|service|repair|pm/.test(jobType) || /maintenance|service|repair|pm/.test(pressMode);
+      return /maintenance|repair|pm/.test(jobType) || /maintenance|repair|pm/.test(pressMode);
     };
 
     const total = Math.max(1, rows.length);
@@ -1207,7 +1222,6 @@
         runtimeSeconds: 0,
         plannedDowntimeSeconds: 0,
         unplannedDowntimeSeconds: 0,
-        serviceDowntimeSeconds: 0,
         availabilityPctAccumulator: 0,
         availabilityPctContribCount: 0,
         sourceRows: 0,
@@ -1218,7 +1232,6 @@
       slot.runtimeSeconds += row.runtimeSeconds || 0;
       slot.plannedDowntimeSeconds += row.plannedDowntimeSeconds || 0;
       slot.unplannedDowntimeSeconds += row.unplannedDowntimeSeconds || 0;
-      slot.serviceDowntimeSeconds += row.serviceDowntimeSeconds || 0;
       if (row.availabilityPct != null) {
         slot.availabilityPctAccumulator += row.availabilityPct;
         slot.availabilityPctContribCount += 1;
@@ -1341,7 +1354,6 @@
           runtimeSeconds: 0,
           plannedDowntimeSeconds: 0,
           unplannedDowntimeSeconds: 0,
-          serviceDowntimeSeconds: 0,
           availabilityPct: null,
           productionVolume: 0,
           maintenanceVolume: 0,
@@ -1360,7 +1372,6 @@
         slot.runtimeSeconds += avMatch.runtimeSeconds;
         slot.plannedDowntimeSeconds += avMatch.plannedDowntimeSeconds;
         slot.unplannedDowntimeSeconds += avMatch.unplannedDowntimeSeconds;
-        slot.serviceDowntimeSeconds += avMatch.serviceDowntimeSeconds;
         slot.availabilityPct = avMatch.availabilityPctContribCount ? (avMatch.availabilityPctAccumulator / avMatch.availabilityPctContribCount) : null;
         slot.matchedAvailabilityRows += avMatch.sourceRows;
       }
@@ -1380,7 +1391,7 @@
           availabilityKeyUsed: avMatch ? (availabilityByPressModelDay.has(rowKey) ? 'primary' : 'fallback') : null,
           volumeKeyUsed: volMatch ? (volumeByPressModelDay.has(rowKey) ? 'primary' : 'fallback') : null
         },
-        availability: avMatch || { printSeconds: 0, availableWithoutPrintSeconds: 0, runtimeSeconds: 0, plannedDowntimeSeconds: 0, unplannedDowntimeSeconds: 0, serviceDowntimeSeconds: 0 },
+        availability: avMatch || { printSeconds: 0, availableWithoutPrintSeconds: 0, runtimeSeconds: 0, plannedDowntimeSeconds: 0, unplannedDowntimeSeconds: 0 },
         volume: volMatch || { productionVolume: 0, maintenanceVolume: 0, totalVolume: 0 },
       });
       if (i % 2000 === 0) {
@@ -1407,7 +1418,6 @@
       runtimeSeconds: row.runtimeSeconds || 0,
       plannedDowntimeSeconds: row.plannedDowntimeSeconds || 0,
       unplannedDowntimeSeconds: row.unplannedDowntimeSeconds || 0,
-      serviceDowntimeSeconds: row.serviceDowntimeSeconds || 0,
       availabilityPct: row.availabilityPctContribCount ? (row.availabilityPctAccumulator / row.availabilityPctContribCount) : null
     }));
     const volumeAgg = [...volumeByPressModelDay.values()].map(row => ({
@@ -1594,7 +1604,6 @@
       runtimeSeconds: row.runtimeSeconds || 0,
       plannedDowntimeSeconds: row.plannedDowntimeSeconds || 0,
       unplannedDowntimeSeconds: row.unplannedDowntimeSeconds || 0,
-      serviceDowntimeSeconds: row.serviceDowntimeSeconds || 0,
       availabilityPct: row.availabilityPct ?? null
     }));
     const volumeAgg = filteredVolumeRowsNative.map(row => ({
@@ -1855,7 +1864,6 @@
     const totals = {
       planned: availabilityAgg.reduce((a, r) => a + (r.plannedDowntimeSeconds || 0), 0),
       unplanned: availabilityAgg.reduce((a, r) => a + (r.unplannedDowntimeSeconds || 0), 0),
-      service: availabilityAgg.reduce((a, r) => a + (r.serviceDowntimeSeconds || 0), 0),
       runtime: availabilityAgg.reduce((a, r) => a + (r.runtimeSeconds || 0), 0),
       totalAvailDowntime: availabilityAgg.reduce((a, r) => a + totalDowntimeFromAvailabilityRow(r), 0),
       productionVolume: volumeAgg.reduce((a, r) => a + (r.productionVolume || 0), 0),
@@ -1884,7 +1892,6 @@
       totalDowntime,
       totalUnplanned: totals.unplanned,
       totalPlanned: totals.planned,
-      totalService: totals.service,
       totalOperating: totals.runtime,
       totalProdVolume: totals.productionPrintedSheets,
       totalMaintenanceVolume: totals.maintenanceVolume,
@@ -2121,10 +2128,6 @@
           impact: 'Expected impact: measurable drop in repeated faults across impacted presses.',
         },
       ],
-      serviceSignal: serviceTop ? {
-        title: `Service escalation at ${serviceTop.press}`,
-        detail: `${serviceTop.cases} cases, ${serviceTop.machineDownCases} machine-down cases.`,
-      } : null,
     };
   }
 
@@ -2140,7 +2143,6 @@
       { id: 'executiveStatus', title: 'Executive Status', accent: model => model.overallStatus.styles.color, type: 'status' },
       { id: 'situationSnapshot', title: 'Situation Snapshot', accent: () => '#1f8bff', type: 'snapshot' },
       { id: 'operationalInsights', title: 'Operational Insights', accent: () => '#365f9f', type: 'insights' },
-      { id: 'serviceSignal', title: 'Critical Service Signal', accent: () => '#2f7eb7', type: 'service' },
       { id: 'topActionCards', title: 'Top Action Cards', accent: () => '#116e45', type: 'actions' },
       { id: 'topPressDowntime', title: 'Top Presses Downtime (Top 5)', accent: () => '#e56739', type: 'table' },
       { id: 'printVolume', title: 'Print Volume (Top 5)', accent: () => '#25a65b', type: 'table' },
@@ -2178,9 +2180,6 @@
         (model.situationSnapshot || []).forEach(item => lines.push(`- ${item.title}: ${item.value} (${item.note})`));
       } else if (section.id === 'operationalInsights') {
         (model.operationalInsights || []).forEach(item => lines.push(`- ${item.title}: ${item.detail}`));
-      } else if (section.id === 'serviceSignal') {
-        if (model.serviceSignal) lines.push(`- ${model.serviceSignal.title}: ${model.serviceSignal.detail}`);
-        else lines.push('- No critical escalation in this scope.');
       } else if (section.id === 'topActionCards') {
         (model.topActionCards || []).forEach(item => lines.push(`- ${item.title}: ${item.reason} ${item.impact}`));
       } else if (section.id === 'topPressDowntime') {
@@ -2253,7 +2252,6 @@
       contextTags: [`Top risk: ${status.topPressByEvents?.name || 'N/A'}`, `Bottleneck: ${status.topSubsystem?.name || 'N/A'}`, `Error: ${status.topAlert?.name || 'N/A'}`],
       situationSnapshot,
       operationalInsights: status.insightCards || [],
-      serviceSignal: status.serviceSignal || null,
       topActionCards: (status.actionCards || []).slice(0, 3),
       topErrors,
       topSubsystems,
@@ -2309,12 +2307,6 @@
           ? `<tr><td style="padding:8px 10px;border-bottom:1px solid #d8e3f6;"><div style="font-size:11px;font-weight:700;color:#365f9f;text-transform:uppercase;line-height:1.6;">${esc(card.title)}</div><div style="margin-top:4px;font-size:13px;color:#1f2a3a;line-height:1.6;">${esc(card.detail)}</div></td></tr>`
           : `<article class="exec-insight-card"><div class="exec-mini-title">${esc(card.title)}</div><div class="exec-mini-note">${esc(card.detail)}</div></article>`).join('');
         const body = isEmail ? `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;border:1px solid #d8e3f6;background:#f9fbff;">${cards}</table>` : `<div class="exec-card-grid">${cards}</div>`;
-        return wrapSection(section.title, accent, body, sectionIdx);
-      }
-      if (section.id === 'serviceSignal') {
-        const body = model.serviceSignal
-          ? `<div class="micro" style="margin:0;color:${isEmail ? '#2f3f55' : '#d3def2'};line-height:1.6;"><strong>${esc(model.serviceSignal.title)}</strong> — ${esc(model.serviceSignal.detail)}</div>`
-          : `<div class="micro" style="margin:0;color:${isEmail ? '#2f3f55' : '#d3def2'};line-height:1.6;">No critical escalation in this scope.</div>`;
         return wrapSection(section.title, accent, body, sectionIdx);
       }
       if (section.id === 'topActionCards') {
@@ -3574,19 +3566,6 @@
       emptyReasons
     });
   }
-  function applyActiveZone() {
-    const zone = STATE.activeZone || 'executive';
-    document.querySelectorAll('#dashboardTabs .tab-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.tab === zone));
-    const cards = document.querySelectorAll('main.grid > article.card[data-zone]');
-    cards.forEach(card => {
-      if (zone === 'all') card.classList.remove('hidden');
-      else {
-        const zones = String(card.dataset.zone || '').split(/\s+/).filter(Boolean);
-        card.classList.toggle('hidden', !zones.includes(zone));
-      }
-    });
-  }
-
   function renderDashboard() {
     try {
       const { filters, scopedMergedRows, scopedErrorRows, scopedSource, scopedKpis, executiveSummary, hasScopedData } = getCurrentDashboardScopeModel();
@@ -3712,7 +3691,6 @@
     });
       renderDashboardStatusPanel(sourceScope, mismatches, STATE.reconciliation.report);
       renderTable(STATE.filtered);
-      applyActiveZone();
     } catch (error) {
       console.error('[dashboard-render-failure]', error);
       ['pressChart', 'subsystemChart', 'alertChart', 'versionChart', 'customerVolumeChart'].forEach(id => setCanvasState(id, `Failed to render ${id}.`, 'error'));
@@ -3996,7 +3974,7 @@
     STATE.cachedRaw = { errors: null, availability: null, volume: null };
     STATE.validation = { errors: false, availability: false, volume: false };
     STATE.normalized = { events: [], availability: [], volume: [] };
-    STATE.merged = { events: [], mergedRows: [], stats: {}, summary: null, pressRisk: [], service: null, sourceTables: { errorsAgg: [], availabilityAgg: [], volumeAgg: [] } };
+    STATE.merged = { events: [], mergedRows: [], stats: {}, summary: null, pressRisk: [], sourceTables: { errorsAgg: [], availabilityAgg: [], volumeAgg: [] } };
     STATE.filtered = [];
     STATE.filteredErrors = [];
     STATE.dashboardScopeModel = null;
@@ -4028,7 +4006,7 @@
     STATE.analysisRunning = false;
     STATE.analysisController = null;
     STATE.normalized = { events: [], availability: [], volume: [] };
-    STATE.merged = { events: [], mergedRows: [], stats: {}, summary: null, pressRisk: [], service: null, sourceTables: { errorsAgg: [], availabilityAgg: [], volumeAgg: [] } };
+    STATE.merged = { events: [], mergedRows: [], stats: {}, summary: null, pressRisk: [], sourceTables: { errorsAgg: [], availabilityAgg: [], volumeAgg: [] } };
     STATE.filtered = [];
     STATE.filteredErrors = [];
     STATE.dashboardScopeModel = null;
@@ -4080,7 +4058,6 @@
 
   function bind() {
     ['errors', 'availability', 'volume'].forEach(setFileUI);
-    applyActiveZone();
     setStatus('Assign datasets and run analysis. Errors dataset is required.', 'info');
     setProcessingState({ stage: 'reading', status: 'idle', percent: 0, detail: 'Upload and validate files to begin processing.' });
     if (!hasSpreadsheetLibrary()) {
@@ -4095,10 +4072,6 @@
     });
 
     document.querySelectorAll('[data-pick]').forEach(btn => btn.addEventListener('click', () => document.getElementById(`${btn.dataset.pick}Picker`).click()));
-    document.querySelectorAll('#dashboardTabs .tab-btn').forEach(btn => btn.addEventListener('click', () => {
-      STATE.activeZone = btn.dataset.tab || 'executive';
-      applyActiveZone();
-    }));
     errorsPicker.addEventListener('change', async e => {
       STATE.files.errors = e.target.files?.[0] || null;
       await validateSingleFile('errors');
