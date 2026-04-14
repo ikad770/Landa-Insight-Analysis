@@ -81,20 +81,79 @@
     .progress-actions { display:flex; justify-content:flex-end; gap:8px; flex-wrap:wrap; }
     @keyframes pulse-progress { from{filter:brightness(1)} to{filter:brightness(1.2)} }
 
-    .topbar,.card{background:linear-gradient(165deg,rgba(27,39,61,.44),rgba(16,23,36,.72));border:1px solid rgba(255,255,255,.04);border-radius:var(--radius);box-shadow:0 10px 24px rgba(0,0,0,.24)}
-    .topbar { display:grid; grid-template-columns:1fr auto; gap:12px; align-items:start; padding:18px; margin-bottom:24px; border-color:rgba(255,255,255,.04); }
+    .topbar,.card{border-radius:var(--radius)}
     .controls { display:flex; gap:8px; flex-wrap:wrap; }
-    .kpis { display:grid; grid-template-columns: repeat(5,minmax(140px,1fr)); gap:14px; margin:18px 0 24px; position:relative; z-index:2; }
-    .kpi { padding:16px 12px; border:1px solid rgba(255,255,255,.04); border-radius:14px; background:linear-gradient(170deg,rgba(134,184,255,.12),rgba(255,255,255,.015)); }
-    .kpi.clickable{cursor:pointer;transition:all .18s ease;position:relative;z-index:1;pointer-events:auto}
-    .kpi.clickable:hover{border-color:rgba(123,141,255,.65);background:rgba(123,141,255,.09);transform:translateY(-1px)}
+    .dashboard-stage{display:grid;gap:20px}
+    .topbar{
+      position:relative;overflow:hidden;
+      grid-template-columns:1fr auto;display:grid;gap:16px;align-items:start;
+      padding:26px 30px;border-radius:24px;
+      border:1px solid rgba(148,194,255,.24);
+      background:linear-gradient(112deg,rgba(74,118,188,.34),rgba(18,26,42,.94));
+      box-shadow:0 30px 60px rgba(0,0,0,.35), inset 0 1px 0 rgba(255,255,255,.08);
+    }
+    .topbar::after{
+      content:"";position:absolute;inset:auto -10% -35% auto;width:460px;height:460px;border-radius:50%;
+      background:radial-gradient(circle,rgba(145,218,255,.23),transparent 65%);
+      pointer-events:none;
+    }
+    .topbar .eyebrow{font-size:.67rem;letter-spacing:.18em;color:#b7c8e4}
+    .topbar .brand-title{font-size:2.05rem;font-weight:785}
+    .topbar .subtitle{max-width:760px;color:#bfd0ea}
+    .topbar .btn{background:rgba(255,255,255,.05);border-color:rgba(255,255,255,.18)}
+    .topbar .btn:hover{background:rgba(255,255,255,.12)}
+    .command-banner{
+      display:grid;grid-template-columns:1.6fr 1fr;gap:12px;padding:14px;
+      border-radius:20px;border:1px solid rgba(126,185,255,.24);
+      background:linear-gradient(130deg,rgba(36,57,90,.68),rgba(13,19,31,.9));
+      box-shadow:0 18px 30px rgba(0,0,0,.24);
+    }
+    .command-left{padding:8px 10px}
+    .hero-title{font-size:1.28rem;font-weight:760;line-height:1.1;margin:0}
+    .hero-note{margin:8px 0 0;color:#d4e0f3;font-size:.89rem;line-height:1.5}
+    .command-signals{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+    .signal-tile{
+      padding:12px;border-radius:14px;
+      background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.015));
+      border:1px solid rgba(255,255,255,.09);
+    }
+    .signal-tile .label{font-size:.63rem;letter-spacing:.1em;text-transform:uppercase;color:#9bb0d1}
+    .signal-tile .value{margin-top:5px;font-size:.88rem;font-weight:700;line-height:1.35;color:#edf4ff}
+    .status-indicator{padding:4px 10px;border-radius:999px;font-size:.73rem;font-weight:700;border:1px solid}
+    .status-indicator.critical{color:#ffd6d2;border-color:rgba(243,107,99,.7);background:rgba(243,107,99,.2)}
+    .status-indicator.warning{color:#ffe3c6;border-color:rgba(240,177,101,.7);background:rgba(240,177,101,.2)}
+    .status-indicator.stable{color:#d6ffe7;border-color:rgba(87,201,138,.68);background:rgba(87,201,138,.2)}
+    .kpi-ribbon-shell{
+      padding:8px 10px;border-radius:18px;
+      background:linear-gradient(180deg,rgba(255,255,255,.03),rgba(255,255,255,.015));
+      border:1px solid rgba(255,255,255,.08);
+    }
+    .kpis { display:grid; grid-template-columns: repeat(5,minmax(140px,1fr)); gap:8px; margin:0; }
+    .kpi{
+      padding:12px 10px;border-radius:12px;border:1px solid transparent;
+      background:rgba(7,12,20,.5);transition:all .2s ease;
+    }
+    .kpi.clickable{cursor:pointer;position:relative;z-index:1;pointer-events:auto}
+    .kpi.clickable:hover{border-color:rgba(123,141,255,.45);background:rgba(76,104,160,.2);transform:translateY(-2px)}
+    .kpi.clickable:focus-visible{outline:none;border-color:rgba(143,211,255,.82);box-shadow:0 0 0 2px rgba(143,211,255,.25)}
     .inline-filters{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
     .inline-filters .select{font-size:.82rem;padding:7px 10px}
     .impact-chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);padding:4px 8px;border-radius:999px;background:rgba(255,255,255,.02);font-size:.78rem;color:#d2ddf2}
     .k { color:var(--muted); font-size:.68rem; text-transform:uppercase; letter-spacing:.1em; }
     .v { font-size:1.45rem; margin-top:8px; font-weight:760; line-height:1.05; }
     .d { display:none; }
-    .filters { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:18px; padding:12px; border:1px solid rgba(255,255,255,.05); border-radius:14px; background:linear-gradient(160deg,rgba(132,167,235,.08),rgba(255,255,255,.01)); }
+    .filters-shell{
+      padding:12px 14px;border-radius:16px;
+      background:linear-gradient(180deg,rgba(255,255,255,.03),rgba(255,255,255,.01));
+      border:1px solid rgba(255,255,255,.08);
+    }
+    .filters { display:flex; gap:10px; flex-wrap:wrap; margin:0; padding:0; border:none; background:transparent; }
+    .filters .select,.filters input{
+      background:rgba(11,17,27,.92);border:1px solid rgba(255,255,255,.12);border-radius:11px;
+      transition:border-color .18s ease, box-shadow .18s ease, background .18s ease;
+    }
+    .filters .select:hover,.filters input:hover{border-color:rgba(143,211,255,.38)}
+    .filters .select:focus,.filters input:focus{outline:none;border-color:rgba(143,211,255,.72);box-shadow:0 0 0 2px rgba(143,211,255,.22)}
     .dashboard-flow{display:grid;gap:30px}
     .section-shell{border:1px solid rgba(255,255,255,.035);border-radius:18px;background:linear-gradient(175deg,rgba(130,177,243,.08),rgba(255,255,255,.005));padding:18px}
     .section-shell.secondary{background:linear-gradient(180deg,rgba(255,255,255,.03),rgba(255,255,255,.004))}
@@ -103,13 +162,20 @@
     .section-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;margin-bottom:10px}
     .grid { display:grid; grid-template-columns:repeat(12,minmax(0,1fr)); gap:16px; }
     .span-3{grid-column:span 3}.span-4{grid-column:span 4}.span-6{grid-column:span 6}.span-8{grid-column:span 8}.span-12{grid-column:span 12}
-    .card { padding:12px; background:linear-gradient(180deg,rgba(255,255,255,.025),rgba(255,255,255,.01)); }
+    .card { padding:12px; background:rgba(255,255,255,.02); border:1px solid rgba(255,255,255,.06); box-shadow:0 10px 24px rgba(0,0,0,.2); }
     .chart-head { display:flex; justify-content:space-between; align-items:center; gap:8px; }
     .chart-tools { display:flex; gap:8px; }
     .chart-area{position:relative;height:280px;min-height:280px}
     .chart-area.compact{height:240px;min-height:240px}
-    .rank-hero .chart-area{height:500px;min-height:500px}
-    .rank-hero{border-color:rgba(143,211,255,.28);box-shadow:0 22px 48px rgba(0,0,0,.3),inset 0 1px 0 rgba(255,255,255,.06)}
+    .rank-hero .chart-area{height:560px;min-height:560px}
+    .rank-hero{
+      padding:18px 18px 14px;border-radius:20px;
+      background:linear-gradient(170deg,rgba(88,131,206,.2),rgba(13,21,35,.9));
+      border:1px solid rgba(143,211,255,.28);
+      box-shadow:0 30px 58px rgba(0,0,0,.32), inset 0 1px 0 rgba(255,255,255,.08);
+    }
+    .rank-hero .chart-head h3{font-size:1.12rem}
+    .rank-hero .micro{color:#bfd1ea}
     .muted-note{color:#a8bad7;font-size:.78rem}
     .detail-toggle{margin-top:4px}
     details.section-disclosure summary{cursor:pointer;list-style:none}
@@ -219,48 +285,69 @@
     .summary-preview{border:1px solid var(--border);background:#fff;border-radius:10px;padding:10px;max-height:420px;overflow:auto}
     .summary-preview iframe{width:100%;height:380px;border:0}
 
-    .dashboard-stage{display:grid;gap:22px}
-    .topbar{grid-template-columns:1fr auto;border:1px solid rgba(143,211,255,.16);background:linear-gradient(130deg,rgba(50,80,129,.35),rgba(14,21,35,.85));padding:24px 26px;border-radius:22px}
-    .topbar .eyebrow{font-size:.66rem;letter-spacing:.16em}
-    .topbar .brand-title{font-size:2rem;font-weight:780}
-    .topbar .subtitle{max-width:760px;color:#b8c8e0}
-    .topbar .controls{align-self:flex-start}
-    .topbar .btn{background:rgba(255,255,255,.04);border-color:rgba(255,255,255,.13)}
-    .command-banner{display:grid;grid-template-columns:1.35fr 1fr;gap:12px;padding:16px 18px;border-radius:18px;background:linear-gradient(110deg,rgba(60,95,150,.25),rgba(13,20,32,.82));border:1px solid rgba(143,211,255,.18)}
-    .command-left .hero-title{font-size:1.2rem}
-    .command-left .hero-note{margin:6px 0 0;font-size:.86rem}
-    .command-signals{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
-    .signal-tile{padding:10px;border-radius:12px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06)}
-    .signal-tile .label{font-size:.64rem;letter-spacing:.08em;text-transform:uppercase;color:#99aecf}
-    .signal-tile .value{margin-top:4px;font-size:.86rem;font-weight:700;line-height:1.35}
     .kpis{grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin:0}
-    .kpi{padding:12px 10px;border-radius:12px;border:1px solid rgba(255,255,255,.05);background:rgba(255,255,255,.02)}
     .k{font-size:.62rem}
-    .v{font-size:1.35rem}
-    .filters{margin-bottom:0;border-radius:12px;background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.06)}
-    .filters .select,.filters input{background:rgba(12,18,29,.9)}
+    .v{font-size:1.48rem;font-weight:780}
     .section-shell{border:none;padding:0;background:transparent}
-    .rank-hero{padding:14px;border-radius:16px;background:linear-gradient(180deg,rgba(86,132,214,.16),rgba(16,24,39,.7));border:1px solid rgba(143,211,255,.18)}
-    .rank-hero .chart-area{height:520px;min-height:520px}
-    .intelligence-band{display:grid;grid-template-columns:1.1fr 1fr;gap:14px}
+    .intelligence-band{display:grid;grid-template-columns:1.25fr .75fr;gap:14px}
     .secondary-band{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:12px}
-    .secondary-band .card{background:rgba(255,255,255,.015);border:1px solid rgba(255,255,255,.05)}
-    .risk-intel{padding:14px;border-radius:16px;background:linear-gradient(160deg,rgba(74,107,168,.18),rgba(12,18,30,.8));border:1px solid rgba(143,211,255,.16)}
+    .secondary-band .card{background:rgba(255,255,255,.01);border:1px solid rgba(255,255,255,.05)}
+    .secondary-band .micro{opacity:.84}
+    .risk-intel{
+      padding:16px;border-radius:16px;
+      background:linear-gradient(160deg,rgba(70,103,162,.22),rgba(12,18,30,.84));
+      border:1px solid rgba(143,211,255,.2);
+      box-shadow:0 18px 32px rgba(0,0,0,.25);
+    }
     .risk-baseline{grid-template-columns:repeat(3,minmax(0,1fr));margin-bottom:10px}
-    .baseline-card{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08)}
-    .risk-help{border:1px solid rgba(255,255,255,.09);background:rgba(255,255,255,.02);border-radius:10px;padding:9px 10px;font-size:.78rem;color:#c2d3eb}
-    .risk-table-wrap{border:none}
-    .risk-table-wrap table th{background:rgba(255,255,255,.03)}
-    .summary-panel{background:linear-gradient(175deg,rgba(21,33,52,.96),rgba(11,17,28,.98))}
-    .summary-section{background:rgba(255,255,255,.015)}
+    .baseline-card{
+      background:rgba(7,12,20,.55);border:1px solid rgba(255,255,255,.1);padding:12px;border-radius:12px;
+      box-shadow:inset 0 1px 0 rgba(255,255,255,.05);
+    }
+    .baseline-card .label{font-size:.63rem;color:#abc1e2}
+    .baseline-card .value{font-size:1.12rem}
+    .risk-help{
+      border:1px solid rgba(255,255,255,.1);background:rgba(11,18,29,.75);border-radius:12px;padding:10px 11px;
+      font-size:.79rem;color:#cfe0f8;line-height:1.45
+    }
+    .risk-table-wrap{border:1px solid rgba(255,255,255,.1);border-radius:12px;background:rgba(7,12,20,.56)}
+    .risk-table-wrap table th{background:rgba(255,255,255,.04)}
+    .summary-modal{background:rgba(3,6,12,.8);backdrop-filter:blur(5px)}
+    .summary-panel{
+      width:min(1100px,95vw);max-height:92vh;padding:0;overflow:hidden;border-radius:20px;
+      background:linear-gradient(165deg,rgba(19,29,46,.98),rgba(8,12,20,.99));
+      border:1px solid rgba(166,201,255,.2);box-shadow:0 36px 70px rgba(0,0,0,.45);
+    }
+    .summary-shell{padding:18px 18px 0}
+    .summary-header{
+      display:grid;grid-template-columns:1fr auto;gap:12px;align-items:start;
+      padding:18px;border-radius:16px;border:1px solid rgba(143,211,255,.2);
+      background:linear-gradient(140deg,rgba(67,101,158,.32),rgba(11,18,30,.8));
+    }
+    .summary-kicker{font-size:.68rem;text-transform:uppercase;letter-spacing:.16em;color:#b4c8e6}
+    .summary-title{margin:5px 0 0;font-size:1.5rem}
+    .summary-intro{margin:8px 0 0;color:#d2def0;font-size:.88rem}
+    .summary-actions{padding:12px 0 0}
+    .summary-scope{padding:0 0 10px}
+    .summary-layout{gap:12px;padding-bottom:14px}
+    .summary-section{
+      border:1px solid rgba(255,255,255,.1);border-radius:14px;background:rgba(255,255,255,.02);
+      overflow:hidden;box-shadow:inset 0 1px 0 rgba(255,255,255,.05)
+    }
+    .summary-section-head{padding:12px 14px;font-size:.84rem;text-transform:uppercase;letter-spacing:.09em}
+    .summary-section-body{padding:14px}
+    .summary-preview{margin:0 18px 18px;background:#fff}
     .info-modal{position:fixed;inset:0;background:rgba(4,7,13,.72);display:none;align-items:center;justify-content:center;z-index:45}
     .info-modal.show{display:flex}
     .info-panel{width:min(520px,92vw);padding:18px;border-radius:14px;border:1px solid rgba(255,255,255,.08);background:linear-gradient(170deg,rgba(22,33,51,.95),rgba(13,19,30,.95))}
     .brief-lines{display:grid;gap:8px;margin-top:10px}
     .brief-line{display:grid;grid-template-columns:94px 1fr;gap:8px;align-items:start;font-size:.9rem}
     .brief-line .tag{font-size:.68rem;text-transform:uppercase;letter-spacing:.08em;color:#a8b9d4}
-    @media(max-width:1180px){.command-banner{grid-template-columns:1fr}.command-signals{grid-template-columns:1fr}.kpis{grid-template-columns:repeat(3,minmax(0,1fr))}.intelligence-band{grid-template-columns:1fr}}
-    @media(max-width:1000px){ .kpis{grid-template-columns:repeat(2,minmax(140px,1fr));}.topbar{grid-template-columns:1fr}.span-6,.span-4,.span-8,.span-3{grid-column:span 12}.file-row{grid-template-columns:1fr} .file-state{justify-content:flex-start} .rank-hero .chart-area{height:360px;min-height:360px} }
+    details.section-disclosure[open] .impact-chip{background:rgba(143,211,255,.18);border-color:rgba(143,211,255,.6)}
+    details.section-disclosure[open] article{animation:sectionIn .25s ease}
+    @keyframes sectionIn{from{opacity:.4;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
+    @media(max-width:1180px){.topbar{grid-template-columns:1fr}.command-banner{grid-template-columns:1fr}.command-signals{grid-template-columns:1fr}.kpis{grid-template-columns:repeat(3,minmax(0,1fr))}.intelligence-band{grid-template-columns:1fr}}
+    @media(max-width:1000px){ .kpis{grid-template-columns:repeat(2,minmax(140px,1fr));}.span-6,.span-4,.span-8,.span-3{grid-column:span 12}.file-row{grid-template-columns:1fr} .file-state{justify-content:flex-start} .rank-hero .chart-area{height:380px;min-height:380px} }
     @media(max-width:760px){ .summary-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr));}.exec-signal-card,.exec-story-card,.exec-insight-card,.exec-action-card,.hero-signal{grid-column:span 12;} .hero-signals{grid-template-columns:1fr;} .risk-row{grid-template-columns:1fr;} }
   </style>
 </head>
@@ -354,16 +441,18 @@
     </header>
 
     <section id="executiveSummaryCard" class="command-banner"></section>
-    <section id="kpiStrip" class="kpis"></section>
+    <section class="kpi-ribbon-shell"><section id="kpiStrip" class="kpis"></section></section>
     <section id="dashboardStatusPanel" class="dashboard-status"></section>
 
-    <section class="filters">
-      <select id="pressFilter" class="select"><option value="all">All presses</option></select>
-      <select id="subsystemFilter" class="select"><option value="all">All subsystems</option></select>
-      <select id="versionFilter" class="select"><option value="all">All software versions</option></select>
-      <input id="startDateFilter" type="date" title="Start date" />
-      <input id="endDateFilter" type="date" title="End date" />
-      <input id="searchFilter" placeholder="Search press, alert, subsystem, version" />
+    <section class="filters-shell">
+      <section class="filters">
+        <select id="pressFilter" class="select"><option value="all">All presses</option></select>
+        <select id="subsystemFilter" class="select"><option value="all">All subsystems</option></select>
+        <select id="versionFilter" class="select"><option value="all">All software versions</option></select>
+        <input id="startDateFilter" type="date" title="Start date" />
+        <input id="endDateFilter" type="date" title="End date" />
+        <input id="searchFilter" placeholder="Search press, alert, subsystem, version" />
+      </section>
     </section>
     <main class="dashboard-flow">
       <section class="section-shell primary-layer">
@@ -440,18 +529,23 @@
 
 <div id="summaryModal" class="summary-modal">
   <section class="summary-panel">
-    <div class="chart-head">
-      <h3 style="margin:0;">Landa Insight<span class="brand-plus">Pro+</span> Summary</h3>
-      <button id="closeSummaryBtn" class="btn">Close</button>
+    <div class="summary-shell">
+      <div class="summary-header">
+        <div>
+          <div class="summary-kicker">Executive Brief</div>
+          <h3 class="summary-title">Landa Insight<span class="brand-plus">Pro+</span> Leadership Summary</h3>
+          <p class="summary-intro">Concise, leadership-ready readout generated from the currently validated dashboard scope.</p>
+        </div>
+        <button id="closeSummaryBtn" class="btn">Close</button>
+      </div>
+      <div class="summary-actions">
+        <button id="summaryPreviewBtn" class="btn secondary">Preview Email</button>
+        <button id="summaryCopyBtn" class="btn secondary">Copy Email Summary</button>
+        <button id="summaryExportBtn" class="btn primary">Open in Outlook</button>
+      </div>
+      <div id="summaryScopeMeta" class="summary-scope"></div>
+      <div id="summaryContent" class="summary-layout"></div>
     </div>
-    <p class="micro">Summary actions use the current validated dashboard scope.</p>
-    <div class="summary-actions">
-      <button id="summaryPreviewBtn" class="btn secondary">Preview Email</button>
-      <button id="summaryCopyBtn" class="btn secondary">Copy Email Summary</button>
-      <button id="summaryExportBtn" class="btn primary">Open in Outlook</button>
-    </div>
-    <div id="summaryScopeMeta" class="summary-scope"></div>
-    <div id="summaryContent" class="summary-layout"></div>
     <div id="summaryPreview" class="summary-preview hidden"></div>
   </section>
 </div>
@@ -2512,7 +2606,7 @@
       ['MTTR', 'mttr', k.mttr == null ? na : formatDuration(k.mttr)],
       ['Events', 'totalEvents', k.totalEvents.toLocaleString()],
     ];
-    document.getElementById('kpiStrip').innerHTML = cards.map(([a, metricKey, b]) => `<article class="kpi clickable" role="button" tabindex="0" data-kpi-metric="${metricKey}" title="${esc(a)}"><div class="k">${a}</div><div class="v">${b}</div></article>`).join('');
+    document.getElementById('kpiStrip').innerHTML = cards.map(([a, metricKey, b], idx) => `<article class="kpi clickable" role="button" tabindex="0" data-kpi-metric="${metricKey}" title="${esc(a)}"><div class="k">${idx + 1}. ${a}</div><div class="v">${b}</div></article>`).join('');
   }
 
   function renderExecutiveSummaryCard(summary) {
@@ -2527,6 +2621,7 @@
           <span class="status-indicator ${statusClass}">${esc(summary.status || 'Stable')}</span>
         </div>
         <p class="hero-note">${esc(summary.statusVerdict || 'Operational performance is stable in this scope.')}</p>
+        <p class="muted-note" style="margin:8px 0 0;">Use this bar as the operating narrative anchor before entering detailed diagnostics.</p>
       </div>
       <section class="command-signals">
         <article class="signal-tile"><div class="label">Highest-pressure press</div><div class="value">${esc(topRisk)}</div></article>
@@ -2554,13 +2649,16 @@
         const riskLabel = r.tier === 'CRITICAL OUTLIER' ? 'Critical' : r.tier === 'HIGH RISK' ? 'High' : r.tier === 'UNSTABLE' ? 'Watch' : 'Stable';
         const riskCls = r.tier === 'CRITICAL OUTLIER' ? 'risk-critical' : r.tier === 'HIGH RISK' ? 'risk-high' : r.tier === 'UNSTABLE' ? 'risk-medium' : 'risk-stable';
         const impact = (r.normalizedRiskScore || 0) >= 75 ? 'high' : (r.normalizedRiskScore || 0) >= 50 ? 'medium' : 'low';
-        return { ...r, reason, riskLabel, riskCls, impact };
+        const thresholdText = baseline?.p90 != null && r?.downtime != null
+          ? `${formatDuration(r.downtime)} vs P90 ${formatDuration(baseline.p90)}`
+          : `${(r.normalizedRiskScore || 0).toFixed(0)} risk score`;
+        return { ...r, reason, riskLabel, riskCls, impact, thresholdText };
       });
     const deviationPct = baseline?.median > 0 && normalizedRows.length
       ? (((normalizedRows[0].downtime - baseline.median) / baseline.median) * 100)
       : 0;
     document.getElementById('riskSection').innerHTML = `
-      <div class="chart-head"><h3 style="margin:0;">Risk ranking</h3><button id="baselineInfoBtn" class="btn secondary">How this works</button></div>
+      <div class="chart-head"><h3 style="margin:0;">Ranked press risk</h3><button id="baselineInfoBtn" class="btn secondary">How this works</button></div>
       <div class="risk-baseline">
         <article class="baseline-card"><div class="label">Median downtime</div><div class="value">${baseline ? formatDuration(baseline.median) : 'N/A'}</div></article>
         <article class="baseline-card"><div class="label">Expected range</div><div class="value">${baseline ? `${formatDuration(baseline.p50)} – ${formatDuration(baseline.p75)}` : 'N/A'}</div></article>
@@ -2569,8 +2667,8 @@
       <div class="risk-help">Baseline compares each press against the current filtered peer group. Flags trigger when downtime or MTTR exceed percentile thresholds or when production deficit compounds the risk score.</div>
       <div class="risk-table-wrap">
         <table>
-          <thead><tr><th>Press</th><th>Severity</th><th>Reason</th><th>Key deviation</th></tr></thead>
-          <tbody>${normalizedRows.length ? normalizedRows.map(r => `<tr><td><strong>${esc(r.press)}</strong></td><td><span class="risk-level-badge ${r.riskCls}">${esc(r.riskLabel)}</span></td><td>${esc(r.reason)}</td><td><span class="impact-level">${esc((r.normalizedRiskScore || 0).toFixed(0))} score • ${esc(r.impact)}</span></td></tr>`).join('') : '<tr><td colspan="4">No elevated risks in this filter scope.</td></tr>'}</tbody>
+          <thead><tr><th>Rank</th><th>Press</th><th>Severity</th><th>Why flagged</th><th>Threshold crossed</th></tr></thead>
+          <tbody>${normalizedRows.length ? normalizedRows.map((r, idx) => `<tr><td>#${idx + 1}</td><td><strong>${esc(r.press)}</strong></td><td><span class="risk-level-badge ${r.riskCls}">${esc(r.riskLabel)}</span></td><td>${esc(r.reason)}</td><td><span class="impact-level">${esc(r.thresholdText)} • ${esc(r.impact)}</span></td></tr>`).join('') : '<tr><td colspan="5">No elevated risks in this filter scope.</td></tr>'}</tbody>
         </table>
       </div>
       <div style="display:flex;justify-content:flex-end;margin-top:8px;"><button id="riskExpandBtn" class="btn secondary">${STATE.expand.risk ? 'Show top 10' : 'Show more'}</button></div>`;
