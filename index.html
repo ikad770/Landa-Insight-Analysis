@@ -59,6 +59,7 @@
     .loaded{color:#ffe5c7;background:rgba(240,177,101,.16);border-color:rgba(240,177,101,.45)}
     .validated{color:#d2ffe8;background:rgba(87,201,138,.15);border-color:rgba(87,201,138,.45)}
     .optional{color:#d8e3ff;background:rgba(123,141,255,.14);border-color:rgba(123,141,255,.45)}
+    .sf{color:#d8f1ff;background:rgba(82,174,255,.15);border-color:rgba(82,174,255,.45)}
     .intake-actions { display:flex; gap:10px; justify-content:flex-end; flex-wrap:wrap; }
     .status { border-radius: 10px; border:1px solid; padding:10px 12px; display:none; }
     .status.show{display:block}
@@ -94,6 +95,9 @@
     .v { font-size:1.05rem; margin-top:5px; font-weight:650; }
     .d { color:var(--muted); font-size:.8rem; margin-top:4px; min-height:2.2em; }
     .filters { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; }
+    .section-tabs{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 12px}
+    .tab-btn{border:1px solid var(--border);border-radius:999px;background:rgba(255,255,255,.03);color:#d6e3f9;padding:7px 12px;cursor:pointer;font-weight:600}
+    .tab-btn.active{background:rgba(123,141,255,.2);border-color:rgba(123,141,255,.65);color:#fff}
     .grid { display:grid; grid-template-columns:repeat(12,minmax(0,1fr)); gap:10px; }
     .span-3{grid-column:span 3}.span-4{grid-column:span 4}.span-6{grid-column:span 6}.span-8{grid-column:span 8}.span-12{grid-column:span 12}
     .card { padding:12px; }
@@ -235,6 +239,17 @@
             </div>
             <div class="file-state"><span id="volumeBadge" class="badge optional">optional</span></div>
           </div>
+          <div class="file-row">
+            <div class="file-label"><strong>Salesforce datasets</strong><small>Optional (cases / parts / mixed service exports)</small></div>
+            <div class="picker-stack">
+              <div class="picker-wrap"><button class="btn" data-pick="salesforce">Choose file(s)</button><span id="salesforceToken" class="file-token">No Salesforce file selected</span><input id="salesforcePicker" class="hidden" type="file" accept=".csv,.xlsx,.xls,.json" multiple /></div>
+              <div id="salesforceProgress" class="file-progress">
+                <div class="file-progress-meta"><span id="salesforceProgressLabel">Processing…</span><span id="salesforceProgressPercent">0%</span></div>
+                <div class="file-progress-track"><div id="salesforceProgressFill" class="file-progress-fill"></div></div>
+              </div>
+            </div>
+            <div class="file-state"><span id="salesforceBadge" class="badge sf">optional</span></div>
+          </div>
         </section>
 
         <div class="intake-actions">
@@ -287,36 +302,45 @@
       <input id="endDateFilter" type="date" title="End date" />
       <input id="searchFilter" placeholder="Search press, alert, subsystem, version" />
     </section>
+    <section id="dashboardTabs" class="section-tabs">
+      <button class="tab-btn active" data-tab="executive">Executive</button>
+      <button class="tab-btn" data-tab="operations">Operations</button>
+      <button class="tab-btn" data-tab="production">Production</button>
+      <button class="tab-btn" data-tab="reliability">Reliability</button>
+      <button class="tab-btn" data-tab="service">Service / Salesforce</button>
+      <button class="tab-btn" data-tab="all">All</button>
+    </section>
 
     <main class="grid">
-      <article class="card span-6" data-rank-card="press">
+      <article class="card span-6" data-rank-card="press" data-zone="executive operations reliability">
         <div class="chart-head"><h3>Top Presses by Error Events</h3><div class="chart-tools"><select data-metric="press" class="select"><option value="events">By events</option><option value="downtime">By downtime</option><option value="normalized">By events/volume</option></select><button class="btn secondary" data-expand="press">Show all</button></div></div>
         <div class="micro">Metric source shown dynamically by mode.</div><div class="chart-area"><canvas id="pressChart"></canvas></div>
       </article>
 
-      <article class="card span-6" data-rank-card="subsystem">
+      <article class="card span-6" data-rank-card="subsystem" data-zone="operations reliability">
         <div class="chart-head"><h3>Top Subsystems</h3><div class="chart-tools"><select data-metric="subsystem" class="select"><option value="events">By events</option><option value="downtime">By downtime</option><option value="normalized">By events/volume</option></select><button class="btn secondary" data-expand="subsystem">Show all</button></div></div>
         <div class="micro">Metric source shown dynamically by mode.</div><div class="chart-area"><canvas id="subsystemChart"></canvas></div>
       </article>
 
-      <article class="card span-6" data-rank-card="alert">
+      <article class="card span-6" data-rank-card="alert" data-zone="reliability">
         <div class="chart-head"><h3>Top Errors</h3><div class="chart-tools"><select data-metric="alert" class="select"><option value="events">By events</option><option value="downtime">By downtime</option><option value="normalized">By events/volume</option></select><button class="btn secondary" data-expand="alert">Show all</button></div></div>
         <div class="micro">Alert ranking uses Name, with Alert Title fallback.</div><div class="chart-area"><canvas id="alertChart"></canvas></div>
       </article>
 
-      <article class="card span-6" data-rank-card="version">
+      <article class="card span-6" data-rank-card="version" data-zone="operations">
         <div class="chart-head"><h3>Top Versions</h3><div class="chart-tools"><select data-metric="version" class="select"><option value="events">By events</option><option value="downtime">By downtime</option><option value="normalized">By events/volume</option></select><button class="btn secondary" data-expand="version">Show all</button></div></div>
         <div class="micro">Version exposure with production-normalized context.</div><div class="chart-area"><canvas id="versionChart"></canvas></div>
       </article>
 
-      <article class="card span-6">
+      <article class="card span-6" data-zone="production">
         <div class="chart-head"><h3>Print Volume By Press</h3><div class="chart-tools"><select id="customerVolumeUnit" class="select"><option value="productionPrintedSheets">Production-only Printed Sheets</option><option value="printedSheets">Total Printed Sheets</option><option value="printedFlats">Printed Flats</option></select><select id="customerVolumeSort" class="select"><option value="desc">Highest first</option><option value="asc">Lowest first</option></select><button id="customerVolumeExpand" class="btn secondary">Show all</button></div></div>
         <div class="micro" id="customerVolumeNote">Press-level workload from volumeAgg only.</div><div class="chart-area"><canvas id="customerVolumeChart"></canvas></div>
       </article>
 
-      <article class="card span-12" id="riskSection"></article>
+      <article class="card span-12" id="riskSection" data-zone="executive reliability"></article>
+      <article class="card span-12 hidden" id="serviceSection" data-zone="service"></article>
 
-      <article class="card span-12">
+      <article class="card span-12" data-zone="operations production">
         <h3>Merged Event Explorer</h3>
         <div class="micro">Each row combines Errors with matching Availability and Print Volume bucket context.</div>
         <div class="table-wrap"><table id="eventTable"></table></div>
@@ -370,11 +394,11 @@
 <script>
 (() => {
   const STATE = {
-    files: { errors: null, availability: null, volume: null },
-    validation: { errors: false, availability: false, volume: false },
-    cachedRaw: { errors: null, availability: null, volume: null },
-    normalized: { events: [], availability: [], volume: [] },
-    merged: { events: [], mergedRows: [], stats: {}, summary: null, pressRisk: [], sourceTables: { errorsAgg: [], availabilityAgg: [], volumeAgg: [] } },
+    files: { errors: null, availability: null, volume: null, salesforce: [] },
+    validation: { errors: false, availability: false, volume: false, salesforce: true },
+    cachedRaw: { errors: null, availability: null, volume: null, salesforce: [] },
+    normalized: { events: [], availability: [], volume: [], salesforce: { rows: [], cases: [], parts: [], diagnostics: {} } },
+    merged: { events: [], mergedRows: [], stats: {}, summary: null, pressRisk: [], service: null, sourceTables: { errorsAgg: [], availabilityAgg: [], volumeAgg: [] } },
     filtered: [],
     filteredErrors: [],
     kpis: null,
@@ -390,6 +414,7 @@
       errors: { state: 'idle', progress: 0, label: '', startedAt: 0, timer: null },
       availability: { state: 'idle', progress: 0, label: '', startedAt: 0, timer: null },
       volume: { state: 'idle', progress: 0, label: '', startedAt: 0, timer: null },
+      salesforce: { state: 'idle', progress: 0, label: '', startedAt: 0, timer: null },
     },
     lastRunSnapshot: null,
     expand: { press: false, subsystem: false, alert: false, version: false },
@@ -410,6 +435,7 @@
     dashboardScopeModel: null,
     availabilityDefinitions: null,
     renderQueued: false,
+    activeZone: 'executive',
   };
 
   const CHARTS = new Map();
@@ -490,6 +516,44 @@
   const shortYield = () => new Promise(resolve => (window.requestIdleCallback ? requestIdleCallback(() => resolve(), { timeout: 30 }) : setTimeout(resolve, 0)));
   const hasChartLibrary = () => typeof window.Chart === 'function';
   const hasSpreadsheetLibrary = () => !!window.XLSX;
+  const hasWorkerSupport = () => typeof window.Worker === 'function';
+  let workerSeq = 0;
+  let analysisWorker = null;
+  const workerPending = new Map();
+
+  function getAnalysisWorker() {
+    if (!hasWorkerSupport()) return null;
+    if (analysisWorker) return analysisWorker;
+    try {
+      analysisWorker = new Worker('assets/analysis-worker.js');
+      analysisWorker.onmessage = event => {
+        const { id, ok, result, error } = event.data || {};
+        const pending = workerPending.get(id);
+        if (!pending) return;
+        workerPending.delete(id);
+        if (ok) pending.resolve(result);
+        else pending.reject(new Error(error || 'Worker command failed'));
+      };
+      analysisWorker.onerror = () => {
+        workerPending.forEach(({ reject }) => reject(new Error('Worker runtime error')));
+        workerPending.clear();
+        analysisWorker = null;
+      };
+    } catch {
+      analysisWorker = null;
+    }
+    return analysisWorker;
+  }
+
+  function runWorkerCommand(type, payload) {
+    const worker = getAnalysisWorker();
+    if (!worker) return Promise.reject(new Error('Worker unavailable'));
+    return new Promise((resolve, reject) => {
+      const id = ++workerSeq;
+      workerPending.set(id, { resolve, reject });
+      worker.postMessage({ id, type, payload });
+    });
+  }
 
   const getField = (row, aliases) => {
     const entries = Object.entries(row || {});
@@ -627,15 +691,20 @@
   }
 
   function setFileUI(key) {
-    const file = STATE.files[key];
-    document.getElementById(`${key}Token`).textContent = file ? file.name : 'No file selected';
+    const file = key === 'salesforce' ? (STATE.files.salesforce || []) : STATE.files[key];
+    const token = document.getElementById(`${key}Token`);
+    if (!token) return;
+    token.textContent = key === 'salesforce'
+      ? (file.length ? `${file.length} Salesforce file(s) selected` : 'No Salesforce file selected')
+      : (file ? file.name : 'No file selected');
     const badge = document.getElementById(`${key}Badge`);
-    if (!file) {
-      badge.className = `badge ${key === 'errors' ? 'missing' : 'optional'}`;
+    const hasFile = key === 'salesforce' ? file.length > 0 : !!file;
+    if (!hasFile) {
+      badge.className = `badge ${key === 'errors' ? 'missing' : (key === 'salesforce' ? 'sf' : 'optional')}`;
       badge.textContent = key === 'errors' ? 'missing' : 'optional';
     } else if (STATE.validation[key]) {
       badge.className = 'badge validated';
-      badge.textContent = 'validated';
+      badge.textContent = key === 'salesforce' ? 'classified' : 'validated';
     } else {
       badge.className = 'badge loaded';
       badge.textContent = 'loaded';
@@ -760,9 +829,16 @@
 
   async function loadRowsFromFile(file) {
     const ext = file.name.toLowerCase().split('.').pop();
-    if (ext === 'csv') return parseCSV(await file.text());
+    if (ext === 'csv' || ext === 'json') {
+      const text = await file.text();
+      try {
+        const result = await runWorkerCommand('parseTextFile', { text, ext });
+        return result.rows || [];
+      } catch {
+        return ext === 'csv' ? parseCSV(text) : parseJSON(text);
+      }
+    }
     if (ext === 'xlsx' || ext === 'xls') return parseExcel(file);
-    if (ext === 'json') return parseJSON(await file.text());
     throw new Error(`Unsupported file type: ${ext}`);
   }
 
@@ -773,7 +849,7 @@
   function detectDatasetType(rows = []) {
     const sample = rows.slice(0, 60);
     if (!sample.length) return 'unknown';
-    const score = { errors: 0, availability: 0, volume: 0 };
+    const score = { errors: 0, availability: 0, volume: 0, salesforceCases: 0, salesforceParts: 0 };
     sample.forEach(row => {
       if (hasAnyField(row, ['Start Time', 'Start', 'Event Time', 'Timestamp']) && hasAnyField(row, ['Name', 'Alert Name', 'Alert Title'])) score.errors += 3;
       if (hasAnyField(row, ['Subsystem', 'Module'])) score.errors += 1;
@@ -785,6 +861,11 @@
 
       if (hasAnyField(row, ['Print Start']) || hasAnyField(row, ['Printed Sheets']) || hasAnyField(row, ['Printed Flats'])) score.volume += 3;
       if (hasAnyField(row, ['Job Type', 'Job Status', 'Press Mode'])) score.volume += 1;
+      if (hasAnyField(row, ['Case Number', 'Case', 'Case Id']) || hasAnyField(row, ['Case Tier', 'Tier', 'Severity'])) score.salesforceCases += 3;
+      if (hasAnyField(row, ['Machine Down', 'Machine Down Flag', 'Is Machine Down'])) score.salesforceCases += 2;
+      if (hasAnyField(row, ['Account Name', 'Customer', 'Contact Name'])) score.salesforceCases += 1;
+      if (hasAnyField(row, ['Part Number', 'Part #', 'SKU'])) score.salesforceParts += 3;
+      if (hasAnyField(row, ['Part Description', 'Quantity', 'Qty'])) score.salesforceParts += 1;
     });
     return Object.entries(score).sort((a, b) => b[1] - a[1])[0][1] > 0 ? Object.entries(score).sort((a, b) => b[1] - a[1])[0][0] : 'unknown';
   }
@@ -997,6 +1078,7 @@
     }
     if (onProgress) onProgress({ completed: rows.length, total, detail: `Availability rows: ${rows.length.toLocaleString()} / ${total.toLocaleString()}` });
 
+    const serviceTop = STATE.merged?.service?.rows?.[0] || null;
     return {
       rows: out,
       diagnostics: {
@@ -1118,6 +1200,79 @@
       jobs,
       diagnostics: { parsedRows: rows.length, sourceRowsUsed, normalizedRowsCreated: jobs.length, aggregatedRowsCreated: byKey.size },
     };
+  }
+
+  async function normalizeSalesforceRows(rows, options = {}) {
+    const { controller = null, onProgress = null } = options;
+    const out = [];
+    const total = Math.max(1, rows.length);
+    for (let i = 0; i < rows.length; i++) {
+      if (controller) assertAnalysisActive(controller);
+      const r = rows[i];
+      const caseNumber = String(getField(r, ['Case Number', 'Case', 'Case Id', 'CaseNumber'])).trim();
+      const partNumber = String(getField(r, ['Part Number', 'Part #', 'SKU'])).trim();
+      const pressRaw = String(getField(r, ['Press', 'Machine', 'Asset Name', 'Machine Name'])).trim();
+      const { canonicalPress } = canonicalizePressName(pressRaw);
+      const customer = String(getField(r, ['Account Name', 'Customer', 'Client'])).trim() || 'Unspecified';
+      const tierRaw = String(getField(r, ['Case Tier', 'Tier', 'Severity', 'Priority'])).trim() || 'Unspecified';
+      const tier = /machine\s*down|down/.test(tierRaw.toLowerCase()) ? 'Machine Down' : tierRaw;
+      const machineDown = /^(true|yes|1|y)$/i.test(String(getField(r, ['Machine Down', 'Machine Down Flag', 'Is Machine Down'])).trim()) || tier === 'Machine Down';
+      const openedAt = parseUsDateTime(getField(r, ['Created Date', 'Opened', 'Open Date', 'Date']));
+      const closedAt = parseUsDateTime(getField(r, ['Closed Date', 'Resolved Date']));
+      const isOpen = !closedAt || /open|new|working|pending/i.test(String(getField(r, ['Status'])));
+      out.push({
+        caseNumber: caseNumber || '',
+        partNumber: partNumber || '',
+        canonicalPress: canonicalPress || 'Unspecified',
+        customer,
+        tier,
+        machineDown,
+        openedAt,
+        closedAt,
+        isOpen,
+      });
+      if (i % 2000 === 0) {
+        if (onProgress) onProgress({ completed: i + 1, total, detail: `Salesforce rows: ${(i + 1).toLocaleString()} / ${total.toLocaleString()}` });
+        if (controller) await yieldAnalysisFrame(controller); else await shortYield();
+      }
+    }
+    if (onProgress) onProgress({ completed: rows.length, total, detail: `Salesforce rows: ${rows.length.toLocaleString()} / ${total.toLocaleString()}` });
+    return out;
+  }
+
+  function buildSalesforceServiceLayer(sfRows = [], errors = [], availability = []) {
+    if (!sfRows.length) return null;
+    const byPress = new Map();
+    sfRows.forEach(r => {
+      const key = r.canonicalPress || 'Unspecified';
+      if (!byPress.has(key)) byPress.set(key, { press: key, cases: 0, machineDownCases: 0, openCases: 0, tiers: {}, partNumbers: new Set() });
+      const slot = byPress.get(key);
+      slot.cases += r.caseNumber ? 1 : 0;
+      slot.machineDownCases += r.machineDown ? 1 : 0;
+      slot.openCases += r.isOpen ? 1 : 0;
+      slot.tiers[r.tier] = (slot.tiers[r.tier] || 0) + 1;
+      if (r.partNumber) slot.partNumbers.add(r.partNumber);
+    });
+    const errorByPress = aggregateErrorEvents(errors, r => r.canonicalPress || r.press || 'Unspecified');
+    const errorMap = new Map(errorByPress.map(r => [r.name, r]));
+    const availabilityMap = new Map();
+    availability.forEach(r => {
+      const p = r.canonicalPress || 'Unspecified';
+      availabilityMap.set(p, (availabilityMap.get(p) || 0) + totalDowntimeFromAvailabilityRow(r));
+    });
+    const combined = [...byPress.values()].map(row => {
+      const err = errorMap.get(row.press);
+      const downtime = availabilityMap.get(row.press) || 0;
+      return {
+        ...row,
+        partNumbers: row.partNumbers.size,
+        events: err?.events || 0,
+        errorDuration: err?.downtime || 0,
+        downtimeSeconds: downtime,
+        combinedPressureScore: (err?.events || 0) + (row.cases * 2) + (row.machineDownCases * 5),
+      };
+    }).sort((a, b) => b.combinedPressureScore - a.combinedPressureScore);
+    return { rows: combined, totalCases: sfRows.filter(r => r.caseNumber).length, machineDownCases: sfRows.filter(r => r.machineDown).length };
   }
 
   async function mergeOperationalData(events, availabilityRows, volumeRows, diagnostics = {}, options = {}) {
@@ -2060,6 +2215,10 @@
           impact: 'Expected impact: measurable drop in repeated faults across impacted presses.',
         },
       ],
+      serviceSignal: serviceTop ? {
+        title: `Service escalation at ${serviceTop.press}`,
+        detail: `${serviceTop.cases} cases, ${serviceTop.machineDownCases} machine-down cases.`,
+      } : null,
     };
   }
 
@@ -2075,6 +2234,7 @@
       { id: 'executiveStatus', title: 'Executive Status', accent: model => model.overallStatus.styles.color, type: 'status' },
       { id: 'situationSnapshot', title: 'Situation Snapshot', accent: () => '#1f8bff', type: 'snapshot' },
       { id: 'operationalInsights', title: 'Operational Insights', accent: () => '#365f9f', type: 'insights' },
+      { id: 'serviceSignal', title: 'Critical Service Signal', accent: () => '#2f7eb7', type: 'service' },
       { id: 'topActionCards', title: 'Top Action Cards', accent: () => '#116e45', type: 'actions' },
       { id: 'topPressDowntime', title: 'Top Presses Downtime (Top 5)', accent: () => '#e56739', type: 'table' },
       { id: 'printVolume', title: 'Print Volume (Top 5)', accent: () => '#25a65b', type: 'table' },
@@ -2112,6 +2272,9 @@
         (model.situationSnapshot || []).forEach(item => lines.push(`- ${item.title}: ${item.value} (${item.note})`));
       } else if (section.id === 'operationalInsights') {
         (model.operationalInsights || []).forEach(item => lines.push(`- ${item.title}: ${item.detail}`));
+      } else if (section.id === 'serviceSignal') {
+        if (model.serviceSignal) lines.push(`- ${model.serviceSignal.title}: ${model.serviceSignal.detail}`);
+        else lines.push('- No critical Salesforce-linked escalation in this scope.');
       } else if (section.id === 'topActionCards') {
         (model.topActionCards || []).forEach(item => lines.push(`- ${item.title}: ${item.reason} ${item.impact}`));
       } else if (section.id === 'topPressDowntime') {
@@ -2169,7 +2332,7 @@
       generatedAtIso,
       generatedAtLabel,
       reportingPeriodLabel,
-      sourceCounts: { errors: (scope.errorsAgg || []).length, availability: availabilityAgg.length, volume: volumeAgg.length },
+      sourceCounts: { errors: (scope.errorsAgg || []).length, availability: availabilityAgg.length, volume: volumeAgg.length, salesforce: (STATE.normalized.salesforce?.rows || []).length },
       executiveSnapshot: {
         availability: kpis.availabilityPct == null ? 'N/A' : `${kpis.availabilityPct.toFixed(1)}%`,
         productionVolume: kpis.totalProdVolume.toLocaleString(),
@@ -2184,6 +2347,7 @@
       contextTags: [`Top risk: ${status.topPressByEvents?.name || 'N/A'}`, `Bottleneck: ${status.topSubsystem?.name || 'N/A'}`, `Error: ${status.topAlert?.name || 'N/A'}`],
       situationSnapshot,
       operationalInsights: status.insightCards || [],
+      serviceSignal: status.serviceSignal || null,
       topActionCards: (status.actionCards || []).slice(0, 3),
       topErrors,
       topSubsystems,
@@ -2219,7 +2383,7 @@
     const tableWrapperStart = isEmail ? '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;max-width:860px;margin:0 auto;background:#f4f7fb;">' : '';
     const tableWrapperEnd = isEmail ? '</table>' : '';
     const headerBlock = isEmail
-      ? `<tr><td style="padding:0 0 14px;"><div style="font-size:26px;font-weight:700;color:#1d2430;line-height:1.2;">Landa Insight<span style="color:#1f8bff;">Pro+</span> Summary</div><div style="font-size:13px;color:#334560;margin-top:6px;line-height:1.6;font-weight:600;">Reporting period: ${esc(model.reportingPeriodLabel)}</div><div style="font-size:12px;color:#5a6980;margin-top:4px;line-height:1.6;">Generated on: ${esc(model.generatedAtLabel)}</div><div style="font-size:12px;color:#5a6980;margin-top:4px;line-height:1.6;">${esc(model.scopeLabel)} • Source rows (errors/availability/volume): ${model.sourceCounts.errors}/${model.sourceCounts.availability}/${model.sourceCounts.volume}</div></td></tr>`
+      ? `<tr><td style="padding:0 0 14px;"><div style="font-size:26px;font-weight:700;color:#1d2430;line-height:1.2;">Landa Insight<span style="color:#1f8bff;">Pro+</span> Summary</div><div style="font-size:13px;color:#334560;margin-top:6px;line-height:1.6;font-weight:600;">Reporting period: ${esc(model.reportingPeriodLabel)}</div><div style="font-size:12px;color:#5a6980;margin-top:4px;line-height:1.6;">Generated on: ${esc(model.generatedAtLabel)}</div><div style="font-size:12px;color:#5a6980;margin-top:4px;line-height:1.6;">${esc(model.scopeLabel)} • Source rows (errors/availability/volume/salesforce): ${model.sourceCounts.errors}/${model.sourceCounts.availability}/${model.sourceCounts.volume}/${model.sourceCounts.salesforce || 0}</div></td></tr>`
       : '';
 
     const sections = structure.map((section, sectionIdx) => {
@@ -2239,6 +2403,12 @@
           ? `<tr><td style="padding:8px 10px;border-bottom:1px solid #d8e3f6;"><div style="font-size:11px;font-weight:700;color:#365f9f;text-transform:uppercase;line-height:1.6;">${esc(card.title)}</div><div style="margin-top:4px;font-size:13px;color:#1f2a3a;line-height:1.6;">${esc(card.detail)}</div></td></tr>`
           : `<article class="exec-insight-card"><div class="exec-mini-title">${esc(card.title)}</div><div class="exec-mini-note">${esc(card.detail)}</div></article>`).join('');
         const body = isEmail ? `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;border:1px solid #d8e3f6;background:#f9fbff;">${cards}</table>` : `<div class="exec-card-grid">${cards}</div>`;
+        return wrapSection(section.title, accent, body, sectionIdx);
+      }
+      if (section.id === 'serviceSignal') {
+        const body = model.serviceSignal
+          ? `<div class="micro" style="margin:0;color:${isEmail ? '#2f3f55' : '#d3def2'};line-height:1.6;"><strong>${esc(model.serviceSignal.title)}</strong> — ${esc(model.serviceSignal.detail)}</div>`
+          : `<div class="micro" style="margin:0;color:${isEmail ? '#2f3f55' : '#d3def2'};line-height:1.6;">No critical Salesforce-linked escalation in this scope.</div>`;
         return wrapSection(section.title, accent, body, sectionIdx);
       }
       if (section.id === 'topActionCards') {
@@ -2590,23 +2760,42 @@
       rowsReceived: items.length,
       first5Labels: labels.slice(0, 5),
     });
+    const isPressEventsView = key === 'press' && metric === 'events';
+    const totalDuration = view.reduce((acc, x) => acc + (x.downtime || 0), 0) || 1;
+    const durationHours = view.map(x => (x.downtime || 0) / 3600);
     const rendered = replaceChart(`${key}Chart`, {
       type: 'bar',
-      data: { labels, datasets: [{ data, backgroundColor: view.map((_, i) => COLORS[i % COLORS.length]), borderRadius: 6 }] },
+      data: {
+        labels,
+        datasets: isPressEventsView ? [
+          { type: 'bar', label: 'Error events', data, backgroundColor: view.map((_, i) => COLORS[i % COLORS.length]), borderRadius: 6, yAxisID: 'y' },
+          { type: 'line', label: 'Error duration (hrs)', data: durationHours, borderColor: '#f0b165', backgroundColor: '#f0b165', yAxisID: 'y1', tension: 0.25, pointRadius: 4, pointHoverRadius: 5 }
+        ] : [{ data, backgroundColor: view.map((_, i) => COLORS[i % COLORS.length]), borderRadius: 6 }]
+      },
       options: {
         ...baseOptions(key, labels, payloads),
         scales: {
           ...baseOptions(key, labels, payloads).scales,
-          y: { ...baseOptions(key, labels, payloads).scales.y, title: { display: true, text: meta.axisLabel, color: '#c6d3ea' } }
+          y: { ...baseOptions(key, labels, payloads).scales.y, title: { display: true, text: meta.axisLabel, color: '#c6d3ea' } },
+          ...(isPressEventsView ? { y1: { position: 'right', beginAtZero: true, grid: { drawOnChartArea: false }, ticks: { color: '#f0b165' }, title: { display: true, text: 'Error duration (hours)', color: '#f0b165' } } } : {})
         },
         plugins: {
-          legend: { display: false },
-          tooltip: { callbacks: { label: ctx => `${ctx.parsed.y.toLocaleString(undefined, { maximumFractionDigits: 3 })} ${meta.tooltip}` } }
+          legend: { display: isPressEventsView },
+          tooltip: { callbacks: { label: ctx => {
+            if (!isPressEventsView) return `${ctx.parsed.y.toLocaleString(undefined, { maximumFractionDigits: 3 })} ${meta.tooltip}`;
+            const row = view[ctx.dataIndex];
+            const avg = (row.events || 0) > 0 ? (row.downtime || 0) / row.events : 0;
+            const share = ((row.downtime || 0) / totalDuration) * 100;
+            if (ctx.datasetIndex === 0) return `Events: ${(row.events || 0).toLocaleString()}`;
+            return `Duration: ${formatDuration(row.downtime || 0)} • Avg/event: ${formatDuration(avg)} • Duration share: ${share.toFixed(1)}%`;
+          } } }
         }
       }
     });
     if (!rendered && !view.length) setRankingChartEmptyState(key, 'No ranking data available for current filters/metric.');
-    document.querySelector(`[data-rank-card="${key}"] .micro`).textContent = `${expanded ? 'Full ranking' : 'Top 8'} by ${metric}. Source: ${meta.source}. ${meta.subtitle}`;
+    document.querySelector(`[data-rank-card="${key}"] .micro`).textContent = isPressEventsView
+      ? `${expanded ? 'Full ranking' : 'Top 8'} by events with overlaid duration severity (line). Source: errors + availability.`
+      : `${expanded ? 'Full ranking' : 'Top 8'} by ${metric}. Source: ${meta.source}. ${meta.subtitle}`;
     document.querySelector(`[data-expand="${key}"]`).textContent = expanded ? 'Collapse' : 'Show all';
     if ((key === 'press' || key === 'subsystem') && metric === 'events') {
       console.info('[events-first-chart-alignment]', {
@@ -3465,6 +3654,35 @@
     });
   }
 
+  function renderServiceSection() {
+    const host = document.getElementById('serviceSection');
+    if (!host) return;
+    const service = STATE.merged.service;
+    if (!service || !service.rows?.length) {
+      host.innerHTML = `<h3>Service Pressure Overview</h3><div class="micro">Upload optional Salesforce files to unlock case pressure, machine-down concentration, and combined operational-service hotspots.</div>`;
+      return;
+    }
+    const top = service.rows.slice(0, 8);
+    host.innerHTML = `
+      <div class="chart-head"><h3>Service Pressure Overview</h3><span class="impact-chip">${service.totalCases.toLocaleString()} cases • ${service.machineDownCases.toLocaleString()} machine-down</span></div>
+      <div class="micro">Combined score blends event concentration + case pressure + machine-down escalation. Salesforce is optional and additive.</div>
+      <div class="table-wrap"><table><thead><tr><th>Press</th><th>Cases</th><th>Machine Down</th><th>Open</th><th>Events</th><th>Error Duration</th><th>Downtime</th><th>Score</th></tr></thead>
+      <tbody>${top.map(r => `<tr><td>${esc(r.press)}</td><td>${(r.cases || 0).toLocaleString()}</td><td>${(r.machineDownCases || 0).toLocaleString()}</td><td>${(r.openCases || 0).toLocaleString()}</td><td>${(r.events || 0).toLocaleString()}</td><td>${esc(formatDuration(r.errorDuration || 0))}</td><td>${esc(formatDuration(r.downtimeSeconds || 0))}</td><td>${(r.combinedPressureScore || 0).toLocaleString()}</td></tr>`).join('')}</tbody></table></div>`;
+  }
+
+  function applyActiveZone() {
+    const zone = STATE.activeZone || 'executive';
+    document.querySelectorAll('#dashboardTabs .tab-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.tab === zone));
+    const cards = document.querySelectorAll('main.grid > article.card[data-zone]');
+    cards.forEach(card => {
+      if (zone === 'all') card.classList.remove('hidden');
+      else {
+        const zones = String(card.dataset.zone || '').split(/\s+/).filter(Boolean);
+        card.classList.toggle('hidden', !zones.includes(zone));
+      }
+    });
+  }
+
   function renderDashboard() {
     try {
       const { filters, scopedMergedRows, scopedErrorRows, scopedSource, scopedKpis, executiveSummary, hasScopedData } = getCurrentDashboardScopeModel();
@@ -3536,6 +3754,7 @@
     });
     STATE.merged.pressRisk = [];
     renderRiskSection(STATE.merged.pressRisk);
+    renderServiceSection();
     STATE.merged.summary = executiveSummary;
     renderExecutiveSummaryCard(STATE.merged.summary);
     const mismatches = validateSourceAndLayerConsistency(sourceScope, STATE.filtered, STATE.kpis, STATE.merged.summary, STATE.merged.pressRisk, customerVolumeAllRows);
@@ -3579,6 +3798,7 @@
     });
       renderDashboardStatusPanel(sourceScope, mismatches, STATE.reconciliation.report);
       renderTable(STATE.filtered);
+      applyActiveZone();
     } catch (error) {
       console.error('[dashboard-render-failure]', error);
       ['pressChart', 'subsystemChart', 'alertChart', 'versionChart', 'customerVolumeChart'].forEach(id => setCanvasState(id, `Failed to render ${id}.`, 'error'));
@@ -3631,6 +3851,7 @@
           errors: STATE.cachedRaw.errors ? [...STATE.cachedRaw.errors] : null,
           availability: STATE.cachedRaw.availability ? [...STATE.cachedRaw.availability] : null,
           volume: STATE.cachedRaw.volume ? [...STATE.cachedRaw.volume] : null,
+          salesforce: STATE.cachedRaw.salesforce ? [...STATE.cachedRaw.salesforce] : [],
         }
       };
       document.getElementById('runBtn').disabled = true;
@@ -3645,6 +3866,7 @@
       setProcessingState({ stage: 'reading', status: 'running', percent: 1, detail: 'Loading Print Volume dataset…' });
       await yieldAnalysisFrame(controller);
       const volumeRaw = STATE.files.volume ? (STATE.cachedRaw.volume || await parsePrintVolumeFile(STATE.files.volume)) : [];
+      const salesforceRaw = (STATE.cachedRaw.salesforce || []);
 
       setProcessingState({ stage: 'detecting', status: 'running', percent: 1, detail: `Detected rows — Errors: ${errorsRaw.length.toLocaleString()}, Availability: ${availabilityRaw.length.toLocaleString()}, Volume: ${volumeRaw.length.toLocaleString()}.` });
       await yieldAnalysisFrame(controller);
@@ -3654,6 +3876,7 @@
       await normalizeErrorsRows(errorsRaw.slice(0, Math.min(errorsRaw.length, 120)), { controller });
       if (availabilityRaw.length) await normalizeAvailabilityRows(availabilityRaw.slice(0, Math.min(availabilityRaw.length, 120)), new Map(), { controller });
       if (volumeRaw.length) await normalizeVolumeRows(volumeRaw.slice(0, Math.min(volumeRaw.length, 120)), { controller });
+      if (salesforceRaw.length) await normalizeSalesforceRows(salesforceRaw.slice(0, Math.min(salesforceRaw.length, 120)), { controller });
       setProcessingState({ stage: 'validating', status: 'running', percent: 1, detail: 'Schema validation complete.' });
       await yieldAnalysisFrame(controller);
 
@@ -3676,6 +3899,13 @@
       availabilityResult.diagnostics.pressCodeToCanonicalPressExamples = [...pressLookup.entries()]
         .slice(0, 20)
         .map(([pressCode, options]) => ({ pressCode, canonicalPresses: options.map(o => o.canonicalPress) }));
+      setProcessingState({ stage: 'normalizing', status: 'running', percent: 0.92, detail: 'Normalizing Salesforce service rows…' });
+      const salesforceRows = salesforceRaw.length
+        ? await normalizeSalesforceRows(salesforceRaw, {
+          controller,
+          onProgress: ({ completed, total, detail }) => setProcessingState({ stage: 'normalizing', status: 'running', percent: 0.92 + ((completed / Math.max(1, total)) * 0.08), detail })
+        })
+        : [];
 
       setProcessingState({ stage: 'indexing', status: 'running', percent: 0.05, detail: 'Building aggregated source indexes and merged event model…' });
       const merged = await mergeOperationalData(errors, availabilityResult.rows, volumeResult.rows, {
@@ -3743,8 +3973,10 @@
         throw new Error('Merged operational table is empty after normalization and aggregation.');
       }
 
-      STATE.normalized = { events: errors, availability: availabilityResult.rows, volume: volumeResult.rows, volumeJobs: volumeResult.jobs || [] };
+      const serviceLayer = buildSalesforceServiceLayer(salesforceRows, errors, availabilityResult.rows);
+      STATE.normalized = { events: errors, availability: availabilityResult.rows, volume: volumeResult.rows, volumeJobs: volumeResult.jobs || [], salesforce: { rows: salesforceRows, cases: salesforceRows.filter(r => r.caseNumber), parts: salesforceRows.filter(r => r.partNumber), diagnostics: { parsedRows: salesforceRaw.length } } };
       STATE.merged = merged;
+      STATE.merged.service = serviceLayer;
       console.info('[dataset-debug]', {
         errorsRowsParsed: errorsRaw.length,
         availabilityRowsParsed: availabilityResult.diagnostics.parsedRows,
@@ -3768,6 +4000,7 @@
         : availabilityResult.rows.length && volumeResult.rows.length
           ? 'Full mode: Errors + Availability + Print Volume'
           : `Partial mode: Errors + ${availabilityResult.rows.length ? 'Availability' : 'Print Volume'}`;
+      if (salesforceRows.length) STATE.mode += ` + Salesforce (${salesforceRows.length.toLocaleString()} rows)`;
 
       setProcessingState({ stage: 'preparing', status: 'running', percent: 0.35, detail: 'Preparing filters, source summaries, and dashboard state…' });
       await yieldAnalysisFrame(controller);
@@ -3801,6 +4034,7 @@
 
   function inferDatasetFromFileName(name = '') {
     const normalizedName = String(name).toLowerCase();
+    if (/(salesforce|sfdc|case|service|support|part)/.test(normalizedName)) return 'salesforce';
     if (/(availability|uptime|downtime|oee)/.test(normalizedName)) return 'availability';
     if (/(volume|print[\s_-]*volume|printed[\s_-]*sheets|jobs?)/.test(normalizedName)) return 'volume';
     if (/(error|alert|event|fault|alarm)/.test(normalizedName)) return 'errors';
@@ -3815,18 +4049,21 @@
         keys.add('errors');
         keys.add('availability');
         keys.add('volume');
+        keys.add('salesforce');
         return;
       }
       keys.add(inferred);
     });
-    return keys.size ? [...keys] : ['errors', 'availability', 'volume'];
+    return keys.size ? [...keys] : ['errors', 'availability', 'volume', 'salesforce'];
   }
 
   async function classifyIncomingFile(file) {
     try {
       const rows = await loadRowsFromFile(file);
       const detected = detectDatasetType(rows);
-      const key = detected === 'availability' || detected === 'volume' ? detected : 'errors';
+      const key = detected === 'availability' || detected === 'volume'
+        ? detected
+        : (detected === 'salesforceCases' || detected === 'salesforceParts' ? 'salesforce' : 'errors');
       return { key, file, rows };
     } catch {
       return { key: 'errors', file, rows: null };
@@ -3842,8 +4079,13 @@
 
     const assignments = await Promise.all(files.map(classifyIncomingFile));
     assignments.forEach(({ key, file, rows }) => {
-      STATE.files[key] = file;
-      STATE.cachedRaw[key] = rows;
+      if (key === 'salesforce') {
+        STATE.files.salesforce = [...(STATE.files.salesforce || []), file];
+        STATE.cachedRaw.salesforce = [...(STATE.cachedRaw.salesforce || []), ...(Array.isArray(rows) ? rows : [])];
+      } else {
+        STATE.files[key] = file;
+        STATE.cachedRaw[key] = rows;
+      }
       setFileUI(key);
     });
     await Promise.all(likelyKeys.map(key => validateSingleFile(key, { progressStarted: true })));
@@ -3851,11 +4093,11 @@
 
   function clearFiles() {
     markAnalysisCanceled('Canceled due to file reset.');
-    STATE.files = { errors: null, availability: null, volume: null };
-    STATE.cachedRaw = { errors: null, availability: null, volume: null };
-    STATE.validation = { errors: false, availability: false, volume: false };
-    STATE.normalized = { events: [], availability: [], volume: [] };
-    STATE.merged = { events: [], mergedRows: [], stats: {}, summary: null, pressRisk: [], sourceTables: { errorsAgg: [], availabilityAgg: [], volumeAgg: [] } };
+    STATE.files = { errors: null, availability: null, volume: null, salesforce: [] };
+    STATE.cachedRaw = { errors: null, availability: null, volume: null, salesforce: [] };
+    STATE.validation = { errors: false, availability: false, volume: false, salesforce: true };
+    STATE.normalized = { events: [], availability: [], volume: [], salesforce: { rows: [], cases: [], parts: [], diagnostics: {} } };
+    STATE.merged = { events: [], mergedRows: [], stats: {}, summary: null, pressRisk: [], service: null, sourceTables: { errorsAgg: [], availabilityAgg: [], volumeAgg: [] } };
     STATE.filtered = [];
     STATE.filteredErrors = [];
     STATE.dashboardScopeModel = null;
@@ -3867,8 +4109,8 @@
     STATE.processingStatus = 'idle';
     STATE.processingDetail = '';
     STATE.processingPercent = 0;
-    ['errors', 'availability', 'volume'].forEach(resetFileProgress);
-    ['bulkInput', 'errorsPicker', 'availabilityPicker', 'volumePicker'].forEach(id => {
+    ['errors', 'availability', 'volume', 'salesforce'].forEach(resetFileProgress);
+    ['bulkInput', 'errorsPicker', 'availabilityPicker', 'volumePicker', 'salesforcePicker'].forEach(id => {
       const input = document.getElementById(id);
       if (input) input.value = '';
     });
@@ -3877,6 +4119,7 @@
     setFileUI('errors');
     setFileUI('availability');
     setFileUI('volume');
+    setFileUI('salesforce');
     setStatus('Files cleared. Select datasets to continue.', 'info');
     setProcessingState({ stage: 'reading', status: 'idle', percent: 0, detail: 'Upload and validate files to begin processing.' });
   }
@@ -3886,8 +4129,8 @@
     STATE.analysisRunId += 1;
     STATE.analysisRunning = false;
     STATE.analysisController = null;
-    STATE.normalized = { events: [], availability: [], volume: [] };
-    STATE.merged = { events: [], mergedRows: [], stats: {}, summary: null, pressRisk: [], sourceTables: { errorsAgg: [], availabilityAgg: [], volumeAgg: [] } };
+    STATE.normalized = { events: [], availability: [], volume: [], salesforce: { rows: [], cases: [], parts: [], diagnostics: {} } };
+    STATE.merged = { events: [], mergedRows: [], stats: {}, summary: null, pressRisk: [], service: null, sourceTables: { errorsAgg: [], availabilityAgg: [], volumeAgg: [] } };
     STATE.filtered = [];
     STATE.filteredErrors = [];
     STATE.dashboardScopeModel = null;
@@ -3905,27 +4148,32 @@
       errors: STATE.lastRunSnapshot.cachedRaw.errors ? [...STATE.lastRunSnapshot.cachedRaw.errors] : null,
       availability: STATE.lastRunSnapshot.cachedRaw.availability ? [...STATE.lastRunSnapshot.cachedRaw.availability] : null,
       volume: STATE.lastRunSnapshot.cachedRaw.volume ? [...STATE.lastRunSnapshot.cachedRaw.volume] : null,
+      salesforce: STATE.lastRunSnapshot.cachedRaw.salesforce ? [...STATE.lastRunSnapshot.cachedRaw.salesforce] : [],
     };
-    ['errors', 'availability', 'volume'].forEach(setFileUI);
+    ['errors', 'availability', 'volume', 'salesforce'].forEach(setFileUI);
     runAnalysisFlow(STATE.lastRunSnapshot);
   }
 
   async function validateSingleFile(key, { progressStarted = false } = {}) {
-    const file = STATE.files[key];
-    if (!file) {
+    const file = key === 'salesforce' ? STATE.files.salesforce : STATE.files[key];
+    const hasFile = key === 'salesforce' ? (file || []).length > 0 : !!file;
+    if (!hasFile) {
       STATE.validation[key] = false;
-      STATE.cachedRaw[key] = null;
+      STATE.cachedRaw[key] = key === 'salesforce' ? [] : null;
       resetFileProgress(key);
       setFileUI(key);
       return;
     }
     if (!progressStarted) startFileProgress(key);
     try {
-      const rows = Array.isArray(STATE.cachedRaw[key]) ? STATE.cachedRaw[key] : await loadRowsFromFile(file);
+      const rows = key === 'salesforce'
+        ? (Array.isArray(STATE.cachedRaw.salesforce) ? STATE.cachedRaw.salesforce : [])
+        : (Array.isArray(STATE.cachedRaw[key]) ? STATE.cachedRaw[key] : await loadRowsFromFile(file));
       STATE.cachedRaw[key] = rows;
       if (key === 'errors') await normalizeErrorsRows(rows.slice(0, Math.min(rows.length, 120)));
       if (key === 'availability') await normalizeAvailabilityRows(rows.slice(0, Math.min(rows.length, 120)));
       if (key === 'volume') await normalizeVolumeRows(rows.slice(0, Math.min(rows.length, 120)));
+      if (key === 'salesforce') await normalizeSalesforceRows(rows.slice(0, Math.min(rows.length, 120)));
       STATE.validation[key] = true;
       await finishFileProgress(key, true);
     } catch {
@@ -3937,7 +4185,8 @@
   }
 
   function bind() {
-    ['errors', 'availability', 'volume'].forEach(setFileUI);
+    ['errors', 'availability', 'volume', 'salesforce'].forEach(setFileUI);
+    applyActiveZone();
     setStatus('Assign datasets and run analysis. Errors dataset is required.', 'info');
     setProcessingState({ stage: 'reading', status: 'idle', percent: 0, detail: 'Upload and validate files to begin processing.' });
     if (!hasSpreadsheetLibrary()) {
@@ -3952,6 +4201,10 @@
     });
 
     document.querySelectorAll('[data-pick]').forEach(btn => btn.addEventListener('click', () => document.getElementById(`${btn.dataset.pick}Picker`).click()));
+    document.querySelectorAll('#dashboardTabs .tab-btn').forEach(btn => btn.addEventListener('click', () => {
+      STATE.activeZone = btn.dataset.tab || 'executive';
+      applyActiveZone();
+    }));
     errorsPicker.addEventListener('change', async e => {
       STATE.files.errors = e.target.files?.[0] || null;
       await validateSingleFile('errors');
@@ -3965,6 +4218,11 @@
     volumePicker.addEventListener('change', async e => {
       STATE.files.volume = e.target.files?.[0] || null;
       await validateSingleFile('volume');
+      e.target.value = '';
+    });
+    salesforcePicker.addEventListener('change', async e => {
+      const files = [...(e.target.files || [])];
+      if (files.length) await processIncomingFiles(files);
       e.target.value = '';
     });
 
@@ -4058,7 +4316,7 @@
       }
       const model = summaryResult.model;
       try {
-        summaryScopeMeta.textContent = `Reporting period: ${model.reportingPeriodLabel} • Generated on: ${model.generatedAtLabel} • Source rows (errors/availability/volume): ${model.sourceCounts.errors}/${model.sourceCounts.availability}/${model.sourceCounts.volume}`;
+        summaryScopeMeta.textContent = `Reporting period: ${model.reportingPeriodLabel} • Generated on: ${model.generatedAtLabel} • Source rows (errors/availability/volume/salesforce): ${model.sourceCounts.errors}/${model.sourceCounts.availability}/${model.sourceCounts.volume}/${model.sourceCounts.salesforce || 0}`;
         renderSummaryModal(model, summaryContent);
         summaryModal.classList.add('show');
         summaryPreview.classList.add('hidden');
