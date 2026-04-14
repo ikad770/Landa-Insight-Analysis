@@ -81,35 +81,35 @@
     .progress-actions { display:flex; justify-content:flex-end; gap:8px; flex-wrap:wrap; }
     @keyframes pulse-progress { from{filter:brightness(1)} to{filter:brightness(1.2)} }
 
-    .topbar,.card{background:var(--panel);border:1px solid rgba(255,255,255,.08);border-radius:var(--radius);box-shadow:var(--shadow)}
-    .topbar { display:grid; grid-template-columns:1fr auto; gap:12px; align-items:start; padding:16px; margin-bottom:18px; border-color:rgba(255,255,255,.06); }
+    .topbar,.card{background:linear-gradient(165deg,rgba(27,39,61,.44),rgba(16,23,36,.72));border:1px solid rgba(255,255,255,.04);border-radius:var(--radius);box-shadow:0 10px 24px rgba(0,0,0,.24)}
+    .topbar { display:grid; grid-template-columns:1fr auto; gap:12px; align-items:start; padding:18px; margin-bottom:24px; border-color:rgba(255,255,255,.04); }
     .controls { display:flex; gap:8px; flex-wrap:wrap; }
-    .kpis { display:grid; grid-template-columns: repeat(5,minmax(140px,1fr)); gap:10px; margin:14px 0 18px; position:relative; z-index:2; }
-    .kpi { padding:14px 10px; border:1px solid rgba(255,255,255,.08); border-radius:14px; background:rgba(255,255,255,.015); }
+    .kpis { display:grid; grid-template-columns: repeat(5,minmax(140px,1fr)); gap:14px; margin:18px 0 24px; position:relative; z-index:2; }
+    .kpi { padding:16px 12px; border:1px solid rgba(255,255,255,.04); border-radius:14px; background:linear-gradient(170deg,rgba(134,184,255,.12),rgba(255,255,255,.015)); }
     .kpi.clickable{cursor:pointer;transition:all .18s ease;position:relative;z-index:1;pointer-events:auto}
     .kpi.clickable:hover{border-color:rgba(123,141,255,.65);background:rgba(123,141,255,.09);transform:translateY(-1px)}
     .inline-filters{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
     .inline-filters .select{font-size:.82rem;padding:7px 10px}
     .impact-chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);padding:4px 8px;border-radius:999px;background:rgba(255,255,255,.02);font-size:.78rem;color:#d2ddf2}
-    .k { color:var(--muted); font-size:.72rem; text-transform:uppercase; letter-spacing:.08em; }
-    .v { font-size:1.05rem; margin-top:5px; font-weight:650; }
-    .d { color:var(--muted); font-size:.73rem; margin-top:6px; min-height:1em; }
-    .filters { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px; padding:10px; border:1px solid var(--border); border-radius:12px; background:rgba(255,255,255,.02); }
-    .dashboard-flow{display:grid;gap:20px}
-    .section-shell{border:1px solid rgba(255,255,255,.07);border-radius:16px;background:linear-gradient(180deg,rgba(255,255,255,.02),rgba(255,255,255,.008));padding:14px}
-    .section-shell.secondary{background:rgba(255,255,255,.006)}
+    .k { color:var(--muted); font-size:.68rem; text-transform:uppercase; letter-spacing:.1em; }
+    .v { font-size:1.45rem; margin-top:8px; font-weight:760; line-height:1.05; }
+    .d { display:none; }
+    .filters { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:18px; padding:12px; border:1px solid rgba(255,255,255,.05); border-radius:14px; background:linear-gradient(160deg,rgba(132,167,235,.08),rgba(255,255,255,.01)); }
+    .dashboard-flow{display:grid;gap:30px}
+    .section-shell{border:1px solid rgba(255,255,255,.035);border-radius:18px;background:linear-gradient(175deg,rgba(130,177,243,.08),rgba(255,255,255,.005));padding:18px}
+    .section-shell.secondary{background:linear-gradient(180deg,rgba(255,255,255,.03),rgba(255,255,255,.004))}
     .section-title{margin:0;font-size:1.02rem}
     .section-note{margin:6px 0 0;color:var(--muted);font-size:.82rem}
     .section-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;margin-bottom:10px}
-    .grid { display:grid; grid-template-columns:repeat(12,minmax(0,1fr)); gap:10px; }
+    .grid { display:grid; grid-template-columns:repeat(12,minmax(0,1fr)); gap:16px; }
     .span-3{grid-column:span 3}.span-4{grid-column:span 4}.span-6{grid-column:span 6}.span-8{grid-column:span 8}.span-12{grid-column:span 12}
     .card { padding:12px; background:linear-gradient(180deg,rgba(255,255,255,.025),rgba(255,255,255,.01)); }
     .chart-head { display:flex; justify-content:space-between; align-items:center; gap:8px; }
     .chart-tools { display:flex; gap:8px; }
-    .chart-area{position:relative;height:300px;min-height:300px}
+    .chart-area{position:relative;height:280px;min-height:280px}
     .chart-area.compact{height:240px;min-height:240px}
-    .rank-hero .chart-area{height:420px;min-height:420px}
-    .rank-hero{border-color:rgba(143,211,255,.26);box-shadow:0 18px 40px rgba(0,0,0,.34),inset 0 1px 0 rgba(255,255,255,.05)}
+    .rank-hero .chart-area{height:500px;min-height:500px}
+    .rank-hero{border-color:rgba(143,211,255,.28);box-shadow:0 22px 48px rgba(0,0,0,.3),inset 0 1px 0 rgba(255,255,255,.06)}
     .muted-note{color:#a8bad7;font-size:.78rem}
     .detail-toggle{margin-top:4px}
     details.section-disclosure summary{cursor:pointer;list-style:none}
@@ -132,7 +132,7 @@
     .risk-medium{color:#f8ecb8;background:rgba(208,183,86,.2);border-color:rgba(208,183,86,.65)}
     .risk-stable{color:#d9ffe9;background:rgba(87,201,138,.16);border-color:rgba(87,201,138,.55)}
     .summary-grid { display:grid; grid-template-columns:repeat(12,minmax(0,1fr)); gap:10px; }
-    .executive-hero{margin-bottom:0;border-radius:20px;padding:16px 18px;background:linear-gradient(140deg,rgba(38,53,83,.62),rgba(14,22,37,.68));border:1px solid rgba(255,255,255,.08)}
+    .executive-hero{margin-bottom:8px;border-radius:20px;padding:18px 20px;background:linear-gradient(140deg,rgba(74,112,175,.28),rgba(14,22,37,.74));border:1px solid rgba(255,255,255,.04)}
     .hero-title{font-size:1.42rem;font-weight:770;line-height:1.1;margin:0}
     .hero-note{margin:8px 0 0;color:#c4d3e9;font-size:.88rem}
     .hero-signals{margin-top:12px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
@@ -143,10 +143,16 @@
     .status-indicator.critical{color:#ffd6d2;border-color:rgba(243,107,99,.7);background:rgba(243,107,99,.2)}
     .status-indicator.warning{color:#ffe3c6;border-color:rgba(240,177,101,.7);background:rgba(240,177,101,.2)}
     .status-indicator.stable{color:#d6ffe7;border-color:rgba(87,201,138,.68);background:rgba(87,201,138,.2)}
-    .risk-board{display:grid;gap:10px}
-    .risk-group{background:rgba(255,255,255,.015);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:9px}
-    .risk-row{display:grid;grid-template-columns:1.2fr auto 1.6fr;gap:8px;padding:6px 0;border-bottom:1px dashed rgba(255,255,255,.08);font-size:.8rem}
-    .risk-row:last-child{border-bottom:none}
+    .risk-board{display:grid;gap:12px}
+    .risk-baseline{display:grid;grid-template-columns:repeat(3,minmax(0,1fr)) auto;gap:10px;align-items:stretch}
+    .baseline-card{padding:10px;border-radius:12px;background:linear-gradient(170deg,rgba(113,154,240,.22),rgba(255,255,255,.03));border:1px solid rgba(255,255,255,.06)}
+    .baseline-card .label{font-size:.66rem;letter-spacing:.09em;text-transform:uppercase;color:#b6c9e6}
+    .baseline-card .value{margin-top:6px;font-size:1.05rem;font-weight:700}
+    .risk-table-wrap{border:1px solid rgba(255,255,255,.05);border-radius:12px;overflow:hidden}
+    .risk-table-wrap table th{font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:#afc0db;background:rgba(10,17,28,.75)}
+    .risk-table-wrap table td{font-size:.81rem;color:#e0e8f5}
+    .risk-level-badge{font-size:.68rem;padding:3px 9px;border-radius:999px;border:1px solid;display:inline-block}
+    .impact-level{font-size:.72rem;color:#b9c9df;text-transform:capitalize}
     .risk-badge{font-size:.7rem;padding:2px 8px;border-radius:999px;border:1px solid}
     .summary-stat { background:rgba(255,255,255,.03); border:1px solid var(--border); border-radius:10px; padding:10px; }
     .summary-stat .label{color:var(--muted);font-size:.75rem;text-transform:uppercase;letter-spacing:.08em}
@@ -336,7 +342,7 @@
           <p class="section-note">Operational risk overview with supporting contributors and exposure context.</p>
         </div>
         <div class="grid">
-          <article class="card span-6" id="riskSection"></article>
+          <article class="card span-12" id="riskSection"></article>
           <article class="card span-6" data-rank-card="subsystem">
             <div class="chart-head"><h3>Top Subsystems</h3><div class="chart-tools"><select data-metric="subsystem" class="select"><option value="events">By events</option><option value="downtime">By downtime</option><option value="normalized">By events/volume</option></select><button class="btn secondary" data-expand="subsystem">Show all</button></div></div>
             <div class="micro">Secondary contributor view.</div><div class="chart-area compact"><canvas id="subsystemChart"></canvas></div>
@@ -345,11 +351,11 @@
             <div class="chart-head"><h3>Top Errors</h3><div class="chart-tools"><select data-metric="alert" class="select"><option value="events">By events</option><option value="downtime">By downtime</option><option value="normalized">By events/volume</option></select><button class="btn secondary" data-expand="alert">Show all</button></div></div>
             <div class="micro">Recurring issue view with same drilldown behavior.</div><div class="chart-area compact"><canvas id="alertChart"></canvas></div>
           </article>
-          <article class="card span-6" data-rank-card="version">
+          <article class="card span-4" data-rank-card="version">
             <div class="chart-head"><h3>Top Versions</h3><div class="chart-tools"><select data-metric="version" class="select"><option value="events">By events</option><option value="downtime">By downtime</option><option value="normalized">By events/volume</option></select><button class="btn secondary" data-expand="version">Show all</button></div></div>
             <div class="micro">Exposure context by software version.</div><div class="chart-area compact"><canvas id="versionChart"></canvas></div>
           </article>
-          <article class="card span-6">
+          <article class="card span-8">
             <div class="chart-head"><h3>Print Volume By Press</h3><div class="chart-tools"><select id="customerVolumeUnit" class="select"><option value="productionPrintedSheets">Production-only Printed Sheets</option><option value="printedSheets">Total Printed Sheets</option><option value="printedFlats">Printed Flats</option></select><select id="customerVolumeSort" class="select"><option value="desc">Highest first</option><option value="asc">Lowest first</option></select><button id="customerVolumeExpand" class="btn secondary">Show all</button></div></div>
             <div class="micro" id="customerVolumeNote">Production context with selectable unit basis.</div><div class="chart-area compact"><canvas id="customerVolumeChart"></canvas></div>
           </article>
@@ -388,6 +394,20 @@
     <div id="summaryScopeMeta" class="summary-scope"></div>
     <div id="summaryContent" class="summary-layout"></div>
     <div id="summaryPreview" class="summary-preview hidden"></div>
+  </section>
+</div>
+<div id="baselineInfoModal" class="info-modal">
+  <section class="info-panel">
+    <div class="chart-head">
+      <h4>Baseline Reference</h4>
+      <button id="closeBaselineInfoBtn" class="btn secondary">Close</button>
+    </div>
+    <div class="micro">The baseline is calculated for the data you are currently viewing.</div>
+    <ul class="list-compact">
+      <li>Median downtime is the main reference point.</li>
+      <li>P75 marks the upper watch threshold.</li>
+      <li>Values refresh automatically when filters change.</li>
+    </ul>
   </section>
 </div>
 
@@ -2427,46 +2447,72 @@
   function renderKpis(k) {
     const na = 'N/A';
     const cards = [
-      ['Availability', 'availabilityPct', k.availabilityPct == null ? na : `${k.availabilityPct.toFixed(1)}%`, 'Availability'],
-      ['Production Volume', 'totalProdVolume', k.totalProdVolume.toLocaleString(), 'Production volume'],
-      ['Total Downtime', 'totalDowntime', formatDuration(k.totalDowntime), 'Planned + unplanned'],
-      ['MTTR', 'mttr', k.mttr == null ? na : formatDuration(k.mttr), 'Mean time to repair'],
-      ['Events', 'totalEvents', k.totalEvents.toLocaleString(), 'Total events'],
+      ['Availability', 'availabilityPct', k.availabilityPct == null ? na : `${k.availabilityPct.toFixed(1)}%`],
+      ['Production Volume', 'totalProdVolume', k.totalProdVolume.toLocaleString()],
+      ['Total Downtime', 'totalDowntime', formatDuration(k.totalDowntime)],
+      ['MTTR', 'mttr', k.mttr == null ? na : formatDuration(k.mttr)],
+      ['Events', 'totalEvents', k.totalEvents.toLocaleString()],
     ];
-    document.getElementById('kpiStrip').innerHTML = cards.map(([a, metricKey, b, c]) => `<article class="kpi clickable" role="button" tabindex="0" data-kpi-metric="${metricKey}"><div class="k">${a}</div><div class="v">${b}</div><div class="d">${c}</div></article>`).join('');
+    document.getElementById('kpiStrip').innerHTML = cards.map(([a, metricKey, b]) => `<article class="kpi clickable" role="button" tabindex="0" data-kpi-metric="${metricKey}" title="${esc(a)}"><div class="k">${a}</div><div class="v">${b}</div></article>`).join('');
   }
 
   function renderExecutiveSummaryCard(summary) {
     const statusClass = summary.statusTone === 'critical' ? 'critical' : summary.statusTone === 'watch' ? 'warning' : 'stable';
-    const oneLine = summary.statusVerdict || 'Operational performance should be monitored closely.';
+    const topRisk = summary.topErrorDowntimePress?.entity || summary.topPressByEvents?.name || 'No dominant press';
+    const rootCause = summary.topSubsystem?.name || summary.topAlert?.name || 'No single dominant driver';
+    const actionLine = summary.primaryAction?.text || 'Focus corrective ownership on the highest downtime press and monitor daily.';
     document.getElementById('executiveSummaryCard').innerHTML = `
       <div class="chart-head">
-        <h3 class="hero-title">Operational status: ${esc(summary.status || 'Stable')}</h3>
+        <h3 class="hero-title">CEO Brief</h3>
         <span class="status-indicator ${statusClass}">${esc(summary.status || 'Stable')}</span>
       </div>
-      <p class="hero-note">${esc(oneLine)}</p>
-      <section class="hero-signals">
-        <article class="hero-signal"><div class="label">Top failing press</div><div class="value">${esc(summary.topErrorDowntimePress?.entity || summary.topPressByEvents?.name || 'N/A')}</div></article>
-        <article class="hero-signal"><div class="label">Subsystem bottleneck</div><div class="value">${esc(summary.topSubsystem?.name || 'N/A')}</div></article>
-        <article class="hero-signal"><div class="label">Critical recurring error</div><div class="value">${esc(summary.topAlert?.name || 'N/A')}</div></article>
+      <section class="brief-lines">
+        <div class="brief-line"><div class="tag">Status</div><div>${esc(summary.statusVerdict || 'Operational performance is stable in this scope.')}</div></div>
+        <div class="brief-line"><div class="tag">Top risk</div><div>${esc(`Highest downtime concentration is on ${topRisk}.`)}</div></div>
+        <div class="brief-line"><div class="tag">Root cause</div><div>${esc(`${rootCause} is the primary recurring contributor in this filter scope.`)}</div></div>
+        <div class="brief-line"><div class="tag">Action</div><div>${esc(actionLine)}</div></div>
       </section>`;
   }
 
   function renderRiskSection(riskRows) {
-    const byTier = (tier) => (riskRows || []).filter(r => r.tier === tier).slice(0, 5);
-    const renderGroup = (title, tier, cls) => {
-      const rows = byTier(tier);
-      if (!rows.length) return `<div class="risk-group"><div class="chart-head"><h4 style="margin:0;">${title}</h4><span class="risk-badge ${cls}">${tier}</span></div><div class="micro">No presses in this class for current scope.</div></div>`;
-      return `<div class="risk-group"><div class="chart-head"><h4 style="margin:0;">${title}</h4><span class="risk-badge ${cls}">${tier}</span></div>${rows.map(r => `<div class="risk-row"><div><strong>${esc(r.press)}</strong></div><div><span class="risk-badge ${cls}">${esc((r.normalizedRiskScore || 0).toFixed(0))}</span></div><div>${esc(r.explanation)} ${r.badges.filter(Boolean).map(b => `<span class="impact-chip">${esc(b)}</span>`).join(' ')}</div></div>`).join('')}</div>`;
-    };
+    const baseline = STATE.baselineData?.baselines?.downtime || null;
+    const cleanReason = (reason) => `${String(reason || 'Downtime is outside the expected operating range.')
+      .replace(/above baseline/gi, 'over expected range')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .replace(/\.$/, '')}.`;
+    const tierRank = tier => (tier === 'CRITICAL OUTLIER' ? 3 : tier === 'HIGH RISK' ? 2 : tier === 'UNSTABLE' ? 1 : 0);
+    const usedReasons = new Set();
+    const normalizedRows = [...(riskRows || [])]
+      .sort((a, b) => tierRank(b.tier) - tierRank(a.tier) || (b.normalizedRiskScore || 0) - (a.normalizedRiskScore || 0))
+      .slice(0, 10)
+      .map((r) => {
+        let reason = cleanReason(r.explanation);
+        if (usedReasons.has(reason)) reason = `${reason.replace(/\.$/, '')} (priority score ${(r.normalizedRiskScore || 0).toFixed(0)}).`;
+        usedReasons.add(reason);
+        const riskLabel = r.tier === 'CRITICAL OUTLIER' ? 'Critical' : r.tier === 'HIGH RISK' ? 'High' : r.tier === 'UNSTABLE' ? 'Watch' : 'Stable';
+        const riskCls = r.tier === 'CRITICAL OUTLIER' ? 'risk-critical' : r.tier === 'HIGH RISK' ? 'risk-high' : r.tier === 'UNSTABLE' ? 'risk-medium' : 'risk-stable';
+        const impact = (r.normalizedRiskScore || 0) >= 75 ? 'high' : (r.normalizedRiskScore || 0) >= 50 ? 'medium' : 'low';
+        return { ...r, reason, riskLabel, riskCls, impact };
+      });
+    const deviationPct = baseline?.median > 0 && normalizedRows.length
+      ? (((normalizedRows[0].downtime - baseline.median) / baseline.median) * 100)
+      : 0;
     document.getElementById('riskSection').innerHTML = `
       <div class="chart-head"><h3 style="margin:0;">Operational Risk Overview</h3></div>
-      <div class="micro">Baseline engine uses mean, median (primary), standard deviation, and percentiles (P25/P50/P75/P90) across downtime, events, production volume, and MTTR.</div>
-      <div class="risk-board">
-        ${renderGroup('Top 5 Critical Presses', 'CRITICAL OUTLIER', 'risk-critical')}
-        ${renderGroup('Top 5 High Risk Presses', 'HIGH RISK', 'risk-high')}
-        ${renderGroup('Top 5 Unstable Presses', 'UNSTABLE', 'risk-medium')}
+      <div class="risk-baseline">
+        <article class="baseline-card"><div class="label">Median downtime</div><div class="value">${baseline ? formatDuration(baseline.median) : 'N/A'}</div></article>
+        <article class="baseline-card"><div class="label">Expected range</div><div class="value">${baseline ? `${formatDuration(baseline.p50)} – ${formatDuration(baseline.p75)}` : 'N/A'}</div></article>
+        <article class="baseline-card"><div class="label">Current deviation</div><div class="value">${Number.isFinite(deviationPct) ? `${deviationPct >= 0 ? '+' : ''}${deviationPct.toFixed(1)}%` : 'N/A'}</div></article>
+        <button id="baselineInfoBtn" class="btn secondary" style="align-self:center;">ⓘ Baseline info</button>
+      </div>
+      <div class="risk-table-wrap">
+        <table>
+          <thead><tr><th>Press</th><th>Risk level</th><th>Reason</th><th>Impact level</th></tr></thead>
+          <tbody>${normalizedRows.length ? normalizedRows.map(r => `<tr><td><strong>${esc(r.press)}</strong></td><td><span class="risk-level-badge ${r.riskCls}">${esc(r.riskLabel)}</span></td><td>${esc(r.reason)}</td><td><span class="impact-level">${esc(r.impact)}</span></td></tr>`).join('') : '<tr><td colspan="4">No elevated risks in this filter scope.</td></tr>'}</tbody>
+        </table>
       </div>`;
+    document.getElementById('baselineInfoBtn')?.addEventListener('click', () => document.getElementById('baselineInfoModal')?.classList.add('show'));
   }
 
   function renderDashboardStatusPanel(sourceScope, mismatches = [], reconciliationReport = []) {
@@ -4214,6 +4260,8 @@
     const summaryPreview = document.getElementById('summaryPreview');
     const summaryScopeMeta = document.getElementById('summaryScopeMeta');
     const summaryContent = document.getElementById('summaryContent');
+    const baselineInfoModal = document.getElementById('baselineInfoModal');
+    const closeBaselineInfoBtn = document.getElementById('closeBaselineInfoBtn');
     const ensureSummaryModel = () => {
       try {
         const {
@@ -4306,6 +4354,8 @@
     summaryBtnEl.addEventListener('click', openSummaryModal);
     closeSummaryBtnEl.addEventListener('click', () => summaryModal.classList.remove('show'));
     summaryModal.addEventListener('click', e => { if (e.target.id === 'summaryModal') summaryModal.classList.remove('show'); });
+    closeBaselineInfoBtn?.addEventListener('click', () => baselineInfoModal?.classList.remove('show'));
+    baselineInfoModal?.addEventListener('click', e => { if (e.target.id === 'baselineInfoModal') baselineInfoModal.classList.remove('show'); });
     summaryCopyBtnEl.addEventListener('click', async () => {
       const payload = getExecutiveEmailPayload();
       if (!payload) return;
@@ -4407,3 +4457,10 @@
 </script>
 </body>
 </html>
+    .info-modal{position:fixed;inset:0;background:rgba(4,7,13,.72);display:none;align-items:center;justify-content:center;z-index:45}
+    .info-modal.show{display:flex}
+    .info-panel{width:min(420px,92vw);padding:16px;border-radius:14px;border:1px solid rgba(255,255,255,.08);background:linear-gradient(170deg,rgba(22,33,51,.95),rgba(13,19,30,.95))}
+    .info-panel h4{margin:0 0 10px}
+    .brief-lines{display:grid;gap:8px;margin-top:10px}
+    .brief-line{display:grid;grid-template-columns:94px 1fr;gap:8px;align-items:start;font-size:.9rem}
+    .brief-line .tag{font-size:.68rem;text-transform:uppercase;letter-spacing:.08em;color:#a8b9d4}
