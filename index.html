@@ -81,32 +81,44 @@
     .progress-actions { display:flex; justify-content:flex-end; gap:8px; flex-wrap:wrap; }
     @keyframes pulse-progress { from{filter:brightness(1)} to{filter:brightness(1.2)} }
 
-    .topbar,.card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow)}
-    .topbar { display:grid; grid-template-columns:1fr auto; gap:12px; align-items:start; padding:16px; margin-bottom:12px; }
+    .topbar,.card{background:linear-gradient(165deg,rgba(27,39,61,.44),rgba(16,23,36,.72));border:1px solid rgba(255,255,255,.04);border-radius:var(--radius);box-shadow:0 10px 24px rgba(0,0,0,.24)}
+    .topbar { display:grid; grid-template-columns:1fr auto; gap:12px; align-items:start; padding:18px; margin-bottom:24px; border-color:rgba(255,255,255,.04); }
     .controls { display:flex; gap:8px; flex-wrap:wrap; }
-    .kpis { display:grid; grid-template-columns: repeat(5,minmax(140px,1fr)); gap:10px; margin-bottom:12px; position:relative; z-index:2; }
-    .kpi { padding:11px; border:1px solid var(--border); border-radius:12px; background:rgba(255,255,255,.02); }
+    .kpis { display:grid; grid-template-columns: repeat(5,minmax(140px,1fr)); gap:14px; margin:18px 0 24px; position:relative; z-index:2; }
+    .kpi { padding:16px 12px; border:1px solid rgba(255,255,255,.04); border-radius:14px; background:linear-gradient(170deg,rgba(134,184,255,.12),rgba(255,255,255,.015)); }
     .kpi.clickable{cursor:pointer;transition:all .18s ease;position:relative;z-index:1;pointer-events:auto}
     .kpi.clickable:hover{border-color:rgba(123,141,255,.65);background:rgba(123,141,255,.09);transform:translateY(-1px)}
     .inline-filters{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
     .inline-filters .select{font-size:.82rem;padding:7px 10px}
     .impact-chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);padding:4px 8px;border-radius:999px;background:rgba(255,255,255,.02);font-size:.78rem;color:#d2ddf2}
-    .k { color:var(--muted); font-size:.72rem; text-transform:uppercase; letter-spacing:.08em; }
-    .v { font-size:1.05rem; margin-top:5px; font-weight:650; }
-    .d { color:var(--muted); font-size:.8rem; margin-top:4px; min-height:2.2em; }
-    .filters { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; }
-    .section-tabs{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 12px}
-    .tab-btn{border:1px solid var(--border);border-radius:999px;background:rgba(255,255,255,.03);color:#d6e3f9;padding:7px 12px;cursor:pointer;font-weight:600}
-    .tab-btn.active{background:rgba(123,141,255,.2);border-color:rgba(123,141,255,.65);color:#fff}
-    .grid { display:grid; grid-template-columns:repeat(12,minmax(0,1fr)); gap:10px; }
+    .k { color:var(--muted); font-size:.68rem; text-transform:uppercase; letter-spacing:.1em; }
+    .v { font-size:1.45rem; margin-top:8px; font-weight:760; line-height:1.05; }
+    .d { display:none; }
+    .filters { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:18px; padding:12px; border:1px solid rgba(255,255,255,.05); border-radius:14px; background:linear-gradient(160deg,rgba(132,167,235,.08),rgba(255,255,255,.01)); }
+    .dashboard-flow{display:grid;gap:30px}
+    .section-shell{border:1px solid rgba(255,255,255,.035);border-radius:18px;background:linear-gradient(175deg,rgba(130,177,243,.08),rgba(255,255,255,.005));padding:18px}
+    .section-shell.secondary{background:linear-gradient(180deg,rgba(255,255,255,.03),rgba(255,255,255,.004))}
+    .section-title{margin:0;font-size:1.02rem}
+    .section-note{margin:6px 0 0;color:var(--muted);font-size:.82rem}
+    .section-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+    .grid { display:grid; grid-template-columns:repeat(12,minmax(0,1fr)); gap:16px; }
     .span-3{grid-column:span 3}.span-4{grid-column:span 4}.span-6{grid-column:span 6}.span-8{grid-column:span 8}.span-12{grid-column:span 12}
-    .card { padding:12px; }
+    .card { padding:12px; background:linear-gradient(180deg,rgba(255,255,255,.025),rgba(255,255,255,.01)); }
     .chart-head { display:flex; justify-content:space-between; align-items:center; gap:8px; }
     .chart-tools { display:flex; gap:8px; }
-    .chart-area{position:relative;height:300px;min-height:300px}
+    .chart-area{position:relative;height:280px;min-height:280px}
+    .chart-area.compact{height:240px;min-height:240px}
+    .rank-hero .chart-area{height:500px;min-height:500px}
+    .rank-hero{border-color:rgba(143,211,255,.28);box-shadow:0 22px 48px rgba(0,0,0,.3),inset 0 1px 0 rgba(255,255,255,.06)}
+    .muted-note{color:#a8bad7;font-size:.78rem}
+    .detail-toggle{margin-top:4px}
+    details.section-disclosure summary{cursor:pointer;list-style:none}
+    details.section-disclosure summary::-webkit-details-marker{display:none}
+    details.section-disclosure .section-head{margin-bottom:0}
+    details.section-disclosure[open] .section-head{margin-bottom:10px}
     .chart-empty-state { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; text-align:center; color:var(--muted); font-size:.86rem; padding:14px; background:rgba(12,17,25,.35); border:1px dashed rgba(255,255,255,.14); border-radius:10px; pointer-events:none; }
     .micro { color:var(--muted); font-size:.82rem; margin:6px 0 8px; }
-    .dashboard-status { margin-bottom:12px; border:1px solid var(--border); border-radius:12px; padding:12px; background:rgba(255,255,255,.02); }
+    .dashboard-status { margin-bottom:14px; border:1px solid rgba(255,255,255,.09); border-radius:12px; padding:12px; background:rgba(255,255,255,.015); }
     .dashboard-status.green { border-color:rgba(87,201,138,.45); background:rgba(87,201,138,.12); }
     .dashboard-status.yellow { border-color:rgba(240,177,101,.45); background:rgba(240,177,101,.12); }
     .dashboard-status.red { border-color:rgba(243,107,99,.45); background:rgba(243,107,99,.12); }
@@ -120,6 +132,28 @@
     .risk-medium{color:#f8ecb8;background:rgba(208,183,86,.2);border-color:rgba(208,183,86,.65)}
     .risk-stable{color:#d9ffe9;background:rgba(87,201,138,.16);border-color:rgba(87,201,138,.55)}
     .summary-grid { display:grid; grid-template-columns:repeat(12,minmax(0,1fr)); gap:10px; }
+    .executive-hero{margin-bottom:8px;border-radius:20px;padding:18px 20px;background:linear-gradient(140deg,rgba(74,112,175,.28),rgba(14,22,37,.74));border:1px solid rgba(255,255,255,.04)}
+    .hero-title{font-size:1.42rem;font-weight:770;line-height:1.1;margin:0}
+    .hero-note{margin:8px 0 0;color:#c4d3e9;font-size:.88rem}
+    .hero-signals{margin-top:12px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+    .hero-signal{padding:8px 10px;border-radius:10px;background:rgba(255,255,255,.04)}
+    .hero-signal .label{font-size:.7rem;color:#a9bad4;text-transform:uppercase;letter-spacing:.08em}
+    .hero-signal .value{margin-top:4px;font-size:.9rem;font-weight:700}
+    .status-indicator{padding:3px 10px;border-radius:999px;font-size:.73rem;font-weight:700;border:1px solid}
+    .status-indicator.critical{color:#ffd6d2;border-color:rgba(243,107,99,.7);background:rgba(243,107,99,.2)}
+    .status-indicator.warning{color:#ffe3c6;border-color:rgba(240,177,101,.7);background:rgba(240,177,101,.2)}
+    .status-indicator.stable{color:#d6ffe7;border-color:rgba(87,201,138,.68);background:rgba(87,201,138,.2)}
+    .risk-board{display:grid;gap:12px}
+    .risk-baseline{display:grid;grid-template-columns:repeat(3,minmax(0,1fr)) auto;gap:10px;align-items:stretch}
+    .baseline-card{padding:10px;border-radius:12px;background:linear-gradient(170deg,rgba(113,154,240,.22),rgba(255,255,255,.03));border:1px solid rgba(255,255,255,.06)}
+    .baseline-card .label{font-size:.66rem;letter-spacing:.09em;text-transform:uppercase;color:#b6c9e6}
+    .baseline-card .value{margin-top:6px;font-size:1.05rem;font-weight:700}
+    .risk-table-wrap{border:1px solid rgba(255,255,255,.05);border-radius:12px;overflow:hidden}
+    .risk-table-wrap table th{font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:#afc0db;background:rgba(10,17,28,.75)}
+    .risk-table-wrap table td{font-size:.81rem;color:#e0e8f5}
+    .risk-level-badge{font-size:.68rem;padding:3px 9px;border-radius:999px;border:1px solid;display:inline-block}
+    .impact-level{font-size:.72rem;color:#b9c9df;text-transform:capitalize}
+    .risk-badge{font-size:.7rem;padding:2px 8px;border-radius:999px;border:1px solid}
     .summary-stat { background:rgba(255,255,255,.03); border:1px solid var(--border); border-radius:10px; padding:10px; }
     .summary-stat .label{color:var(--muted);font-size:.75rem;text-transform:uppercase;letter-spacing:.08em}
     .summary-stat .value{font-size:1rem;font-weight:650;margin-top:4px}
@@ -185,8 +219,49 @@
     .summary-preview{border:1px solid var(--border);background:#fff;border-radius:10px;padding:10px;max-height:420px;overflow:auto}
     .summary-preview iframe{width:100%;height:380px;border:0}
 
-    @media(max-width:1000px){ .kpis{grid-template-columns:repeat(2,minmax(140px,1fr));}.topbar{grid-template-columns:1fr}.span-6,.span-4,.span-8,.span-3{grid-column:span 12}.file-row{grid-template-columns:1fr} .file-state{justify-content:flex-start} }
-    @media(max-width:760px){ .summary-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr));}.exec-signal-card,.exec-story-card,.exec-insight-card,.exec-action-card{grid-column:span 12;} }
+    .dashboard-stage{display:grid;gap:22px}
+    .topbar{grid-template-columns:1fr auto;border:1px solid rgba(143,211,255,.16);background:linear-gradient(130deg,rgba(50,80,129,.35),rgba(14,21,35,.85));padding:24px 26px;border-radius:22px}
+    .topbar .eyebrow{font-size:.66rem;letter-spacing:.16em}
+    .topbar .brand-title{font-size:2rem;font-weight:780}
+    .topbar .subtitle{max-width:760px;color:#b8c8e0}
+    .topbar .controls{align-self:flex-start}
+    .topbar .btn{background:rgba(255,255,255,.04);border-color:rgba(255,255,255,.13)}
+    .command-banner{display:grid;grid-template-columns:1.35fr 1fr;gap:12px;padding:16px 18px;border-radius:18px;background:linear-gradient(110deg,rgba(60,95,150,.25),rgba(13,20,32,.82));border:1px solid rgba(143,211,255,.18)}
+    .command-left .hero-title{font-size:1.2rem}
+    .command-left .hero-note{margin:6px 0 0;font-size:.86rem}
+    .command-signals{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+    .signal-tile{padding:10px;border-radius:12px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06)}
+    .signal-tile .label{font-size:.64rem;letter-spacing:.08em;text-transform:uppercase;color:#99aecf}
+    .signal-tile .value{margin-top:4px;font-size:.86rem;font-weight:700;line-height:1.35}
+    .kpis{grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin:0}
+    .kpi{padding:12px 10px;border-radius:12px;border:1px solid rgba(255,255,255,.05);background:rgba(255,255,255,.02)}
+    .k{font-size:.62rem}
+    .v{font-size:1.35rem}
+    .filters{margin-bottom:0;border-radius:12px;background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.06)}
+    .filters .select,.filters input{background:rgba(12,18,29,.9)}
+    .section-shell{border:none;padding:0;background:transparent}
+    .rank-hero{padding:14px;border-radius:16px;background:linear-gradient(180deg,rgba(86,132,214,.16),rgba(16,24,39,.7));border:1px solid rgba(143,211,255,.18)}
+    .rank-hero .chart-area{height:520px;min-height:520px}
+    .intelligence-band{display:grid;grid-template-columns:1.1fr 1fr;gap:14px}
+    .secondary-band{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:12px}
+    .secondary-band .card{background:rgba(255,255,255,.015);border:1px solid rgba(255,255,255,.05)}
+    .risk-intel{padding:14px;border-radius:16px;background:linear-gradient(160deg,rgba(74,107,168,.18),rgba(12,18,30,.8));border:1px solid rgba(143,211,255,.16)}
+    .risk-baseline{grid-template-columns:repeat(3,minmax(0,1fr));margin-bottom:10px}
+    .baseline-card{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08)}
+    .risk-help{border:1px solid rgba(255,255,255,.09);background:rgba(255,255,255,.02);border-radius:10px;padding:9px 10px;font-size:.78rem;color:#c2d3eb}
+    .risk-table-wrap{border:none}
+    .risk-table-wrap table th{background:rgba(255,255,255,.03)}
+    .summary-panel{background:linear-gradient(175deg,rgba(21,33,52,.96),rgba(11,17,28,.98))}
+    .summary-section{background:rgba(255,255,255,.015)}
+    .info-modal{position:fixed;inset:0;background:rgba(4,7,13,.72);display:none;align-items:center;justify-content:center;z-index:45}
+    .info-modal.show{display:flex}
+    .info-panel{width:min(520px,92vw);padding:18px;border-radius:14px;border:1px solid rgba(255,255,255,.08);background:linear-gradient(170deg,rgba(22,33,51,.95),rgba(13,19,30,.95))}
+    .brief-lines{display:grid;gap:8px;margin-top:10px}
+    .brief-line{display:grid;grid-template-columns:94px 1fr;gap:8px;align-items:start;font-size:.9rem}
+    .brief-line .tag{font-size:.68rem;text-transform:uppercase;letter-spacing:.08em;color:#a8b9d4}
+    @media(max-width:1180px){.command-banner{grid-template-columns:1fr}.command-signals{grid-template-columns:1fr}.kpis{grid-template-columns:repeat(3,minmax(0,1fr))}.intelligence-band{grid-template-columns:1fr}}
+    @media(max-width:1000px){ .kpis{grid-template-columns:repeat(2,minmax(140px,1fr));}.topbar{grid-template-columns:1fr}.span-6,.span-4,.span-8,.span-3{grid-column:span 12}.file-row{grid-template-columns:1fr} .file-state{justify-content:flex-start} .rank-hero .chart-area{height:360px;min-height:360px} }
+    @media(max-width:760px){ .summary-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr));}.exec-signal-card,.exec-story-card,.exec-insight-card,.exec-action-card,.hero-signal{grid-column:span 12;} .hero-signals{grid-template-columns:1fr;} .risk-row{grid-template-columns:1fr;} }
   </style>
 </head>
 <body>
@@ -239,17 +314,6 @@
             </div>
             <div class="file-state"><span id="volumeBadge" class="badge optional">optional</span></div>
           </div>
-          <div class="file-row">
-            <div class="file-label"><strong>Salesforce datasets</strong><small>Optional (cases / parts / mixed service exports)</small></div>
-            <div class="picker-stack">
-              <div class="picker-wrap"><button class="btn" data-pick="salesforce">Choose file(s)</button><span id="salesforceToken" class="file-token">No Salesforce file selected</span><input id="salesforcePicker" class="hidden" type="file" accept=".csv,.xlsx,.xls,.json" multiple /></div>
-              <div id="salesforceProgress" class="file-progress">
-                <div class="file-progress-meta"><span id="salesforceProgressLabel">Processing…</span><span id="salesforceProgressPercent">0%</span></div>
-                <div class="file-progress-track"><div id="salesforceProgressFill" class="file-progress-fill"></div></div>
-              </div>
-            </div>
-            <div class="file-state"><span id="salesforceBadge" class="badge sf">optional</span></div>
-          </div>
         </section>
 
         <div class="intake-actions">
@@ -274,7 +338,7 @@
     </article>
   </section>
 
-  <section id="dashboardScreen" class="hidden">
+  <section id="dashboardScreen" class="hidden dashboard-stage">
     <header class="topbar">
       <div>
         <div class="eyebrow">Operational Dashboard</div>
@@ -289,10 +353,9 @@
       </div>
     </header>
 
+    <section id="executiveSummaryCard" class="command-banner"></section>
     <section id="kpiStrip" class="kpis"></section>
     <section id="dashboardStatusPanel" class="dashboard-status"></section>
-
-    <section id="executiveSummaryCard" class="card" style="margin-bottom:12px;"></section>
 
     <section class="filters">
       <select id="pressFilter" class="select"><option value="all">All presses</option></select>
@@ -302,49 +365,75 @@
       <input id="endDateFilter" type="date" title="End date" />
       <input id="searchFilter" placeholder="Search press, alert, subsystem, version" />
     </section>
-    <section id="dashboardTabs" class="section-tabs">
-      <button class="tab-btn active" data-tab="executive">Executive</button>
-      <button class="tab-btn" data-tab="operations">Operations</button>
-      <button class="tab-btn" data-tab="production">Production</button>
-      <button class="tab-btn" data-tab="reliability">Reliability</button>
-      <button class="tab-btn" data-tab="service">Service / Salesforce</button>
-      <button class="tab-btn" data-tab="all">All</button>
-    </section>
+    <main class="dashboard-flow">
+      <section class="section-shell primary-layer">
+        <div class="section-head">
+          <h2 class="section-title">Top Presses by Downtime Impact</h2>
+          <p class="section-note">Which machines are hurting operations the most right now.</p>
+        </div>
+        <article class="card span-12 rank-hero" data-rank-card="press">
+          <div class="chart-head"><h3>Downtime impact ranking</h3><div class="chart-tools"><select data-metric="press" class="select"><option value="downtime">Sort by downtime (default)</option><option value="events">Sort by events</option></select><button class="btn secondary" data-expand="press">Show all</button></div></div>
+          <div class="micro">Bars = downtime (hours). Inline badge = event count.</div><div class="chart-area"><canvas id="pressChart"></canvas></div>
+        </article>
+      </section>
 
-    <main class="grid">
-      <article class="card span-6" data-rank-card="press" data-zone="executive operations reliability">
-        <div class="chart-head"><h3>Top Presses by Error Events</h3><div class="chart-tools"><select data-metric="press" class="select"><option value="events">By events</option><option value="downtime">By downtime</option><option value="normalized">By events/volume</option></select><button class="btn secondary" data-expand="press">Show all</button></div></div>
-        <div class="micro">Metric source shown dynamically by mode.</div><div class="chart-area"><canvas id="pressChart"></canvas></div>
-      </article>
+      <section class="section-shell intelligence-layer">
+        <div class="section-head">
+          <h2 class="section-title">Operational Risk Intelligence</h2>
+          <p class="section-note">Trusted baseline context and ranked machine risk priorities.</p>
+        </div>
+        <div class="intelligence-band">
+          <article class="risk-intel" id="riskSection"></article>
+          <article class="card">
+            <div class="chart-head"><h3 style="margin:0;">Baseline trust model</h3><button id="baselineInfoBtnSecondary" class="btn secondary">How this works</button></div>
+            <p class="micro" style="margin-top:8px;">Median is the primary baseline. Presses are flagged when downtime and MTTR move outside expected percentile ranges with volume context applied.</p>
+            <ul class="list-compact" style="margin-top:0;">
+              <li>Expected range: median to P75 (watch), P90 (critical).</li>
+              <li>Risk score blends downtime, event load, MTTR, and production deficit.</li>
+              <li>Reasons show threshold crossed and measured deviation.</li>
+            </ul>
+          </article>
+        </div>
+      </section>
 
-      <article class="card span-6" data-rank-card="subsystem" data-zone="operations reliability">
-        <div class="chart-head"><h3>Top Subsystems</h3><div class="chart-tools"><select data-metric="subsystem" class="select"><option value="events">By events</option><option value="downtime">By downtime</option><option value="normalized">By events/volume</option></select><button class="btn secondary" data-expand="subsystem">Show all</button></div></div>
-        <div class="micro">Metric source shown dynamically by mode.</div><div class="chart-area"><canvas id="subsystemChart"></canvas></div>
-      </article>
+      <section class="section-shell intelligence-layer">
+        <div class="section-head">
+          <h2 class="section-title">Secondary Analytics</h2>
+          <p class="section-note">Supporting diagnostics kept intentionally subordinate to the hero signal.</p>
+        </div>
+        <div class="secondary-band">
+          <article class="card span-6" data-rank-card="subsystem">
+            <div class="chart-head"><h3>Top Subsystems</h3><div class="chart-tools"><select data-metric="subsystem" class="select"><option value="events">By events</option><option value="downtime">By downtime</option><option value="normalized">By events/volume</option></select><button class="btn secondary" data-expand="subsystem">Show all</button></div></div>
+            <div class="micro">Secondary contributor view.</div><div class="chart-area compact"><canvas id="subsystemChart"></canvas></div>
+          </article>
+          <article class="card span-6" data-rank-card="alert">
+            <div class="chart-head"><h3>Top Errors</h3><div class="chart-tools"><select data-metric="alert" class="select"><option value="events">By events</option><option value="downtime">By downtime</option><option value="normalized">By events/volume</option></select><button class="btn secondary" data-expand="alert">Show all</button></div></div>
+            <div class="micro">Recurring issue view with same drilldown behavior.</div><div class="chart-area compact"><canvas id="alertChart"></canvas></div>
+          </article>
+          <article class="card span-4" data-rank-card="version">
+            <div class="chart-head"><h3>Top Versions</h3><div class="chart-tools"><select data-metric="version" class="select"><option value="events">By events</option><option value="downtime">By downtime</option><option value="normalized">By events/volume</option></select><button class="btn secondary" data-expand="version">Show all</button></div></div>
+            <div class="micro">Exposure context by software version.</div><div class="chart-area compact"><canvas id="versionChart"></canvas></div>
+          </article>
+          <article class="card span-8">
+            <div class="chart-head"><h3>Print Volume By Press</h3><div class="chart-tools"><select id="customerVolumeUnit" class="select"><option value="productionPrintedSheets">Production-only Printed Sheets</option><option value="printedSheets">Total Printed Sheets</option><option value="printedFlats">Printed Flats</option></select><select id="customerVolumeSort" class="select"><option value="desc">Highest first</option><option value="asc">Lowest first</option></select><button id="customerVolumeExpand" class="btn secondary">Show all</button></div></div>
+            <div class="micro" id="customerVolumeNote">Production context with selectable unit basis.</div><div class="chart-area compact"><canvas id="customerVolumeChart"></canvas></div>
+          </article>
+        </div>
+      </section>
 
-      <article class="card span-6" data-rank-card="alert" data-zone="reliability">
-        <div class="chart-head"><h3>Top Errors</h3><div class="chart-tools"><select data-metric="alert" class="select"><option value="events">By events</option><option value="downtime">By downtime</option><option value="normalized">By events/volume</option></select><button class="btn secondary" data-expand="alert">Show all</button></div></div>
-        <div class="micro">Alert ranking uses Name, with Alert Title fallback.</div><div class="chart-area"><canvas id="alertChart"></canvas></div>
-      </article>
-
-      <article class="card span-6" data-rank-card="version" data-zone="operations">
-        <div class="chart-head"><h3>Top Versions</h3><div class="chart-tools"><select data-metric="version" class="select"><option value="events">By events</option><option value="downtime">By downtime</option><option value="normalized">By events/volume</option></select><button class="btn secondary" data-expand="version">Show all</button></div></div>
-        <div class="micro">Version exposure with production-normalized context.</div><div class="chart-area"><canvas id="versionChart"></canvas></div>
-      </article>
-
-      <article class="card span-6" data-zone="production">
-        <div class="chart-head"><h3>Print Volume By Press</h3><div class="chart-tools"><select id="customerVolumeUnit" class="select"><option value="productionPrintedSheets">Production-only Printed Sheets</option><option value="printedSheets">Total Printed Sheets</option><option value="printedFlats">Printed Flats</option></select><select id="customerVolumeSort" class="select"><option value="desc">Highest first</option><option value="asc">Lowest first</option></select><button id="customerVolumeExpand" class="btn secondary">Show all</button></div></div>
-        <div class="micro" id="customerVolumeNote">Press-level workload from volumeAgg only.</div><div class="chart-area"><canvas id="customerVolumeChart"></canvas></div>
-      </article>
-
-      <article class="card span-12" id="riskSection" data-zone="executive reliability"></article>
-      <article class="card span-12 hidden" id="serviceSection" data-zone="service"></article>
-
-      <article class="card span-12" data-zone="operations production">
-        <h3>Merged Event Explorer</h3>
-        <div class="micro">Each row combines Errors with matching Availability and Print Volume bucket context.</div>
-        <div class="table-wrap"><table id="eventTable"></table></div>
-      </article>
+      <details class="section-shell secondary section-disclosure">
+        <summary class="section-head">
+          <div>
+            <h2 class="section-title">Detailed Event Explorer</h2>
+            <p class="section-note">Full merged evidence table (errors + availability + volume context) with drilldown support.</p>
+          </div>
+          <span class="impact-chip detail-toggle">Expand full table</span>
+        </summary>
+        <article class="card span-12">
+          <div class="micro">Each row combines Errors with matching Availability and Print Volume bucket context.</div>
+          <div class="table-wrap"><table id="eventTable"></table></div>
+        </article>
+      </details>
     </main>
   </section>
 </div>
@@ -364,6 +453,20 @@
     <div id="summaryScopeMeta" class="summary-scope"></div>
     <div id="summaryContent" class="summary-layout"></div>
     <div id="summaryPreview" class="summary-preview hidden"></div>
+  </section>
+</div>
+<div id="baselineInfoModal" class="info-modal">
+  <section class="info-panel">
+    <div class="chart-head">
+      <h4>How Baseline Intelligence Works</h4>
+      <button id="closeBaselineInfoBtn" class="btn secondary">Close</button>
+    </div>
+    <div class="micro">The baseline is recalculated from the current filtered peer group to keep risk signals comparable and trustworthy.</div>
+    <ul class="list-compact">
+      <li>Median is the primary operating expectation for downtime, events, MTTR, and production volume.</li>
+      <li>Expected range uses percentiles (P50–P75 watch, P90 critical) with standard-deviation variance checks.</li>
+      <li>A press is flagged when one or multiple thresholds are crossed (high downtime, high variance, low volume, or compounded signals).</li>
+    </ul>
   </section>
 </div>
 
@@ -387,6 +490,7 @@
       <article class="card span-6"><h4 id="drilldownOpsHeading" style="margin:0 0 8px;">Operational split</h4><div class="chart-area" style="height:220px;min-height:220px;"><canvas id="drilldownOpsChart"></canvas></div></article>
     </div>
     <div id="simulationStateStrip" class="sim-state-strip hidden"></div>
+    <div style="display:flex;justify-content:flex-end;margin-bottom:8px;"><button id="drilldownTableToggle" class="btn secondary">👁 Show Table</button></div>
     <div id="drilldownTableWrap" class="table-wrap"><table id="drilldownTable"></table></div>
   </section>
 </div>
@@ -394,11 +498,11 @@
 <script>
 (() => {
   const STATE = {
-    files: { errors: null, availability: null, volume: null, salesforce: [] },
-    validation: { errors: false, availability: false, volume: false, salesforce: true },
-    cachedRaw: { errors: null, availability: null, volume: null, salesforce: [] },
-    normalized: { events: [], availability: [], volume: [], salesforce: { rows: [], cases: [], parts: [], diagnostics: {} } },
-    merged: { events: [], mergedRows: [], stats: {}, summary: null, pressRisk: [], service: null, sourceTables: { errorsAgg: [], availabilityAgg: [], volumeAgg: [] } },
+    files: { errors: null, availability: null, volume: null },
+    validation: { errors: false, availability: false, volume: false },
+    cachedRaw: { errors: null, availability: null, volume: null },
+    normalized: { events: [], availability: [], volume: [] },
+    merged: { events: [], mergedRows: [], stats: {}, summary: null, pressRisk: [], sourceTables: { errorsAgg: [], availabilityAgg: [], volumeAgg: [] } },
     filtered: [],
     filteredErrors: [],
     kpis: null,
@@ -414,11 +518,10 @@
       errors: { state: 'idle', progress: 0, label: '', startedAt: 0, timer: null },
       availability: { state: 'idle', progress: 0, label: '', startedAt: 0, timer: null },
       volume: { state: 'idle', progress: 0, label: '', startedAt: 0, timer: null },
-      salesforce: { state: 'idle', progress: 0, label: '', startedAt: 0, timer: null },
     },
     lastRunSnapshot: null,
-    expand: { press: false, subsystem: false, alert: false, version: false },
-    metricByChart: { press: 'events', subsystem: 'events', alert: 'events', version: 'events' },
+    expand: { press: false, subsystem: false, alert: false, version: false, risk: false },
+    metricByChart: { press: 'downtime', subsystem: 'events', alert: 'events', version: 'events' },
     customerVolumeMetric: 'productionPrintedSheets',
     customerVolumeSort: 'desc',
     customerVolumeExpanded: false,
@@ -435,7 +538,6 @@
     dashboardScopeModel: null,
     availabilityDefinitions: null,
     renderQueued: false,
-    activeZone: 'executive',
   };
 
   const CHARTS = new Map();
@@ -478,9 +580,9 @@
     return 'Unspecified';
   }
   const metricMeta = metric => ({
-    events: { unit: 'events', axisLabel: 'Events', source: 'errorsAgg.totalEvents', tooltip: 'events', subtitle: 'Errors aggregated events.' },
-    downtime: { unit: 'hours', axisLabel: 'Downtime (hours)', source: 'availabilityAgg.planned+unplanned', tooltip: 'hours', subtitle: 'Availability aggregated downtime (Planned + Unplanned).' },
-    normalized: { unit: 'events per volume', axisLabel: 'Events per volume unit', source: 'errorsAgg + volumeAgg', tooltip: 'events/volume', subtitle: 'Normalized events using errorsAgg totals divided by production volume.' },
+    events: { unit: 'events', axisLabel: 'Events', source: 'Events', tooltip: 'events', subtitle: 'Events aggregated by selected scope.' },
+    downtime: { unit: 'hours', axisLabel: 'Downtime (hours)', source: 'Downtime', tooltip: 'hours', subtitle: 'Downtime aggregated (Planned + Unplanned).' },
+    normalized: { unit: 'events per volume', axisLabel: 'Events per volume unit', source: 'Events + Production', tooltip: 'events/volume', subtitle: 'Normalized events divided by production volume.' },
   }[metric] || { unit: 'value', axisLabel: 'Value', source: 'unknown', tooltip: 'value', subtitle: 'Ranking.' });
   function classifyPressMode(model, perfector = '') {
     const modelToken = String(model || '').trim().toUpperCase();
@@ -691,20 +793,18 @@
   }
 
   function setFileUI(key) {
-    const file = key === 'salesforce' ? (STATE.files.salesforce || []) : STATE.files[key];
+    const file = STATE.files[key];
     const token = document.getElementById(`${key}Token`);
     if (!token) return;
-    token.textContent = key === 'salesforce'
-      ? (file.length ? `${file.length} Salesforce file(s) selected` : 'No Salesforce file selected')
-      : (file ? file.name : 'No file selected');
+    token.textContent = file ? file.name : 'No file selected';
     const badge = document.getElementById(`${key}Badge`);
-    const hasFile = key === 'salesforce' ? file.length > 0 : !!file;
+    const hasFile = !!file;
     if (!hasFile) {
-      badge.className = `badge ${key === 'errors' ? 'missing' : (key === 'salesforce' ? 'sf' : 'optional')}`;
+      badge.className = `badge ${key === 'errors' ? 'missing' : 'optional'}`;
       badge.textContent = key === 'errors' ? 'missing' : 'optional';
     } else if (STATE.validation[key]) {
       badge.className = 'badge validated';
-      badge.textContent = key === 'salesforce' ? 'classified' : 'validated';
+      badge.textContent = 'validated';
     } else {
       badge.className = 'badge loaded';
       badge.textContent = 'loaded';
@@ -849,7 +949,7 @@
   function detectDatasetType(rows = []) {
     const sample = rows.slice(0, 60);
     if (!sample.length) return 'unknown';
-    const score = { errors: 0, availability: 0, volume: 0, salesforceCases: 0, salesforceParts: 0 };
+    const score = { errors: 0, availability: 0, volume: 0 };
     sample.forEach(row => {
       if (hasAnyField(row, ['Start Time', 'Start', 'Event Time', 'Timestamp']) && hasAnyField(row, ['Name', 'Alert Name', 'Alert Title'])) score.errors += 3;
       if (hasAnyField(row, ['Subsystem', 'Module'])) score.errors += 1;
@@ -861,11 +961,6 @@
 
       if (hasAnyField(row, ['Print Start']) || hasAnyField(row, ['Printed Sheets']) || hasAnyField(row, ['Printed Flats'])) score.volume += 3;
       if (hasAnyField(row, ['Job Type', 'Job Status', 'Press Mode'])) score.volume += 1;
-      if (hasAnyField(row, ['Case Number', 'Case', 'Case Id']) || hasAnyField(row, ['Case Tier', 'Tier', 'Severity'])) score.salesforceCases += 3;
-      if (hasAnyField(row, ['Machine Down', 'Machine Down Flag', 'Is Machine Down'])) score.salesforceCases += 2;
-      if (hasAnyField(row, ['Account Name', 'Customer', 'Contact Name'])) score.salesforceCases += 1;
-      if (hasAnyField(row, ['Part Number', 'Part #', 'SKU'])) score.salesforceParts += 3;
-      if (hasAnyField(row, ['Part Description', 'Quantity', 'Qty'])) score.salesforceParts += 1;
     });
     return Object.entries(score).sort((a, b) => b[1] - a[1])[0][1] > 0 ? Object.entries(score).sort((a, b) => b[1] - a[1])[0][0] : 'unknown';
   }
@@ -1015,7 +1110,6 @@
       const runtimeSeconds = printSeconds + availableWithoutPrintSeconds;
       const plannedDowntimeSeconds = preventiveMaintenanceSeconds;
       const unplannedDowntimeSeconds = recoverySeconds + jamsSeconds;
-      const serviceDowntimeSeconds = 0;
       const alignedPlannedDowntimeSeconds = plannedDowntimeSeconds + onJobMaintenanceSeconds;
 
       let availabilityPct = parsePercent(getField(r, ['Availability']));
@@ -1064,7 +1158,6 @@
         runtimeSeconds,
         plannedDowntimeSeconds: alignedPlannedDowntimeSeconds,
         unplannedDowntimeSeconds,
-        serviceDowntimeSeconds,
         subsystem,
         downtimeCategory,
         raw: r
@@ -1078,7 +1171,6 @@
     }
     if (onProgress) onProgress({ completed: rows.length, total, detail: `Availability rows: ${rows.length.toLocaleString()} / ${total.toLocaleString()}` });
 
-    const serviceTop = STATE.merged?.service?.rows?.[0] || null;
     return {
       rows: out,
       diagnostics: {
@@ -1097,7 +1189,7 @@
     const classifyMaintenance = row => {
       const jobType = String(getField(row, ['Job Type'])).toLowerCase();
       const pressMode = String(getField(row, ['Press Mode', 'Mode'])).toLowerCase();
-      return /maintenance|service|repair|pm/.test(jobType) || /maintenance|service|repair|pm/.test(pressMode);
+      return /maintenance|repair|pm/.test(jobType) || /maintenance|repair|pm/.test(pressMode);
     };
 
     const total = Math.max(1, rows.length);
@@ -1201,80 +1293,6 @@
       diagnostics: { parsedRows: rows.length, sourceRowsUsed, normalizedRowsCreated: jobs.length, aggregatedRowsCreated: byKey.size },
     };
   }
-
-  async function normalizeSalesforceRows(rows, options = {}) {
-    const { controller = null, onProgress = null } = options;
-    const out = [];
-    const total = Math.max(1, rows.length);
-    for (let i = 0; i < rows.length; i++) {
-      if (controller) assertAnalysisActive(controller);
-      const r = rows[i];
-      const caseNumber = String(getField(r, ['Case Number', 'Case', 'Case Id', 'CaseNumber'])).trim();
-      const partNumber = String(getField(r, ['Part Number', 'Part #', 'SKU'])).trim();
-      const pressRaw = String(getField(r, ['Press', 'Machine', 'Asset Name', 'Machine Name'])).trim();
-      const { canonicalPress } = canonicalizePressName(pressRaw);
-      const customer = String(getField(r, ['Account Name', 'Customer', 'Client'])).trim() || 'Unspecified';
-      const tierRaw = String(getField(r, ['Case Tier', 'Tier', 'Severity', 'Priority'])).trim() || 'Unspecified';
-      const tier = /machine\s*down|down/.test(tierRaw.toLowerCase()) ? 'Machine Down' : tierRaw;
-      const machineDown = /^(true|yes|1|y)$/i.test(String(getField(r, ['Machine Down', 'Machine Down Flag', 'Is Machine Down'])).trim()) || tier === 'Machine Down';
-      const openedAt = parseUsDateTime(getField(r, ['Created Date', 'Opened', 'Open Date', 'Date']));
-      const closedAt = parseUsDateTime(getField(r, ['Closed Date', 'Resolved Date']));
-      const isOpen = !closedAt || /open|new|working|pending/i.test(String(getField(r, ['Status'])));
-      out.push({
-        caseNumber: caseNumber || '',
-        partNumber: partNumber || '',
-        canonicalPress: canonicalPress || 'Unspecified',
-        customer,
-        tier,
-        machineDown,
-        openedAt,
-        closedAt,
-        isOpen,
-      });
-      if (i % 2000 === 0) {
-        if (onProgress) onProgress({ completed: i + 1, total, detail: `Salesforce rows: ${(i + 1).toLocaleString()} / ${total.toLocaleString()}` });
-        if (controller) await yieldAnalysisFrame(controller); else await shortYield();
-      }
-    }
-    if (onProgress) onProgress({ completed: rows.length, total, detail: `Salesforce rows: ${rows.length.toLocaleString()} / ${total.toLocaleString()}` });
-    return out;
-  }
-
-  function buildSalesforceServiceLayer(sfRows = [], errors = [], availability = []) {
-    if (!sfRows.length) return null;
-    const byPress = new Map();
-    sfRows.forEach(r => {
-      const key = r.canonicalPress || 'Unspecified';
-      if (!byPress.has(key)) byPress.set(key, { press: key, cases: 0, machineDownCases: 0, openCases: 0, tiers: {}, partNumbers: new Set() });
-      const slot = byPress.get(key);
-      slot.cases += r.caseNumber ? 1 : 0;
-      slot.machineDownCases += r.machineDown ? 1 : 0;
-      slot.openCases += r.isOpen ? 1 : 0;
-      slot.tiers[r.tier] = (slot.tiers[r.tier] || 0) + 1;
-      if (r.partNumber) slot.partNumbers.add(r.partNumber);
-    });
-    const errorByPress = aggregateErrorEvents(errors, r => r.canonicalPress || r.press || 'Unspecified');
-    const errorMap = new Map(errorByPress.map(r => [r.name, r]));
-    const availabilityMap = new Map();
-    availability.forEach(r => {
-      const p = r.canonicalPress || 'Unspecified';
-      availabilityMap.set(p, (availabilityMap.get(p) || 0) + totalDowntimeFromAvailabilityRow(r));
-    });
-    const combined = [...byPress.values()].map(row => {
-      const err = errorMap.get(row.press);
-      const downtime = availabilityMap.get(row.press) || 0;
-      return {
-        ...row,
-        partNumbers: row.partNumbers.size,
-        events: err?.events || 0,
-        errorDuration: err?.downtime || 0,
-        downtimeSeconds: downtime,
-        combinedPressureScore: (err?.events || 0) + (row.cases * 2) + (row.machineDownCases * 5),
-      };
-    }).sort((a, b) => b.combinedPressureScore - a.combinedPressureScore);
-    return { rows: combined, totalCases: sfRows.filter(r => r.caseNumber).length, machineDownCases: sfRows.filter(r => r.machineDown).length };
-  }
-
   async function mergeOperationalData(events, availabilityRows, volumeRows, diagnostics = {}, options = {}) {
     const { controller = null, onProgress = null } = options;
     const availabilityByPressModelDay = new Map();
@@ -1301,7 +1319,6 @@
         runtimeSeconds: 0,
         plannedDowntimeSeconds: 0,
         unplannedDowntimeSeconds: 0,
-        serviceDowntimeSeconds: 0,
         availabilityPctAccumulator: 0,
         availabilityPctContribCount: 0,
         sourceRows: 0,
@@ -1312,7 +1329,6 @@
       slot.runtimeSeconds += row.runtimeSeconds || 0;
       slot.plannedDowntimeSeconds += row.plannedDowntimeSeconds || 0;
       slot.unplannedDowntimeSeconds += row.unplannedDowntimeSeconds || 0;
-      slot.serviceDowntimeSeconds += row.serviceDowntimeSeconds || 0;
       if (row.availabilityPct != null) {
         slot.availabilityPctAccumulator += row.availabilityPct;
         slot.availabilityPctContribCount += 1;
@@ -1435,7 +1451,6 @@
           runtimeSeconds: 0,
           plannedDowntimeSeconds: 0,
           unplannedDowntimeSeconds: 0,
-          serviceDowntimeSeconds: 0,
           availabilityPct: null,
           productionVolume: 0,
           maintenanceVolume: 0,
@@ -1454,7 +1469,6 @@
         slot.runtimeSeconds += avMatch.runtimeSeconds;
         slot.plannedDowntimeSeconds += avMatch.plannedDowntimeSeconds;
         slot.unplannedDowntimeSeconds += avMatch.unplannedDowntimeSeconds;
-        slot.serviceDowntimeSeconds += avMatch.serviceDowntimeSeconds;
         slot.availabilityPct = avMatch.availabilityPctContribCount ? (avMatch.availabilityPctAccumulator / avMatch.availabilityPctContribCount) : null;
         slot.matchedAvailabilityRows += avMatch.sourceRows;
       }
@@ -1474,7 +1488,7 @@
           availabilityKeyUsed: avMatch ? (availabilityByPressModelDay.has(rowKey) ? 'primary' : 'fallback') : null,
           volumeKeyUsed: volMatch ? (volumeByPressModelDay.has(rowKey) ? 'primary' : 'fallback') : null
         },
-        availability: avMatch || { printSeconds: 0, availableWithoutPrintSeconds: 0, runtimeSeconds: 0, plannedDowntimeSeconds: 0, unplannedDowntimeSeconds: 0, serviceDowntimeSeconds: 0 },
+        availability: avMatch || { printSeconds: 0, availableWithoutPrintSeconds: 0, runtimeSeconds: 0, plannedDowntimeSeconds: 0, unplannedDowntimeSeconds: 0 },
         volume: volMatch || { productionVolume: 0, maintenanceVolume: 0, totalVolume: 0 },
       });
       if (i % 2000 === 0) {
@@ -1501,7 +1515,6 @@
       runtimeSeconds: row.runtimeSeconds || 0,
       plannedDowntimeSeconds: row.plannedDowntimeSeconds || 0,
       unplannedDowntimeSeconds: row.unplannedDowntimeSeconds || 0,
-      serviceDowntimeSeconds: row.serviceDowntimeSeconds || 0,
       availabilityPct: row.availabilityPctContribCount ? (row.availabilityPctAccumulator / row.availabilityPctContribCount) : null
     }));
     const volumeAgg = [...volumeByPressModelDay.values()].map(row => ({
@@ -1688,7 +1701,6 @@
       runtimeSeconds: row.runtimeSeconds || 0,
       plannedDowntimeSeconds: row.plannedDowntimeSeconds || 0,
       unplannedDowntimeSeconds: row.unplannedDowntimeSeconds || 0,
-      serviceDowntimeSeconds: row.serviceDowntimeSeconds || 0,
       availabilityPct: row.availabilityPct ?? null
     }));
     const volumeAgg = filteredVolumeRowsNative.map(row => ({
@@ -1949,7 +1961,6 @@
     const totals = {
       planned: availabilityAgg.reduce((a, r) => a + (r.plannedDowntimeSeconds || 0), 0),
       unplanned: availabilityAgg.reduce((a, r) => a + (r.unplannedDowntimeSeconds || 0), 0),
-      service: availabilityAgg.reduce((a, r) => a + (r.serviceDowntimeSeconds || 0), 0),
       runtime: availabilityAgg.reduce((a, r) => a + (r.runtimeSeconds || 0), 0),
       totalAvailDowntime: availabilityAgg.reduce((a, r) => a + totalDowntimeFromAvailabilityRow(r), 0),
       productionVolume: volumeAgg.reduce((a, r) => a + (r.productionVolume || 0), 0),
@@ -1978,7 +1989,6 @@
       totalDowntime,
       totalUnplanned: totals.unplanned,
       totalPlanned: totals.planned,
-      totalService: totals.service,
       totalOperating: totals.runtime,
       totalProdVolume: totals.productionPrintedSheets,
       totalMaintenanceVolume: totals.maintenanceVolume,
@@ -2051,18 +2061,79 @@
     return [...map.values()];
   }
 
-  function computeRiskScores(rows) {
-    const pressStats = aggregateErrorEvents(rows, r => r.press).sort((a, b) => b.risk - a.risk);
-    return pressStats.map(item => {
-      const reasons = [];
-      if (item.events > 5) reasons.push('high recurrence');
-      if (item.downtime > 2 * 3600) reasons.push('high downtime');
-      if (item.normalized > 0.02) reasons.push('high events per volume');
-      if (item.recent > 0) reasons.push('recent activity');
-      const score = item.risk;
-      const tier = score >= 45 ? 'Critical' : score >= 25 ? 'High Risk' : score >= 12 ? 'Medium Risk' : 'Stable';
-      return { entity: item.name, tier, score, events: item.events, downtime: item.downtime, reason: reasons.join(' + ') || 'low composite signal' };
+  function percentile(values, p) {
+    const sorted = [...values].filter(Number.isFinite).sort((a, b) => a - b);
+    if (!sorted.length) return 0;
+    const idx = (sorted.length - 1) * p;
+    const lo = Math.floor(idx);
+    const hi = Math.ceil(idx);
+    if (lo === hi) return sorted[lo];
+    const w = idx - lo;
+    return sorted[lo] * (1 - w) + sorted[hi] * w;
+  }
+
+  function computeOutlierRiskModel(sourceScope = {}) {
+    const pressMap = new Map();
+    const addPress = (name) => {
+      const key = name || 'Unspecified';
+      if (!pressMap.has(key)) pressMap.set(key, { press: key, downtime: 0, events: 0, productionVolume: 0, mttr: 0, errorDuration: 0 });
+      return pressMap.get(key);
+    };
+    (sourceScope.availabilityAgg || []).forEach(r => { addPress(r.canonicalPress).downtime += totalDowntimeFromAvailabilityRow(r); });
+    (sourceScope.errorsAgg || []).forEach(r => {
+      const slot = addPress(r.canonicalPress);
+      slot.events += Number(r.totalEvents || 0);
+      slot.errorDuration += Number(r.totalErrorDurationSeconds || 0);
     });
+    (sourceScope.volumeAgg || []).forEach(r => { addPress(r.canonicalPress).productionVolume += Number(r.productionPrintedSheets || 0); });
+    const rows = [...pressMap.values()].map(r => ({ ...r, mttr: r.events > 0 ? r.errorDuration / r.events : 0 }));
+    const metricKeys = ['downtime', 'events', 'productionVolume', 'mttr'];
+    const baselines = {};
+    metricKeys.forEach(key => {
+      const vals = rows.map(r => Number(r[key] || 0));
+      const mean = vals.reduce((a, b) => a + b, 0) / Math.max(1, vals.length);
+      const median = percentile(vals, 0.5);
+      const p25 = percentile(vals, 0.25);
+      const p75 = percentile(vals, 0.75);
+      const p90 = percentile(vals, 0.9);
+      const variance = vals.reduce((a, v) => a + ((v - mean) ** 2), 0) / Math.max(1, vals.length);
+      baselines[key] = { mean, median, stdDev: Math.sqrt(variance), p25, p50: median, p75, p90 };
+    });
+    const maxRisk = Math.max(1, ...rows.map(row => {
+      const dm = baselines.downtime.median > 0 ? row.downtime / baselines.downtime.median : row.downtime;
+      const em = baselines.events.median > 0 ? row.events / baselines.events.median : row.events;
+      const mt = baselines.mttr.median > 0 ? row.mttr / baselines.mttr.median : row.mttr;
+      const volDeficit = baselines.productionVolume.median > 0 ? Math.max(0, (baselines.productionVolume.median - row.productionVolume) / baselines.productionVolume.median) : 0;
+      return (dm * 0.45) + (em * 0.25) + (mt * 0.2) + (volDeficit * 0.1);
+    }));
+    const scored = rows.map(row => {
+      const dm = baselines.downtime.median > 0 ? row.downtime / baselines.downtime.median : row.downtime;
+      const em = baselines.events.median > 0 ? row.events / baselines.events.median : row.events;
+      const mt = baselines.mttr.median > 0 ? row.mttr / baselines.mttr.median : row.mttr;
+      const volDeficit = baselines.productionVolume.median > 0 ? Math.max(0, (baselines.productionVolume.median - row.productionVolume) / baselines.productionVolume.median) : 0;
+      const rawRisk = (dm * 0.45) + (em * 0.25) + (mt * 0.2) + (volDeficit * 0.1);
+      const normalizedRiskScore = (rawRisk / maxRisk) * 100;
+      const varianceSignal = baselines.downtime.stdDev > 0 && (Math.abs(row.downtime - baselines.downtime.mean) / baselines.downtime.stdDev) >= 1.5;
+      let tier = 'STABLE';
+      if (row.downtime >= baselines.downtime.p90 || normalizedRiskScore >= 80) tier = 'CRITICAL OUTLIER';
+      else if (row.downtime >= baselines.downtime.p75 || normalizedRiskScore >= 60) tier = 'HIGH RISK';
+      else if (varianceSignal || row.mttr >= baselines.mttr.p75) tier = 'UNSTABLE';
+      const prodDropPct = baselines.productionVolume.median > 0 ? ((1 - (row.productionVolume / baselines.productionVolume.median)) * 100) : 0;
+      const explanation = row.productionVolume < baselines.productionVolume.p25 && prodDropPct > 0
+        ? `Production ${Math.max(0, prodDropPct).toFixed(0)}% below expected range`
+        : (varianceSignal ? 'High variance versus baseline' : `Downtime ${(dm || 0).toFixed(1)}x above baseline`);
+      return {
+        press: row.press,
+        tier,
+        normalizedRiskScore,
+        metrics: row,
+        deviationFromMedian: { downtime: dm, events: em, mttr: mt },
+        deviationFromPercentile: { p75: row.downtime - baselines.downtime.p75, p90: row.downtime - baselines.downtime.p90 },
+        badges: [row.downtime > baselines.downtime.median ? 'Above baseline' : 'Below baseline', varianceSignal ? 'High variance' : ''],
+        explanation,
+      };
+    }).sort((a, b) => b.normalizedRiskScore - a.normalizedRiskScore);
+    return { baselines, rows: scored };
   }
 
   function formatDuration(sec) {
@@ -2215,10 +2286,6 @@
           impact: 'Expected impact: measurable drop in repeated faults across impacted presses.',
         },
       ],
-      serviceSignal: serviceTop ? {
-        title: `Service escalation at ${serviceTop.press}`,
-        detail: `${serviceTop.cases} cases, ${serviceTop.machineDownCases} machine-down cases.`,
-      } : null,
     };
   }
 
@@ -2231,13 +2298,12 @@
 
   function defineExecutiveSummarySections() {
     return [
-      { id: 'executiveStatus', title: 'Executive Status', accent: model => model.overallStatus.styles.color, type: 'status' },
-      { id: 'situationSnapshot', title: 'Situation Snapshot', accent: () => '#1f8bff', type: 'snapshot' },
-      { id: 'operationalInsights', title: 'Operational Insights', accent: () => '#365f9f', type: 'insights' },
-      { id: 'serviceSignal', title: 'Critical Service Signal', accent: () => '#2f7eb7', type: 'service' },
-      { id: 'topActionCards', title: 'Top Action Cards', accent: () => '#116e45', type: 'actions' },
+      { id: 'executiveStatus', title: 'Status', accent: model => model.overallStatus.styles.color, type: 'status' },
+      { id: 'situationSnapshot', title: 'Core narrative', accent: () => '#1f8bff', type: 'snapshot' },
+      { id: 'operationalInsights', title: 'What matters now', accent: () => '#365f9f', type: 'insights' },
+      { id: 'topActionCards', title: 'What to do next', accent: () => '#116e45', type: 'actions' },
       { id: 'topPressDowntime', title: 'Top Presses Downtime (Top 5)', accent: () => '#e56739', type: 'table' },
-      { id: 'printVolume', title: 'Print Volume (Top 5)', accent: () => '#25a65b', type: 'table' },
+      { id: 'printVolume', title: 'Why it matters: Production Exposure', accent: () => '#25a65b', type: 'table' },
       { id: 'topSubsystems', title: 'Top Subsystems (Top 5)', accent: () => '#7c4dff', type: 'table' },
       { id: 'topErrors', title: 'Top Errors (Top 5)', accent: () => '#d39a1f', type: 'table' },
       { id: 'confidenceFooter', title: 'Confidence Footer', accent: () => '#36455f', type: 'footer' },
@@ -2272,9 +2338,6 @@
         (model.situationSnapshot || []).forEach(item => lines.push(`- ${item.title}: ${item.value} (${item.note})`));
       } else if (section.id === 'operationalInsights') {
         (model.operationalInsights || []).forEach(item => lines.push(`- ${item.title}: ${item.detail}`));
-      } else if (section.id === 'serviceSignal') {
-        if (model.serviceSignal) lines.push(`- ${model.serviceSignal.title}: ${model.serviceSignal.detail}`);
-        else lines.push('- No critical Salesforce-linked escalation in this scope.');
       } else if (section.id === 'topActionCards') {
         (model.topActionCards || []).forEach(item => lines.push(`- ${item.title}: ${item.reason} ${item.impact}`));
       } else if (section.id === 'topPressDowntime') {
@@ -2332,7 +2395,7 @@
       generatedAtIso,
       generatedAtLabel,
       reportingPeriodLabel,
-      sourceCounts: { errors: (scope.errorsAgg || []).length, availability: availabilityAgg.length, volume: volumeAgg.length, salesforce: (STATE.normalized.salesforce?.rows || []).length },
+      sourceCounts: { errors: (scope.errorsAgg || []).length, availability: availabilityAgg.length, volume: volumeAgg.length },
       executiveSnapshot: {
         availability: kpis.availabilityPct == null ? 'N/A' : `${kpis.availabilityPct.toFixed(1)}%`,
         productionVolume: kpis.totalProdVolume.toLocaleString(),
@@ -2347,7 +2410,6 @@
       contextTags: [`Top risk: ${status.topPressByEvents?.name || 'N/A'}`, `Bottleneck: ${status.topSubsystem?.name || 'N/A'}`, `Error: ${status.topAlert?.name || 'N/A'}`],
       situationSnapshot,
       operationalInsights: status.insightCards || [],
-      serviceSignal: status.serviceSignal || null,
       topActionCards: (status.actionCards || []).slice(0, 3),
       topErrors,
       topSubsystems,
@@ -2383,7 +2445,7 @@
     const tableWrapperStart = isEmail ? '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;max-width:860px;margin:0 auto;background:#f4f7fb;">' : '';
     const tableWrapperEnd = isEmail ? '</table>' : '';
     const headerBlock = isEmail
-      ? `<tr><td style="padding:0 0 14px;"><div style="font-size:26px;font-weight:700;color:#1d2430;line-height:1.2;">Landa Insight<span style="color:#1f8bff;">Pro+</span> Summary</div><div style="font-size:13px;color:#334560;margin-top:6px;line-height:1.6;font-weight:600;">Reporting period: ${esc(model.reportingPeriodLabel)}</div><div style="font-size:12px;color:#5a6980;margin-top:4px;line-height:1.6;">Generated on: ${esc(model.generatedAtLabel)}</div><div style="font-size:12px;color:#5a6980;margin-top:4px;line-height:1.6;">${esc(model.scopeLabel)} • Source rows (errors/availability/volume/salesforce): ${model.sourceCounts.errors}/${model.sourceCounts.availability}/${model.sourceCounts.volume}/${model.sourceCounts.salesforce || 0}</div></td></tr>`
+      ? `<tr><td style="padding:0 0 14px;"><div style="font-size:26px;font-weight:700;color:#1d2430;line-height:1.2;">Landa Insight<span style="color:#1f8bff;">Pro+</span> Summary</div><div style="font-size:13px;color:#334560;margin-top:6px;line-height:1.6;font-weight:600;">Reporting period: ${esc(model.reportingPeriodLabel)}</div><div style="font-size:12px;color:#5a6980;margin-top:4px;line-height:1.6;">Generated on: ${esc(model.generatedAtLabel)}</div><div style="font-size:12px;color:#5a6980;margin-top:4px;line-height:1.6;">${esc(model.scopeLabel)} • Source rows (events/downtime/production): ${model.sourceCounts.errors}/${model.sourceCounts.availability}/${model.sourceCounts.volume}</div></td></tr>`
       : '';
 
     const sections = structure.map((section, sectionIdx) => {
@@ -2403,12 +2465,6 @@
           ? `<tr><td style="padding:8px 10px;border-bottom:1px solid #d8e3f6;"><div style="font-size:11px;font-weight:700;color:#365f9f;text-transform:uppercase;line-height:1.6;">${esc(card.title)}</div><div style="margin-top:4px;font-size:13px;color:#1f2a3a;line-height:1.6;">${esc(card.detail)}</div></td></tr>`
           : `<article class="exec-insight-card"><div class="exec-mini-title">${esc(card.title)}</div><div class="exec-mini-note">${esc(card.detail)}</div></article>`).join('');
         const body = isEmail ? `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;border:1px solid #d8e3f6;background:#f9fbff;">${cards}</table>` : `<div class="exec-card-grid">${cards}</div>`;
-        return wrapSection(section.title, accent, body, sectionIdx);
-      }
-      if (section.id === 'serviceSignal') {
-        const body = model.serviceSignal
-          ? `<div class="micro" style="margin:0;color:${isEmail ? '#2f3f55' : '#d3def2'};line-height:1.6;"><strong>${esc(model.serviceSignal.title)}</strong> — ${esc(model.serviceSignal.detail)}</div>`
-          : `<div class="micro" style="margin:0;color:${isEmail ? '#2f3f55' : '#d3def2'};line-height:1.6;">No critical Salesforce-linked escalation in this scope.</div>`;
         return wrapSection(section.title, accent, body, sectionIdx);
       }
       if (section.id === 'topActionCards') {
@@ -2450,90 +2506,77 @@
   function renderKpis(k) {
     const na = 'N/A';
     const cards = [
-      ['Total Events', 'totalEvents', k.totalEvents.toLocaleString(), 'Events from source-native Errors records'],
-      ['Total Downtime', 'totalDowntime', formatDuration(k.totalDowntime), 'Availability downtime (Planned + Unplanned)'],
-      ['Unplanned DT', 'totalUnplanned', formatDuration(k.totalUnplanned), DOWNTIME_DEFINITION.unplanned],
-      ['Planned DT', 'totalPlanned', formatDuration(k.totalPlanned), DOWNTIME_DEFINITION.planned],
-      ['MTTR', 'mttr', k.mttr == null ? na : formatDuration(k.mttr), 'Mean Time To Repair from error durations'],
-      ['MTBF', 'mtbf', k.mtbf == null ? na : formatDuration(k.mtbf), 'Mean Time Between Failures from runtime/event rate'],
-      ['Availability', 'availabilityPct', k.availabilityPct == null ? na : `${k.availabilityPct.toFixed(1)}%`, k.availabilityFormula || 'Source-defined availability'],
-      ['Production Volume', 'totalProdVolume', k.totalProdVolume.toLocaleString(), `Basis: ${k.volumeBasis}`],
-      ['Downtime / Volume', 'downtimePerVolume', k.downtimePerVolume == null ? na : k.downtimePerVolume.toFixed(4), 'seconds per production unit'],
-      ['Events / Volume', 'eventPerVolume', k.eventPerVolume == null ? na : k.eventPerVolume.toFixed(4), 'events per production unit'],
+      ['Availability', 'availabilityPct', k.availabilityPct == null ? na : `${k.availabilityPct.toFixed(1)}%`],
+      ['Production Volume', 'totalProdVolume', k.totalProdVolume.toLocaleString()],
+      ['Total Downtime', 'totalDowntime', formatDuration(k.totalDowntime)],
+      ['MTTR', 'mttr', k.mttr == null ? na : formatDuration(k.mttr)],
+      ['Events', 'totalEvents', k.totalEvents.toLocaleString()],
     ];
-    const helper = `<div class="micro">Volume perspective: Total Printed Sheets ${k.rawPrintedSheets.toLocaleString()} • Production Printed Sheets ${k.productionOnlyPrintedSheets.toLocaleString()} • Primary KPI basis: ${esc(k.volumeBasis)}.</div><div class="micro">Availability method: ${esc(k.availabilityLabel || 'Source-defined availability')} (${esc(k.availabilityFormula || 'N/A')}).</div>${k.reasons.length ? `<div class="micro">KPI guidance: ${esc(k.reasons.join(' '))}</div>` : ''}`;
-    document.getElementById('kpiStrip').innerHTML = cards.map(([a, metricKey, b, c]) => `<article class="kpi clickable" role="button" tabindex="0" data-kpi-metric="${metricKey}"><div class="k">${a}</div><div class="v">${b}</div><div class="d">${c}</div></article>`).join('') + helper;
+    document.getElementById('kpiStrip').innerHTML = cards.map(([a, metricKey, b]) => `<article class="kpi clickable" role="button" tabindex="0" data-kpi-metric="${metricKey}" title="${esc(a)}"><div class="k">${a}</div><div class="v">${b}</div></article>`).join('');
   }
 
   function renderExecutiveSummaryCard(summary) {
-    const statusTone = summary.statusTone === 'critical'
-      ? { color: '#ffb7b2', border: 'rgba(243,107,99,.6)', glow: 'rgba(243,107,99,.32)', accent: '#f36b63' }
-      : summary.statusTone === 'watch'
-        ? { color: '#ffd7a8', border: 'rgba(240,177,101,.58)', glow: 'rgba(240,177,101,.28)', accent: '#f0b165' }
-        : { color: '#c8f6db', border: 'rgba(87,201,138,.58)', glow: 'rgba(87,201,138,.28)', accent: '#57c98a' };
-    const concentrationPct = Number(summary.downtimeConcentrationPct || 0);
-    const concentrationWidth = Math.max(8, Math.min(100, concentrationPct));
-    const unplannedWidth = Math.max(8, Math.min(100, Number(summary.unplannedPct || 0)));
-    const contextTags = [
-      `Top risk: ${summary.topPressByEvents?.name || 'N/A'}`,
-      `Main bottleneck: ${summary.topSubsystem?.name || 'N/A'}`,
-      `Recurring error: ${summary.topAlert?.name || 'N/A'}`
-    ];
+    const statusClass = summary.statusTone === 'critical' ? 'critical' : summary.statusTone === 'watch' ? 'warning' : 'stable';
+    const topRisk = summary.topErrorDowntimePress?.entity || summary.topPressByEvents?.name || 'No dominant press';
+    const rootCause = summary.topSubsystem?.name || summary.topAlert?.name || 'No single dominant driver';
+    const recurringError = summary.topAlert?.name || 'No recurring error';
     document.getElementById('executiveSummaryCard').innerHTML = `
-      <div class="chart-head"><h3>Executive Situation Overview</h3></div>
-      <div class="exec-brief">
-        <section class="exec-status-banner" style="border-color:${statusTone.border};box-shadow:inset 0 1px 0 rgba(255,255,255,.05),0 0 0 1px ${statusTone.glow};">
-          <div class="exec-status-top">
-            <div>
-              <div class="exec-status-kicker">Operational Status</div>
-              <div class="exec-status-value" style="color:${statusTone.color};">${esc(summary.status)}</div>
-            </div>
-            <span class="risk-pill ${summary.statusClass}">Leadership brief</span>
-          </div>
-          <div class="exec-status-verdict">${esc(summary.statusVerdict || 'Operational performance should be monitored closely.')}</div>
-          <div class="exec-tag-row">${contextTags.map(tag => `<span class="exec-tag"><span class="exec-dot" style="color:${statusTone.accent};"></span>${esc(tag)}</span>`).join('')}</div>
-        </section>
-        <section class="exec-signal-grid">
-          <article class="exec-signal-card">
-            <div class="exec-signal-title">Top Press (Events)</div>
-            <div class="exec-signal-value">${esc(summary.topPressByEvents?.name || 'N/A')}</div>
-            <div class="exec-signal-note">${summary.topPressByEvents ? `${summary.topPressByEvents.events.toLocaleString()} events are concentrated here.` : 'No concentrated press signal in this scope.'}</div>
-          </article>
-          <article class="exec-signal-card">
-            <div class="exec-signal-title">Top Subsystem</div>
-            <div class="exec-signal-value">${esc(summary.topSubsystem?.name || 'N/A')}</div>
-            <div class="exec-signal-note">${summary.topSubsystem ? `Primary failure cluster with ${summary.topSubsystem.events.toLocaleString()} events.` : 'No subsystem cluster identified in this scope.'}</div>
-          </article>
-          <article class="exec-signal-card">
-            <div class="exec-signal-title">Most Repeated Error</div>
-            <div class="exec-signal-value">${esc(summary.topAlert?.name || 'N/A')}</div>
-            <div class="exec-signal-note">${summary.topAlert ? `Recurring ${summary.topAlert.events.toLocaleString()} times across impacted presses.` : 'No dominant recurring error in current scope.'}</div>
-          </article>
-          <article class="exec-signal-card">
-            <div class="exec-signal-title">Highest Downtime Press</div>
-            <div class="exec-signal-value">${esc(summary.topErrorDowntimePress?.entity || 'N/A')}</div>
-            <div class="exec-signal-note">${summary.topErrorDowntimePress ? `${formatDuration(summary.topErrorDowntimePress.downtime)} downtime impact.` : 'No downtime concentration identified in this scope.'}</div>
-          </article>
-        </section>
-        <section class="exec-story-grid">
-          <article class="exec-story-card">
-            <div class="exec-story-head"><div class="exec-story-title" style="color:#95b6ff;">Insight Cards</div><span class="micro" style="margin:0;">Data-backed signals</span></div>
-            <div class="exec-priority-strip"><div class="exec-priority-fill" style="width:${concentrationWidth}%;background:linear-gradient(90deg,#4d6cfa,#8fd3ff);"></div></div>
-            <div class="exec-card-grid">${(summary.insightCards || []).map(card => `<article class="exec-insight-card"><div class="exec-mini-title">${esc(card.title)}</div><div class="exec-mini-note">${esc(card.detail)}</div></article>`).join('')}</div>
-          </article>
-          <article class="exec-story-card">
-            <div class="exec-story-head"><div class="exec-story-title" style="color:#85e2b4;">Top 3 Action Cards</div><span class="micro" style="margin:0;">Immediate leadership moves</span></div>
-            <div class="exec-priority-strip"><div class="exec-priority-fill" style="width:${unplannedWidth}%;background:linear-gradient(90deg,#25a65b,#7de3ac);"></div></div>
-            <div class="exec-card-grid">${(summary.actionCards || []).slice(0, 3).map(card => `<article class="exec-action-card"><div class="exec-mini-title">${esc(card.title)}</div><div class="exec-mini-note">${esc(card.reason)}</div><div class="exec-action-impact">${esc(card.impact)}</div></article>`).join('')}</div>
-          </article>
-        </section>
-      </div>`;
+      <div class="command-left">
+        <div class="chart-head">
+          <h3 class="hero-title">Executive Command Bar</h3>
+          <span class="status-indicator ${statusClass}">${esc(summary.status || 'Stable')}</span>
+        </div>
+        <p class="hero-note">${esc(summary.statusVerdict || 'Operational performance is stable in this scope.')}</p>
+      </div>
+      <section class="command-signals">
+        <article class="signal-tile"><div class="label">Highest-pressure press</div><div class="value">${esc(topRisk)}</div></article>
+        <article class="signal-tile"><div class="label">Subsystem bottleneck</div><div class="value">${esc(rootCause)}</div></article>
+        <article class="signal-tile"><div class="label">Recurring error driver</div><div class="value">${esc(recurringError)}</div></article>
+      </section>`;
   }
 
   function renderRiskSection(riskRows) {
+    const baseline = STATE.baselineData?.baselines?.downtime || null;
+    const cleanReason = (reason) => `${String(reason || 'Downtime is outside the expected operating range.')
+      .replace(/above baseline/gi, 'over expected range')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .replace(/\.$/, '')}.`;
+    const tierRank = tier => (tier === 'CRITICAL OUTLIER' ? 3 : tier === 'HIGH RISK' ? 2 : tier === 'UNSTABLE' ? 1 : 0);
+    const usedReasons = new Set();
+    const normalizedRows = [...(riskRows || [])]
+      .sort((a, b) => tierRank(b.tier) - tierRank(a.tier) || (b.normalizedRiskScore || 0) - (a.normalizedRiskScore || 0))
+      .slice(0, STATE.expand.risk ? 20 : 10)
+      .map((r) => {
+        let reason = cleanReason(r.explanation);
+        if (usedReasons.has(reason)) reason = `${reason.replace(/\.$/, '')} (priority score ${(r.normalizedRiskScore || 0).toFixed(0)}).`;
+        usedReasons.add(reason);
+        const riskLabel = r.tier === 'CRITICAL OUTLIER' ? 'Critical' : r.tier === 'HIGH RISK' ? 'High' : r.tier === 'UNSTABLE' ? 'Watch' : 'Stable';
+        const riskCls = r.tier === 'CRITICAL OUTLIER' ? 'risk-critical' : r.tier === 'HIGH RISK' ? 'risk-high' : r.tier === 'UNSTABLE' ? 'risk-medium' : 'risk-stable';
+        const impact = (r.normalizedRiskScore || 0) >= 75 ? 'high' : (r.normalizedRiskScore || 0) >= 50 ? 'medium' : 'low';
+        return { ...r, reason, riskLabel, riskCls, impact };
+      });
+    const deviationPct = baseline?.median > 0 && normalizedRows.length
+      ? (((normalizedRows[0].downtime - baseline.median) / baseline.median) * 100)
+      : 0;
     document.getElementById('riskSection').innerHTML = `
-      <h3>Risk Prioritization</h3>
-      <div class="micro">Risk-based prioritization is disabled (pending formal risk model definition). Dashboard is operating in events-first mode.</div>`;
+      <div class="chart-head"><h3 style="margin:0;">Risk ranking</h3><button id="baselineInfoBtn" class="btn secondary">How this works</button></div>
+      <div class="risk-baseline">
+        <article class="baseline-card"><div class="label">Median downtime</div><div class="value">${baseline ? formatDuration(baseline.median) : 'N/A'}</div></article>
+        <article class="baseline-card"><div class="label">Expected range</div><div class="value">${baseline ? `${formatDuration(baseline.p50)} – ${formatDuration(baseline.p75)}` : 'N/A'}</div></article>
+        <article class="baseline-card"><div class="label">Top deviation</div><div class="value">${Number.isFinite(deviationPct) ? `${deviationPct >= 0 ? '+' : ''}${deviationPct.toFixed(1)}%` : 'N/A'}</div></article>
+      </div>
+      <div class="risk-help">Baseline compares each press against the current filtered peer group. Flags trigger when downtime or MTTR exceed percentile thresholds or when production deficit compounds the risk score.</div>
+      <div class="risk-table-wrap">
+        <table>
+          <thead><tr><th>Press</th><th>Severity</th><th>Reason</th><th>Key deviation</th></tr></thead>
+          <tbody>${normalizedRows.length ? normalizedRows.map(r => `<tr><td><strong>${esc(r.press)}</strong></td><td><span class="risk-level-badge ${r.riskCls}">${esc(r.riskLabel)}</span></td><td>${esc(r.reason)}</td><td><span class="impact-level">${esc((r.normalizedRiskScore || 0).toFixed(0))} score • ${esc(r.impact)}</span></td></tr>`).join('') : '<tr><td colspan="4">No elevated risks in this filter scope.</td></tr>'}</tbody>
+        </table>
+      </div>
+      <div style="display:flex;justify-content:flex-end;margin-top:8px;"><button id="riskExpandBtn" class="btn secondary">${STATE.expand.risk ? 'Show top 10' : 'Show more'}</button></div>`;
+    document.getElementById('baselineInfoBtn')?.addEventListener('click', () => document.getElementById('baselineInfoModal')?.classList.add('show'));
+    document.getElementById('baselineInfoBtnSecondary')?.addEventListener('click', () => document.getElementById('baselineInfoModal')?.classList.add('show'));
+    document.getElementById('riskExpandBtn')?.addEventListener('click', () => { STATE.expand.risk = !STATE.expand.risk; renderDashboard(); });
   }
 
   function renderDashboardStatusPanel(sourceScope, mismatches = [], reconciliationReport = []) {
@@ -2681,10 +2724,17 @@
       return 'Unspecified';
     };
     if (key === 'press') {
-      errorsAgg.forEach(r => add(r.canonicalPress || 'Unspecified', { events: (baseMap.get(r.canonicalPress || 'Unspecified')?.events || 0) + (r.totalEvents || 0) }));
+      errorsAgg.forEach(r => {
+        const n = r.canonicalPress || 'Unspecified';
+        add(n, {
+          events: (baseMap.get(n)?.events || 0) + (r.totalEvents || 0),
+        });
+      });
       availabilityAgg.forEach(r => {
         const n = r.canonicalPress || 'Unspecified';
-        add(n, { downtime: (baseMap.get(n)?.downtime || 0) + totalDowntimeFromAvailabilityRow(r) });
+        add(n, {
+          downtime: (baseMap.get(n)?.downtime || 0) + totalDowntimeFromAvailabilityRow(r),
+        });
       });
       volumeAgg.forEach(r => {
         const n = r.canonicalPress || 'Unspecified';
@@ -2760,41 +2810,95 @@
       rowsReceived: items.length,
       first5Labels: labels.slice(0, 5),
     });
-    const isPressEventsView = key === 'press' && metric === 'events';
+    const isPressChart = key === 'press';
     const totalDuration = view.reduce((acc, x) => acc + (x.downtime || 0), 0) || 1;
-    const durationHours = view.map(x => (x.downtime || 0) / 3600);
+    const pressBarData = view.map(x => (x.downtime || 0) / 3600);
+    const eventBadgePlugin = {
+      id: 'pressEventBadge',
+      afterDatasetsDraw(chart) {
+        if (!isPressChart) return;
+        const { ctx } = chart;
+        const meta = chart.getDatasetMeta(0);
+        ctx.save();
+        meta.data.forEach((bar, idx) => {
+          const events = view[idx]?.events || 0;
+          const text = `${events.toLocaleString()} evt`;
+          ctx.font = '600 11px Inter, Segoe UI, sans-serif';
+          const textW = ctx.measureText(text).width;
+          const padX = 8;
+          const width = textW + (padX * 2);
+          const height = 18;
+          const x = Math.min(bar.x + 10, chart.chartArea.right - width - 4);
+          const y = bar.y - (height / 2);
+          ctx.fillStyle = 'rgba(143,211,255,0.16)';
+          ctx.strokeStyle = 'rgba(143,211,255,0.5)';
+          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.roundRect(x, y, width, height, 9);
+          ctx.fill();
+          ctx.stroke();
+          ctx.fillStyle = '#d8ecff';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(text, x + padX, bar.y + 0.5);
+        });
+        ctx.restore();
+      }
+    };
     const rendered = replaceChart(`${key}Chart`, {
       type: 'bar',
       data: {
         labels,
-        datasets: isPressEventsView ? [
-          { type: 'bar', label: 'Error events', data, backgroundColor: view.map((_, i) => COLORS[i % COLORS.length]), borderRadius: 6, yAxisID: 'y' },
-          { type: 'line', label: 'Error duration (hrs)', data: durationHours, borderColor: '#f0b165', backgroundColor: '#f0b165', yAxisID: 'y1', tension: 0.25, pointRadius: 4, pointHoverRadius: 5 }
-        ] : [{ data, backgroundColor: view.map((_, i) => COLORS[i % COLORS.length]), borderRadius: 6 }]
+        datasets: isPressChart
+          ? [{
+              label: 'Total downtime (hours)',
+              data: pressBarData,
+              backgroundColor: view.map((_, i) => i === 0 ? '#8fd3ff' : '#5f79f5'),
+              borderColor: 'rgba(255,255,255,.15)',
+              borderWidth: 1,
+              borderRadius: 8
+            }]
+          : [{ data, backgroundColor: view.map((_, i) => COLORS[i % COLORS.length]), borderRadius: 6 }]
       },
       options: {
         ...baseOptions(key, labels, payloads),
+        indexAxis: isPressChart ? 'y' : 'x',
         scales: {
           ...baseOptions(key, labels, payloads).scales,
-          y: { ...baseOptions(key, labels, payloads).scales.y, title: { display: true, text: meta.axisLabel, color: '#c6d3ea' } },
-          ...(isPressEventsView ? { y1: { position: 'right', beginAtZero: true, grid: { drawOnChartArea: false }, ticks: { color: '#f0b165' }, title: { display: true, text: 'Error duration (hours)', color: '#f0b165' } } } : {})
+          ...(isPressChart
+            ? {
+                x: { ...baseOptions(key, labels, payloads).scales.x, title: { display: true, text: 'Total downtime (hours)', color: '#c6d3ea' } },
+                y: { ...baseOptions(key, labels, payloads).scales.y, ticks: { color: '#d6e2f5', font: { weight: 600 } } }
+              }
+            : {
+                y: { ...baseOptions(key, labels, payloads).scales.y, title: { display: true, text: meta.axisLabel, color: '#c6d3ea' } }
+              })
         },
         plugins: {
-          legend: { display: isPressEventsView },
-          tooltip: { callbacks: { label: ctx => {
-            if (!isPressEventsView) return `${ctx.parsed.y.toLocaleString(undefined, { maximumFractionDigits: 3 })} ${meta.tooltip}`;
-            const row = view[ctx.dataIndex];
-            const avg = (row.events || 0) > 0 ? (row.downtime || 0) / row.events : 0;
-            const share = ((row.downtime || 0) / totalDuration) * 100;
-            if (ctx.datasetIndex === 0) return `Events: ${(row.events || 0).toLocaleString()}`;
-            return `Duration: ${formatDuration(row.downtime || 0)} • Avg/event: ${formatDuration(avg)} • Duration share: ${share.toFixed(1)}%`;
-          } } }
+          legend: { display: false },
+          tooltip: { callbacks: isPressChart ? {
+            title: ctx => `Press: ${ctx?.[0]?.label || ''}`,
+            label: ctx => {
+              const row = view[ctx.dataIndex] || {};
+              const downtimeHours = (row.downtime || 0) / 3600;
+              const avgDuration = (row.events || 0) > 0 ? (row.downtime || 0) / row.events : 0;
+              const sharePct = ((row.downtime || 0) / totalDuration) * 100;
+              return [
+                `Total downtime: ${downtimeHours.toFixed(2)} h`,
+                `Event count: ${(row.events || 0).toLocaleString()}`,
+                `Avg duration/event: ${formatDuration(avgDuration)}`,
+                `Share of scoped downtime: ${sharePct.toFixed(1)}%`
+              ];
+            }
+          } : {
+            label: ctx => `${ctx.parsed.y.toLocaleString(undefined, { maximumFractionDigits: 3 })} ${meta.tooltip}`
+          } }
         }
-      }
+      },
+      plugins: isPressChart ? [eventBadgePlugin] : []
     });
     if (!rendered && !view.length) setRankingChartEmptyState(key, 'No ranking data available for current filters/metric.');
-    document.querySelector(`[data-rank-card="${key}"] .micro`).textContent = isPressEventsView
-      ? `${expanded ? 'Full ranking' : 'Top 8'} by events with overlaid duration severity (line). Source: errors + availability.`
+    document.querySelector(`[data-rank-card="${key}"] .micro`).textContent = isPressChart
+      ? `${expanded ? 'Full ranked list' : 'Top 8'} presses sorted by ${metric === 'events' ? 'event count' : 'downtime hours'} (duration from availabilityAgg, events from errorsAgg).`
       : `${expanded ? 'Full ranking' : 'Top 8'} by ${metric}. Source: ${meta.source}. ${meta.subtitle}`;
     document.querySelector(`[data-expand="${key}"]`).textContent = expanded ? 'Collapse' : 'Show all';
     if ((key === 'press' || key === 'subsystem') && metric === 'events') {
@@ -3653,36 +3757,6 @@
       emptyReasons
     });
   }
-
-  function renderServiceSection() {
-    const host = document.getElementById('serviceSection');
-    if (!host) return;
-    const service = STATE.merged.service;
-    if (!service || !service.rows?.length) {
-      host.innerHTML = `<h3>Service Pressure Overview</h3><div class="micro">Upload optional Salesforce files to unlock case pressure, machine-down concentration, and combined operational-service hotspots.</div>`;
-      return;
-    }
-    const top = service.rows.slice(0, 8);
-    host.innerHTML = `
-      <div class="chart-head"><h3>Service Pressure Overview</h3><span class="impact-chip">${service.totalCases.toLocaleString()} cases • ${service.machineDownCases.toLocaleString()} machine-down</span></div>
-      <div class="micro">Combined score blends event concentration + case pressure + machine-down escalation. Salesforce is optional and additive.</div>
-      <div class="table-wrap"><table><thead><tr><th>Press</th><th>Cases</th><th>Machine Down</th><th>Open</th><th>Events</th><th>Error Duration</th><th>Downtime</th><th>Score</th></tr></thead>
-      <tbody>${top.map(r => `<tr><td>${esc(r.press)}</td><td>${(r.cases || 0).toLocaleString()}</td><td>${(r.machineDownCases || 0).toLocaleString()}</td><td>${(r.openCases || 0).toLocaleString()}</td><td>${(r.events || 0).toLocaleString()}</td><td>${esc(formatDuration(r.errorDuration || 0))}</td><td>${esc(formatDuration(r.downtimeSeconds || 0))}</td><td>${(r.combinedPressureScore || 0).toLocaleString()}</td></tr>`).join('')}</tbody></table></div>`;
-  }
-
-  function applyActiveZone() {
-    const zone = STATE.activeZone || 'executive';
-    document.querySelectorAll('#dashboardTabs .tab-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.tab === zone));
-    const cards = document.querySelectorAll('main.grid > article.card[data-zone]');
-    cards.forEach(card => {
-      if (zone === 'all') card.classList.remove('hidden');
-      else {
-        const zones = String(card.dataset.zone || '').split(/\s+/).filter(Boolean);
-        card.classList.toggle('hidden', !zones.includes(zone));
-      }
-    });
-  }
-
   function renderDashboard() {
     try {
       const { filters, scopedMergedRows, scopedErrorRows, scopedSource, scopedKpis, executiveSummary, hasScopedData } = getCurrentDashboardScopeModel();
@@ -3691,6 +3765,10 @@
       const errorEvents = scopedErrorRows;
       STATE.filteredErrors = errorEvents;
       const sourceScope = scopedSource;
+    if (!sourceScope || !Array.isArray(sourceScope.errorsAgg) || !Array.isArray(sourceScope.availabilityAgg) || !Array.isArray(sourceScope.volumeAgg)) {
+      ['pressChart', 'subsystemChart', 'alertChart', 'versionChart', 'customerVolumeChart'].forEach(id => setCanvasState(id, 'Data not available for current selection'));
+      return;
+    }
     console.info('[scope-debug]', {
       activeFilters: filters,
       filteredEventsCount: STATE.filtered.length,
@@ -3752,9 +3830,9 @@
       metric: STATE.customerVolumeMetric,
       first10Plotted: customerVolumeRows.slice(0, 10).map((r, i) => ({ rank: i + 1, entityKey: r.entityKey, displayLabel: r.displayLabel, value: r[STATE.customerVolumeMetric] || 0 }))
     });
-    STATE.merged.pressRisk = [];
+    const outlierModel = computeOutlierRiskModel(sourceScope);
+    STATE.merged.pressRisk = outlierModel.rows;
     renderRiskSection(STATE.merged.pressRisk);
-    renderServiceSection();
     STATE.merged.summary = executiveSummary;
     renderExecutiveSummaryCard(STATE.merged.summary);
     const mismatches = validateSourceAndLayerConsistency(sourceScope, STATE.filtered, STATE.kpis, STATE.merged.summary, STATE.merged.pressRisk, customerVolumeAllRows);
@@ -3798,7 +3876,6 @@
     });
       renderDashboardStatusPanel(sourceScope, mismatches, STATE.reconciliation.report);
       renderTable(STATE.filtered);
-      applyActiveZone();
     } catch (error) {
       console.error('[dashboard-render-failure]', error);
       ['pressChart', 'subsystemChart', 'alertChart', 'versionChart', 'customerVolumeChart'].forEach(id => setCanvasState(id, `Failed to render ${id}.`, 'error'));
@@ -3851,7 +3928,6 @@
           errors: STATE.cachedRaw.errors ? [...STATE.cachedRaw.errors] : null,
           availability: STATE.cachedRaw.availability ? [...STATE.cachedRaw.availability] : null,
           volume: STATE.cachedRaw.volume ? [...STATE.cachedRaw.volume] : null,
-          salesforce: STATE.cachedRaw.salesforce ? [...STATE.cachedRaw.salesforce] : [],
         }
       };
       document.getElementById('runBtn').disabled = true;
@@ -3866,7 +3942,6 @@
       setProcessingState({ stage: 'reading', status: 'running', percent: 1, detail: 'Loading Print Volume dataset…' });
       await yieldAnalysisFrame(controller);
       const volumeRaw = STATE.files.volume ? (STATE.cachedRaw.volume || await parsePrintVolumeFile(STATE.files.volume)) : [];
-      const salesforceRaw = (STATE.cachedRaw.salesforce || []);
 
       setProcessingState({ stage: 'detecting', status: 'running', percent: 1, detail: `Detected rows — Errors: ${errorsRaw.length.toLocaleString()}, Availability: ${availabilityRaw.length.toLocaleString()}, Volume: ${volumeRaw.length.toLocaleString()}.` });
       await yieldAnalysisFrame(controller);
@@ -3876,7 +3951,6 @@
       await normalizeErrorsRows(errorsRaw.slice(0, Math.min(errorsRaw.length, 120)), { controller });
       if (availabilityRaw.length) await normalizeAvailabilityRows(availabilityRaw.slice(0, Math.min(availabilityRaw.length, 120)), new Map(), { controller });
       if (volumeRaw.length) await normalizeVolumeRows(volumeRaw.slice(0, Math.min(volumeRaw.length, 120)), { controller });
-      if (salesforceRaw.length) await normalizeSalesforceRows(salesforceRaw.slice(0, Math.min(salesforceRaw.length, 120)), { controller });
       setProcessingState({ stage: 'validating', status: 'running', percent: 1, detail: 'Schema validation complete.' });
       await yieldAnalysisFrame(controller);
 
@@ -3899,13 +3973,6 @@
       availabilityResult.diagnostics.pressCodeToCanonicalPressExamples = [...pressLookup.entries()]
         .slice(0, 20)
         .map(([pressCode, options]) => ({ pressCode, canonicalPresses: options.map(o => o.canonicalPress) }));
-      setProcessingState({ stage: 'normalizing', status: 'running', percent: 0.92, detail: 'Normalizing Salesforce service rows…' });
-      const salesforceRows = salesforceRaw.length
-        ? await normalizeSalesforceRows(salesforceRaw, {
-          controller,
-          onProgress: ({ completed, total, detail }) => setProcessingState({ stage: 'normalizing', status: 'running', percent: 0.92 + ((completed / Math.max(1, total)) * 0.08), detail })
-        })
-        : [];
 
       setProcessingState({ stage: 'indexing', status: 'running', percent: 0.05, detail: 'Building aggregated source indexes and merged event model…' });
       const merged = await mergeOperationalData(errors, availabilityResult.rows, volumeResult.rows, {
@@ -3973,10 +4040,8 @@
         throw new Error('Merged operational table is empty after normalization and aggregation.');
       }
 
-      const serviceLayer = buildSalesforceServiceLayer(salesforceRows, errors, availabilityResult.rows);
-      STATE.normalized = { events: errors, availability: availabilityResult.rows, volume: volumeResult.rows, volumeJobs: volumeResult.jobs || [], salesforce: { rows: salesforceRows, cases: salesforceRows.filter(r => r.caseNumber), parts: salesforceRows.filter(r => r.partNumber), diagnostics: { parsedRows: salesforceRaw.length } } };
+      STATE.normalized = { events: errors, availability: availabilityResult.rows, volume: volumeResult.rows, volumeJobs: volumeResult.jobs || [] };
       STATE.merged = merged;
-      STATE.merged.service = serviceLayer;
       console.info('[dataset-debug]', {
         errorsRowsParsed: errorsRaw.length,
         availabilityRowsParsed: availabilityResult.diagnostics.parsedRows,
@@ -4000,7 +4065,6 @@
         : availabilityResult.rows.length && volumeResult.rows.length
           ? 'Full mode: Errors + Availability + Print Volume'
           : `Partial mode: Errors + ${availabilityResult.rows.length ? 'Availability' : 'Print Volume'}`;
-      if (salesforceRows.length) STATE.mode += ` + Salesforce (${salesforceRows.length.toLocaleString()} rows)`;
 
       setProcessingState({ stage: 'preparing', status: 'running', percent: 0.35, detail: 'Preparing filters, source summaries, and dashboard state…' });
       await yieldAnalysisFrame(controller);
@@ -4034,8 +4098,7 @@
 
   function inferDatasetFromFileName(name = '') {
     const normalizedName = String(name).toLowerCase();
-    if (/(salesforce|sfdc|case|service|support|part)/.test(normalizedName)) return 'salesforce';
-    if (/(availability|uptime|downtime|oee)/.test(normalizedName)) return 'availability';
+        if (/(availability|uptime|downtime|oee)/.test(normalizedName)) return 'availability';
     if (/(volume|print[\s_-]*volume|printed[\s_-]*sheets|jobs?)/.test(normalizedName)) return 'volume';
     if (/(error|alert|event|fault|alarm)/.test(normalizedName)) return 'errors';
     return 'unknown';
@@ -4049,12 +4112,11 @@
         keys.add('errors');
         keys.add('availability');
         keys.add('volume');
-        keys.add('salesforce');
         return;
       }
       keys.add(inferred);
     });
-    return keys.size ? [...keys] : ['errors', 'availability', 'volume', 'salesforce'];
+    return keys.size ? [...keys] : ['errors', 'availability', 'volume'];
   }
 
   async function classifyIncomingFile(file) {
@@ -4063,7 +4125,7 @@
       const detected = detectDatasetType(rows);
       const key = detected === 'availability' || detected === 'volume'
         ? detected
-        : (detected === 'salesforceCases' || detected === 'salesforceParts' ? 'salesforce' : 'errors');
+        : 'errors';
       return { key, file, rows };
     } catch {
       return { key: 'errors', file, rows: null };
@@ -4073,31 +4135,31 @@
   async function processIncomingFiles(fileList) {
     const files = [...(fileList || [])];
     if (!files.length) return;
-    const likelyKeys = getLikelyDatasetKeys(files);
-    likelyKeys.forEach(startFileProgress);
-    await shortYield();
-
-    const assignments = await Promise.all(files.map(classifyIncomingFile));
-    assignments.forEach(({ key, file, rows }) => {
-      if (key === 'salesforce') {
-        STATE.files.salesforce = [...(STATE.files.salesforce || []), file];
-        STATE.cachedRaw.salesforce = [...(STATE.cachedRaw.salesforce || []), ...(Array.isArray(rows) ? rows : [])];
-      } else {
-        STATE.files[key] = file;
-        STATE.cachedRaw[key] = rows;
+    files.forEach(file => {
+      const quickKey = inferDatasetFromFileName(file?.name || '');
+      if (quickKey !== 'unknown') {
+        STATE.files[quickKey] = file;
+        setFileUI(quickKey);
+        startFileProgress(quickKey);
       }
-      setFileUI(key);
+      classifyIncomingFile(file)
+        .then(async ({ key, file: classifiedFile, rows }) => {
+          STATE.files[key] = classifiedFile;
+          STATE.cachedRaw[key] = rows;
+          setFileUI(key);
+          await validateSingleFile(key, { progressStarted: true });
+        })
+        .catch(() => {});
     });
-    await Promise.all(likelyKeys.map(key => validateSingleFile(key, { progressStarted: true })));
   }
 
   function clearFiles() {
     markAnalysisCanceled('Canceled due to file reset.');
-    STATE.files = { errors: null, availability: null, volume: null, salesforce: [] };
-    STATE.cachedRaw = { errors: null, availability: null, volume: null, salesforce: [] };
-    STATE.validation = { errors: false, availability: false, volume: false, salesforce: true };
-    STATE.normalized = { events: [], availability: [], volume: [], salesforce: { rows: [], cases: [], parts: [], diagnostics: {} } };
-    STATE.merged = { events: [], mergedRows: [], stats: {}, summary: null, pressRisk: [], service: null, sourceTables: { errorsAgg: [], availabilityAgg: [], volumeAgg: [] } };
+    STATE.files = { errors: null, availability: null, volume: null };
+    STATE.cachedRaw = { errors: null, availability: null, volume: null };
+    STATE.validation = { errors: false, availability: false, volume: false };
+    STATE.normalized = { events: [], availability: [], volume: [] };
+    STATE.merged = { events: [], mergedRows: [], stats: {}, summary: null, pressRisk: [], sourceTables: { errorsAgg: [], availabilityAgg: [], volumeAgg: [] } };
     STATE.filtered = [];
     STATE.filteredErrors = [];
     STATE.dashboardScopeModel = null;
@@ -4109,8 +4171,8 @@
     STATE.processingStatus = 'idle';
     STATE.processingDetail = '';
     STATE.processingPercent = 0;
-    ['errors', 'availability', 'volume', 'salesforce'].forEach(resetFileProgress);
-    ['bulkInput', 'errorsPicker', 'availabilityPicker', 'volumePicker', 'salesforcePicker'].forEach(id => {
+    ['errors', 'availability', 'volume'].forEach(resetFileProgress);
+    ['bulkInput', 'errorsPicker', 'availabilityPicker', 'volumePicker'].forEach(id => {
       const input = document.getElementById(id);
       if (input) input.value = '';
     });
@@ -4119,8 +4181,7 @@
     setFileUI('errors');
     setFileUI('availability');
     setFileUI('volume');
-    setFileUI('salesforce');
-    setStatus('Files cleared. Select datasets to continue.', 'info');
+        setStatus('Files cleared. Select datasets to continue.', 'info');
     setProcessingState({ stage: 'reading', status: 'idle', percent: 0, detail: 'Upload and validate files to begin processing.' });
   }
 
@@ -4129,8 +4190,8 @@
     STATE.analysisRunId += 1;
     STATE.analysisRunning = false;
     STATE.analysisController = null;
-    STATE.normalized = { events: [], availability: [], volume: [], salesforce: { rows: [], cases: [], parts: [], diagnostics: {} } };
-    STATE.merged = { events: [], mergedRows: [], stats: {}, summary: null, pressRisk: [], service: null, sourceTables: { errorsAgg: [], availabilityAgg: [], volumeAgg: [] } };
+    STATE.normalized = { events: [], availability: [], volume: [] };
+    STATE.merged = { events: [], mergedRows: [], stats: {}, summary: null, pressRisk: [], sourceTables: { errorsAgg: [], availabilityAgg: [], volumeAgg: [] } };
     STATE.filtered = [];
     STATE.filteredErrors = [];
     STATE.dashboardScopeModel = null;
@@ -4148,33 +4209,29 @@
       errors: STATE.lastRunSnapshot.cachedRaw.errors ? [...STATE.lastRunSnapshot.cachedRaw.errors] : null,
       availability: STATE.lastRunSnapshot.cachedRaw.availability ? [...STATE.lastRunSnapshot.cachedRaw.availability] : null,
       volume: STATE.lastRunSnapshot.cachedRaw.volume ? [...STATE.lastRunSnapshot.cachedRaw.volume] : null,
-      salesforce: STATE.lastRunSnapshot.cachedRaw.salesforce ? [...STATE.lastRunSnapshot.cachedRaw.salesforce] : [],
     };
-    ['errors', 'availability', 'volume', 'salesforce'].forEach(setFileUI);
+    ['errors', 'availability', 'volume'].forEach(setFileUI);
     runAnalysisFlow(STATE.lastRunSnapshot);
   }
 
   async function validateSingleFile(key, { progressStarted = false } = {}) {
-    const file = key === 'salesforce' ? STATE.files.salesforce : STATE.files[key];
-    const hasFile = key === 'salesforce' ? (file || []).length > 0 : !!file;
+    const file = STATE.files[key];
+    const hasFile = !!file;
     if (!hasFile) {
       STATE.validation[key] = false;
-      STATE.cachedRaw[key] = key === 'salesforce' ? [] : null;
+      STATE.cachedRaw[key] = null;
       resetFileProgress(key);
       setFileUI(key);
       return;
     }
     if (!progressStarted) startFileProgress(key);
     try {
-      const rows = key === 'salesforce'
-        ? (Array.isArray(STATE.cachedRaw.salesforce) ? STATE.cachedRaw.salesforce : [])
-        : (Array.isArray(STATE.cachedRaw[key]) ? STATE.cachedRaw[key] : await loadRowsFromFile(file));
+      const rows = Array.isArray(STATE.cachedRaw[key]) ? STATE.cachedRaw[key] : await loadRowsFromFile(file);
       STATE.cachedRaw[key] = rows;
       if (key === 'errors') await normalizeErrorsRows(rows.slice(0, Math.min(rows.length, 120)));
       if (key === 'availability') await normalizeAvailabilityRows(rows.slice(0, Math.min(rows.length, 120)));
       if (key === 'volume') await normalizeVolumeRows(rows.slice(0, Math.min(rows.length, 120)));
-      if (key === 'salesforce') await normalizeSalesforceRows(rows.slice(0, Math.min(rows.length, 120)));
-      STATE.validation[key] = true;
+            STATE.validation[key] = true;
       await finishFileProgress(key, true);
     } catch {
       STATE.validation[key] = false;
@@ -4185,8 +4242,7 @@
   }
 
   function bind() {
-    ['errors', 'availability', 'volume', 'salesforce'].forEach(setFileUI);
-    applyActiveZone();
+    ['errors', 'availability', 'volume'].forEach(setFileUI);
     setStatus('Assign datasets and run analysis. Errors dataset is required.', 'info');
     setProcessingState({ stage: 'reading', status: 'idle', percent: 0, detail: 'Upload and validate files to begin processing.' });
     if (!hasSpreadsheetLibrary()) {
@@ -4201,10 +4257,6 @@
     });
 
     document.querySelectorAll('[data-pick]').forEach(btn => btn.addEventListener('click', () => document.getElementById(`${btn.dataset.pick}Picker`).click()));
-    document.querySelectorAll('#dashboardTabs .tab-btn').forEach(btn => btn.addEventListener('click', () => {
-      STATE.activeZone = btn.dataset.tab || 'executive';
-      applyActiveZone();
-    }));
     errorsPicker.addEventListener('change', async e => {
       STATE.files.errors = e.target.files?.[0] || null;
       await validateSingleFile('errors');
@@ -4218,11 +4270,6 @@
     volumePicker.addEventListener('change', async e => {
       STATE.files.volume = e.target.files?.[0] || null;
       await validateSingleFile('volume');
-      e.target.value = '';
-    });
-    salesforcePicker.addEventListener('change', async e => {
-      const files = [...(e.target.files || [])];
-      if (files.length) await processIncomingFiles(files);
       e.target.value = '';
     });
 
@@ -4258,6 +4305,16 @@
     });
 
     exportBtn.addEventListener('click', () => exportRowsToCsv(STATE.lastSourceScope?.filteredMergedRows || STATE.filtered, 'dashboard-filtered-export.csv'));
+    const drilldownTableToggle = document.getElementById('drilldownTableToggle');
+    const drilldownTableWrap = document.getElementById('drilldownTableWrap');
+    if (drilldownTableToggle && drilldownTableWrap) {
+      drilldownTableWrap.style.display = 'none';
+      drilldownTableToggle.addEventListener('click', () => {
+        const show = drilldownTableWrap.style.display === 'none';
+        drilldownTableWrap.style.display = show ? 'block' : 'none';
+        drilldownTableToggle.textContent = show ? '👁 Hide Table' : '👁 Show Table';
+      });
+    }
     const summaryBtnEl = document.getElementById('summaryBtn');
     const summaryModal = document.getElementById('summaryModal');
     const closeSummaryBtnEl = document.getElementById('closeSummaryBtn');
@@ -4267,6 +4324,8 @@
     const summaryPreview = document.getElementById('summaryPreview');
     const summaryScopeMeta = document.getElementById('summaryScopeMeta');
     const summaryContent = document.getElementById('summaryContent');
+    const baselineInfoModal = document.getElementById('baselineInfoModal');
+    const closeBaselineInfoBtn = document.getElementById('closeBaselineInfoBtn');
     const ensureSummaryModel = () => {
       try {
         const {
@@ -4316,7 +4375,7 @@
       }
       const model = summaryResult.model;
       try {
-        summaryScopeMeta.textContent = `Reporting period: ${model.reportingPeriodLabel} • Generated on: ${model.generatedAtLabel} • Source rows (errors/availability/volume/salesforce): ${model.sourceCounts.errors}/${model.sourceCounts.availability}/${model.sourceCounts.volume}/${model.sourceCounts.salesforce || 0}`;
+        summaryScopeMeta.textContent = `Reporting period: ${model.reportingPeriodLabel} • Generated on: ${model.generatedAtLabel} • Source rows (events/downtime/production): ${model.sourceCounts.errors}/${model.sourceCounts.availability}/${model.sourceCounts.volume}`;
         renderSummaryModal(model, summaryContent);
         summaryModal.classList.add('show');
         summaryPreview.classList.add('hidden');
@@ -4359,6 +4418,8 @@
     summaryBtnEl.addEventListener('click', openSummaryModal);
     closeSummaryBtnEl.addEventListener('click', () => summaryModal.classList.remove('show'));
     summaryModal.addEventListener('click', e => { if (e.target.id === 'summaryModal') summaryModal.classList.remove('show'); });
+    closeBaselineInfoBtn?.addEventListener('click', () => baselineInfoModal?.classList.remove('show'));
+    baselineInfoModal?.addEventListener('click', e => { if (e.target.id === 'baselineInfoModal') baselineInfoModal.classList.remove('show'); });
     summaryCopyBtnEl.addEventListener('click', async () => {
       const payload = getExecutiveEmailPayload();
       if (!payload) return;
