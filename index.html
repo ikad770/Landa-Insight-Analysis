@@ -417,6 +417,32 @@
     .btn,.select,input,.card,.kpi,.section-shell{transition:all .2s ease}
     @media(max-width:1180px){.rank-hero .chart-area{height:420px;min-height:420px}}
 
+    /* strict clean rebuild */
+    .clean-dashboard{gap:18px;max-width:1320px;margin:0 auto}
+    .dashboard-header{display:flex;justify-content:space-between;align-items:flex-end;gap:14px;padding-bottom:6px;border-bottom:1px solid rgba(255,255,255,.08)}
+    .dashboard-header .brand-title{font-size:1.7rem}
+    .header-controls{display:flex;gap:8px;flex-wrap:wrap}
+    .clean-filters{padding:0;background:transparent;border:none}
+    .clean-filters .filters{gap:8px}
+    .clean-kpi-strip{padding:0;background:transparent;border:none}
+    .clean-kpi-strip .kpis{grid-template-columns:repeat(5,minmax(150px,1fr));gap:10px}
+    .clean-kpi-strip .kpi{background:transparent;border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:10px 12px;min-height:auto}
+    .clean-kpi-strip .k{font-size:.64rem;color:#a9b9d3}
+    .clean-kpi-strip .v{font-size:1.55rem}
+    .clean-flow{gap:20px}
+    .main-focus,.summary-section-clean{padding:0}
+    .chart-block{padding:0;border:none;background:transparent}
+    .chart-block h3{margin:0;font-size:1rem}
+    .chart-area.main{height:460px;min-height:460px}
+    .secondary-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+    .secondary-row .chart-area.compact{height:250px;min-height:250px}
+    .summary-section-clean{border-top:1px solid rgba(255,255,255,.08);padding-top:14px}
+    .summary-section-clean h3{margin:0 0 8px;font-size:1rem}
+    .summary-points{margin:0;padding-left:18px;color:#d6e0f1;display:grid;gap:6px}
+    .section-note{margin:4px 0 0}
+    #baselineInfoModal{display:none!important}
+    @media(max-width:1100px){.secondary-row{grid-template-columns:1fr}.clean-kpi-strip .kpis{grid-template-columns:repeat(2,minmax(140px,1fr))}.chart-area.main{height:360px;min-height:360px}}
+
   </style>
 </head>
 <body>
@@ -493,30 +519,20 @@
     </article>
   </section>
 
-  <section id="dashboardScreen" class="hidden dashboard-stage redesign-shell">
-    <header class="topbar hero-surface">
-      <div class="hero-content">
-        <div class="eyebrow">Command Center</div>
+  <section id="dashboardScreen" class="hidden dashboard-stage clean-dashboard">
+    <header class="dashboard-header">
+      <div>
         <h1 class="brand-title">Landa Insight<span class="brand-plus">Pro+</span></h1>
-        <p class="subtitle">Executive-grade operational intelligence for uptime, quality risk, and production confidence.</p>
         <p id="datasetMeta" class="subtitle">Dataset not loaded</p>
       </div>
-      <div class="controls hero-actions">
+      <div class="controls header-controls">
         <button id="replaceBtn" class="btn">Load new dataset</button>
         <button id="exportBtn" class="btn secondary">Export filtered CSV</button>
         <button id="summaryBtn" class="btn secondary">Executive brief</button>
       </div>
     </header>
 
-    <section id="executiveSummaryCard" class="command-banner analytics-surface"></section>
-
-    <section class="kpi-ribbon-shell kpi-ribbon-surface">
-      <section id="kpiStrip" class="kpis"></section>
-    </section>
-
-    <section id="dashboardStatusPanel" class="dashboard-status detail-surface"></section>
-
-    <section class="filters-shell detail-surface">
+    <section class="filters-shell clean-filters">
       <section class="filters">
         <select id="pressFilter" class="select"><option value="all">All presses</option></select>
         <select id="subsystemFilter" class="select"><option value="all">All subsystems</option></select>
@@ -527,75 +543,45 @@
       </section>
     </section>
 
-    <main class="dashboard-flow">
-      <section class="section-shell primary-layer analytics-surface">
+    <section class="kpi-ribbon-shell clean-kpi-strip">
+      <section id="kpiStrip" class="kpis"></section>
+    </section>
+
+    <main class="dashboard-flow clean-flow">
+      <section class="main-focus">
         <div class="section-head">
-          <h2 class="section-title">Main Decision Canvas · Top Presses by Downtime Impact</h2>
-          <p class="section-note">Downtime is primary. Event count is support context.</p>
+          <h2 class="section-title">Top Presses</h2>
+          <p class="section-note">Downtime is primary. Event count is secondary context.</p>
         </div>
-        <article class="card span-12 rank-hero" data-rank-card="press">
-          <div class="chart-head"><h3>Downtime impact ranking</h3><div class="chart-tools"><select data-metric="press" class="select"><option value="downtime">Sort by downtime (default)</option><option value="events">Sort by events</option></select><button class="btn secondary" data-expand="press">Show all</button></div></div>
-          <div class="micro">Horizontal bars show downtime hours (primary severity). Marker line on top axis shows event count context.</div><div class="chart-area"><canvas id="pressChart"></canvas></div>
+        <article class="chart-block" data-rank-card="press">
+          <div class="chart-head"><h3>Downtime impact by press</h3><div class="chart-tools"><select data-metric="press" class="select"><option value="downtime">Sort by downtime</option><option value="events">Sort by events</option></select><button class="btn secondary" data-expand="press">Show all</button></div></div>
+          <div class="micro">Duration per press is shown as bars; event count appears as a secondary line.</div>
+          <div class="chart-area main"><canvas id="pressChart"></canvas></div>
         </article>
       </section>
 
-      <section class="section-shell intelligence-layer supporting-surface">
-        <div class="section-head">
-          <h2 class="section-title">Intelligence Layer · Risk & Baseline Confidence</h2>
-          <p class="section-note">Ranked risk focus with transparent baseline methodology.</p>
-        </div>
-        <div class="intelligence-band">
-          <article class="risk-intel" id="riskSection"></article>
-          <article class="card baseline-explain detail-surface">
-            <div class="chart-head"><h3 style="margin:0;">Baseline trust model</h3><button id="baselineInfoBtnSecondary" class="btn secondary">Open method</button></div>
-            <p class="micro" style="margin-top:8px;">Baseline intelligence is simplified for leadership consumption and expandable for technical transparency.</p>
-            <ul class="list-compact" style="margin-top:0;">
-              <li>Expected range uses median and percentile thresholds.</li>
-              <li>Severity score blends downtime, frequency, MTTR, and production deficit.</li>
-              <li>Ranked reasons explain exactly what crossed baseline.</li>
-            </ul>
-          </article>
-        </div>
-      </section>
-
-      <section class="section-shell intelligence-layer supporting-surface secondary-quiet">
-        <div class="section-head">
-          <h2 class="section-title">Supporting Analytics</h2>
-          <p class="section-note">Secondary diagnostics intentionally quieter than the decision canvas.</p>
-        </div>
-        <div class="secondary-band">
-          <article class="card span-6" data-rank-card="subsystem">
-            <div class="chart-head"><h3>Top Subsystems</h3><div class="chart-tools"><select data-metric="subsystem" class="select"><option value="events">By events</option><option value="downtime">By downtime</option><option value="normalized">By events/volume</option></select><button class="btn secondary" data-expand="subsystem">Show all</button></div></div>
-            <div class="micro">Secondary contributor view.</div><div class="chart-area compact"><canvas id="subsystemChart"></canvas></div>
-          </article>
-          <article class="card span-6" data-rank-card="alert">
-            <div class="chart-head"><h3>Top Errors</h3><div class="chart-tools"><select data-metric="alert" class="select"><option value="events">By events</option><option value="downtime">By downtime</option><option value="normalized">By events/volume</option></select><button class="btn secondary" data-expand="alert">Show all</button></div></div>
-            <div class="micro">Recurring issue view with same drilldown behavior.</div><div class="chart-area compact"><canvas id="alertChart"></canvas></div>
-          </article>
-          <article class="card span-4" data-rank-card="version">
-            <div class="chart-head"><h3>Top Versions</h3><div class="chart-tools"><select data-metric="version" class="select"><option value="events">By events</option><option value="downtime">By downtime</option><option value="normalized">By events/volume</option></select><button class="btn secondary" data-expand="version">Show all</button></div></div>
-            <div class="micro">Exposure context by software version.</div><div class="chart-area compact"><canvas id="versionChart"></canvas></div>
-          </article>
-          <article class="card span-8" data-rank-card="volume">
-            <div class="chart-head"><h3>Print Volume By Press</h3><div class="chart-tools"><select id="customerVolumeUnit" class="select"><option value="productionPrintedSheets">Production-only Printed Sheets</option><option value="printedSheets">Total Printed Sheets</option><option value="printedFlats">Printed Flats</option></select><select id="customerVolumeSort" class="select"><option value="desc">Highest first</option><option value="asc">Lowest first</option></select><button id="customerVolumeExpand" class="btn secondary">Show all</button></div></div>
-            <div class="micro" id="customerVolumeNote">Production context with selectable unit basis.</div><div class="chart-area compact"><canvas id="customerVolumeChart"></canvas></div>
-          </article>
-        </div>
-      </section>
-
-      <details class="section-shell secondary section-disclosure detail-surface">
-        <summary class="section-head">
-          <div>
-            <h2 class="section-title">Detail & Validation Explorer</h2>
-            <p class="section-note">Merged evidence table (errors + availability + volume context) with full drilldown.</p>
-          </div>
-          <span class="impact-chip detail-toggle">Expand full table</span>
-        </summary>
-        <article class="card span-12">
-          <div class="micro">Each row combines Errors with matching Availability and Print Volume bucket context.</div>
-          <div class="table-wrap"><table id="eventTable"></table></div>
+      <section class="secondary-row">
+        <article class="chart-block" data-rank-card="subsystem">
+          <div class="chart-head"><h3>Top Subsystems</h3><div class="chart-tools"><select data-metric="subsystem" class="select"><option value="events">By events</option><option value="downtime">By downtime</option><option value="normalized">By events/volume</option></select><button class="btn secondary" data-expand="subsystem">Show all</button></div></div>
+          <div class="chart-area compact"><canvas id="subsystemChart"></canvas></div>
         </article>
-      </details>
+        <article class="chart-block" data-rank-card="alert">
+          <div class="chart-head"><h3>Top Errors</h3><div class="chart-tools"><select data-metric="alert" class="select"><option value="events">By events</option><option value="downtime">By downtime</option><option value="normalized">By events/volume</option></select><button class="btn secondary" data-expand="alert">Show all</button></div></div>
+          <div class="chart-area compact"><canvas id="alertChart"></canvas></div>
+        </article>
+        <article class="chart-block" data-rank-card="volume">
+          <div class="chart-head"><h3>Print Volume</h3><div class="chart-tools"><select id="customerVolumeUnit" class="select"><option value="productionPrintedSheets">Production-only Printed Sheets</option><option value="printedSheets">Total Printed Sheets</option><option value="printedFlats">Printed Flats</option></select><select id="customerVolumeSort" class="select"><option value="desc">Highest first</option><option value="asc">Lowest first</option></select><button id="customerVolumeExpand" class="btn secondary">Show all</button></div></div>
+          <div class="micro" id="customerVolumeNote">Production context with selectable unit basis.</div>
+          <div class="chart-area compact"><canvas id="customerVolumeChart"></canvas></div>
+        </article>
+      </section>
+
+      <section id="dashboardSummary" class="summary-section-clean"></section>
+
+      <section id="executiveSummaryCard" class="hidden"></section>
+      <section id="dashboardStatusPanel" class="hidden"></section>
+      <section id="riskSection" class="hidden"></section>
+      <table id="eventTable" class="hidden"></table>
     </main>
   </section>
 </div>
@@ -2689,6 +2675,24 @@
     document.getElementById('kpiStrip').innerHTML = cards.map(([a, metricKey, b], idx) => `<article class="kpi clickable" role="button" tabindex="0" data-kpi-metric="${metricKey}" title="${esc(a)}"><div class="k">${idx + 1}. ${a}</div><div class="v">${b}</div></article>`).join('');
   }
 
+  function renderDashboardSummary(summary, kpis) {
+    const host = document.getElementById('dashboardSummary');
+    if (!host) return;
+    const topPress = summary?.topPressByEvents?.name || 'N/A';
+    const topSubsystem = summary?.topSubsystem?.name || 'N/A';
+    const topError = summary?.topAlert?.name || 'N/A';
+    const status = summary?.statusVerdict || 'No scoped operational summary is available yet.';
+    host.innerHTML = `
+      <h3>Summary</h3>
+      <p class="micro" style="margin-top:0;">${esc(status)}</p>
+      <ul class="summary-points">
+        <li><strong>Top press:</strong> ${esc(topPress)} (${Number(summary?.topPressByEvents?.events || 0).toLocaleString()} events)</li>
+        <li><strong>Top subsystem:</strong> ${esc(topSubsystem)} (${Number(summary?.topSubsystem?.events || 0).toLocaleString()} events)</li>
+        <li><strong>Top error:</strong> ${esc(topError)} (${Number(summary?.topAlert?.events || 0).toLocaleString()} events)</li>
+        <li><strong>Scope totals:</strong> ${Number(kpis?.totalEvents || 0).toLocaleString()} events • ${formatDuration(kpis?.totalDowntime || 0)} downtime</li>
+      </ul>`;
+  }
+
   function renderExecutiveSummaryCard(summary) {
     const statusClass = summary.statusTone === 'critical' ? 'critical' : summary.statusTone === 'watch' ? 'warning' : 'stable';
     const topRisk = summary.topErrorDowntimePress?.entity || summary.topPressByEvents?.name || 'No dominant press';
@@ -3088,6 +3092,7 @@
 
   function renderTable(rows) {
     const table = document.getElementById('eventTable');
+    if (!table) return;
     if (!rows.length) { table.innerHTML = '<tbody><tr><td>No rows in current scope.</td></tr></tbody>'; return; }
     table.innerHTML = `<thead><tr><th>Customer</th><th>Site</th><th>Press</th><th>Subsystem</th><th>Alert Name</th><th>Version</th><th>Start</th><th>Duration</th><th>Prod Vol</th><th>Avail Context</th></tr></thead><tbody>${rows.slice(0, 800).map(r => `<tr><td>${esc(r.customer)}</td><td>${esc(r.site)}</td><td>${esc(r.press)}</td><td>${esc(r.subsystem)}</td><td>${esc(r.name !== 'Unspecified' ? r.name : r.alertTitle)}</td><td>${esc(r.version)}</td><td>${esc(r.startTime?.toISOString() || '')}</td><td>${esc(formatDuration(r.durationSeconds))}</td><td>${esc(r?.volume?.productionVolume || 0)}</td><td>${esc(`U:${formatDuration(r?.availability?.unplannedDowntimeSeconds || 0)} P:${formatDuration(r?.availability?.plannedDowntimeSeconds || 0)} (${r?.mergeContext?.availabilityKeyUsed || 'none'})`)}</td></tr>`).join('')}</tbody>`;
   }
@@ -4002,9 +4007,8 @@
     });
     const outlierModel = computeOutlierRiskModel(sourceScope);
     STATE.merged.pressRisk = outlierModel.rows;
-    renderRiskSection(STATE.merged.pressRisk);
     STATE.merged.summary = executiveSummary;
-    renderExecutiveSummaryCard(STATE.merged.summary);
+    renderDashboardSummary(STATE.merged.summary, STATE.kpis);
     const mismatches = validateSourceAndLayerConsistency(sourceScope, STATE.filtered, STATE.kpis, STATE.merged.summary, STATE.merged.pressRisk, customerVolumeAllRows);
     STATE.reconciliation.logs = mismatches;
     STATE.reconciliation.report = buildReconciliationReport(sourceScope, STATE.kpis, {
@@ -4044,7 +4048,6 @@
         alertChartTop: (alertRankings[0]?.name || 'N/A')
       }
     });
-      renderDashboardStatusPanel(sourceScope, mismatches, STATE.reconciliation.report);
       renderTable(STATE.filtered);
     } catch (error) {
       console.error('[dashboard-render-failure]', error);
