@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Landa InsightPro+ UI Prototype</title>
+  <link rel="stylesheet" href="ui-prototype.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand-block">
+        <p class="brand-eyebrow">Landa</p>
+        <h1>Landa InsightPro+</h1>
+      </div>
+      <nav class="screen-switch" aria-label="Prototype screens">
+        <button class="switch-btn is-active" data-target="intake-screen">Data Intake</button>
+        <button class="switch-btn" data-target="dashboard-screen">Main Dashboard</button>
+      </nav>
+    </header>
+
+    <main class="prototype-main">
+      <section id="intake-screen" class="screen is-visible" aria-labelledby="intake-title">
+        <div class="screen-header centered">
+          <h2 id="intake-title">Data Intake & Validation</h2>
+          <p>Structured import flow for clean, reliable dashboard initialization.</p>
+        </div>
+
+        <div class="upload-dropzone" role="button" tabindex="0" aria-label="Upload files">
+          <p class="dropzone-title">Drop source files here</p>
+          <p class="dropzone-subtitle">or click to browse local files</p>
+        </div>
+
+        <div class="grid three-up source-grid">
+          <article class="panel">
+            <header>
+              <h3>Errors</h3>
+              <span class="status ok">Loaded</span>
+            </header>
+            <p class="meta-label">Records</p>
+            <p class="metric-lg">245,128</p>
+          </article>
+
+          <article class="panel">
+            <header>
+              <h3>Availability</h3>
+              <span class="status ok">Loaded</span>
+            </header>
+            <p class="meta-label">Records</p>
+            <p class="metric-lg">98,760</p>
+          </article>
+
+          <article class="panel">
+            <header>
+              <h3>Print Volume</h3>
+              <span class="status warning">Missing</span>
+            </header>
+            <p class="meta-label">Records</p>
+            <p class="metric-lg">—</p>
+          </article>
+        </div>
+
+        <section class="panel validation-panel" aria-labelledby="validation-title">
+          <header>
+            <h3 id="validation-title">Validation</h3>
+          </header>
+          <div class="grid three-up">
+            <div class="validation-item">
+              <p class="meta-label">Schema valid</p>
+              <p class="validation-value ok">Yes</p>
+            </div>
+            <div class="validation-item">
+              <p class="meta-label">Missing fields</p>
+              <p class="validation-value warning">2 fields</p>
+            </div>
+            <div class="validation-item">
+              <p class="meta-label">Partial records</p>
+              <p class="validation-value critical">146 rows</p>
+            </div>
+          </div>
+        </section>
+
+        <div class="cta-row">
+          <button class="btn-primary">Load Dashboard</button>
+        </div>
+      </section>
+
+      <section id="dashboard-screen" class="screen" aria-labelledby="dashboard-title">
+        <div class="screen-header">
+          <h2 id="dashboard-title">Operational Dashboard</h2>
+          <p>Executive performance view with critical issue context and production trends.</p>
+        </div>
+
+        <section class="hero-status critical" aria-label="Operational status highlight">
+          <div>
+            <p class="hero-label">Operational Status</p>
+            <h3>Critical</h3>
+            <p class="hero-description">System stability is degraded by repeated feeder failures across two shifts. Immediate intervention is recommended to prevent further downtime.</p>
+          </div>
+          <dl class="hero-meta">
+            <div>
+              <dt>Top issue</dt>
+              <dd>Feeder jam escalation</dd>
+            </div>
+            <div>
+              <dt>Affected press</dt>
+              <dd>Press-04</dd>
+            </div>
+          </dl>
+        </section>
+
+        <section class="filter-bar" aria-label="Global filters">
+          <label>
+            Date Range
+            <select>
+              <option>Last 30 days</option>
+              <option>Last 7 days</option>
+              <option>Quarter to date</option>
+            </select>
+          </label>
+          <label>
+            Press
+            <select>
+              <option>All Presses</option>
+              <option>Press-01</option>
+              <option>Press-04</option>
+            </select>
+          </label>
+          <label>
+            Subsystem
+            <select>
+              <option>All Subsystems</option>
+              <option>Feeder</option>
+              <option>Dryer</option>
+            </select>
+          </label>
+        </section>
+
+        <section class="kpi-wrap" aria-label="Key performance indicators">
+          <div class="grid three-up kpi-primary">
+            <article class="panel kpi-card large">
+              <p class="meta-label">Total Events</p>
+              <p class="metric-xl">4,821</p>
+            </article>
+            <article class="panel kpi-card large">
+              <p class="meta-label">Total Downtime</p>
+              <p class="metric-xl">312.4h</p>
+            </article>
+            <article class="panel kpi-card large">
+              <p class="meta-label">Availability</p>
+              <p class="metric-xl ok">93.8%</p>
+            </article>
+          </div>
+          <div class="grid three-up kpi-secondary">
+            <article class="panel kpi-card">
+              <p class="meta-label">MTBF</p>
+              <p class="metric-lg">11.2h</p>
+            </article>
+            <article class="panel kpi-card">
+              <p class="meta-label">Events / Volume</p>
+              <p class="metric-lg warning">0.081</p>
+            </article>
+            <article class="panel kpi-card">
+              <p class="meta-label">Downtime / Volume</p>
+              <p class="metric-lg critical">0.0062h</p>
+            </article>
+          </div>
+        </section>
+
+        <section class="panel executive-summary" aria-labelledby="summary-title">
+          <header>
+            <h3 id="summary-title">Executive Summary</h3>
+          </header>
+          <div class="grid three-up">
+            <div class="summary-item">
+              <p class="meta-label">Top Press</p>
+              <p class="metric-lg">Press-04</p>
+              <p class="meta-copy">Highest total downtime and repeat event count.</p>
+            </div>
+            <div class="summary-item">
+              <p class="meta-label">Top Subsystem</p>
+              <p class="metric-lg">Feeder</p>
+              <p class="meta-copy">Accounts for 37% of all incidents this month.</p>
+            </div>
+            <div class="summary-item">
+              <p class="meta-label">Most Repeated Error</p>
+              <p class="metric-lg">Jam at input gate</p>
+              <p class="meta-copy">Recurring cluster observed in night shift cycles.</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="charts-layout" aria-label="Charts">
+          <article class="panel chart-card primary-chart">
+            <header>
+              <h3>Downtime Trend by Week</h3>
+            </header>
+            <div class="chart-placeholder bars">
+              <span style="height: 26%"></span>
+              <span style="height: 45%"></span>
+              <span style="height: 37%"></span>
+              <span style="height: 62%"></span>
+              <span style="height: 55%"></span>
+              <span style="height: 73%"></span>
+              <span style="height: 41%"></span>
+              <span style="height: 58%"></span>
+            </div>
+          </article>
+
+          <article class="panel chart-card">
+            <header><h3>Errors by Subsystem</h3></header>
+            <div class="chart-placeholder donut"><span>Feeder 37%</span></div>
+          </article>
+
+          <article class="panel chart-card">
+            <header><h3>Availability by Press</h3></header>
+            <div class="chart-placeholder lines"></div>
+          </article>
+
+          <article class="panel chart-card">
+            <header><h3>Event Distribution by Shift</h3></header>
+            <div class="chart-placeholder stacked"></div>
+          </article>
+        </section>
+
+        <section class="panel table-panel" aria-labelledby="table-title">
+          <header>
+            <h3 id="table-title">Critical Events</h3>
+          </header>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Timestamp</th>
+                  <th>Press</th>
+                  <th>Subsystem</th>
+                  <th>Error</th>
+                  <th>Downtime</th>
+                  <th>Severity</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>2026-04-14 23:20</td>
+                  <td>Press-04</td>
+                  <td>Feeder</td>
+                  <td>Jam at input gate</td>
+                  <td>38m</td>
+                  <td><span class="pill critical">Critical</span></td>
+                </tr>
+                <tr>
+                  <td>2026-04-14 17:08</td>
+                  <td>Press-02</td>
+                  <td>Dryer</td>
+                  <td>Heat variance</td>
+                  <td>19m</td>
+                  <td><span class="pill warning">Warning</span></td>
+                </tr>
+                <tr>
+                  <td>2026-04-14 09:45</td>
+                  <td>Press-04</td>
+                  <td>Feeder</td>
+                  <td>Misfeed sequence</td>
+                  <td>41m</td>
+                  <td><span class="pill critical">Critical</span></td>
+                </tr>
+                <tr>
+                  <td>2026-04-13 22:01</td>
+                  <td>Press-01</td>
+                  <td>Print Head</td>
+                  <td>Nozzle pressure drop</td>
+                  <td>11m</td>
+                  <td><span class="pill ok">OK</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </section>
+    </main>
+  </div>
+
+  <script src="ui-prototype.js"></script>
+</body>
+</html>
