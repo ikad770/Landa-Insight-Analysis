@@ -413,6 +413,104 @@
     .btn,.select,input,.card,.kpi,.section-shell{transition:all .2s ease}
     @media(max-width:1180px){.rank-hero .chart-area{height:420px;min-height:420px}}
 
+  
+    /* --- Force full UI replacement layout --- */
+    #dashboardScreen.clean-dashboard {
+      display: grid;
+      gap: 22px;
+      padding-top: 6px;
+    }
+    #dashboardScreen.clean-dashboard .minimal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 16px;
+      padding-bottom: 6px;
+      border-bottom: 1px solid rgba(255,255,255,.08);
+    }
+    #dashboardScreen.clean-dashboard .command-strip {
+      padding: 14px 0;
+      border-top: 1px solid rgba(255,255,255,.06);
+      border-bottom: 1px solid rgba(255,255,255,.06);
+      background: transparent;
+      border-radius: 0;
+      box-shadow: none;
+    }
+    #dashboardScreen.clean-dashboard .kpi-row {
+      display: grid;
+      grid-template-columns: repeat(5,minmax(0,1fr));
+      gap: 14px;
+      border: 0;
+      background: transparent;
+      margin: 0;
+    }
+    #dashboardScreen.clean-dashboard .kpi {
+      background: rgba(255,255,255,.015);
+      border: 1px solid rgba(255,255,255,.05);
+      box-shadow: none;
+      border-radius: 10px;
+      padding: 12px 10px;
+    }
+    #dashboardScreen.clean-dashboard .hero-section {
+      min-height: 40vh;
+      padding: 18px 0;
+      display: grid;
+      gap: 10px;
+      background: transparent;
+      border: 0;
+      box-shadow: none;
+    }
+    #dashboardScreen.clean-dashboard .hero-section .chart-area {
+      height: clamp(360px, 42vh, 560px);
+      min-height: clamp(360px, 42vh, 560px);
+    }
+    #dashboardScreen.clean-dashboard .secondary-row {
+      display: grid;
+      grid-template-columns: repeat(3,minmax(0,1fr));
+      gap: 18px;
+    }
+    #dashboardScreen.clean-dashboard .quiet-chart,
+    #dashboardScreen.clean-dashboard .table-panel,
+    #dashboardScreen.clean-dashboard .intel-list,
+    #dashboardScreen.clean-dashboard .filters-shell,
+    #dashboardScreen.clean-dashboard #dashboardStatusPanel,
+    #dashboardScreen.clean-dashboard .detail-disclosure {
+      background: rgba(255,255,255,.015);
+      border: 1px solid rgba(255,255,255,.045);
+      border-radius: 12px;
+      box-shadow: none;
+      padding: 12px;
+    }
+    #dashboardScreen.clean-dashboard .intel-list-shell {
+      display: grid;
+      gap: 10px;
+      padding-top: 4px;
+    }
+    #dashboardScreen.clean-dashboard .detail-disclosure > summary {
+      cursor: pointer;
+      list-style: none;
+      margin-bottom: 8px;
+    }
+    #dashboardScreen.clean-dashboard .lower-details-grid {
+      display: grid;
+      gap: 12px;
+    }
+    #dashboardScreen.clean-dashboard .chart-head {
+      align-items: flex-start;
+    }
+    #dashboardScreen.clean-dashboard .micro,
+    #dashboardScreen.clean-dashboard .section-note {
+      color: #97a7c2;
+    }
+    @media(max-width:1100px){
+      #dashboardScreen.clean-dashboard .kpi-row { grid-template-columns: repeat(3,minmax(0,1fr)); }
+      #dashboardScreen.clean-dashboard .secondary-row { grid-template-columns: 1fr; }
+    }
+    @media(max-width:760px){
+      #dashboardScreen.clean-dashboard .minimal-header { flex-direction: column; }
+      #dashboardScreen.clean-dashboard .kpi-row { grid-template-columns: repeat(2,minmax(0,1fr)); }
+    }
+
   </style>
 </head>
 <body>
@@ -489,102 +587,97 @@
     </article>
   </section>
 
-  <section id="dashboardScreen" class="hidden dashboard-stage redesign-shell">
-    <header class="topbar hero-surface">
-      <div class="hero-content">
+  <section id="dashboardScreen" class="hidden clean-dashboard">
+    <header class="minimal-header">
+      <div>
         <div class="eyebrow">Operational Dashboard</div>
         <h1 class="brand-title">Landa Insight<span class="brand-plus">Pro+</span></h1>
         <p id="datasetMeta" class="subtitle">Dataset not loaded</p>
       </div>
-      <div class="controls hero-actions">
+      <div class="controls">
         <button id="replaceBtn" class="btn">Load</button>
         <button id="exportBtn" class="btn secondary">Export</button>
         <button id="summaryBtn" class="btn secondary">Summary</button>
       </div>
     </header>
 
-    <section id="executiveSummaryCard" class="command-banner analytics-surface"></section>
+    <section id="executiveSummaryCard" class="command-strip"></section>
 
-    <section class="kpi-ribbon-shell kpi-ribbon-surface">
-      <section id="kpiStrip" class="kpis"></section>
+    <section id="kpiStrip" class="kpis kpi-row"></section>
+
+    <section class="hero-section" data-rank-card="press">
+      <div class="chart-head">
+        <h2>Top Presses by Downtime Impact</h2>
+        <div class="chart-tools">
+          <select data-metric="press" class="select">
+            <option value="downtime">Sort by downtime (default)</option>
+            <option value="events">Sort by events</option>
+          </select>
+          <button class="btn secondary" data-expand="press">Show all</button>
+        </div>
+      </div>
+      <p class="micro">Downtime is primary. Event count remains secondary context.</p>
+      <div class="chart-area"><canvas id="pressChart"></canvas></div>
     </section>
 
-    <main class="dashboard-flow">
-      <section class="section-shell primary-layer analytics-surface">
-        <div class="section-head">
-          <h2 class="section-title">Top Presses by Downtime Impact</h2>
-          <p class="section-note">Downtime is primary. Event count remains secondary context.</p>
+    <section class="secondary-row">
+      <article class="quiet-chart" data-rank-card="subsystem">
+        <div class="chart-head"><h3>Top Subsystems</h3><div class="chart-tools"><select data-metric="subsystem" class="select"><option value="events">By events</option><option value="downtime">By downtime</option><option value="normalized">By events/volume</option></select><button class="btn secondary" data-expand="subsystem">Show all</button></div></div>
+        <p class="micro">Secondary contributor view.</p>
+        <div class="chart-area compact"><canvas id="subsystemChart"></canvas></div>
+      </article>
+      <article class="quiet-chart" data-rank-card="alert">
+        <div class="chart-head"><h3>Top Errors</h3><div class="chart-tools"><select data-metric="alert" class="select"><option value="events">By events</option><option value="downtime">By downtime</option><option value="normalized">By events/volume</option></select><button class="btn secondary" data-expand="alert">Show all</button></div></div>
+        <p class="micro">Recurring issue view.</p>
+        <div class="chart-area compact"><canvas id="alertChart"></canvas></div>
+      </article>
+      <article class="quiet-chart" data-rank-card="volume">
+        <div class="chart-head"><h3>Print Volume by Press</h3><div class="chart-tools"><select id="customerVolumeUnit" class="select"><option value="productionPrintedSheets">Production-only Printed Sheets</option><option value="printedSheets">Total Printed Sheets</option><option value="printedFlats">Printed Flats</option></select><select id="customerVolumeSort" class="select"><option value="desc">Highest first</option><option value="asc">Lowest first</option></select><button id="customerVolumeExpand" class="btn secondary">Show all</button></div></div>
+        <p class="micro" id="customerVolumeNote">Production context with selectable unit basis.</p>
+        <div class="chart-area compact"><canvas id="customerVolumeChart"></canvas></div>
+      </article>
+    </section>
+
+    <section class="intel-list-shell">
+      <div class="section-head">
+        <h2 class="section-title">Intelligence List</h2>
+        <p class="section-note">Operational risks in concise decision order.</p>
+      </div>
+      <article class="intel-list" id="riskSection"></article>
+    </section>
+
+    <details class="detail-disclosure">
+      <summary class="section-head">
+        <div>
+          <h2 class="section-title">Lower Details</h2>
+          <p class="section-note">Filters, validation, and additional context charts.</p>
         </div>
-        <article class="card span-12 rank-hero" data-rank-card="press">
-          <div class="chart-head"><h3>Downtime impact ranking</h3><div class="chart-tools"><select data-metric="press" class="select"><option value="downtime">Sort by downtime (default)</option><option value="events">Sort by events</option></select><button class="btn secondary" data-expand="press">Show all</button></div></div>
-          <div class="micro">Horizontal bars show downtime hours (primary severity). Marker line on top axis shows event count context.</div><div class="chart-area"><canvas id="pressChart"></canvas></div>
+        <span class="impact-chip detail-toggle">Expand full table</span>
+      </summary>
+      <section class="lower-details-grid">
+        <section class="filters-shell detail-surface">
+          <section class="filters">
+            <select id="pressFilter" class="select"><option value="all">All presses</option></select>
+            <select id="subsystemFilter" class="select"><option value="all">All subsystems</option></select>
+            <select id="versionFilter" class="select"><option value="all">All software versions</option></select>
+            <input id="startDateFilter" type="date" title="Start date" />
+            <input id="endDateFilter" type="date" title="End date" />
+            <input id="searchFilter" placeholder="Search press, alert, subsystem, version" />
+          </section>
+        </section>
+        <section id="dashboardStatusPanel" class="dashboard-status detail-surface"></section>
+        <article class="quiet-chart" data-rank-card="version">
+          <div class="chart-head"><h3>Top Versions</h3><div class="chart-tools"><select data-metric="version" class="select"><option value="events">By events</option><option value="downtime">By downtime</option><option value="normalized">By events/volume</option></select><button class="btn secondary" data-expand="version">Show all</button></div></div>
+          <p class="micro">Software version context.</p>
+          <div class="chart-area compact"><canvas id="versionChart"></canvas></div>
+        </article>
+        <article class="table-panel">
+          <p class="micro">Each row combines Errors with matching Availability and Print Volume bucket context.</p>
+          <div class="table-wrap"><table id="eventTable"></table></div>
         </article>
       </section>
-
-      <section class="section-shell intelligence-layer supporting-surface secondary-quiet">
-        <div class="section-head">
-          <h2 class="section-title">Secondary Grid</h2>
-          <p class="section-note">Top contributors and output volume in a quiet, equal-weight layout.</p>
-        </div>
-        <div class="secondary-band">
-          <article class="card span-4" data-rank-card="subsystem">
-            <div class="chart-head"><h3>Top Subsystems</h3><div class="chart-tools"><select data-metric="subsystem" class="select"><option value="events">By events</option><option value="downtime">By downtime</option><option value="normalized">By events/volume</option></select><button class="btn secondary" data-expand="subsystem">Show all</button></div></div>
-            <div class="micro">Secondary contributor view.</div><div class="chart-area compact"><canvas id="subsystemChart"></canvas></div>
-          </article>
-          <article class="card span-4" data-rank-card="alert">
-            <div class="chart-head"><h3>Top Errors</h3><div class="chart-tools"><select data-metric="alert" class="select"><option value="events">By events</option><option value="downtime">By downtime</option><option value="normalized">By events/volume</option></select><button class="btn secondary" data-expand="alert">Show all</button></div></div>
-            <div class="micro">Recurring issue view with same drilldown behavior.</div><div class="chart-area compact"><canvas id="alertChart"></canvas></div>
-          </article>
-          <article class="card span-4" data-rank-card="volume">
-            <div class="chart-head"><h3>Print Volume By Press</h3><div class="chart-tools"><select id="customerVolumeUnit" class="select"><option value="productionPrintedSheets">Production-only Printed Sheets</option><option value="printedSheets">Total Printed Sheets</option><option value="printedFlats">Printed Flats</option></select><select id="customerVolumeSort" class="select"><option value="desc">Highest first</option><option value="asc">Lowest first</option></select><button id="customerVolumeExpand" class="btn secondary">Show all</button></div></div>
-            <div class="micro" id="customerVolumeNote">Production context with selectable unit basis.</div><div class="chart-area compact"><canvas id="customerVolumeChart"></canvas></div>
-          </article>
-        </div>
-      </section>
-
-      <section class="section-shell intelligence-layer supporting-surface">
-        <div class="section-head">
-          <h2 class="section-title">Operational Risk Overview</h2>
-          <p class="section-note">Concise risk insights only, with one-line reasons for immediate action.</p>
-        </div>
-        <div class="intelligence-band">
-          <article class="risk-intel" id="riskSection"></article>
-        </div>
-      </section>
-
-      <details class="section-shell secondary section-disclosure detail-surface lower-details-shell">
-        <summary class="section-head">
-          <div>
-            <h2 class="section-title">Lower Details</h2>
-            <p class="section-note">Filters, validation, and additional context charts (lower priority).</p>
-          </div>
-          <span class="impact-chip detail-toggle">Expand full table</span>
-        </summary>
-        <section class="lower-details-grid">
-          <section class="filters-shell detail-surface">
-            <section class="filters">
-              <select id="pressFilter" class="select"><option value="all">All presses</option></select>
-              <select id="subsystemFilter" class="select"><option value="all">All subsystems</option></select>
-              <select id="versionFilter" class="select"><option value="all">All software versions</option></select>
-              <input id="startDateFilter" type="date" title="Start date" />
-              <input id="endDateFilter" type="date" title="End date" />
-              <input id="searchFilter" placeholder="Search press, alert, subsystem, version" />
-            </section>
-          </section>
-          <section id="dashboardStatusPanel" class="dashboard-status detail-surface"></section>
-          <article class="card span-12" data-rank-card="version">
-            <div class="chart-head"><h3>Top Versions</h3><div class="chart-tools"><select data-metric="version" class="select"><option value="events">By events</option><option value="downtime">By downtime</option><option value="normalized">By events/volume</option></select><button class="btn secondary" data-expand="version">Show all</button></div></div>
-            <div class="micro">Software version context.</div><div class="chart-area compact"><canvas id="versionChart"></canvas></div>
-          </article>
-          <article class="card span-12">
-            <div class="micro">Each row combines Errors with matching Availability and Print Volume bucket context.</div>
-            <div class="table-wrap"><table id="eventTable"></table></div>
-          </article>
-        </section>
-      </details>
-    </main>
+    </details>
   </section>
-</div>
 
 <div id="summaryModal" class="summary-modal">
   <section class="summary-panel">
