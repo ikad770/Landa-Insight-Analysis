@@ -3,13 +3,15 @@ self.onmessage = async (event) => {
   try {
     if (type === 'parseTextFile') {
       const { text = '', ext = '' } = payload || {};
-      const rows = ext === 'csv' ? parseCSV(text) : parseJSON(text);
+      const normalizedExt = String(ext || '').toLowerCase();
+      const rows = normalizedExt === 'csv' ? parseCSV(text) : parseJSON(text);
       self.postMessage({ id, ok: true, result: { rows, detected: detectDatasetType(rows) } });
       return;
     }
     if (type === 'processFile') {
       const { text = '', ext = 'csv', dataset = 'errors' } = payload || {};
-      const rows = ext === 'csv' ? parseCSV(text) : parseJSON(text);
+      const normalizedExt = String(ext || '').toLowerCase();
+      const rows = normalizedExt === 'csv' ? parseCSV(text) : parseJSON(text);
       const normalized = normalizeRows(rows, dataset);
       const aggregated = buildAggregations(normalized, dataset);
       self.postMessage({ id, ok: true, result: { rows, normalized, aggregated, detected: detectDatasetType(rows) } });
