@@ -440,8 +440,17 @@
     .summary-section-clean h3{margin:0 0 8px;font-size:1rem}
     .summary-points{margin:0;padding-left:18px;color:#d6e0f1;display:grid;gap:6px}
     .section-note{margin:4px 0 0}
-    #baselineInfoModal{display:none!important}
-    @media(max-width:1100px){.secondary-row{grid-template-columns:1fr}.clean-kpi-strip .kpis{grid-template-columns:repeat(2,minmax(140px,1fr))}.chart-area.main{height:360px;min-height:360px}}
+        @media(max-width:1100px){.secondary-row{grid-template-columns:1fr}.clean-kpi-strip .kpis{grid-template-columns:repeat(2,minmax(140px,1fr))}.chart-area.main{height:360px;min-height:360px}}
+    .intelligence-zone{padding-top:4px}
+    .risk-intel{display:block}
+    .lower-details{display:grid;gap:14px;opacity:.92}
+    .dashboard-header{padding-bottom:10px}
+    .chart-block .micro{margin:6px 0 10px;color:#9eb1cf}
+    .secondary-row .chart-block{padding:10px 0;border-top:1px solid rgba(255,255,255,.06)}
+    .summary-section-clean{border-top:1px solid rgba(255,255,255,.08);padding-top:14px}
+    #riskSection .risk-table-wrap table td{vertical-align:top}
+    @media(max-width:1100px){.lower-details{gap:10px}}
+
 
   </style>
 </head>
@@ -550,8 +559,8 @@
     <main class="dashboard-flow clean-flow">
       <section class="main-focus">
         <div class="section-head">
-          <h2 class="section-title">Top Presses</h2>
-          <p class="section-note">Downtime is primary. Event count is secondary context.</p>
+          <h2 class="section-title">Top Presses by Downtime Impact</h2>
+          <p class="section-note">Downtime is primary, event count is shown as lightweight context.</p>
         </div>
         <article class="chart-block" data-rank-card="press">
           <div class="chart-head"><h3>Downtime impact by press</h3><div class="chart-tools"><select data-metric="press" class="select"><option value="downtime">Sort by downtime</option><option value="events">Sort by events</option></select><button class="btn secondary" data-expand="press">Show all</button></div></div>
@@ -576,11 +585,19 @@
         </article>
       </section>
 
-      <section id="dashboardSummary" class="summary-section-clean"></section>
+      <section class="intelligence-zone" id="intelligenceSection">
+        <div class="section-head">
+          <h2 class="section-title">Baseline Intelligence</h2>
+          <p class="section-note">Presses are compared against current-scope baseline to highlight critical risk and instability.</p>
+        </div>
+        <section id="riskSection" class="risk-intel"></section>
+      </section>
 
-      <section id="executiveSummaryCard" class="hidden"></section>
-      <section id="dashboardStatusPanel" class="hidden"></section>
-      <section id="riskSection" class="hidden"></section>
+      <section class="lower-details">
+        <section id="dashboardSummary" class="summary-section-clean"></section>
+        <section id="executiveSummaryCard" class="hidden"></section>
+        <section id="dashboardStatusPanel" class="hidden"></section>
+      </section>
       <table id="eventTable" class="hidden"></table>
     </main>
   </section>
@@ -2274,14 +2291,14 @@
       const rawRisk = (dm * 0.45) + (em * 0.25) + (mt * 0.2) + (volDeficit * 0.1);
       const normalizedRiskScore = (rawRisk / maxRisk) * 100;
       const varianceSignal = baselines.downtime.stdDev > 0 && (Math.abs(row.downtime - baselines.downtime.mean) / baselines.downtime.stdDev) >= 1.5;
-      let tier = 'STABLE';
-      if (row.downtime >= baselines.downtime.p90 || normalizedRiskScore >= 80) tier = 'CRITICAL OUTLIER';
-      else if (row.downtime >= baselines.downtime.p75 || normalizedRiskScore >= 60) tier = 'HIGH RISK';
+      let tier = 'NORMAL';
+      if (row.downtime >= baselines.downtime.p90 || normalizedRiskScore >= 80) tier = 'CRITICAL';
+      else if (row.downtime >= baselines.downtime.p75 || normalizedRiskScore >= 60 || row.productionVolume < baselines.productionVolume.p25) tier = 'HIGH RISK';
       else if (varianceSignal || row.mttr >= baselines.mttr.p75) tier = 'UNSTABLE';
       const prodDropPct = baselines.productionVolume.median > 0 ? ((1 - (row.productionVolume / baselines.productionVolume.median)) * 100) : 0;
       const explanation = row.productionVolume < baselines.productionVolume.p25 && prodDropPct > 0
-        ? `Production ${Math.max(0, prodDropPct).toFixed(0)}% below expected range`
-        : (varianceSignal ? 'High variance versus baseline' : `Downtime ${(dm || 0).toFixed(1)}x above baseline`);
+        ? `Production ${Math.max(0, prodDropPct).toFixed(0)}% below baseline`
+        : (varianceSignal ? 'High variance vs baseline' : `Downtime ${(dm || 0).toFixed(1)}x above expected`);
       return {
         press: row.press,
         tier,
@@ -2721,7 +2738,7 @@
       .replace(/\s+/g, ' ')
       .trim()
       .replace(/\.$/, '')}.`;
-    const tierRank = tier => (tier === 'CRITICAL OUTLIER' ? 3 : tier === 'HIGH RISK' ? 2 : tier === 'UNSTABLE' ? 1 : 0);
+    const tierRank = tier => (tier === 'CRITICAL' ? 3 : tier === 'HIGH RISK' ? 2 : tier === 'UNSTABLE' ? 1 : 0);
     const usedReasons = new Set();
     const normalizedRows = [...(riskRows || [])]
       .sort((a, b) => tierRank(b.tier) - tierRank(a.tier) || (b.normalizedRiskScore || 0) - (a.normalizedRiskScore || 0))
@@ -2730,16 +2747,17 @@
         let reason = cleanReason(r.explanation);
         if (usedReasons.has(reason)) reason = `${reason.replace(/\.$/, '')} (priority score ${(r.normalizedRiskScore || 0).toFixed(0)}).`;
         usedReasons.add(reason);
-        const riskLabel = r.tier === 'CRITICAL OUTLIER' ? 'Critical' : r.tier === 'HIGH RISK' ? 'High' : r.tier === 'UNSTABLE' ? 'Watch' : 'Stable';
-        const riskCls = r.tier === 'CRITICAL OUTLIER' ? 'risk-critical' : r.tier === 'HIGH RISK' ? 'risk-high' : r.tier === 'UNSTABLE' ? 'risk-medium' : 'risk-stable';
+        const riskLabel = r.tier === 'CRITICAL' ? 'Critical' : r.tier === 'HIGH RISK' ? 'Risk' : r.tier === 'UNSTABLE' ? 'Unstable' : 'Normal';
+        const riskCls = r.tier === 'CRITICAL' ? 'risk-critical' : r.tier === 'HIGH RISK' ? 'risk-high' : r.tier === 'UNSTABLE' ? 'risk-medium' : 'risk-stable';
         const impact = (r.normalizedRiskScore || 0) >= 75 ? 'high' : (r.normalizedRiskScore || 0) >= 50 ? 'medium' : 'low';
-        const thresholdText = baseline?.p90 != null && r?.downtime != null
-          ? `${formatDuration(r.downtime)} vs P90 ${formatDuration(baseline.p90)}`
+        const rowDowntime = Number(r?.metrics?.downtime || 0);
+        const thresholdText = baseline?.p90 != null
+          ? `${formatDuration(rowDowntime)} vs P90 ${formatDuration(baseline.p90)}`
           : `${(r.normalizedRiskScore || 0).toFixed(0)} risk score`;
         return { ...r, reason, riskLabel, riskCls, impact, thresholdText };
       });
     const deviationPct = baseline?.median > 0 && normalizedRows.length
-      ? (((normalizedRows[0].downtime - baseline.median) / baseline.median) * 100)
+      ? ((((normalizedRows[0]?.metrics?.downtime || 0) - baseline.median) / baseline.median) * 100)
       : 0;
     document.getElementById('riskSection').innerHTML = `
       <div class="chart-head"><h3 style="margin:0;">Ranked press risk</h3><button id="baselineInfoBtn" class="btn secondary">How this works</button></div>
@@ -2839,6 +2857,14 @@
         const msg = 'Chart library failed to load. Charts cannot render.';
         console.error('[chart-render-error]', { chartId: id, reason: msg });
         setCanvasState(id, msg, 'error');
+        return false;
+      }
+      const labels = Array.isArray(config?.data?.labels) ? config.data.labels : [];
+      const datasets = Array.isArray(config?.data?.datasets) ? config.data.datasets : [];
+      const hasValidData = datasets.some(ds => Array.isArray(ds?.data) && ds.data.some(v => Number.isFinite(Number(v))));
+      if (!labels.length || !hasValidData) {
+        destroyChart(id);
+        setCanvasState(id, 'No data available for current selection');
         return false;
       }
       const canvas = document.getElementById(id);
@@ -3939,9 +3965,12 @@
       STATE.filtered = scopedMergedRows;
       const errorEvents = scopedErrorRows;
       STATE.filteredErrors = errorEvents;
-      const sourceScope = scopedSource;
+      const sourceScope = scopedSource || {};
+      sourceScope.errorsAgg = Array.isArray(sourceScope.errorsAgg) ? sourceScope.errorsAgg : [];
+      sourceScope.availabilityAgg = Array.isArray(sourceScope.availabilityAgg) ? sourceScope.availabilityAgg : [];
+      sourceScope.volumeAgg = Array.isArray(sourceScope.volumeAgg) ? sourceScope.volumeAgg : [];
     if (!sourceScope || !Array.isArray(sourceScope.errorsAgg) || !Array.isArray(sourceScope.availabilityAgg) || !Array.isArray(sourceScope.volumeAgg)) {
-      ['pressChart', 'subsystemChart', 'alertChart', 'versionChart', 'customerVolumeChart'].forEach(id => setCanvasState(id, 'Data not available for current selection'));
+      ['pressChart', 'subsystemChart', 'alertChart', 'customerVolumeChart'].forEach(id => setCanvasState(id, 'Data not available for current selection'));
       return;
     }
     console.info('[scope-debug]', {
@@ -3979,7 +4008,6 @@
     const pressRankings = safeRankingRender('press');
     const subsystemRankings = safeRankingRender('subsystem');
     const alertRankings = safeRankingRender('alert');
-    const versionRankings = safeRankingRender('version');
     const { chartRows: customerVolumeRows, fullRows: customerVolumeAllRows } = buildCustomerVolumeChart(sourceScope.volumeAgg, STATE.customerVolumeMetric, STATE.customerVolumeSort, STATE.customerVolumeExpanded);
     STATE.customerVolumeRows = customerVolumeRows;
     STATE.customerVolumeAllRows = customerVolumeAllRows;
@@ -3996,8 +4024,11 @@
         }
       }
       });
-      if (!customerVolumeRows.length) setCanvasState('customerVolumeChart', 'No print volume rows after source-native scope (volume owns press/day and native job metadata).');
-      if (!customerVolumeRendered) setCanvasState('customerVolumeChart', 'Chart library failed to load. Charts cannot render.', 'error');
+      if (!customerVolumeRows.length) {
+        setCanvasState('customerVolumeChart', 'No print volume rows after source-native scope (volume owns press/day and native job metadata).');
+      } else if (!customerVolumeRendered) {
+        setCanvasState('customerVolumeChart', 'Chart library failed to load. Charts cannot render.', 'error');
+      }
     document.getElementById('customerVolumeNote').textContent = `${STATE.customerVolumeExpanded ? 'Full press ranking' : 'Top 12'} by ${volumeMetricLabel(STATE.customerVolumeMetric)} (${STATE.customerVolumeSort === 'asc' ? 'lowest first' : 'highest first'}) from source volume aggregates (canonical press grouping).`;
     document.getElementById('customerVolumeExpand').textContent = STATE.customerVolumeExpanded ? 'Collapse' : 'Show all';
     console.info('[consistency-debug] print-volume-chart-plot', {
@@ -4006,17 +4037,23 @@
       first10Plotted: customerVolumeRows.slice(0, 10).map((r, i) => ({ rank: i + 1, entityKey: r.entityKey, displayLabel: r.displayLabel, value: r[STATE.customerVolumeMetric] || 0 }))
     });
     const outlierModel = computeOutlierRiskModel(sourceScope);
+    STATE.baselineData = outlierModel;
     STATE.merged.pressRisk = outlierModel.rows;
     STATE.merged.summary = executiveSummary;
+    renderRiskSection(STATE.merged.pressRisk || []);
     renderDashboardSummary(STATE.merged.summary, STATE.kpis);
     const mismatches = validateSourceAndLayerConsistency(sourceScope, STATE.filtered, STATE.kpis, STATE.merged.summary, STATE.merged.pressRisk, customerVolumeAllRows);
     STATE.reconciliation.logs = mismatches;
+    document.getElementById('dashboardStatusPanel')?.classList.remove('hidden');
+    document.getElementById('executiveSummaryCard')?.classList.remove('hidden');
+    document.getElementById('riskSection')?.classList.remove('hidden');
+    renderExecutiveSummaryCard(STATE.merged.summary || {});
     STATE.reconciliation.report = buildReconciliationReport(sourceScope, STATE.kpis, {
       press: pressRankings,
       subsystem: subsystemRankings,
-      alert: alertRankings,
-      version: versionRankings
+      alert: alertRankings
     }, customerVolumeAllRows);
+    renderDashboardStatusPanel(sourceScope, mismatches, STATE.reconciliation.report);
     console.info('[volume-validation]', {
       rawPrintedSheetsFromVolumeAgg: sourceScope.volumeAgg.reduce((a, r) => a + (r.printedSheets || 0), 0),
       productionOnlyPrintedSheetsFromVolumeAgg: sourceScope.volumeAgg.reduce((a, r) => a + (r.productionPrintedSheets || 0), 0),
@@ -4051,7 +4088,7 @@
       renderTable(STATE.filtered);
     } catch (error) {
       console.error('[dashboard-render-failure]', error);
-      ['pressChart', 'subsystemChart', 'alertChart', 'versionChart', 'customerVolumeChart'].forEach(id => setCanvasState(id, `Failed to render ${id}.`, 'error'));
+      ['pressChart', 'subsystemChart', 'alertChart', 'customerVolumeChart'].forEach(id => setCanvasState(id, `Failed to render ${id}.`, 'error'));
     }
   }
 
