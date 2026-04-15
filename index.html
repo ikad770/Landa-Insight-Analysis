@@ -102,14 +102,6 @@
     .chart-area{position:relative;height:300px;min-height:300px}
     .chart-empty-state { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; text-align:center; color:var(--muted); font-size:.86rem; padding:14px; background:rgba(12,17,25,.35); border:1px dashed rgba(255,255,255,.14); border-radius:10px; pointer-events:none; }
     .micro { color:var(--muted); font-size:.82rem; margin:6px 0 8px; }
-    .micro + .micro { margin-top:4px; }
-    .context-meta-row { display:flex; gap:8px; flex-wrap:wrap; margin:8px 0 0; }
-    .context-chip { display:inline-flex; align-items:center; gap:6px; border:1px solid rgba(255,255,255,.14); border-radius:999px; padding:4px 10px; background:rgba(255,255,255,.04); color:#d6e2f6; font-size:.74rem; }
-    .context-chip strong { color:#f2f7ff; font-weight:700; }
-    .risk-placeholder-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; margin-top:10px; }
-    .risk-placeholder-card { border:1px solid var(--border); border-radius:10px; padding:9px; background:rgba(255,255,255,.02); }
-    .risk-placeholder-card .label { color:#9cb1cf; font-size:.72rem; text-transform:uppercase; letter-spacing:.07em; }
-    .risk-placeholder-card .value { margin-top:4px; color:#f3f8ff; font-size:.93rem; font-weight:650; }
     .dashboard-status { margin-bottom:12px; border:1px solid var(--border); border-radius:12px; padding:12px; background:rgba(255,255,255,.02); }
     .dashboard-status.green { border-color:rgba(87,201,138,.45); background:rgba(87,201,138,.12); }
     .dashboard-status.yellow { border-color:rgba(240,177,101,.45); background:rgba(240,177,101,.12); }
@@ -190,182 +182,7 @@
     .summary-preview iframe{width:100%;height:380px;border:0}
 
     @media(max-width:1000px){ .kpis{grid-template-columns:repeat(2,minmax(140px,1fr));}.topbar{grid-template-columns:1fr}.span-6,.span-4,.span-8,.span-3{grid-column:span 12}.file-row{grid-template-columns:1fr} .file-state{justify-content:flex-start} }
-    @media(max-width:760px){ .summary-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr));}.exec-signal-card,.exec-story-card,.exec-insight-card,.exec-action-card,.risk-placeholder-card{grid-column:span 12;} .risk-placeholder-grid{grid-template-columns:1fr;} }
-
-    /* Clean SaaS dashboard style overrides */
-    :root{
-      --bg:#11161f;
-      --panel:#171d28;
-      --panel-soft:#1d2432;
-      --text:#eef2f8;
-      --muted:#96a2b6;
-      --border:rgba(255,255,255,.06);
-      --radius:16px;
-      --shadow:0 8px 24px rgba(5,10,20,.26);
-      --info:#5f7cff;
-      --ok:#38b26b;
-      --warn:#cf8d39;
-      --danger:#d35d58;
-      --pro-accent:#b9c7df;
-    }
-    body{
-      background:var(--bg) !important;
-      font-family:Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
-      line-height:1.45;
-    }
-    .app{
-      max-width:1440px;
-      padding:32px 32px 44px;
-    }
-    .brand-plus{ color:var(--pro-accent); text-shadow:none; }
-    .eyebrow{ letter-spacing:.1em; color:#8392a9; }
-    .subtitle{ color:var(--muted); max-width:90ch; }
-    .brand-title{ font-size:1.45rem; font-weight:650; }
-    .btn,.select,input{
-      border:1px solid rgba(255,255,255,.08);
-      border-radius:10px;
-      background:#202938;
-      color:var(--text);
-      min-height:38px;
-    }
-    .btn{ font-weight:600; box-shadow:none; }
-    .btn:hover{ background:#2a3446; }
-    .btn.primary{
-      background:#2e3d57;
-      border-color:rgba(255,255,255,.09);
-      color:#f4f7ff;
-    }
-    .btn.secondary{ background:#1c2534; }
-    .topbar,.card,.intake-card,.drawer-panel,.summary-panel{
-      border:1px solid rgba(255,255,255,.05);
-      box-shadow:var(--shadow);
-      background:var(--panel);
-      border-radius:var(--radius);
-    }
-    .topbar{
-      padding:24px;
-      margin-bottom:24px;
-      gap:20px;
-    }
-    .controls{ gap:10px; }
-    #dashboardScreen .filters{
-      margin-bottom:24px;
-      padding:0;
-      gap:10px;
-    }
-    .kpis{
-      gap:14px;
-      margin-bottom:20px;
-    }
-    .kpi{
-      padding:16px;
-      border:none;
-      background:#1a2230;
-      box-shadow:0 4px 18px rgba(4,8,16,.2);
-      border-radius:14px;
-    }
-    .kpi.clickable:hover{
-      transform:translateY(-1px);
-      border-color:transparent;
-      background:#1f2938;
-    }
-    .k{ font-size:.7rem; color:#8f9cb0; letter-spacing:.09em; }
-    .v{ font-size:1.55rem; font-weight:700; margin-top:10px; line-height:1.1; }
-    .d{ font-size:.79rem; color:#92a0b5; margin-top:8px; min-height:2.4em; }
-    .dashboard-status{
-      margin-bottom:24px;
-      border:none;
-      background:#1a2331;
-      box-shadow:0 4px 16px rgba(8,14,28,.2);
-      padding:18px;
-    }
-    .dashboard-status.green,.dashboard-status.yellow,.dashboard-status.red{
-      border:none;
-      background:#1a2331;
-    }
-    #executiveSummaryCard{
-      margin-bottom:28px !important;
-      padding:20px;
-      border:none;
-      background:#171f2b;
-    }
-    .grid{ gap:18px; }
-    .card{
-      padding:18px;
-      border:none;
-      background:#171f2b;
-    }
-    .chart-head h3,.card h3{
-      margin:0;
-      font-size:1rem;
-      font-weight:620;
-      letter-spacing:.01em;
-    }
-    .micro{
-      margin-top:8px;
-      margin-bottom:14px;
-      color:#8f9db2;
-      font-size:.8rem;
-    }
-    .chart-area{
-      height:320px;
-      min-height:320px;
-      padding-top:6px;
-    }
-    .table-wrap{
-      border:none;
-      border-radius:12px;
-      background:#131a25;
-      box-shadow:inset 0 0 0 1px rgba(255,255,255,.04);
-    }
-    th,td{
-      border-bottom:1px solid rgba(255,255,255,.05);
-      padding:10px 9px;
-    }
-    th{
-      background:#1b2433;
-      color:#d9e2f1;
-      font-weight:600;
-    }
-    .status-chip,.summary-stat,.risk-placeholder-card,.exec-insight-card,.exec-action-card,.exec-story-card,.exec-signal-card,.summary-section{
-      border:none;
-      background:#1b2331;
-      box-shadow:0 2px 10px rgba(5,10,20,.14);
-    }
-    .exec-status-banner{
-      border:none;
-      background:#1a2432;
-      box-shadow:0 3px 12px rgba(6,11,22,.2);
-    }
-    .summary-kpi-card{
-      border:none;
-      background:#222c3d;
-    }
-    .summary-preview{ border:none; }
-    .drawer, .summary-modal{ background:rgba(9,12,18,.7); }
-    .sim-state-strip,
-    .sim-state-strip.pending,
-    .sim-state-strip.active{
-      border:none;
-      background:#1f2938;
-      box-shadow:0 4px 14px rgba(4,9,18,.22);
-    }
-    .intake-card{
-      background:var(--panel);
-      border:none;
-      padding:32px;
-    }
-    .dropzone{
-      border:1px dashed rgba(255,255,255,.2);
-      background:#1c2534;
-    }
-    .dropzone.drag{
-      background:#253042;
-      border-color:rgba(255,255,255,.3);
-    }
-    .assignment,.file-row,.progress-card,.status{
-      border-color:rgba(255,255,255,.06);
-    }
+    @media(max-width:760px){ .summary-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr));}.exec-signal-card,.exec-story-card,.exec-insight-card,.exec-action-card{grid-column:span 12;} }
   </style>
 </head>
 <body>
@@ -2474,7 +2291,7 @@
       ['Downtime / Volume', 'downtimePerVolume', k.downtimePerVolume == null ? na : k.downtimePerVolume.toFixed(4), 'seconds per production unit'],
       ['Events / Volume', 'eventPerVolume', k.eventPerVolume == null ? na : k.eventPerVolume.toFixed(4), 'events per production unit'],
     ];
-    const helper = `<div class="context-meta-row"><span class="context-chip"><strong>Availability:</strong> ${k.availabilityPct == null ? 'N/A' : `${k.availabilityPct.toFixed(1)}%`}</span><span class="context-chip"><strong>Unplanned share:</strong> ${k.totalDowntime > 0 ? `${((k.totalUnplanned / k.totalDowntime) * 100).toFixed(1)}%` : 'N/A'}</span><span class="context-chip"><strong>Volume basis:</strong> ${esc(k.volumeBasis)}</span></div><div class="micro">Volume perspective: Total Printed Sheets ${k.rawPrintedSheets.toLocaleString()} • Production Printed Sheets ${k.productionOnlyPrintedSheets.toLocaleString()} • Primary KPI basis: ${esc(k.volumeBasis)}.</div><div class="micro">Availability method: ${esc(k.availabilityLabel || 'Source-defined availability')} (${esc(k.availabilityFormula || 'N/A')}).</div>${k.reasons.length ? `<div class="micro">KPI guidance: ${esc(k.reasons.join(' '))}</div>` : ''}`;
+    const helper = `<div class="micro">Volume perspective: Total Printed Sheets ${k.rawPrintedSheets.toLocaleString()} • Production Printed Sheets ${k.productionOnlyPrintedSheets.toLocaleString()} • Primary KPI basis: ${esc(k.volumeBasis)}.</div><div class="micro">Availability method: ${esc(k.availabilityLabel || 'Source-defined availability')} (${esc(k.availabilityFormula || 'N/A')}).</div>${k.reasons.length ? `<div class="micro">KPI guidance: ${esc(k.reasons.join(' '))}</div>` : ''}`;
     document.getElementById('kpiStrip').innerHTML = cards.map(([a, metricKey, b, c]) => `<article class="kpi clickable" role="button" tabindex="0" data-kpi-metric="${metricKey}"><div class="k">${a}</div><div class="v">${b}</div><div class="d">${c}</div></article>`).join('') + helper;
   }
 
@@ -2544,30 +2361,9 @@
   }
 
   function renderRiskSection(riskRows) {
-    const scopedRows = Array.isArray(STATE.filtered) ? STATE.filtered : [];
-    const summary = STATE.merged?.summary || {};
-    const uniquePresses = new Set(scopedRows.map(r => r.press).filter(Boolean)).size;
-    const highestDowntime = summary.topErrorDowntimePress
-      ? `${summary.topErrorDowntimePress.entity || 'N/A'} • ${formatDuration(summary.topErrorDowntimePress.downtime || 0)}`
-      : 'N/A';
     document.getElementById('riskSection').innerHTML = `
       <h3>Risk Prioritization</h3>
-      <div class="micro">Risk-based prioritization is disabled (pending formal risk model definition). Dashboard is operating in events-first mode.</div>
-      <div class="risk-placeholder-grid">
-        <article class="risk-placeholder-card">
-          <div class="label">Scoped presses</div>
-          <div class="value">${uniquePresses.toLocaleString()} presses in current filters</div>
-        </article>
-        <article class="risk-placeholder-card">
-          <div class="label">Events-first leader</div>
-          <div class="value">${esc(summary.topPressByEvents?.name || 'N/A')}</div>
-        </article>
-        <article class="risk-placeholder-card">
-          <div class="label">Downtime concentration</div>
-          <div class="value">${esc(highestDowntime)}</div>
-        </article>
-      </div>
-      <div class="micro">Placeholder cards are informational only and do not apply risk weighting until the formal fleet baseline/outlier model is implemented.</div>`;
+      <div class="micro">Risk-based prioritization is disabled (pending formal risk model definition). Dashboard is operating in events-first mode.</div>`;
   }
 
   function renderDashboardStatusPanel(sourceScope, mismatches = [], reconciliationReport = []) {
@@ -2810,12 +2606,7 @@
       }
     });
     if (!rendered && !view.length) setRankingChartEmptyState(key, 'No ranking data available for current filters/metric.');
-    const cardMicro = document.querySelector(`[data-rank-card="${key}"] .micro`);
-    const leader = view[0];
-    const leaderSummary = key === 'press' && leader
-      ? ` Leader: ${leader.name} (${metric === 'downtime' ? formatDuration(leader.downtime || 0) : `${Number(leader[metric] || 0).toLocaleString(undefined, { maximumFractionDigits: 3 })} ${meta.tooltip}`}).`
-      : '';
-    cardMicro.textContent = `${expanded ? 'Full ranking' : 'Top 8'} by ${metric}. Source: ${meta.source}. ${meta.subtitle}${leaderSummary}`;
+    document.querySelector(`[data-rank-card="${key}"] .micro`).textContent = `${expanded ? 'Full ranking' : 'Top 8'} by ${metric}. Source: ${meta.source}. ${meta.subtitle}`;
     document.querySelector(`[data-expand="${key}"]`).textContent = expanded ? 'Collapse' : 'Show all';
     if ((key === 'press' || key === 'subsystem') && metric === 'events') {
       console.info('[events-first-chart-alignment]', {
