@@ -102,6 +102,14 @@
     .chart-area{position:relative;height:300px;min-height:300px}
     .chart-empty-state { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; text-align:center; color:var(--muted); font-size:.86rem; padding:14px; background:rgba(12,17,25,.35); border:1px dashed rgba(255,255,255,.14); border-radius:10px; pointer-events:none; }
     .micro { color:var(--muted); font-size:.82rem; margin:6px 0 8px; }
+    .micro + .micro { margin-top:4px; }
+    .context-meta-row { display:flex; gap:8px; flex-wrap:wrap; margin:8px 0 0; }
+    .context-chip { display:inline-flex; align-items:center; gap:6px; border:1px solid rgba(255,255,255,.14); border-radius:999px; padding:4px 10px; background:rgba(255,255,255,.04); color:#d6e2f6; font-size:.74rem; }
+    .context-chip strong { color:#f2f7ff; font-weight:700; }
+    .risk-placeholder-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; margin-top:10px; }
+    .risk-placeholder-card { border:1px solid var(--border); border-radius:10px; padding:9px; background:rgba(255,255,255,.02); }
+    .risk-placeholder-card .label { color:#9cb1cf; font-size:.72rem; text-transform:uppercase; letter-spacing:.07em; }
+    .risk-placeholder-card .value { margin-top:4px; color:#f3f8ff; font-size:.93rem; font-weight:650; }
     .dashboard-status { margin-bottom:12px; border:1px solid var(--border); border-radius:12px; padding:12px; background:rgba(255,255,255,.02); }
     .dashboard-status.green { border-color:rgba(87,201,138,.45); background:rgba(87,201,138,.12); }
     .dashboard-status.yellow { border-color:rgba(240,177,101,.45); background:rgba(240,177,101,.12); }
@@ -182,7 +190,7 @@
     .summary-preview iframe{width:100%;height:380px;border:0}
 
     @media(max-width:1000px){ .kpis{grid-template-columns:repeat(2,minmax(140px,1fr));}.topbar{grid-template-columns:1fr}.span-6,.span-4,.span-8,.span-3{grid-column:span 12}.file-row{grid-template-columns:1fr} .file-state{justify-content:flex-start} }
-    @media(max-width:760px){ .summary-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr));}.exec-signal-card,.exec-story-card,.exec-insight-card,.exec-action-card{grid-column:span 12;} }
+    @media(max-width:760px){ .summary-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr));}.exec-signal-card,.exec-story-card,.exec-insight-card,.exec-action-card,.risk-placeholder-card{grid-column:span 12;} .risk-placeholder-grid{grid-template-columns:1fr;} }
   </style>
 </head>
 <body>
@@ -2291,7 +2299,7 @@
       ['Downtime / Volume', 'downtimePerVolume', k.downtimePerVolume == null ? na : k.downtimePerVolume.toFixed(4), 'seconds per production unit'],
       ['Events / Volume', 'eventPerVolume', k.eventPerVolume == null ? na : k.eventPerVolume.toFixed(4), 'events per production unit'],
     ];
-    const helper = `<div class="micro">Volume perspective: Total Printed Sheets ${k.rawPrintedSheets.toLocaleString()} • Production Printed Sheets ${k.productionOnlyPrintedSheets.toLocaleString()} • Primary KPI basis: ${esc(k.volumeBasis)}.</div><div class="micro">Availability method: ${esc(k.availabilityLabel || 'Source-defined availability')} (${esc(k.availabilityFormula || 'N/A')}).</div>${k.reasons.length ? `<div class="micro">KPI guidance: ${esc(k.reasons.join(' '))}</div>` : ''}`;
+    const helper = `<div class="context-meta-row"><span class="context-chip"><strong>Availability:</strong> ${k.availabilityPct == null ? 'N/A' : `${k.availabilityPct.toFixed(1)}%`}</span><span class="context-chip"><strong>Unplanned share:</strong> ${k.totalDowntime > 0 ? `${((k.totalUnplanned / k.totalDowntime) * 100).toFixed(1)}%` : 'N/A'}</span><span class="context-chip"><strong>Volume basis:</strong> ${esc(k.volumeBasis)}</span></div><div class="micro">Volume perspective: Total Printed Sheets ${k.rawPrintedSheets.toLocaleString()} • Production Printed Sheets ${k.productionOnlyPrintedSheets.toLocaleString()} • Primary KPI basis: ${esc(k.volumeBasis)}.</div><div class="micro">Availability method: ${esc(k.availabilityLabel || 'Source-defined availability')} (${esc(k.availabilityFormula || 'N/A')}).</div>${k.reasons.length ? `<div class="micro">KPI guidance: ${esc(k.reasons.join(' '))}</div>` : ''}`;
     document.getElementById('kpiStrip').innerHTML = cards.map(([a, metricKey, b, c]) => `<article class="kpi clickable" role="button" tabindex="0" data-kpi-metric="${metricKey}"><div class="k">${a}</div><div class="v">${b}</div><div class="d">${c}</div></article>`).join('') + helper;
   }
 
@@ -2361,9 +2369,30 @@
   }
 
   function renderRiskSection(riskRows) {
+    const scopedRows = Array.isArray(STATE.filtered) ? STATE.filtered : [];
+    const summary = STATE.merged?.summary || {};
+    const uniquePresses = new Set(scopedRows.map(r => r.press).filter(Boolean)).size;
+    const highestDowntime = summary.topErrorDowntimePress
+      ? `${summary.topErrorDowntimePress.entity || 'N/A'} • ${formatDuration(summary.topErrorDowntimePress.downtime || 0)}`
+      : 'N/A';
     document.getElementById('riskSection').innerHTML = `
       <h3>Risk Prioritization</h3>
-      <div class="micro">Risk-based prioritization is disabled (pending formal risk model definition). Dashboard is operating in events-first mode.</div>`;
+      <div class="micro">Risk-based prioritization is disabled (pending formal risk model definition). Dashboard is operating in events-first mode.</div>
+      <div class="risk-placeholder-grid">
+        <article class="risk-placeholder-card">
+          <div class="label">Scoped presses</div>
+          <div class="value">${uniquePresses.toLocaleString()} presses in current filters</div>
+        </article>
+        <article class="risk-placeholder-card">
+          <div class="label">Events-first leader</div>
+          <div class="value">${esc(summary.topPressByEvents?.name || 'N/A')}</div>
+        </article>
+        <article class="risk-placeholder-card">
+          <div class="label">Downtime concentration</div>
+          <div class="value">${esc(highestDowntime)}</div>
+        </article>
+      </div>
+      <div class="micro">Placeholder cards are informational only and do not apply risk weighting until the formal fleet baseline/outlier model is implemented.</div>`;
   }
 
   function renderDashboardStatusPanel(sourceScope, mismatches = [], reconciliationReport = []) {
@@ -2606,7 +2635,12 @@
       }
     });
     if (!rendered && !view.length) setRankingChartEmptyState(key, 'No ranking data available for current filters/metric.');
-    document.querySelector(`[data-rank-card="${key}"] .micro`).textContent = `${expanded ? 'Full ranking' : 'Top 8'} by ${metric}. Source: ${meta.source}. ${meta.subtitle}`;
+    const cardMicro = document.querySelector(`[data-rank-card="${key}"] .micro`);
+    const leader = view[0];
+    const leaderSummary = key === 'press' && leader
+      ? ` Leader: ${leader.name} (${metric === 'downtime' ? formatDuration(leader.downtime || 0) : `${Number(leader[metric] || 0).toLocaleString(undefined, { maximumFractionDigits: 3 })} ${meta.tooltip}`}).`
+      : '';
+    cardMicro.textContent = `${expanded ? 'Full ranking' : 'Top 8'} by ${metric}. Source: ${meta.source}. ${meta.subtitle}${leaderSummary}`;
     document.querySelector(`[data-expand="${key}"]`).textContent = expanded ? 'Collapse' : 'Show all';
     if ((key === 'press' || key === 'subsystem') && metric === 'events') {
       console.info('[events-first-chart-alignment]', {
