@@ -350,70 +350,59 @@
     @media(max-width:760px){ .summary-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr));}.exec-signal-card,.exec-story-card,.exec-insight-card,.exec-action-card,.hero-signal{grid-column:span 12;} .hero-signals{grid-template-columns:1fr;} .risk-row{grid-template-columns:1fr;} }
 
 
-    /* --- 2026 redesign language replacement --- */
-    .redesign-shell{gap:22px}
-    .hero-surface{padding:34px 36px;border:none;border-radius:30px;background:linear-gradient(125deg,#e9f0ff 0%,#d9e9ff 28%,#0f1d36 100%);color:#0e1627;box-shadow:0 22px 54px rgba(3,10,24,.34);}
-    .hero-surface::after{background:radial-gradient(circle,rgba(255,255,255,.75),transparent 70%);right:-16%;bottom:-48%}
-    .hero-surface .eyebrow,.hero-surface .subtitle{color:rgba(13,24,44,.72)}
-    .hero-surface .brand-title{color:#09162c;font-size:2.2rem;letter-spacing:.02em}
-    .hero-surface .brand-plus{color:#356dff;text-shadow:none}
-    .hero-actions .btn{border:none;background:rgba(9,22,44,.08);color:#0f1d37;backdrop-filter:blur(4px)}
-    .hero-actions .btn:hover{background:rgba(9,22,44,.16)}
-    .hero-actions .btn.primary{background:linear-gradient(120deg,#1d3f82,#356dff);color:#edf3ff}
-
-    .analytics-surface,.supporting-surface,.detail-surface,.kpi-ribbon-surface{border:none;border-radius:24px;box-shadow:0 16px 42px rgba(3,10,24,.24)}
-    .command-banner{padding:16px 20px;border:none;background:linear-gradient(130deg,#132743 0%,#1b3155 46%,#223f6f 100%)}
-    .command-left{padding:12px 12px 10px}
-    .signal-tile{border:none;background:rgba(255,255,255,.08)}
-
-    .kpi-ribbon-shell{padding:12px 16px;border:none;background:linear-gradient(140deg,#0d1a2f 0%,#12253f 52%,#173156 100%)}
-    .kpis{gap:12px}
-    .kpi{border:none;border-radius:14px;padding:14px 12px;background:linear-gradient(180deg,rgba(255,255,255,.13),rgba(255,255,255,.02));min-height:94px}
-    .kpi .k{font-size:.62rem;color:#9fb6db}
-    .kpi .v{font-size:1.7rem;color:#f8fbff}
-    .kpi.clickable:hover{background:linear-gradient(180deg,rgba(95,153,255,.34),rgba(76,112,189,.2));transform:translateY(-3px)}
-
-    .dashboard-status{border:none;padding:16px 18px;border-radius:20px;background:linear-gradient(140deg,#111f36,#152a49)}
-    .filters-shell{padding:14px;border:none;background:linear-gradient(160deg,#edf3ff 0%,#dde9ff 100%)}
-    .filters .select,.filters input{border:none;border-radius:12px;background:rgba(255,255,255,.95);color:#18243d;box-shadow:0 4px 16px rgba(24,36,61,.1)}
-
-    .dashboard-flow{gap:24px}
-    .section-shell{padding:22px;border:none;border-radius:24px;background:linear-gradient(165deg,#111f36 0%,#152a48 100%);box-shadow:0 14px 36px rgba(2,8,20,.34)}
-    .section-title{font-size:1.04rem;letter-spacing:.02em}
-    .section-note{font-size:.8rem;color:#9db4d8}
-    .rank-hero{padding:20px;border:none;background:linear-gradient(160deg,#1a3358 0%,#10213a 45%,#0b1628 100%);box-shadow:0 28px 58px rgba(2,8,20,.5)}
+    /* --- Premium redesign language replacement --- */
+    body { background:
+      radial-gradient(1400px 560px at 8% -12%, rgba(94,138,216,.17) 0%, transparent 62%),
+      radial-gradient(980px 500px at 100% -20%, rgba(60,95,162,.17) 0%, transparent 70%),
+      #080f1b; }
+    .redesign-shell{gap:20px}
+    .hero-surface{padding:30px 34px;border:1px solid rgba(255,255,255,.08);border-radius:26px;background:linear-gradient(135deg,rgba(16,31,55,.93) 0%,rgba(14,28,47,.94) 58%,rgba(11,22,39,.98) 100%);color:#eaf2ff;box-shadow:0 22px 50px rgba(0,0,0,.42);}
+    .hero-surface::after{background:radial-gradient(circle,rgba(120,168,255,.18),transparent 70%);right:-12%;bottom:-45%}
+    .hero-surface .eyebrow{color:#9fb5d8}
+    .hero-surface .brand-title{color:#f1f6ff;font-size:2.08rem}
+    .hero-surface .subtitle{color:#b7cae6}
+    .hero-surface .brand-plus{color:#8fc1ff;text-shadow:none}
+    .hero-actions .btn{border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.04);color:#dde9fc}
+    .hero-actions .btn:hover{background:rgba(255,255,255,.1)}
+    .hero-actions .btn.primary{border-color:rgba(143,193,255,.78);background:linear-gradient(120deg,#2f5488,#4475ba)}
+    .analytics-surface,.supporting-surface,.detail-surface,.kpi-ribbon-surface{border:1px solid rgba(255,255,255,.07);border-radius:22px;box-shadow:0 16px 38px rgba(0,0,0,.34)}
+    .command-banner{padding:14px 16px;border:1px solid rgba(143,193,255,.24);background:linear-gradient(130deg,rgba(20,39,68,.95),rgba(17,33,57,.95))}
+    .command-left{padding:10px}
+    .command-left .hero-title{font-size:1.05rem}
+    .command-left .hero-note{font-size:.84rem;margin-top:5px}
+    .signal-tile{border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.03)}
+    .kpi-ribbon-shell{padding:10px 14px;border:1px solid rgba(255,255,255,.08);background:linear-gradient(140deg,rgba(16,30,54,.95),rgba(12,24,41,.95))}
+    .kpis{gap:10px}
+    .kpi{border:1px solid rgba(255,255,255,.06);border-radius:13px;padding:11px 10px;background:linear-gradient(180deg,rgba(255,255,255,.08),rgba(255,255,255,.02));min-height:86px}
+    .kpi .k{font-size:.6rem;color:#a9bddb}
+    .kpi .v{font-size:1.56rem;color:#f5f9ff}
+    .kpi.clickable:hover{border-color:rgba(143,193,255,.58);background:linear-gradient(180deg,rgba(101,152,236,.24),rgba(81,116,181,.15));transform:translateY(-2px)}
+    .dashboard-status{padding:14px 16px;border-radius:18px;background:linear-gradient(140deg,rgba(16,30,52,.95),rgba(13,25,43,.95))}
+    .filters-shell{padding:12px 13px;border:1px solid rgba(255,255,255,.08);background:linear-gradient(160deg,rgba(17,31,54,.94),rgba(12,23,40,.94))}
+    .filters .select,.filters input{border:1px solid rgba(255,255,255,.13);border-radius:11px;background:rgba(255,255,255,.04);color:#dbe7fa;box-shadow:none}
+    .dashboard-flow{gap:20px}
+    .section-shell{padding:20px;border:1px solid rgba(255,255,255,.06);border-radius:22px;background:linear-gradient(165deg,rgba(14,27,47,.95) 0%,rgba(12,23,39,.95) 100%);box-shadow:0 14px 34px rgba(0,0,0,.34)}
+    .section-note{font-size:.8rem;color:#9db3d4}
+    .rank-hero{padding:18px;border:1px solid rgba(143,193,255,.2);background:linear-gradient(160deg,rgba(24,46,80,.95),rgba(12,24,41,.98));box-shadow:0 30px 64px rgba(0,0,0,.42)}
     .rank-hero .chart-area{height:520px;min-height:520px}
-    .card{border:none;border-radius:18px;background:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.03));box-shadow:none}
-
-    .supporting-surface{background:linear-gradient(170deg,#0e1a2d,#12223c)}
-    .intelligence-layer{padding:20px 22px}
-    .secondary-quiet .card{background:linear-gradient(180deg,rgba(255,255,255,.04),rgba(255,255,255,.015))}
-    .secondary-quiet{background:linear-gradient(160deg,#0e1a2d 0%,#11213b 100%)}
-    .secondary-band{gap:14px}
-    .risk-intel{border:none;border-radius:20px;padding:20px;background:linear-gradient(160deg,#21416e,#152a49 62%,#0f1d34);box-shadow:0 20px 40px rgba(0,0,0,.3)}
-    .risk-baseline{gap:12px}
-    .baseline-card{border:none;border-radius:14px;background:rgba(255,255,255,.1)}
-    .risk-table-wrap{border:none;border-radius:14px}
-
-    .detail-surface{background:linear-gradient(150deg,#121f35 0%,#0f1b2e 100%)}
-    .section-disclosure{transition:all .24s ease}
-    .section-disclosure[open]{box-shadow:0 22px 44px rgba(2,8,20,.44)}
-
-    .summary-modal{background:rgba(4,9,18,.74);backdrop-filter:blur(8px)}
-    .summary-panel{width:min(1120px,95vw);border:none;border-radius:26px;background:linear-gradient(155deg,#f4f8ff 0%,#eaf2ff 54%,#dce9ff 100%);box-shadow:0 34px 80px rgba(0,0,0,.45)}
-    .summary-shell{padding:22px;color:#11213a}
-    .summary-header{border:none;border-radius:20px;background:linear-gradient(130deg,#17345d 0%,#22497f 48%,#2c5a9b 100%);color:#f5f9ff;box-shadow:0 12px 28px rgba(16,33,59,.2)}
-    .summary-kicker,.summary-intro{color:#d9e6fb}
-    .summary-actions .btn{border:none;background:rgba(17,33,58,.12);color:#142846}
-    .summary-actions .btn.primary{background:linear-gradient(120deg,#17345d,#2c5a9b);color:#edf4ff}
-    .summary-scope{color:#24395c;font-weight:500;background:rgba(255,255,255,.64);border-radius:12px;padding:10px 12px}
-    .summary-section{border:none;border-radius:16px;background:rgba(255,255,255,.76);box-shadow:0 10px 30px rgba(15,27,46,.12)}
+    .card{border:1px solid rgba(255,255,255,.05);border-radius:16px;background:linear-gradient(180deg,rgba(255,255,255,.04),rgba(255,255,255,.015));box-shadow:none}
+    .supporting-surface{background:linear-gradient(170deg,rgba(13,25,43,.96),rgba(11,22,38,.96))}
+    .intelligence-layer{padding:18px 20px}
+    .secondary-quiet .card{background:linear-gradient(180deg,rgba(255,255,255,.03),rgba(255,255,255,.01))}
+    .secondary-quiet{background:linear-gradient(160deg,rgba(12,24,41,.95) 0%,rgba(10,20,34,.95) 100%)}
+    .risk-intel{border:1px solid rgba(143,193,255,.22);border-radius:18px;padding:18px;background:linear-gradient(160deg,rgba(27,51,87,.94),rgba(16,31,53,.98));box-shadow:0 16px 34px rgba(0,0,0,.28)}
+    .baseline-card{border:1px solid rgba(255,255,255,.1);border-radius:12px;background:rgba(255,255,255,.06)}
+    .risk-help{border:1px solid rgba(255,255,255,.09);background:rgba(7,15,27,.55)}
+    .risk-table-wrap{border:1px solid rgba(255,255,255,.11);border-radius:12px}
+    .detail-surface{background:linear-gradient(150deg,rgba(14,26,45,.95) 0%,rgba(10,20,35,.95) 100%)}
+    .section-disclosure[open]{box-shadow:0 20px 40px rgba(0,0,0,.38)}
+    .summary-modal{background:rgba(6,11,22,.75);backdrop-filter:blur(8px)}
+    .summary-panel{width:min(1120px,95vw);border:1px solid rgba(255,255,255,.08);border-radius:24px;background:linear-gradient(155deg,#f5f9ff 0%,#eaf2ff 60%,#e2edff 100%);box-shadow:0 34px 80px rgba(0,0,0,.45)}
+    .summary-shell{padding:22px;color:#13233f}
+    .summary-header{border:none;border-radius:18px;background:linear-gradient(130deg,#17345d 0%,#22497f 48%,#2c5a9b 100%);color:#f5f9ff}
+    .summary-section{border:none;border-radius:14px;background:rgba(255,255,255,.78);box-shadow:0 10px 24px rgba(15,27,46,.1)}
     .summary-section-head{background:transparent!important;color:#16315a;border-bottom:1px solid rgba(17,33,58,.08)}
-    .summary-section-body{color:#12243f}
-    .summary-kpi-card{border:none;background:linear-gradient(160deg,#f0f6ff,#e3efff)}
-    .summary-kpi-card .label{color:#3b5783}
     .summary-preview{margin:0 20px 20px;border:none;box-shadow:0 6px 20px rgba(0,0,0,.18)}
-
     .btn,.select,input,.card,.kpi,.section-shell{transition:all .2s ease}
     @media(max-width:1180px){.rank-hero .chart-area{height:420px;min-height:420px}}
 
@@ -539,25 +528,6 @@
         </article>
       </section>
 
-      <section class="section-shell intelligence-layer supporting-surface">
-        <div class="section-head">
-          <h2 class="section-title">Intelligence Layer · Risk & Baseline Confidence</h2>
-          <p class="section-note">Ranked risk focus with transparent baseline methodology.</p>
-        </div>
-        <div class="intelligence-band">
-          <article class="risk-intel" id="riskSection"></article>
-          <article class="card baseline-explain detail-surface">
-            <div class="chart-head"><h3 style="margin:0;">Baseline trust model</h3><button id="baselineInfoBtnSecondary" class="btn secondary">Open method</button></div>
-            <p class="micro" style="margin-top:8px;">Baseline intelligence is simplified for leadership consumption and expandable for technical transparency.</p>
-            <ul class="list-compact" style="margin-top:0;">
-              <li>Expected range uses median and percentile thresholds.</li>
-              <li>Severity score blends downtime, frequency, MTTR, and production deficit.</li>
-              <li>Ranked reasons explain exactly what crossed baseline.</li>
-            </ul>
-          </article>
-        </div>
-      </section>
-
       <section class="section-shell intelligence-layer supporting-surface secondary-quiet">
         <div class="section-head">
           <h2 class="section-title">Supporting Analytics</h2>
@@ -579,6 +549,25 @@
           <article class="card span-8" data-rank-card="volume">
             <div class="chart-head"><h3>Print Volume By Press</h3><div class="chart-tools"><select id="customerVolumeUnit" class="select"><option value="productionPrintedSheets">Production-only Printed Sheets</option><option value="printedSheets">Total Printed Sheets</option><option value="printedFlats">Printed Flats</option></select><select id="customerVolumeSort" class="select"><option value="desc">Highest first</option><option value="asc">Lowest first</option></select><button id="customerVolumeExpand" class="btn secondary">Show all</button></div></div>
             <div class="micro" id="customerVolumeNote">Production context with selectable unit basis.</div><div class="chart-area compact"><canvas id="customerVolumeChart"></canvas></div>
+          </article>
+        </div>
+      </section>
+
+      <section class="section-shell intelligence-layer supporting-surface">
+        <div class="section-head">
+          <h2 class="section-title">Operational Intelligence · Risk & Baseline Confidence</h2>
+          <p class="section-note">Concise trust model plus ranked outlier watchlist for immediate action.</p>
+        </div>
+        <div class="intelligence-band">
+          <article class="risk-intel" id="riskSection"></article>
+          <article class="card baseline-explain detail-surface">
+            <div class="chart-head"><h3 style="margin:0;">Baseline trust model</h3><button id="baselineInfoBtnSecondary" class="btn secondary">Open method</button></div>
+            <p class="micro" style="margin-top:8px;">Performance is judged against the filtered peer group using percentile ranges, then escalated only when deviation is persistent.</p>
+            <ul class="list-compact" style="margin-top:0;">
+              <li>Expected range: median through P75, with P90 as critical boundary.</li>
+              <li>Severity blends downtime, frequency, MTTR variance, and production deficit.</li>
+              <li>Each outlier row includes one short reason tied to the threshold crossed.</li>
+            </ul>
           </article>
         </div>
       </section>
@@ -606,8 +595,8 @@
       <div class="summary-header">
         <div>
           <div class="summary-kicker">Executive Brief</div>
-          <h3 class="summary-title">Landa Insight<span class="brand-plus">Pro+</span> Leadership Summary</h3>
-          <p class="summary-intro">Concise leadership briefing generated from current validated scope. Data and formulas are unchanged.</p>
+          <h3 class="summary-title">Landa Insight<span class="brand-plus">Pro+</span> Leadership Brief</h3>
+          <p class="summary-intro">Decision-first briefing: status, pressure points, operational cause, and immediate attention areas from the active validated scope.</p>
         </div>
         <button id="closeSummaryBtn" class="btn">Close brief</button>
       </div>
@@ -2697,11 +2686,11 @@
     document.getElementById('executiveSummaryCard').innerHTML = `
       <div class="command-left">
         <div class="chart-head">
-          <h3 class="hero-title">Executive Command Bar</h3>
+          <h3 class="hero-title">Executive Command Strip</h3>
           <span class="status-indicator ${statusClass}">${esc(summary.status || 'Stable')}</span>
         </div>
         <p class="hero-note">${esc(summary.statusVerdict || 'Operational performance is stable in this scope.')}</p>
-        <p class="muted-note" style="margin:8px 0 0;">Use this bar as the operating narrative anchor before entering detailed diagnostics.</p>
+        <p class="muted-note" style="margin:8px 0 0;">One-line interpretation: start here, then move into the hero ranking for pressure triage.</p>
       </div>
       <section class="command-signals">
         <article class="signal-tile"><div class="label">Highest-pressure press</div><div class="value">${esc(topRisk)}</div></article>
@@ -2738,16 +2727,16 @@
       ? (((normalizedRows[0].downtime - baseline.median) / baseline.median) * 100)
       : 0;
     document.getElementById('riskSection').innerHTML = `
-      <div class="chart-head"><h3 style="margin:0;">Ranked press risk</h3><button id="baselineInfoBtn" class="btn secondary">How this works</button></div>
+      <div class="chart-head"><h3 style="margin:0;">Risk ranking</h3><button id="baselineInfoBtn" class="btn secondary">How this works</button></div>
       <div class="risk-baseline">
         <article class="baseline-card"><div class="label">Median downtime</div><div class="value">${baseline ? formatDuration(baseline.median) : 'N/A'}</div></article>
         <article class="baseline-card"><div class="label">Expected range</div><div class="value">${baseline ? `${formatDuration(baseline.p50)} – ${formatDuration(baseline.p75)}` : 'N/A'}</div></article>
         <article class="baseline-card"><div class="label">Top deviation</div><div class="value">${Number.isFinite(deviationPct) ? `${deviationPct >= 0 ? '+' : ''}${deviationPct.toFixed(1)}%` : 'N/A'}</div></article>
       </div>
-      <div class="risk-help">Baseline compares each press against the current filtered peer group. Flags trigger when downtime or MTTR exceed percentile thresholds or when production deficit compounds the risk score.</div>
+      <div class="risk-help">Baseline compares each press against similar peers in the current scope. Flags trigger only when downtime/MTTR break percentile thresholds or production deficit compounds risk.</div>
       <div class="risk-table-wrap">
         <table>
-          <thead><tr><th>Rank</th><th>Press</th><th>Severity</th><th>Why flagged</th><th>Threshold crossed</th></tr></thead>
+          <thead><tr><th>Rank</th><th>Press</th><th>Severity</th><th>Reason</th><th>Key deviation</th></tr></thead>
           <tbody>${normalizedRows.length ? normalizedRows.map((r, idx) => `<tr><td>#${idx + 1}</td><td><strong>${esc(r.press)}</strong></td><td><span class="risk-level-badge ${r.riskCls}">${esc(r.riskLabel)}</span></td><td>${esc(r.reason)}</td><td><span class="impact-level">${esc(r.thresholdText)} • ${esc(r.impact)}</span></td></tr>`).join('') : '<tr><td colspan="5">No elevated risks in this filter scope.</td></tr>'}</tbody>
         </table>
       </div>
