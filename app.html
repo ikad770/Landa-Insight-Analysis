@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Landa InsightPro+ Prototype</title>
+    <link rel="stylesheet" href="app.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true">L</div>
+          <div>
+            <p class="brand-name">Landa InsightPro+</p>
+            <p class="brand-sub">Operational Intelligence</p>
+          </div>
+        </div>
+
+        <nav class="nav">
+          <p class="nav-group">Platform</p>
+          <button class="nav-item active">Overview</button>
+          <button class="nav-item">Press Health</button>
+          <button class="nav-item">Availability</button>
+          <button class="nav-item">Volume Analytics</button>
+
+          <p class="nav-group">Operations</p>
+          <button class="nav-item">Error Catalogue</button>
+          <button class="nav-item">Subsystem Insights</button>
+          <button class="nav-item">Validation Center</button>
+        </nav>
+
+        <div class="sidebar-footer">
+          <p>Plant: Chicago North</p>
+          <p class="muted">6 presses connected</p>
+        </div>
+      </aside>
+
+      <main class="main-view">
+        <header class="topbar">
+          <div class="screen-switch" role="tablist" aria-label="Prototype screens">
+            <button class="screen-btn active" data-target="intake" role="tab" aria-selected="true">Screen 1 · Upload / Intake</button>
+            <button class="screen-btn" data-target="dashboard" role="tab" aria-selected="false">Screen 2 · Main Dashboard</button>
+          </div>
+          <div class="topbar-tools">
+            <input class="search" type="search" placeholder="Search press, subsystem, error code" />
+            <button class="ghost">Apr 1–15, 2026</button>
+            <button class="ghost">All Presses</button>
+            <button class="avatar" aria-label="User menu">MS</button>
+          </div>
+        </header>
+
+        <section class="screen active" id="intake" aria-label="Upload and intake screen">
+          <div class="hero hero-intake">
+            <p class="eyebrow">Data Intake Workflow</p>
+            <h1>Prepare your production dataset for InsightPro+.</h1>
+            <p>
+              Import validated machine logs to unlock availability, downtime and print-volume intelligence.
+              The workflow below is optimized for line-level operational analysis.
+            </p>
+          </div>
+
+          <section class="dropzone" aria-label="Upload files">
+            <p class="eyebrow">Step 1</p>
+            <h2>Upload source files</h2>
+            <p>Drop CSV or JSON exports from press controllers and shift reports.</p>
+            <button class="primary">Choose Files</button>
+            <p class="muted">or drag and drop up to 2GB total</p>
+          </section>
+
+          <section class="source-grid" aria-label="Data sources">
+            <article class="source-card">
+              <h3>Errors</h3>
+              <p>Event logs with timestamp, press ID, subsystem, severity and error code.</p>
+              <ul>
+                <li>Expected rows: 25,000–120,000</li>
+                <li>Mandatory: code, start/end time</li>
+              </ul>
+            </article>
+            <article class="source-card">
+              <h3>Availability</h3>
+              <p>Shift-level uptime and downtime records including planned and unplanned stops.</p>
+              <ul>
+                <li>Expected rows: 1,200–4,500</li>
+                <li>Mandatory: press, shift, duration</li>
+              </ul>
+            </article>
+            <article class="source-card">
+              <h3>Print Volume</h3>
+              <p>Run-level production counters with substrate, job family and output totals.</p>
+              <ul>
+                <li>Expected rows: 5,000–30,000</li>
+                <li>Mandatory: job ID, impressions</li>
+              </ul>
+            </article>
+          </section>
+
+          <section class="validation-panel">
+            <div>
+              <p class="eyebrow">Step 2</p>
+              <h3>Validation status</h3>
+              <p class="muted">Automated schema and data-quality checks run before dashboard loading.</p>
+            </div>
+            <ul class="validation-list">
+              <li><span class="status ok"></span> File structure check passed for 2/3 sources</li>
+              <li><span class="status warn"></span> Missing subsystem tag in 114 error rows</li>
+              <li><span class="status pending"></span> Availability shift mapping pending review</li>
+              <li><span class="status ok"></span> Duplicate job IDs normalized successfully</li>
+            </ul>
+            <button class="primary large">Load Dashboard</button>
+          </section>
+        </section>
+
+        <section class="screen" id="dashboard" aria-label="Main dashboard screen">
+          <section class="hero hero-dashboard">
+            <div>
+              <p class="eyebrow">Operational Status · Stable with Active Risk</p>
+              <h1>Press line is delivering 92.4% availability with recurring feeder interruptions.</h1>
+              <p>
+                Top issue: Feeder vacuum fault (ERR-FD-17) increased 18% week-over-week.
+                Most affected asset: Press P-204 during second shift.
+              </p>
+            </div>
+            <div class="hero-meta">
+              <p><span class="muted">Affected press</span><strong>P-204</strong></p>
+              <p><span class="muted">Downtime today</span><strong>2h 14m</strong></p>
+              <p><span class="muted">Risk level</span><strong>Medium</strong></p>
+            </div>
+          </section>
+
+          <section class="kpi-strip" aria-label="Key metrics">
+            <article class="kpi primary-kpi">
+              <p class="label">Availability</p>
+              <p class="value">92.4%</p>
+              <p class="meta">+1.2 pts vs last 14 days</p>
+            </article>
+            <article class="kpi">
+              <p class="label">Unplanned Downtime</p>
+              <p class="value">6h 38m</p>
+              <p class="meta">-42m vs prior period</p>
+            </article>
+            <article class="kpi">
+              <p class="label">Total Volume</p>
+              <p class="value">4.86M</p>
+              <p class="meta">impressions this period</p>
+            </article>
+            <article class="kpi">
+              <p class="label">Recurring Errors</p>
+              <p class="value">37</p>
+              <p class="meta">5 error families repeated</p>
+            </article>
+            <article class="kpi">
+              <p class="label">Subsystem Health</p>
+              <p class="value">88/100</p>
+              <p class="meta">Feeder and dryer below target</p>
+            </article>
+          </section>
+
+          <section class="insight-grid">
+            <article class="panel panel-large">
+              <div class="panel-head">
+                <h3>Availability trend by press</h3>
+                <p class="muted">Last 14 operational days</p>
+              </div>
+              <div class="chart-placeholder bars" aria-hidden="true">
+                <span style="--v: 72%"></span>
+                <span style="--v: 84%"></span>
+                <span style="--v: 68%"></span>
+                <span style="--v: 90%"></span>
+                <span style="--v: 76%"></span>
+                <span style="--v: 88%"></span>
+                <span style="--v: 82%"></span>
+                <span style="--v: 94%"></span>
+                <span style="--v: 79%"></span>
+                <span style="--v: 86%"></span>
+                <span style="--v: 91%"></span>
+                <span style="--v: 87%"></span>
+              </div>
+            </article>
+
+            <article class="panel">
+              <h3>Top recurring errors</h3>
+              <ul class="list">
+                <li><strong>ERR-FD-17</strong><span>Feeder vacuum instability · 42 events</span></li>
+                <li><strong>ERR-DR-08</strong><span>Dryer temp drift · 28 events</span></li>
+                <li><strong>ERR-IN-22</strong><span>Ink pressure variance · 21 events</span></li>
+              </ul>
+            </article>
+
+            <article class="panel">
+              <h3>Subsystem downtime split</h3>
+              <div class="chart-placeholder lines" aria-hidden="true"></div>
+            </article>
+
+            <article class="panel exec-summary">
+              <h3>Executive summary</h3>
+              <p>
+                Overall output remains on plan, but repeated feeder faults are compressing second-shift throughput.
+                If unresolved, projected weekly volume risk is 3.1% below target. Prioritize feeder vacuum calibration
+                and pre-shift valve checks on P-204 and P-198.
+              </p>
+            </article>
+
+            <article class="panel events">
+              <h3>Recent insights</h3>
+              <ul class="events-list">
+                <li><span>10:42</span><p>P-204 triggered ERR-FD-17 for the fourth time this shift.</p></li>
+                <li><span>09:18</span><p>Availability recovered to 94% after operator reset sequence.</p></li>
+                <li><span>07:50</span><p>Validation model flagged likely recurrence on feeder subsystem.</p></li>
+              </ul>
+            </article>
+          </section>
+
+          <section class="table-section">
+            <div class="panel-head">
+              <h3>Press incident records</h3>
+              <p class="muted">Most recent validated events</p>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th>Time</th>
+                  <th>Press</th>
+                  <th>Subsystem</th>
+                  <th>Error</th>
+                  <th>Downtime</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>10:42</td>
+                  <td>P-204</td>
+                  <td>Feeder</td>
+                  <td>ERR-FD-17</td>
+                  <td>18m</td>
+                  <td><span class="tag warn">Investigating</span></td>
+                </tr>
+                <tr>
+                  <td>09:31</td>
+                  <td>P-198</td>
+                  <td>Dryer</td>
+                  <td>ERR-DR-08</td>
+                  <td>11m</td>
+                  <td><span class="tag">Resolved</span></td>
+                </tr>
+                <tr>
+                  <td>08:56</td>
+                  <td>P-204</td>
+                  <td>Ink System</td>
+                  <td>ERR-IN-22</td>
+                  <td>7m</td>
+                  <td><span class="tag">Resolved</span></td>
+                </tr>
+                <tr>
+                  <td>07:43</td>
+                  <td>P-201</td>
+                  <td>Transport</td>
+                  <td>ERR-TP-03</td>
+                  <td>22m</td>
+                  <td><span class="tag warn">Monitoring</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </section>
+        </section>
+      </main>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+</html>
