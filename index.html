@@ -294,6 +294,12 @@
         <div class="micro">Ranked by accumulated downtime.</div><div class="chart-area"><canvas id="pressChart"></canvas></div>
       </article>
 
+      <article class="card span-6">
+        <div class="chart-head"><h3>Press Impact Scatter</h3></div>
+        <div class="micro" id="pressImpactScatterNote">X-axis: total events • Y-axis: total duration (hh:mm:ss) • Color: avg duration impact.</div>
+        <div class="chart-area"><canvas id="pressImpactScatterChart"></canvas></div>
+      </article>
+
       <article class="card span-6" data-rank-card="subsystem">
         <div class="chart-head"><h3>Top Subsystems</h3><div class="chart-tools"><select data-metric="subsystem" class="select"><option value="events">By events</option><option value="downtime">By downtime</option><option value="normalized">By events/volume</option></select><button class="btn secondary" data-expand="subsystem">Show all</button></div></div>
         <div class="micro">Metric source shown dynamically by mode.</div><div class="chart-area"><canvas id="subsystemChart"></canvas></div>
@@ -2515,6 +2521,59 @@
     };
   }
 
+  function getAvgDurationTone(avgDurationSeconds) {
+    if (!Number.isFinite(avgDurationSeconds) || avgDurationSeconds <= 120) return { label: 'low', color: '#57c98a' };
+    if (avgDurationSeconds <= 420) return { label: 'medium', color: '#f0b165' };
+    return { label: 'high', color: '#f36b63' };
+  }
+
+  function buildValidatedPressImpactRows(errorsAgg = []) {
+    const byPress = new Map();
+    const seenRows = new Set();
+    const diagnostics = { nullDurationRows: 0, negativeDurationRows: 0, duplicateRows: 0, acceptedRows: 0 };
+
+    (errorsAgg || []).forEach((row, idx) => {
+      if (!row) return;
+      const rowKey = String(row.key || `${row.canonicalPress || row.press || 'Unspecified'}|${row.day || ''}|${idx}`);
+      if (seenRows.has(rowKey)) {
+        diagnostics.duplicateRows += 1;
+        return;
+      }
+      seenRows.add(rowKey);
+      const pressName = row.canonicalPress || row.press || 'Unspecified';
+      const slot = byPress.get(pressName) || { name: pressName, totalEvents: 0, totalDurationSeconds: 0 };
+      const totalEvents = Number(row.totalEvents || 0);
+      slot.totalEvents += Number.isFinite(totalEvents) && totalEvents > 0 ? totalEvents : 0;
+
+      const durationValue = row.totalErrorDurationSeconds;
+      if (durationValue == null) diagnostics.nullDurationRows += 1;
+      const parsedDuration = Number(durationValue);
+      if (Number.isFinite(parsedDuration) && parsedDuration >= 0) {
+        slot.totalDurationSeconds += parsedDuration;
+        diagnostics.acceptedRows += 1;
+      } else if (Number.isFinite(parsedDuration) && parsedDuration < 0) {
+        diagnostics.negativeDurationRows += 1;
+      } else if (durationValue != null) {
+        diagnostics.nullDurationRows += 1;
+      }
+
+      byPress.set(pressName, slot);
+    });
+
+    const rows = [...byPress.values()].map(slot => {
+      const avgDurationSeconds = slot.totalEvents > 0 ? (slot.totalDurationSeconds / slot.totalEvents) : 0;
+      return {
+        ...slot,
+        events: slot.totalEvents,
+        downtime: slot.totalDurationSeconds,
+        avgDurationSeconds,
+        avgDuration: avgDurationSeconds,
+      };
+    });
+
+    return { rows, diagnostics };
+  }
+
   function buildMetricRankings(sourceScope, filteredRows, key, errorEvents = []) {
     const { errorsAgg = [], availabilityAgg = [], volumeAgg = [] } = sourceScope || {};
     const metric = STATE.metricByChart[key];
@@ -2531,19 +2590,18 @@
       return 'Unspecified';
     };
     if (key === 'press') {
-      errorsAgg.forEach(r => {
-        const pressName = r.canonicalPress || 'Unspecified';
-        const current = baseMap.get(pressName) || { events: 0, totalEvents: 0, totalDurationSeconds: 0 };
-        const totalEvents = current.totalEvents + (r.totalEvents || 0);
-        const totalDurationSeconds = current.totalDurationSeconds + (r.totalErrorDurationSeconds || 0);
-        const avgDurationSeconds = totalEvents > 0 ? (totalDurationSeconds / totalEvents) : 0;
-        add(pressName, {
-          events: totalEvents,
-          downtime: totalDurationSeconds,
-          avgDuration: avgDurationSeconds,
-          totalEvents,
-          totalDurationSeconds,
-          avgDurationSeconds
+      const { rows: validatedPressRows, diagnostics } = buildValidatedPressImpactRows(errorsAgg);
+      if (diagnostics.nullDurationRows || diagnostics.negativeDurationRows || diagnostics.duplicateRows) {
+        console.warn('[press-impact-duration-validation]', diagnostics);
+      }
+      validatedPressRows.forEach(r => {
+        add(r.name, {
+          events: r.totalEvents,
+          downtime: r.totalDurationSeconds,
+          avgDuration: r.avgDurationSeconds,
+          totalEvents: r.totalEvents,
+          totalDurationSeconds: r.totalDurationSeconds,
+          avgDurationSeconds: r.avgDurationSeconds
         });
       });
       volumeAgg.forEach(r => {
@@ -2590,7 +2648,9 @@
   function renderRankingChart(key, items) {
     const metric = STATE.metricByChart[key];
     const expanded = STATE.expand[key];
-    const sorted = [...items].sort((a, b) => (b[metric] || 0) - (a[metric] || 0));
+    const sorted = key === 'press'
+      ? [...items].sort((a, b) => (b.totalDurationSeconds || b.downtime || 0) - (a.totalDurationSeconds || a.downtime || 0))
+      : [...items].sort((a, b) => (b[metric] || 0) - (a[metric] || 0));
     const view = expanded ? sorted : sorted.slice(0, 8);
     const isPressImpactChart = key === 'press';
     const baseMeta = metricMeta(metric);
@@ -2638,7 +2698,9 @@
         labels,
         datasets: [{
           data,
-          backgroundColor: view.map((_, i) => (isPressImpactChart && i === 0 && metric !== 'events') ? '#f0b165' : COLORS[i % COLORS.length]),
+          backgroundColor: view.map((row, i) => isPressImpactChart
+            ? getAvgDurationTone(row.avgDurationSeconds || row.avgDuration || 0).color
+            : COLORS[i % COLORS.length]),
           borderRadius: 6
         }]
       },
@@ -2715,6 +2777,90 @@
         first10Plotted: view.slice(0, 10).map((x, i) => ({ rank: i + 1, label: x.name, downtimeSeconds: Math.round(x.downtime || 0), downtimeClock: formatClockDuration(x.downtime || 0) }))
       });
     }
+  }
+
+  function renderPressImpactScatter(sourceScope) {
+    const { rows } = buildValidatedPressImpactRows(sourceScope?.errorsAgg || []);
+    const points = rows.map(row => ({
+      x: row.totalEvents || 0,
+      y: row.totalDurationSeconds || 0,
+      press: row.name,
+      totalEvents: row.totalEvents || 0,
+      totalDurationSeconds: row.totalDurationSeconds || 0,
+      avgDurationSeconds: row.avgDurationSeconds || 0,
+      ...getAvgDurationTone(row.avgDurationSeconds || 0)
+    }));
+    const plotted = points.filter(point => Number.isFinite(point.x) && Number.isFinite(point.y) && (point.x > 0 || point.y > 0));
+    if (!plotted.length) {
+      showNoDataChart('pressImpactScatterChart', 'No press impact points for current filters.');
+      return [];
+    }
+    const avgEvents = plotted.reduce((sum, point) => sum + point.x, 0) / plotted.length;
+    const avgDurationSecondsGlobal = plotted.reduce((sum, point) => sum + (point.avgDurationSeconds || 0), 0) / plotted.length;
+    const highlighted = plotted
+      .filter(point => point.x <= avgEvents && (point.avgDurationSeconds || 0) > avgDurationSecondsGlobal)
+      .map(point => point.press);
+    replaceChart('pressImpactScatterChart', {
+      type: 'scatter',
+      data: {
+        datasets: [{
+          label: 'Press impact',
+          data: plotted,
+          pointRadius: ctx => {
+            const row = plotted[ctx.dataIndex];
+            return highlighted.includes(row.press) ? 8 : 6;
+          },
+          pointHoverRadius: 9,
+          pointBackgroundColor: plotted.map(point => point.color),
+          pointBorderColor: plotted.map(point => highlighted.includes(point.press) ? '#ffffff' : 'rgba(255,255,255,.35)'),
+          pointBorderWidth: plotted.map(point => highlighted.includes(point.press) ? 1.6 : 1),
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              title: ctx => ctx?.[0]?.raw?.press || 'Unspecified',
+              label: ctx => {
+                const raw = ctx.raw || {};
+                return [
+                  `Total Events: ${Number(raw.totalEvents || 0).toLocaleString()}`,
+                  `Total Duration: ${formatClockDuration(raw.totalDurationSeconds || 0)}`,
+                  `Avg Duration: ${formatClockDuration(raw.avgDurationSeconds || 0)}`
+                ];
+              }
+            }
+          }
+        },
+        scales: {
+          x: {
+            title: { display: true, text: 'Total Events', color: '#c6d3ea' },
+            ticks: { color: '#c6d3ea' },
+            grid: { color: 'rgba(255,255,255,.08)' },
+            beginAtZero: true
+          },
+          y: {
+            title: { display: true, text: 'Total Duration (hh:mm:ss)', color: '#c6d3ea' },
+            ticks: {
+              color: '#c6d3ea',
+              callback: value => formatClockDuration(Number(value))
+            },
+            grid: { color: 'rgba(255,255,255,.08)' },
+            beginAtZero: true
+          }
+        }
+      }
+    });
+    const note = document.getElementById('pressImpactScatterNote');
+    if (note) {
+      note.textContent = highlighted.length
+        ? `Highlighted ${highlighted.length} low-event / high-duration presses. Color indicates avg duration impact (green low, yellow medium, red high).`
+        : 'No low-event high-duration outliers in current scope. Color indicates avg duration impact (green low, yellow medium, red high).';
+    }
+    return plotted;
   }
 
   function renderTable(rows) {
@@ -3600,6 +3746,7 @@
       }
     };
     const pressRankings = safeRankingRender('press');
+    const pressImpactScatterRows = renderPressImpactScatter(sourceScope);
     const subsystemRankings = safeRankingRender('subsystem');
     const alertRankings = safeRankingRender('alert');
     const versionRankings = safeRankingRender('version');
@@ -3669,13 +3816,17 @@
         subsystemChartTop: (subsystemRankings[0]?.name || 'N/A'),
         alertSummaryTop: STATE.merged.summary?.topAlert?.name || 'N/A',
         alertChartTop: (alertRankings[0]?.name || 'N/A')
-      }
+      },
+      pressImpactScatter: {
+        points: pressImpactScatterRows.length,
+        highestDurationPoint: pressImpactScatterRows.slice().sort((a, b) => (b.totalDurationSeconds || 0) - (a.totalDurationSeconds || 0))[0]?.press || 'N/A'
+      },
     });
       renderDashboardStatusPanel(sourceScope, mismatches, STATE.reconciliation.report);
       renderTable(STATE.filtered);
     } catch (error) {
       console.error('[dashboard-render-failure]', error);
-      ['pressChart', 'subsystemChart', 'alertChart', 'versionChart', 'customerVolumeChart'].forEach(id => setCanvasState(id, `Failed to render ${id}.`, 'error'));
+      ['pressChart', 'pressImpactScatterChart', 'subsystemChart', 'alertChart', 'versionChart', 'customerVolumeChart'].forEach(id => setCanvasState(id, `Failed to render ${id}.`, 'error'));
     }
   }
 
