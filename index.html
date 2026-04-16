@@ -110,20 +110,16 @@
     .press-hero-metric { border:1px solid rgba(255,255,255,.08); border-radius:10px; padding:9px; background:rgba(0,0,0,.16); }
     .press-hero-metric .k { font-size:.68rem; }
     .press-hero-metric .v { margin-top:4px; font-size:.95rem; }
-    .press-analytics-grid { display:grid; grid-template-columns: 1.4fr .8fr; gap:14px; align-items:start; }
+    .press-analytics-grid { display:grid; grid-template-columns: 1.3fr .7fr; gap:14px; align-items:start; }
     .press-side-stack { display:grid; gap:10px; }
     .press-panel { border:1px solid rgba(255,255,255,.1); border-radius:12px; padding:12px; background:rgba(255,255,255,.02); }
     .press-panel-primary { padding:14px; }
     .press-chart-area { position:relative; height:320px; min-height:320px; }
     .press-chart-area.primary { height:420px; min-height:420px; }
-    .press-focus-toggle { display:flex; gap:8px; flex-wrap:wrap; margin-top:8px; }
-    .press-focus-btn { border:1px solid rgba(255,255,255,.16); border-radius:999px; background:rgba(255,255,255,.02); color:#dce6f7; padding:5px 12px; font-size:.8rem; cursor:pointer; }
-    .press-focus-btn.active { background:rgba(123,141,255,.26); border-color:rgba(143,211,255,.68); color:#f3f8ff; }
-    .outlier-list { margin:8px 0 0; display:grid; gap:7px; max-height:320px; overflow:auto; }
-    .outlier-row { border:1px solid rgba(255,255,255,.12); border-radius:10px; padding:9px; display:grid; grid-template-columns:1fr auto; gap:8px; background:rgba(0,0,0,.15); }
-    .outlier-row strong { font-size:.9rem; }
-    .outlier-row .meta { color:#b9c9e1; font-size:.78rem; margin-top:5px; }
-    .outlier-score { color:#ffd8b2; font-size:.78rem; border:1px solid rgba(240,177,101,.55); border-radius:999px; padding:2px 8px; align-self:start; }
+    .zone-list { margin:8px 0 0; display:grid; gap:8px; max-height:420px; overflow:auto; }
+    .zone-row { border:1px solid rgba(255,255,255,.1); border-radius:10px; padding:10px; background:rgba(255,255,255,.02); }
+    .zone-row strong { font-size:.84rem; letter-spacing:.05em; text-transform:uppercase; }
+    .zone-row .meta { color:#b9c9e1; font-size:.79rem; margin-top:6px; line-height:1.35; }
     .chart-empty-state { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; text-align:center; color:var(--muted); font-size:.86rem; padding:14px; background:rgba(12,17,25,.35); border:1px dashed rgba(255,255,255,.14); border-radius:10px; pointer-events:none; }
     .micro { color:var(--muted); font-size:.82rem; margin:6px 0 8px; }
     .dashboard-status { margin-bottom:12px; border:1px solid var(--border); border-radius:12px; padding:12px; background:rgba(255,255,255,.02); }
@@ -205,7 +201,7 @@
     .summary-preview{border:1px solid var(--border);background:#fff;border-radius:10px;padding:10px;max-height:420px;overflow:auto}
     .summary-preview iframe{width:100%;height:380px;border:0}
 
-    @media(max-width:1000px){ .kpis{grid-template-columns:repeat(2,minmax(140px,1fr));}.topbar{grid-template-columns:1fr}.span-6,.span-4,.span-8,.span-3{grid-column:span 12}.file-row{grid-template-columns:1fr} .file-state{justify-content:flex-start}.press-analytics-grid{grid-template-columns:1fr}.press-chart-area{height:280px;min-height:280px;}.press-chart-area.primary{height:320px;min-height:320px;} }
+    @media(max-width:1000px){ .kpis{grid-template-columns:repeat(2,minmax(140px,1fr));}.topbar{grid-template-columns:1fr}.span-6,.span-4,.span-8,.span-3{grid-column:span 12}.file-row{grid-template-columns:1fr} .file-state{justify-content:flex-start}.press-analytics-grid{grid-template-columns:1fr}.press-chart-area{height:280px;min-height:280px;}.press-chart-area.primary{height:340px;min-height:340px;} }
     @media(max-width:760px){ .summary-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr));}.exec-signal-card,.exec-story-card,.exec-insight-card,.exec-action-card{grid-column:span 12;} }
   </style>
 </head>
@@ -320,25 +316,15 @@
           <article id="pressHeroInsight" class="press-hero"></article>
           <div class="press-analytics-grid">
             <article class="press-panel press-panel-primary">
-              <div class="chart-head"><h3>Press Impact Scatter</h3></div>
-              <div class="micro" id="pressScatterNote">X-axis: total events • Y-axis: average duration per event. Dotted lines show fleet averages.</div>
-              <div class="press-focus-toggle" id="pressFocusToggle">
-                <button type="button" class="press-focus-btn active" data-press-focus="duration">Duration</button>
-                <button type="button" class="press-focus-btn" data-press-focus="events">Events</button>
-                <button type="button" class="press-focus-btn" data-press-focus="avgDuration">Avg Duration</button>
-              </div>
+              <div class="chart-head"><h3>Press Impact Matrix</h3></div>
+              <div class="micro" id="pressScatterNote">X-axis: total events • Y-axis: total duration. Zones: Critical, Inefficient, Stable, Noisy.</div>
               <div class="press-chart-area primary"><canvas id="pressImpactScatterChart"></canvas></div>
             </article>
             <div class="press-side-stack">
               <article class="press-panel">
-                <div class="chart-head"><h3 id="pressTopListHeading">Top Downtime Presses</h3></div>
-                <div class="micro" id="pressTopListNote">Top 5 presses by downtime in current scope.</div>
-                <div class="press-chart-area" style="height:190px;min-height:190px;"><canvas id="pressTopMetricChart"></canvas></div>
-              </article>
-              <article class="press-panel">
-                <div class="chart-head"><h3>Top 5 Outliers</h3></div>
-                <div class="micro">Only abnormal presses, limited to the highest impact signals.</div>
-                <div id="pressOutliersList" class="outlier-list" style="max-height:200px;"></div>
+                <div class="chart-head"><h3>Zone Highlights</h3></div>
+                <div class="micro">Fast read of the strongest presses in each impact zone.</div>
+                <div id="pressOutliersList" class="zone-list"></div>
               </article>
             </div>
           </div>
@@ -445,7 +431,6 @@
     lastRunSnapshot: null,
     expand: { press: false, subsystem: false, alert: false, version: false },
     metricByChart: { press: 'downtime', subsystem: 'events', alert: 'events', version: 'events' },
-    pressFocusMetric: 'duration',
     customerVolumeMetric: 'productionPrintedSheets',
     customerVolumeSort: 'desc',
     customerVolumeExpanded: false,
@@ -1450,7 +1435,6 @@
     const state = {
       filters: currentFilterValues(),
       metrics: STATE.metricByChart,
-      pressFocusMetric: STATE.pressFocusMetric,
       volumeMetric: STATE.customerVolumeMetric,
       volumeSort: STATE.customerVolumeSort,
       simExclusions: [...(STATE.drilldown?.simulation?.appliedExcluded || [])],
@@ -1489,7 +1473,6 @@
         if (STATE.metricByChart[key]) sel.value = STATE.metricByChart[key];
       });
     }
-    if (state.pressFocusMetric) STATE.pressFocusMetric = state.pressFocusMetric;
     if (state.volumeMetric) {
       STATE.customerVolumeMetric = state.volumeMetric;
       if (customerVolumeUnit) customerVolumeUnit.value = state.volumeMetric;
@@ -2781,7 +2764,7 @@
           data,
           backgroundColor: view.map((row, i) => isPressImpactChart
             ? (row.impactColor || deriveImpactTier(row).color)
-            : COLORS[i % COLORS.length]),
+            : 'rgba(123,141,255,.62)'),
           borderRadius: 6
         }]
       },
@@ -2797,7 +2780,7 @@
               ...baseOptions(key, labels, payloads).scales.x.ticks,
               callback: value => {
                 if (isPressImpactChart && (metric === 'downtime' || metric === 'avgDuration')) return formatClockDuration(Number(value));
-                return value;
+                return isPressImpactChart ? value : (labels[value] ?? value);
               }
             }
           },
@@ -2879,26 +2862,33 @@
   }
 
   function buildPressAbnormalityModel(pressRows = []) {
-    const eligibleRows = [...(pressRows || [])].filter(row => Number.isFinite(row.avgDurationSeconds) && row.avgDurationSeconds >= 0 && Number.isFinite(row.totalDurationSeconds) && row.totalDurationSeconds >= 0);
+    const eligibleRows = [...(pressRows || [])].filter(row => Number.isFinite(row.totalEvents) && row.totalEvents >= 0 && Number.isFinite(row.totalDurationSeconds) && row.totalDurationSeconds >= 0);
     if (!eligibleRows.length) return { rows: [], outliers: [], topOutlier: null, averages: null };
-    const avgDuration = eligibleRows.reduce((sum, row) => sum + (row.avgDurationSeconds || 0), 0) / eligibleRows.length;
-    const avgTotalDuration = eligibleRows.reduce((sum, row) => sum + (row.totalDurationSeconds || 0), 0) / eligibleRows.length;
     const avgEvents = eligibleRows.reduce((sum, row) => sum + (row.totalEvents || 0), 0) / eligibleRows.length;
-    const durationSpread = Math.sqrt(eligibleRows.reduce((sum, row) => sum + Math.pow((row.avgDurationSeconds || 0) - avgDuration, 2), 0) / eligibleRows.length) || 1;
-    const withSeverity = eligibleRows.map(row => {
-      const zAvgDuration = ((row.avgDurationSeconds || 0) - avgDuration) / durationSpread;
-      const durationRatio = avgTotalDuration > 0 ? (row.totalDurationSeconds || 0) / avgTotalDuration : 0;
-      const eventsRatio = avgEvents > 0 ? (row.totalEvents || 0) / avgEvents : 0;
-      const severity = (Math.max(0, zAvgDuration) * 0.65) + (Math.max(0, durationRatio - 1) * 0.25) + (Math.max(0, eventsRatio - 1) * 0.1);
-      const abnormal = zAvgDuration >= 1.2 || durationRatio >= 1.8;
-      return { ...row, zAvgDuration, durationRatio, eventsRatio, severityScore: severity, abnormal };
+    const avgTotalDuration = eligibleRows.reduce((sum, row) => sum + (row.totalDurationSeconds || 0), 0) / eligibleRows.length;
+    const zoneMap = {
+      critical: { label: 'CRITICAL', color: '#ef6b64' },
+      inefficient: { label: 'INEFFICIENT', color: '#f0b165' },
+      stable: { label: 'STABLE', color: '#57c98a' },
+      noisy: { label: 'NOISY', color: '#7b8dff' }
+    };
+    const withZone = eligibleRows.map(row => {
+      const highEvents = (row.totalEvents || 0) >= avgEvents;
+      const highDuration = (row.totalDurationSeconds || 0) >= avgTotalDuration;
+      const zoneKey = !highEvents && highDuration ? 'critical'
+        : highEvents && highDuration ? 'inefficient'
+          : !highEvents && !highDuration ? 'stable'
+            : 'noisy';
+      const zone = zoneMap[zoneKey];
+      const severityScore = highDuration ? ((row.totalDurationSeconds || 0) / Math.max(1, avgTotalDuration)) : ((row.totalEvents || 0) / Math.max(1, avgEvents));
+      return { ...row, zoneKey, zoneLabel: zone.label, zoneColor: zone.color, severityScore };
     });
-    const outliers = withSeverity.filter(row => row.abnormal).sort((a, b) => (b.severityScore || 0) - (a.severityScore || 0));
+    const outliers = withZone.filter(row => row.zoneKey === 'critical' || row.zoneKey === 'inefficient').sort((a, b) => (b.severityScore || 0) - (a.severityScore || 0));
     return {
-      rows: withSeverity,
+      rows: withZone,
       outliers,
-      topOutlier: outliers[0] || withSeverity.slice().sort((a, b) => (b.severityScore || 0) - (a.severityScore || 0))[0] || null,
-      averages: { avgDuration, avgTotalDuration, avgEvents }
+      topOutlier: outliers[0] || withZone.slice().sort((a, b) => (b.severityScore || 0) - (a.severityScore || 0))[0] || null,
+      averages: { avgTotalDuration, avgEvents }
     };
   }
 
@@ -2914,12 +2904,12 @@
     host.innerHTML = `
       <div class="press-hero-kicker">Hero Insight</div>
       <h4 class="press-hero-title">${esc(top.name)}</h4>
-      <p class="press-hero-summary">${esc(top.name)} is the strongest anomaly: avg duration is ${top.avgDurationSeconds > averages.avgDuration ? `${(top.avgDurationSeconds / averages.avgDuration).toFixed(2)}×` : 'near'} fleet average, with total downtime ${top.totalDurationSeconds > averages.avgTotalDuration ? `${(top.totalDurationSeconds / averages.avgTotalDuration).toFixed(2)}×` : 'near'} baseline.</p>
+      <p class="press-hero-summary">${esc(top.name)} stands out in the ${esc(top.zoneLabel || 'CRITICAL')} zone, with ${Number(top.totalEvents || 0).toLocaleString()} events and ${formatClockDuration(top.totalDurationSeconds || 0)} total duration in the current scope.</p>
       <div class="press-hero-metrics">
         <div class="press-hero-metric"><div class="k">Total Duration</div><div class="v">${formatClockDuration(top.totalDurationSeconds || 0)}</div></div>
         <div class="press-hero-metric"><div class="k">Total Events</div><div class="v">${Number(top.totalEvents || 0).toLocaleString()}</div></div>
         <div class="press-hero-metric"><div class="k">Avg Duration / Event</div><div class="v">${formatClockDuration(top.avgDurationSeconds || 0)}</div></div>
-        <div class="press-hero-metric"><div class="k">Severity vs Avg</div><div class="v">${(top.severityScore || 0).toFixed(2)}</div></div>
+        <div class="press-hero-metric"><div class="k">Impact Zone</div><div class="v">${esc(top.zoneLabel || 'STABLE')}</div></div>
       </div>`;
   }
 
@@ -2930,22 +2920,36 @@
       return;
     }
     const avgEvents = model?.averages?.avgEvents || 0;
-    const avgDuration = model?.averages?.avgDuration || 0;
-    const highlighted = (model?.outliers || []).slice(0, 5);
-    const highlightNames = new Set(highlighted.map(row => row.name));
+    const avgTotalDuration = model?.averages?.avgTotalDuration || 0;
     const zonePlugin = {
       id: 'press-zone-labels',
       afterDraw(chart) {
         const { ctx, chartArea } = chart;
         if (!chartArea) return;
+        const midX = chartArea.left + ((chartArea.right - chartArea.left) / 2);
+        const midY = chartArea.top + ((chartArea.bottom - chartArea.top) / 2);
         ctx.save();
-        ctx.font = '12px Inter, system-ui, sans-serif';
-        ctx.fillStyle = 'rgba(243,107,99,.95)';
+        ctx.fillStyle = 'rgba(239,107,100,.08)';
+        ctx.fillRect(chartArea.left, chartArea.top, midX - chartArea.left, midY - chartArea.top);
+        ctx.fillStyle = 'rgba(240,177,101,.08)';
+        ctx.fillRect(midX, chartArea.top, chartArea.right - midX, midY - chartArea.top);
+        ctx.fillStyle = 'rgba(87,201,138,.08)';
+        ctx.fillRect(chartArea.left, midY, midX - chartArea.left, chartArea.bottom - midY);
+        ctx.fillStyle = 'rgba(123,141,255,.08)';
+        ctx.fillRect(midX, midY, chartArea.right - midX, chartArea.bottom - midY);
+        ctx.font = '700 11px Inter, system-ui, sans-serif';
+        ctx.fillStyle = 'rgba(243,222,220,.92)';
         ctx.textAlign = 'left';
         ctx.fillText('CRITICAL', chartArea.left + 10, chartArea.top + 18);
-        ctx.fillStyle = 'rgba(159,220,187,.92)';
+        ctx.fillStyle = 'rgba(247,226,201,.92)';
         ctx.textAlign = 'right';
-        ctx.fillText('LOW impact', chartArea.right - 10, chartArea.bottom - 8);
+        ctx.fillText('INEFFICIENT', chartArea.right - 10, chartArea.top + 18);
+        ctx.fillStyle = 'rgba(214,248,230,.92)';
+        ctx.textAlign = 'left';
+        ctx.fillText('STABLE', chartArea.left + 10, chartArea.bottom - 8);
+        ctx.fillStyle = 'rgba(218,224,255,.92)';
+        ctx.textAlign = 'right';
+        ctx.fillText('NOISY', chartArea.right - 10, chartArea.bottom - 8);
         ctx.restore();
       }
     };
@@ -2956,13 +2960,22 @@
           label: 'Presses',
           data: rows.map(row => ({
             x: row.totalEvents || 0,
-            y: row.avgDurationSeconds || 0,
+            y: row.totalDurationSeconds || 0,
             name: row.name,
-            totalDurationSeconds: row.totalDurationSeconds || 0
+            totalDurationSeconds: row.totalDurationSeconds || 0,
+            avgDurationSeconds: row.avgDurationSeconds || 0,
+            zoneLabel: row.zoneLabel,
+            zoneColor: row.zoneColor
           })),
-          pointRadius: ctx => highlightNames.has(ctx.raw?.name) ? 6 : 3,
-          pointHoverRadius: ctx => highlightNames.has(ctx.raw?.name) ? 7 : 4,
-          pointBackgroundColor: ctx => highlightNames.has(ctx.raw?.name) ? 'rgba(243,107,99,.92)' : 'rgba(183,198,222,.56)',
+          pointRadius: ctx => {
+            const avg = Number(ctx.raw?.avgDurationSeconds || 0);
+            return Math.max(4, Math.min(13, 4 + (avg / 120)));
+          },
+          pointHoverRadius: ctx => {
+            const avg = Number(ctx.raw?.avgDurationSeconds || 0);
+            return Math.max(6, Math.min(16, 6 + (avg / 120)));
+          },
+          pointBackgroundColor: ctx => ctx.raw?.zoneColor || 'rgba(183,198,222,.56)',
           pointBorderWidth: 0
         }]
       },
@@ -2976,7 +2989,12 @@
             callbacks: {
               label: ctx => {
                 const row = ctx.raw || {};
-                return `${row.name || 'Press'} • Events ${(row.x || 0).toLocaleString()} • Avg ${formatClockDuration(row.y || 0)} • Duration ${formatClockDuration(row.totalDurationSeconds || 0)}`;
+                return [
+                  `Press: ${row.name || 'Press'}`,
+                  `Total events: ${(row.x || 0).toLocaleString()}`,
+                  `Total duration: ${formatClockDuration(row.totalDurationSeconds || 0)}`,
+                  `Avg duration: ${formatClockDuration(row.avgDurationSeconds || 0)}`
+                ];
               }
             }
           },
@@ -2986,12 +3004,12 @@
           x: {
             title: { display: true, text: 'Total events', color: '#d6e2f8' },
             ticks: { color: '#c6d3ea', precision: 0 },
-            grid: { display: false }
+            grid: { color: 'rgba(255,255,255,.08)' }
           },
           y: {
-            title: { display: true, text: 'Avg duration per event', color: '#d6e2f8' },
+            title: { display: true, text: 'Total duration', color: '#d6e2f8' },
             ticks: { color: '#c6d3ea', callback: value => formatDurationCompact(value) },
-            grid: { display: false }
+            grid: { color: 'rgba(255,255,255,.08)' }
           }
         }
       },
@@ -3001,7 +3019,7 @@
           const { ctx, chartArea, scales } = chart;
           if (!chartArea) return;
           const x = scales.x.getPixelForValue(avgEvents);
-          const y = scales.y.getPixelForValue(avgDuration);
+          const y = scales.y.getPixelForValue(avgTotalDuration);
           ctx.save();
           ctx.setLineDash([6, 5]);
           ctx.strokeStyle = 'rgba(235,241,251,.65)';
@@ -3016,105 +3034,45 @@
           ctx.fillStyle = '#e9effb';
           ctx.font = '11px Inter, system-ui, sans-serif';
           ctx.fillText(`Avg events ${Math.round(avgEvents).toLocaleString()}`, x + 8, chartArea.top + 14);
-          ctx.fillText(`Avg duration ${formatDurationCompact(avgDuration)}`, chartArea.left + 8, y - 8);
-          ctx.restore();
-        },
-        afterDatasetsDraw(chart) {
-          const { ctx, scales } = chart;
-          ctx.save();
-          ctx.fillStyle = '#e5edfb';
-          ctx.font = '11px Inter, system-ui, sans-serif';
-          ctx.textAlign = 'left';
-          chart.data.datasets[0].data.forEach(point => {
-            if (!highlightNames.has(point.name)) return;
-            const px = scales.x.getPixelForValue(point.x);
-            const py = scales.y.getPixelForValue(point.y);
-            ctx.fillText(point.name, px + 8, py - 6);
-          });
+          ctx.fillText(`Avg duration ${formatDurationCompact(avgTotalDuration)}`, chartArea.left + 8, y - 8);
           ctx.restore();
         }
       }, zonePlugin]
     });
     const note = document.getElementById('pressScatterNote');
-    if (note) note.textContent = `Fleet averages: ${Math.round(avgEvents).toLocaleString()} events and ${formatClockDuration(avgDuration)} avg duration. Only top outliers are highlighted.`;
-  }
-
-  function renderPressTopMetricChart(model, focusMetric = 'duration') {
-    const rows = (model?.rows || []).slice();
-    const metricConfig = {
-      duration: { heading: 'Top Downtime Presses', note: 'Top 5 presses by total downtime in current scope.', value: row => row.totalDurationSeconds || 0, label: value => formatClockDuration(value), axis: 'Total downtime' },
-      events: { heading: 'Top Event Presses', note: 'Top 5 presses by event count in current scope.', value: row => row.totalEvents || 0, label: value => Number(value || 0).toLocaleString(), axis: 'Total events' },
-      avgDuration: { heading: 'Top Avg Duration Presses', note: 'Top 5 presses by average duration per event.', value: row => row.avgDurationSeconds || 0, label: value => formatClockDuration(value), axis: 'Avg duration / event' }
-    }[focusMetric] || { heading: 'Top Downtime Presses', note: 'Top 5 presses by total downtime in current scope.', value: row => row.totalDurationSeconds || 0, label: value => formatClockDuration(value), axis: 'Total downtime' };
-    const topRows = rows.sort((a, b) => metricConfig.value(b) - metricConfig.value(a)).slice(0, 5);
-    if (!topRows.length) {
-      showNoDataChart('pressTopMetricChart', 'No press rows available for top list.');
-      return;
-    }
-    replaceChart('pressTopMetricChart', {
-      type: 'bar',
-      data: {
-        labels: topRows.map(row => row.name),
-        datasets: [{
-          data: topRows.map(row => metricConfig.value(row)),
-          backgroundColor: 'rgba(123,141,255,.62)',
-          borderRadius: 6
-        }]
-      },
-      options: {
-        indexAxis: 'y',
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: {
-          legend: { display: false },
-          tooltip: { callbacks: { label: ctx => metricConfig.label(ctx.parsed.x) } }
-        },
-        scales: {
-          x: { title: { display: true, text: metricConfig.axis, color: '#d6e2f8' }, ticks: { color: '#c6d3ea' }, grid: { display: false } },
-          y: { ticks: { color: '#d6e2f8' }, grid: { display: false } }
-        }
-      },
-      plugins: [{
-        id: 'top-list-labels',
-        afterDatasetsDraw(chart) {
-          const { ctx } = chart;
-          const meta = chart.getDatasetMeta(0);
-          ctx.save();
-          ctx.fillStyle = '#dbe6f8';
-          ctx.font = '11px Inter, system-ui, sans-serif';
-          meta.data.forEach((bar, index) => {
-            const value = topRows[index] ? metricConfig.value(topRows[index]) : 0;
-            ctx.fillText(metricConfig.label(value), bar.x + 8, bar.y + 4);
-          });
-          ctx.restore();
-        }
-      }]
-    });
-    const heading = document.getElementById('pressTopListHeading');
-    const note = document.getElementById('pressTopListNote');
-    if (heading) heading.textContent = metricConfig.heading;
-    if (note) note.textContent = metricConfig.note;
-    document.querySelectorAll('[data-press-focus]').forEach(btn => {
-      btn.classList.toggle('active', btn.dataset.pressFocus === focusMetric);
-    });
+    if (note) note.textContent = `Matrix thresholds: ${Math.round(avgEvents).toLocaleString()} events and ${formatClockDuration(avgTotalDuration)} total duration (fleet averages). Dot size = avg duration.`;
   }
 
   function renderPressOutliersList(model) {
     const host = document.getElementById('pressOutliersList');
     if (!host) return;
-    const outliers = (model?.outliers || []).slice(0, 5);
-    if (!outliers.length) {
-      host.innerHTML = '<div class="micro">No abnormal presses in current scope.</div>';
+    const rows = model?.rows || [];
+    if (!rows.length) {
+      host.innerHTML = '<div class="micro">No presses available in current scope.</div>';
       return;
     }
-    host.innerHTML = outliers.map(row => `
-      <article class="outlier-row">
+    const priorities = [
+      { key: 'critical', label: 'CRITICAL', subtitle: 'Low events, high duration' },
+      { key: 'inefficient', label: 'INEFFICIENT', subtitle: 'High events, high duration' },
+      { key: 'noisy', label: 'NOISY', subtitle: 'High events, low duration' },
+      { key: 'stable', label: 'STABLE', subtitle: 'Low events, low duration' }
+    ];
+    host.innerHTML = priorities.map(zone => {
+      const top = rows
+        .filter(row => row.zoneKey === zone.key)
+        .sort((a, b) => (b.totalDurationSeconds || 0) - (a.totalDurationSeconds || 0))
+        .slice(0, 2);
+      const body = top.length
+        ? top.map(row => `${esc(row.name)} (${Number(row.totalEvents || 0).toLocaleString()} events, ${formatClockDuration(row.totalDurationSeconds || 0)})`).join('<br />')
+        : 'No presses in this zone.';
+      return `
+      <article class="zone-row">
         <div>
-          <strong>${esc(row.name)}</strong>
-          <div class="meta">Duration ${formatClockDuration(row.totalDurationSeconds || 0)} • Events ${Number(row.totalEvents || 0).toLocaleString()} • Avg ${formatClockDuration(row.avgDurationSeconds || 0)}</div>
+          <strong>${esc(zone.label)}</strong>
+          <div class="meta">${esc(zone.subtitle)}<br />${body}</div>
         </div>
-        <span class="outlier-score">Score ${(row.severityScore || 0).toFixed(2)}</span>
-      </article>`).join('');
+      </article>`;
+    }).join('');
   }
 
   function renderTable(rows) {
@@ -4006,7 +3964,6 @@
     const pressAbnormalityModel = buildPressAbnormalityModel(pressValidation.rows);
     renderPressHeroInsight(pressAbnormalityModel);
     renderPressImpactScatter(pressAbnormalityModel);
-    renderPressTopMetricChart(pressAbnormalityModel, STATE.pressFocusMetric);
     renderPressOutliersList(pressAbnormalityModel);
     const subsystemRankings = safeRankingRender('subsystem');
     const alertRankings = safeRankingRender('alert');
@@ -4088,7 +4045,7 @@
       renderTable(STATE.filtered);
     } catch (error) {
       console.error('[dashboard-render-failure]', error);
-      ['pressImpactScatterChart', 'pressTopMetricChart', 'subsystemChart', 'alertChart', 'versionChart', 'customerVolumeChart'].forEach(id => setCanvasState(id, `Failed to render ${id}.`, 'error'));
+      ['pressImpactScatterChart', 'subsystemChart', 'alertChart', 'versionChart', 'customerVolumeChart'].forEach(id => setCanvasState(id, `Failed to render ${id}.`, 'error'));
     }
   }
 
@@ -4667,11 +4624,6 @@
       STATE.metricByChart[key] = key === 'press' && e.target.value === 'normalized' ? 'downtime' : e.target.value;
       renderDashboard();
     }));
-    document.querySelectorAll('[data-press-focus]').forEach(btn => btn.addEventListener('click', () => {
-      STATE.pressFocusMetric = btn.dataset.pressFocus || 'duration';
-      renderDashboard();
-    }));
-
     const scheduleRender = () => {
       if (STATE.renderQueued) return;
       STATE.renderQueued = true;
