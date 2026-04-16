@@ -100,10 +100,24 @@
     .chart-head { display:flex; justify-content:space-between; align-items:center; gap:8px; }
     .chart-tools { display:flex; gap:8px; }
     .chart-area{position:relative;height:300px;min-height:300px}
-    .press-analysis-shell { padding:14px; background:linear-gradient(160deg, rgba(18,26,40,.96), rgba(14,21,33,.96)); border-color:rgba(173,194,229,.2); }
-    .press-impact-main { height:420px; min-height:420px; margin-top:4px; }
-    .press-analysis-grid { margin-top:12px; display:grid; grid-template-columns: 1.2fr .8fr; gap:10px; }
-    .press-analysis-child { padding:10px; background:rgba(255,255,255,.02); box-shadow:none; }
+    .press-analysis-shell { padding:18px; background:linear-gradient(160deg, rgba(16,22,34,.98), rgba(12,18,28,.98)); border-color:rgba(173,194,229,.2); }
+    .press-investigation-layout { display:grid; gap:12px; }
+    .press-hero { border:1px solid rgba(255,255,255,.1); border-radius:12px; padding:14px; background:rgba(255,255,255,.02); }
+    .press-hero-kicker { color:#9db2cf; text-transform:uppercase; letter-spacing:.09em; font-size:.72rem; }
+    .press-hero-title { margin:6px 0 0; font-size:1.2rem; font-weight:730; }
+    .press-hero-summary { margin:8px 0 0; color:#dce6f7; line-height:1.45; font-size:.9rem; }
+    .press-hero-metrics { margin-top:11px; display:grid; grid-template-columns:repeat(4,minmax(120px,1fr)); gap:8px; }
+    .press-hero-metric { border:1px solid rgba(255,255,255,.08); border-radius:10px; padding:9px; background:rgba(0,0,0,.16); }
+    .press-hero-metric .k { font-size:.68rem; }
+    .press-hero-metric .v { margin-top:4px; font-size:.95rem; }
+    .press-analytics-grid { display:grid; grid-template-columns: 1.15fr .85fr; gap:10px; }
+    .press-panel { border:1px solid rgba(255,255,255,.1); border-radius:12px; padding:12px; background:rgba(255,255,255,.02); }
+    .press-chart-area { position:relative; height:320px; min-height:320px; }
+    .outlier-list { margin:8px 0 0; display:grid; gap:7px; max-height:320px; overflow:auto; }
+    .outlier-row { border:1px solid rgba(255,255,255,.12); border-radius:10px; padding:9px; display:grid; grid-template-columns:1fr auto; gap:8px; background:rgba(0,0,0,.15); }
+    .outlier-row strong { font-size:.9rem; }
+    .outlier-row .meta { color:#b9c9e1; font-size:.78rem; margin-top:5px; }
+    .outlier-score { color:#ffd8b2; font-size:.78rem; border:1px solid rgba(240,177,101,.55); border-radius:999px; padding:2px 8px; align-self:start; }
     .chart-empty-state { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; text-align:center; color:var(--muted); font-size:.86rem; padding:14px; background:rgba(12,17,25,.35); border:1px dashed rgba(255,255,255,.14); border-radius:10px; pointer-events:none; }
     .micro { color:var(--muted); font-size:.82rem; margin:6px 0 8px; }
     .dashboard-status { margin-bottom:12px; border:1px solid var(--border); border-radius:12px; padding:12px; background:rgba(255,255,255,.02); }
@@ -185,7 +199,7 @@
     .summary-preview{border:1px solid var(--border);background:#fff;border-radius:10px;padding:10px;max-height:420px;overflow:auto}
     .summary-preview iframe{width:100%;height:380px;border:0}
 
-    @media(max-width:1000px){ .kpis{grid-template-columns:repeat(2,minmax(140px,1fr));}.topbar{grid-template-columns:1fr}.span-6,.span-4,.span-8,.span-3{grid-column:span 12}.file-row{grid-template-columns:1fr} .file-state{justify-content:flex-start}.press-analysis-grid{grid-template-columns:1fr}.press-impact-main{height:360px;min-height:360px;} }
+    @media(max-width:1000px){ .kpis{grid-template-columns:repeat(2,minmax(140px,1fr));}.topbar{grid-template-columns:1fr}.span-6,.span-4,.span-8,.span-3{grid-column:span 12}.file-row{grid-template-columns:1fr} .file-state{justify-content:flex-start}.press-analytics-grid{grid-template-columns:1fr}.press-chart-area{height:280px;min-height:280px;} }
     @media(max-width:760px){ .summary-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr));}.exec-signal-card,.exec-story-card,.exec-insight-card,.exec-action-card{grid-column:span 12;} }
   </style>
 </head>
@@ -294,20 +308,26 @@
 
     <main class="grid">
       <article class="card span-12 press-analysis-shell">
-        <div class="chart-head"><h3>Press Impact Map</h3></div>
-        <div class="micro" id="pressImpactScatterNote">X-axis: total events • Y-axis: total duration • Bubble size: avg duration per event • Color: impact tier.</div>
+        <div class="chart-head"><h3>Press Abnormality Investigation</h3></div>
         <div class="micro" id="pressValidationNote">Validating scoped duration data before render…</div>
-        <div class="chart-area press-impact-main"><canvas id="pressImpactScatterChart"></canvas></div>
-        <div class="press-analysis-grid">
-          <article class="card press-analysis-child" data-rank-card="press">
-            <div class="chart-head"><h3>Highest Downtime Exposure</h3><div class="chart-tools"><select data-metric="press" class="select"><option value="downtime" selected>Duration</option><option value="events">Events</option><option value="avgDuration">Avg Duration</option></select><button class="btn secondary" data-expand="press">Show all</button></div></div>
-            <div class="micro">Ranked presses with tier-based color and formatted duration labels.</div>
-            <div class="chart-area" style="height:280px;min-height:280px;"><canvas id="pressChart"></canvas></div>
-          </article>
-          <article class="card press-analysis-child">
-            <div class="chart-head"><h3>Avg Recovery Burden</h3></div>
-            <div class="micro">Highest average duration per event across presses.</div>
-            <div class="chart-area" style="height:280px;min-height:280px;"><canvas id="pressAvgBurdenChart"></canvas></div>
+        <section class="press-investigation-layout">
+          <article id="pressHeroInsight" class="press-hero"></article>
+          <div class="press-analytics-grid">
+            <article class="press-panel">
+              <div class="chart-head"><h3>Duration Distribution</h3></div>
+              <div class="micro" id="pressDistributionNote">X-axis: avg duration per event • Y-axis: count of presses.</div>
+              <div class="press-chart-area"><canvas id="pressDistributionChart"></canvas></div>
+            </article>
+            <article class="press-panel">
+              <div class="chart-head"><h3>Outlier Presses</h3></div>
+              <div class="micro">Only abnormal presses, sorted by severity score.</div>
+              <div id="pressOutliersList" class="outlier-list"></div>
+            </article>
+          </div>
+          <article class="press-panel">
+            <div class="chart-head"><h3>Normalized Comparison vs Fleet Average</h3></div>
+            <div class="micro">All presses shown as index values where 1.00 = fleet average.</div>
+            <div class="press-chart-area"><canvas id="pressNormalizedComparisonChart"></canvas></div>
           </article>
         </div>
       </article>
@@ -2842,146 +2862,162 @@
     note.textContent = `${statusPrefix} ${checkSummary}`;
   }
 
-  function renderPressImpactScatter(sourceScope, validatedRows = null, diagnostics = null) {
-    const localValidation = validatedRows ? { rows: validatedRows, diagnostics: diagnostics || {} } : buildValidatedPressImpactRows(sourceScope?.errorsAgg || []);
-    const rows = localValidation.rows || [];
-    renderPressValidationNote(localValidation.diagnostics || {});
-    const points = rows.map(row => ({
-      x: row.totalEvents || 0,
-      y: row.totalDurationSeconds || 0,
-      press: row.name,
-      totalEvents: row.totalEvents || 0,
-      totalDurationSeconds: row.totalDurationSeconds || 0,
-      avgDurationSeconds: row.avgDurationSeconds || 0,
-      impactTier: row.impactTier || deriveImpactTier(row).tier,
-      color: row.impactColor || deriveImpactTier(row).color
-    }));
-    const plotted = points.filter(point => Number.isFinite(point.x) && Number.isFinite(point.y) && (point.x > 0 || point.y > 0));
-    if (!plotted.length) {
-      showNoDataChart('pressImpactScatterChart', 'No press impact points for current filters.');
-      return [];
+  function buildPressAbnormalityModel(pressRows = []) {
+    const eligibleRows = [...(pressRows || [])].filter(row => Number.isFinite(row.avgDurationSeconds) && row.avgDurationSeconds >= 0 && Number.isFinite(row.totalDurationSeconds) && row.totalDurationSeconds >= 0);
+    if (!eligibleRows.length) return { rows: [], outliers: [], topOutlier: null, averages: null };
+    const avgDuration = eligibleRows.reduce((sum, row) => sum + (row.avgDurationSeconds || 0), 0) / eligibleRows.length;
+    const avgTotalDuration = eligibleRows.reduce((sum, row) => sum + (row.totalDurationSeconds || 0), 0) / eligibleRows.length;
+    const avgEvents = eligibleRows.reduce((sum, row) => sum + (row.totalEvents || 0), 0) / eligibleRows.length;
+    const durationSpread = Math.sqrt(eligibleRows.reduce((sum, row) => sum + Math.pow((row.avgDurationSeconds || 0) - avgDuration, 2), 0) / eligibleRows.length) || 1;
+    const withSeverity = eligibleRows.map(row => {
+      const zAvgDuration = ((row.avgDurationSeconds || 0) - avgDuration) / durationSpread;
+      const durationRatio = avgTotalDuration > 0 ? (row.totalDurationSeconds || 0) / avgTotalDuration : 0;
+      const eventsRatio = avgEvents > 0 ? (row.totalEvents || 0) / avgEvents : 0;
+      const severity = (Math.max(0, zAvgDuration) * 0.65) + (Math.max(0, durationRatio - 1) * 0.25) + (Math.max(0, eventsRatio - 1) * 0.1);
+      const abnormal = zAvgDuration >= 1.2 || durationRatio >= 1.8;
+      return { ...row, zAvgDuration, durationRatio, eventsRatio, severityScore: severity, abnormal };
+    });
+    const outliers = withSeverity.filter(row => row.abnormal).sort((a, b) => (b.severityScore || 0) - (a.severityScore || 0));
+    return {
+      rows: withSeverity,
+      outliers,
+      topOutlier: outliers[0] || withSeverity.slice().sort((a, b) => (b.severityScore || 0) - (a.severityScore || 0))[0] || null,
+      averages: { avgDuration, avgTotalDuration, avgEvents }
+    };
+  }
+
+  function renderPressHeroInsight(model) {
+    const host = document.getElementById('pressHeroInsight');
+    if (!host) return;
+    const top = model?.topOutlier;
+    const averages = model?.averages;
+    if (!top || !averages) {
+      host.innerHTML = '<div class="press-hero-kicker">Hero Insight</div><p class="press-hero-summary">No abnormal press signal available in current scope.</p>';
+      return;
     }
-    const avgEvents = plotted.reduce((sum, point) => sum + point.x, 0) / plotted.length;
-    const avgDurationSecondsGlobal = plotted.reduce((sum, point) => sum + (point.avgDurationSeconds || 0), 0) / plotted.length;
-    const highlighted = plotted
-      .filter(point => point.x <= avgEvents && (point.avgDurationSeconds || 0) > avgDurationSecondsGlobal)
-      .map(point => point.press);
-    replaceChart('pressImpactScatterChart', {
-      type: 'scatter',
+    host.innerHTML = `
+      <div class="press-hero-kicker">Hero Insight</div>
+      <h4 class="press-hero-title">${esc(top.name)}</h4>
+      <p class="press-hero-summary">${esc(top.name)} is the strongest anomaly: avg duration is ${top.avgDurationSeconds > averages.avgDuration ? `${(top.avgDurationSeconds / averages.avgDuration).toFixed(2)}×` : 'near'} fleet average, with total downtime ${top.totalDurationSeconds > averages.avgTotalDuration ? `${(top.totalDurationSeconds / averages.avgTotalDuration).toFixed(2)}×` : 'near'} baseline.</p>
+      <div class="press-hero-metrics">
+        <div class="press-hero-metric"><div class="k">Total Duration</div><div class="v">${formatClockDuration(top.totalDurationSeconds || 0)}</div></div>
+        <div class="press-hero-metric"><div class="k">Total Events</div><div class="v">${Number(top.totalEvents || 0).toLocaleString()}</div></div>
+        <div class="press-hero-metric"><div class="k">Avg Duration / Event</div><div class="v">${formatClockDuration(top.avgDurationSeconds || 0)}</div></div>
+        <div class="press-hero-metric"><div class="k">Severity vs Avg</div><div class="v">${(top.severityScore || 0).toFixed(2)}</div></div>
+      </div>`;
+  }
+
+  function renderPressDistributionChart(model) {
+    const rows = model?.rows || [];
+    if (!rows.length) {
+      showNoDataChart('pressDistributionChart', 'No valid press rows available for distribution.');
+      return;
+    }
+    const bins = 8;
+    const values = rows.map(row => row.avgDurationSeconds || 0);
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    const width = Math.max(1, (max - min) / bins);
+    const hist = Array.from({ length: bins }, (_, i) => ({
+      start: min + i * width,
+      end: i === bins - 1 ? max : min + ((i + 1) * width),
+      count: 0
+    }));
+    values.forEach(value => {
+      const idx = Math.min(bins - 1, Math.max(0, Math.floor((value - min) / width)));
+      hist[idx].count += 1;
+    });
+    replaceChart('pressDistributionChart', {
+      type: 'bar',
       data: {
+        labels: hist.map(bucket => `${formatDurationCompact(bucket.start)}-${formatDurationCompact(bucket.end)}`),
         datasets: [{
-          label: 'Press impact',
-          data: plotted,
-          pointRadius: ctx => {
-            const row = plotted[ctx.dataIndex];
-            const avg = Number(row?.avgDurationSeconds || 0);
-            const base = Math.min(18, Math.max(5, 5 + (avg / 120)));
-            return highlighted.includes(row.press) ? base + 2 : base;
-          },
-          pointHoverRadius: 14,
-          pointBackgroundColor: plotted.map(point => point.color),
-          pointBorderColor: plotted.map(point => highlighted.includes(point.press) ? '#ffffff' : 'rgba(255,255,255,.35)'),
-          pointBorderWidth: plotted.map(point => highlighted.includes(point.press) ? 1.6 : 1),
+          label: 'Press count',
+          data: hist.map(bucket => bucket.count),
+          backgroundColor: hist.map((bucket, index) => {
+            const center = (bucket.start + bucket.end) / 2;
+            const abnormalBin = center > (model.averages?.avgDuration || 0) * 1.2;
+            return abnormalBin || index === hist.length - 1 ? 'rgba(243,107,99,.88)' : 'rgba(175,191,220,.62)';
+          }),
+          borderRadius: 6
         }]
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        plugins: {
-          legend: { display: false },
-          tooltip: {
-            callbacks: {
-              title: ctx => ctx?.[0]?.raw?.press || 'Unspecified',
-              label: ctx => {
-                const raw = ctx.raw || {};
-                return [
-                  `Total Events: ${Number(raw.totalEvents || 0).toLocaleString()}`,
-                  `Total Duration: ${formatClockDuration(raw.totalDurationSeconds || 0)}`,
-                  `Avg Duration: ${formatClockDuration(raw.avgDurationSeconds || 0)}`,
-                  `Impact Tier: ${raw.impactTier || 'Stable'}`
-                ];
-              }
-            }
-          }
-        },
+        plugins: { legend: { display: false } },
         scales: {
-          x: {
-            title: { display: true, text: 'Total Events', color: '#c6d3ea' },
-            ticks: { color: '#c6d3ea' },
-            grid: { color: 'rgba(255,255,255,.08)' },
-            beginAtZero: true
-          },
-          y: {
-            title: { display: true, text: 'Total Duration (hh:mm:ss)', color: '#c6d3ea' },
-            ticks: {
-              color: '#c6d3ea',
-              callback: value => formatClockDuration(Number(value))
-            },
-            grid: { color: 'rgba(255,255,255,.08)' },
-            beginAtZero: true
-          }
+          x: { ticks: { color: '#c6d3ea', maxRotation: 0, minRotation: 0 }, grid: { color: 'rgba(255,255,255,.06)' } },
+          y: { title: { display: true, text: 'Press count', color: '#c6d3ea' }, ticks: { color: '#c6d3ea', precision: 0 }, grid: { color: 'rgba(255,255,255,.08)' }, beginAtZero: true }
         }
-      }
+      },
+      plugins: [{
+        id: 'avg-line',
+        afterDraw(chart) {
+          const avg = model.averages?.avgDuration || 0;
+          const xScale = chart.scales.x;
+          const yScale = chart.scales.y;
+          const idx = Math.min(hist.length - 1, Math.max(0, Math.floor((avg - min) / width)));
+          const x = xScale.getPixelForValue(idx);
+          const ctx = chart.ctx;
+          ctx.save();
+          ctx.strokeStyle = 'rgba(255,255,255,.85)';
+          ctx.setLineDash([5, 4]);
+          ctx.beginPath();
+          ctx.moveTo(x, yScale.top);
+          ctx.lineTo(x, yScale.bottom);
+          ctx.stroke();
+          ctx.fillStyle = '#e5edfb';
+          ctx.fillText('Fleet avg', x + 6, yScale.top + 12);
+          ctx.restore();
+        }
+      }]
     });
-    const note = document.getElementById('pressImpactScatterNote');
-    if (note) {
-      note.textContent = highlighted.length
-        ? `Highlighted ${highlighted.length} low-event / high-duration presses. Tier color: Critical, Elevated, Stable.`
-        : 'No low-event high-duration outliers in current scope. Tier color: Critical, Elevated, Stable.';
-    }
-    return plotted;
+    const note = document.getElementById('pressDistributionNote');
+    if (note) note.textContent = `Avg duration baseline is ${formatClockDuration(model.averages?.avgDuration || 0)}. ${model.outliers.length} abnormal presses detected.`;
   }
 
-  function renderAvgRecoveryBurdenChart(pressRows = []) {
-    const ranked = [...(pressRows || [])]
-      .filter(row => Number.isFinite(row.avgDurationSeconds) && row.avgDurationSeconds > 0)
-      .sort((a, b) => (b.avgDurationSeconds || 0) - (a.avgDurationSeconds || 0))
-      .slice(0, 8);
-    if (!ranked.length) {
-      showNoDataChart('pressAvgBurdenChart', 'No average duration signals available for current filters.');
+  function renderPressOutliersList(model) {
+    const host = document.getElementById('pressOutliersList');
+    if (!host) return;
+    const outliers = model?.outliers || [];
+    if (!outliers.length) {
+      host.innerHTML = '<div class="micro">No abnormal presses in current scope.</div>';
       return;
     }
-    const labels = ranked.map(row => row.name);
-    const payloads = ranked.map(row => ({ entityKey: row.name, displayLabel: row.name, metric: 'avgDuration', sourceType: 'errorsAgg' }));
-    replaceChart('pressAvgBurdenChart', {
+    host.innerHTML = outliers.map(row => `
+      <article class="outlier-row">
+        <div>
+          <strong>${esc(row.name)}</strong>
+          <div class="meta">Duration ${formatClockDuration(row.totalDurationSeconds || 0)} • Events ${Number(row.totalEvents || 0).toLocaleString()} • Avg ${formatClockDuration(row.avgDurationSeconds || 0)}</div>
+        </div>
+        <span class="outlier-score">Severity ${(row.severityScore || 0).toFixed(2)}</span>
+      </article>`).join('');
+  }
+
+  function renderNormalizedPressComparison(model) {
+    const rows = (model?.rows || []).slice().sort((a, b) => (b.severityScore || 0) - (a.severityScore || 0));
+    if (!rows.length) {
+      showNoDataChart('pressNormalizedComparisonChart', 'No normalized press comparison available.');
+      return;
+    }
+    const labels = rows.map(row => row.name);
+    replaceChart('pressNormalizedComparisonChart', {
       type: 'bar',
       data: {
         labels,
-        datasets: [{
-          data: ranked.map(row => row.avgDurationSeconds || 0),
-          backgroundColor: ranked.map(row => row.impactColor || deriveImpactTier(row).color),
-          borderRadius: 6
-        }]
+        datasets: [
+          { label: 'Avg duration index', data: rows.map(row => row.zAvgDuration > -1 ? (row.avgDurationSeconds / (model.averages?.avgDuration || 1)) : 0), backgroundColor: rows.map(row => row.abnormal ? 'rgba(243,107,99,.9)' : 'rgba(180,196,222,.55)'), borderRadius: 5 },
+          { label: 'Total duration index', data: rows.map(row => row.totalDurationSeconds / (model.averages?.avgTotalDuration || 1)), backgroundColor: 'rgba(123,141,255,.45)', borderRadius: 5 }
+        ]
       },
       options: {
-        ...baseOptions('press', labels, payloads),
-        indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: { legend: { labels: { color: '#d6e2f8' } } },
         scales: {
-          ...baseOptions('press', labels, payloads).scales,
-          x: {
-            ...baseOptions('press', labels, payloads).scales.x,
-            ticks: {
-              ...baseOptions('press', labels, payloads).scales.x.ticks,
-              callback: value => formatClockDuration(Number(value))
-            }
-          }
-        },
-        plugins: {
-          legend: { display: false },
-          tooltip: {
-            callbacks: {
-              title: ctx => ctx?.[0]?.label || '',
-              label: ctx => {
-                const row = ranked[ctx.dataIndex] || {};
-                return [
-                  `Avg Duration: ${formatClockDuration(row.avgDurationSeconds || 0)}`,
-                  `Total Duration: ${formatClockDuration(row.totalDurationSeconds || 0)}`,
-                  `Total Events: ${(row.totalEvents || 0).toLocaleString()}`,
-                  `Impact Tier: ${row.impactTier || deriveImpactTier(row).tier}`
-                ];
-              }
-            }
-          }
+          x: { ticks: { color: '#c6d3ea', autoSkip: false, maxRotation: 60, minRotation: 20 }, grid: { color: 'rgba(255,255,255,.05)' } },
+          y: { beginAtZero: true, ticks: { color: '#c6d3ea' }, grid: { color: 'rgba(255,255,255,.08)' }, title: { display: true, text: 'Index vs fleet average (1.0 = average)', color: '#c6d3ea' } }
         }
       }
     });
@@ -3872,9 +3908,12 @@
     const pressValidation = buildValidatedPressImpactRows(sourceScope?.errorsAgg || []);
     console.info('[press-impact-duration-validation-before-render]', pressValidation.diagnostics);
     renderPressValidationNote(pressValidation.diagnostics);
-    const pressRankings = safeRankingRender('press');
-    const pressImpactScatterRows = renderPressImpactScatter(sourceScope, pressValidation.rows, pressValidation.diagnostics);
-    renderAvgRecoveryBurdenChart(pressValidation.rows);
+    const pressRankings = buildMetricRankings(sourceScope, STATE.filtered, 'press', errorEvents);
+    const pressAbnormalityModel = buildPressAbnormalityModel(pressValidation.rows);
+    renderPressHeroInsight(pressAbnormalityModel);
+    renderPressDistributionChart(pressAbnormalityModel);
+    renderPressOutliersList(pressAbnormalityModel);
+    renderNormalizedPressComparison(pressAbnormalityModel);
     const subsystemRankings = safeRankingRender('subsystem');
     const alertRankings = safeRankingRender('alert');
     const versionRankings = safeRankingRender('version');
@@ -3945,16 +3984,17 @@
         alertSummaryTop: STATE.merged.summary?.topAlert?.name || 'N/A',
         alertChartTop: (alertRankings[0]?.name || 'N/A')
       },
-      pressImpactScatter: {
-        points: pressImpactScatterRows.length,
-        highestDurationPoint: pressImpactScatterRows.slice().sort((a, b) => (b.totalDurationSeconds || 0) - (a.totalDurationSeconds || 0))[0]?.press || 'N/A'
+      pressOutlierModel: {
+        rows: pressAbnormalityModel.rows.length,
+        outliers: pressAbnormalityModel.outliers.length,
+        topOutlier: pressAbnormalityModel.topOutlier?.name || 'N/A'
       },
     });
       renderDashboardStatusPanel(sourceScope, mismatches, STATE.reconciliation.report);
       renderTable(STATE.filtered);
     } catch (error) {
       console.error('[dashboard-render-failure]', error);
-      ['pressChart', 'pressImpactScatterChart', 'subsystemChart', 'alertChart', 'versionChart', 'customerVolumeChart'].forEach(id => setCanvasState(id, `Failed to render ${id}.`, 'error'));
+      ['pressDistributionChart', 'pressNormalizedComparisonChart', 'subsystemChart', 'alertChart', 'versionChart', 'customerVolumeChart'].forEach(id => setCanvasState(id, `Failed to render ${id}.`, 'error'));
     }
   }
 
