@@ -290,8 +290,8 @@
 
     <main class="grid">
       <article class="card span-6" data-rank-card="press">
-        <div class="chart-head"><h3>Top Presses by Error Events</h3><div class="chart-tools"><select data-metric="press" class="select"><option value="events">By events</option><option value="downtime">By downtime</option><option value="normalized">By events/volume</option></select><button class="btn secondary" data-expand="press">Show all</button></div></div>
-        <div class="micro">Metric source shown dynamically by mode.</div><div class="chart-area"><canvas id="pressChart"></canvas></div>
+        <div class="chart-head"><h3>Top Presses by Impact</h3><div class="chart-tools"><select data-metric="press" class="select"><option value="events">Events</option><option value="downtime" selected>Downtime</option><option value="avgDuration">Avg Duration</option></select><button class="btn secondary" data-expand="press">Show all</button></div></div>
+        <div class="micro">Ranked by accumulated downtime.</div><div class="chart-area"><canvas id="pressChart"></canvas></div>
       </article>
 
       <article class="card span-6" data-rank-card="subsystem">
@@ -393,7 +393,7 @@
     },
     lastRunSnapshot: null,
     expand: { press: false, subsystem: false, alert: false, version: false },
-    metricByChart: { press: 'events', subsystem: 'events', alert: 'events', version: 'events' },
+    metricByChart: { press: 'downtime', subsystem: 'events', alert: 'events', version: 'events' },
     customerVolumeMetric: 'productionPrintedSheets',
     customerVolumeSort: 'desc',
     customerVolumeExpanded: false,
@@ -454,6 +454,7 @@
   const metricMeta = metric => ({
     events: { unit: 'events', axisLabel: 'Events', source: 'errorsAgg.totalEvents', tooltip: 'events', subtitle: 'Errors aggregated events.' },
     downtime: { unit: 'hours', axisLabel: 'Downtime (hours)', source: 'availabilityAgg.planned+unplanned', tooltip: 'hours', subtitle: 'Availability aggregated downtime (Planned + Unplanned).' },
+    avgDuration: { unit: 'duration', axisLabel: 'Avg Duration (hh:mm:ss)', source: 'errorsAgg.totalErrorDurationSeconds / totalEvents', tooltip: 'duration', subtitle: 'Average error duration per event from error records.' },
     normalized: { unit: 'events per volume', axisLabel: 'Events per volume unit', source: 'errorsAgg + volumeAgg', tooltip: 'events/volume', subtitle: 'Normalized events using errorsAgg totals divided by production volume.' },
   }[metric] || { unit: 'value', axisLabel: 'Value', source: 'unknown', tooltip: 'value', subtitle: 'Ranking.' });
   function classifyPressMode(model, perfector = '') {
@@ -1429,6 +1430,7 @@
     if (filters.query != null) searchFilter.value = filters.query;
     if (state.metrics && typeof state.metrics === 'object') {
       STATE.metricByChart = { ...STATE.metricByChart, ...state.metrics };
+      if (STATE.metricByChart.press === 'normalized') STATE.metricByChart.press = 'downtime';
       document.querySelectorAll('[data-metric]').forEach(sel => {
         const key = sel.dataset.metric;
         if (STATE.metricByChart[key]) sel.value = STATE.metricByChart[key];
@@ -1732,7 +1734,8 @@
     const rankingSources = {
       press: (() => {
         if (STATE.metricByChart.press === 'events') return sourceTotals.events;
-        if (STATE.metricByChart.press === 'downtime') return sourceTotals.downtime;
+        if (STATE.metricByChart.press === 'downtime') return sourceTotals.errorDuration;
+        if (STATE.metricByChart.press === 'avgDuration') return sourceTotals.events ? sourceTotals.errorDuration / sourceTotals.events : 0;
         return rankings.press?.reduce((a, r) => a + (r.normalized || 0), 0) || 0;
       })(),
       subsystem: (() => {
@@ -1753,7 +1756,7 @@
       ['KPI • Production Volume', 'Volume', kpis.totalProdVolume, sourceTotals.prodSheets, 'sum(productionPrintedSheets)'],
       ['KPI • MTTR', 'Errors', kpis.mttr ?? null, sourceTotals.events ? sourceTotals.errorDuration / sourceTotals.events : null, 'sum(errorDuration) / events'],
       ['KPI • MTBF', 'Errors+Availability', kpis.mtbf ?? null, sourceTotals.events ? sourceTotals.runtime / sourceTotals.events : null, 'runtime / events'],
-      ['Chart • Top Presses by Error Events', 'Errors/Availability/Volume by selected metric', rankings.press?.reduce((a, r) => a + (r[STATE.metricByChart.press] || 0), 0) || 0, rankingSources.press, `groupBy(press) on ${STATE.metricByChart.press}`],
+      ['Chart • Top Presses by Impact', 'Errors by selected metric', rankings.press?.reduce((a, r) => a + (r[STATE.metricByChart.press] || 0), 0) || 0, rankingSources.press, `groupBy(press) on ${STATE.metricByChart.press}`],
       ['Chart • Top Subsystems', 'Errors or Availability-by-subsystem for downtime', rankings.subsystem?.reduce((a, r) => a + (r[STATE.metricByChart.subsystem] || 0), 0) || 0, rankingSources.subsystem, `groupBy(subsystem) on ${STATE.metricByChart.subsystem}`],
       ['Chart • Top Alerts', 'Errors', rankings.alert?.reduce((a, r) => a + (r[STATE.metricByChart.alert] || 0), 0) || 0, rankingSources.alert, `groupBy(alert) on ${STATE.metricByChart.alert}`],
       ['Chart • Top Versions', 'Errors', rankings.version?.reduce((a, r) => a + (r[STATE.metricByChart.version] || 0), 0) || 0, rankingSources.version, `groupBy(version) on ${STATE.metricByChart.version}`],
@@ -1916,6 +1919,23 @@
     if (h) return `${h}h ${m}m ${x}s`;
     if (m) return `${m}m ${x}s`;
     return `${x}s`;
+  }
+
+  function formatClockDuration(sec) {
+    const totalSeconds = Math.max(0, Math.round(Number(sec) || 0));
+    const h = Math.floor(totalSeconds / 3600);
+    const m = Math.floor((totalSeconds % 3600) / 60);
+    const s = totalSeconds % 60;
+    return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  }
+
+  function formatDurationCompact(sec) {
+    if (!Number.isFinite(sec) || sec <= 0) return '0m';
+    const s = Math.round(sec);
+    const h = Math.floor(s / 3600);
+    const m = Math.floor((s % 3600) / 60);
+    if (h) return `${h}h ${m}m`;
+    return `${m}m`;
   }
 
   function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], topSubsystems = [], topErrors = [] } = {}) {
@@ -2500,7 +2520,7 @@
     const metric = STATE.metricByChart[key];
     const baseMap = new Map();
     const add = (name, patch) => {
-      if (!baseMap.has(name)) baseMap.set(name, { name, events: 0, downtime: 0, volume: 0, normalized: 0, risk: 0 });
+      if (!baseMap.has(name)) baseMap.set(name, { name, events: 0, downtime: 0, avgDuration: 0, volume: 0, normalized: 0, risk: 0, totalEvents: 0, totalDurationSeconds: 0, avgDurationSeconds: 0 });
       Object.assign(baseMap.get(name), patch);
     };
     const nameOf = (row) => {
@@ -2511,10 +2531,20 @@
       return 'Unspecified';
     };
     if (key === 'press') {
-      errorsAgg.forEach(r => add(r.canonicalPress || 'Unspecified', { events: (baseMap.get(r.canonicalPress || 'Unspecified')?.events || 0) + (r.totalEvents || 0) }));
-      availabilityAgg.forEach(r => {
-        const n = r.canonicalPress || 'Unspecified';
-        add(n, { downtime: (baseMap.get(n)?.downtime || 0) + totalDowntimeFromAvailabilityRow(r) });
+      errorsAgg.forEach(r => {
+        const pressName = r.canonicalPress || 'Unspecified';
+        const current = baseMap.get(pressName) || { events: 0, totalEvents: 0, totalDurationSeconds: 0 };
+        const totalEvents = current.totalEvents + (r.totalEvents || 0);
+        const totalDurationSeconds = current.totalDurationSeconds + (r.totalErrorDurationSeconds || 0);
+        const avgDurationSeconds = totalEvents > 0 ? (totalDurationSeconds / totalEvents) : 0;
+        add(pressName, {
+          events: totalEvents,
+          downtime: totalDurationSeconds,
+          avgDuration: avgDurationSeconds,
+          totalEvents,
+          totalDurationSeconds,
+          avgDurationSeconds
+        });
       });
       volumeAgg.forEach(r => {
         const n = r.canonicalPress || 'Unspecified';
@@ -2546,7 +2576,7 @@
         entityKey: item.name,
         displayLabel: item.name,
         sourceType: key === 'press'
-          ? (metric === 'downtime' ? 'availabilityNative' : 'errorEvents')
+          ? 'errorEvents'
           : 'errorEvents',
         metric
       }))
@@ -2562,7 +2592,15 @@
     const expanded = STATE.expand[key];
     const sorted = [...items].sort((a, b) => (b[metric] || 0) - (a[metric] || 0));
     const view = expanded ? sorted : sorted.slice(0, 8);
-    const meta = metricMeta(metric);
+    const isPressImpactChart = key === 'press';
+    const baseMeta = metricMeta(metric);
+    const meta = isPressImpactChart
+      ? {
+        events: { ...baseMeta, axisLabel: 'Events', source: 'errorsAgg.totalEvents', tooltip: 'events', subtitle: 'Error events grouped by press.' },
+        downtime: { ...baseMeta, axisLabel: 'Downtime (hh:mm:ss)', source: 'errorsAgg.totalErrorDurationSeconds', tooltip: 'duration', subtitle: 'Ranked by accumulated downtime from error durations.' },
+        avgDuration: { ...baseMeta, axisLabel: 'Avg Duration (hh:mm:ss)', source: 'errorsAgg.totalErrorDurationSeconds / totalEvents', tooltip: 'duration', subtitle: 'Average duration per error event grouped by press.' },
+      }[metric] || baseMeta
+      : baseMeta;
     const labels = view.map(x => x.name);
     const payloads = view.map(x => ({
       entityKey: x.entityKey || x.name,
@@ -2571,7 +2609,11 @@
       metric,
       parentContext: { path: [] }
     }));
-    const data = view.map(x => metric === 'downtime' ? x.downtime / 3600 : x[metric]);
+    const data = view.map(x => {
+      if (isPressImpactChart && (metric === 'downtime' || metric === 'avgDuration')) return x[metric] || 0;
+      if (!isPressImpactChart && metric === 'downtime') return (x.downtime || 0) / 3600;
+      return x[metric] || 0;
+    });
     if (!view.length || data.every(v => !Number.isFinite(v) || v === 0)) {
       console.warn('[ranking-chart-empty]', {
         chart: key,
@@ -2592,21 +2634,73 @@
     });
     const rendered = replaceChart(`${key}Chart`, {
       type: 'bar',
-      data: { labels, datasets: [{ data, backgroundColor: view.map((_, i) => COLORS[i % COLORS.length]), borderRadius: 6 }] },
+      data: {
+        labels,
+        datasets: [{
+          data,
+          backgroundColor: view.map((_, i) => (isPressImpactChart && i === 0 && metric !== 'events') ? '#f0b165' : COLORS[i % COLORS.length]),
+          borderRadius: 6
+        }]
+      },
       options: {
         ...baseOptions(key, labels, payloads),
         scales: {
           ...baseOptions(key, labels, payloads).scales,
-          y: { ...baseOptions(key, labels, payloads).scales.y, title: { display: true, text: meta.axisLabel, color: '#c6d3ea' } }
+          y: {
+            ...baseOptions(key, labels, payloads).scales.y,
+            title: { display: true, text: meta.axisLabel, color: '#c6d3ea' },
+            ticks: {
+              ...baseOptions(key, labels, payloads).scales.y.ticks,
+              callback: value => {
+                if (isPressImpactChart && (metric === 'downtime' || metric === 'avgDuration')) return formatClockDuration(Number(value));
+                return value;
+              }
+            }
+          }
         },
         plugins: {
           legend: { display: false },
-          tooltip: { callbacks: { label: ctx => `${ctx.parsed.y.toLocaleString(undefined, { maximumFractionDigits: 3 })} ${meta.tooltip}` } }
+          tooltip: {
+            callbacks: {
+              title: ctx => isPressImpactChart ? (ctx?.[0]?.label || '') : undefined,
+              label: ctx => {
+                if (isPressImpactChart) {
+                  const item = view[ctx.dataIndex] || {};
+                  return [
+                    `Total Events: ${(item.totalEvents || item.events || 0).toLocaleString()}`,
+                    `Total Duration: ${formatClockDuration(item.totalDurationSeconds || item.downtime || 0)}`,
+                    `Avg Duration: ${formatClockDuration(item.avgDurationSeconds || item.avgDuration || 0)}`
+                  ];
+                }
+                return `${ctx.parsed.y.toLocaleString(undefined, { maximumFractionDigits: 3 })} ${meta.tooltip}`;
+              }
+            }
+          }
         }
-      }
+      },
+      plugins: isPressImpactChart ? [{
+        id: `${key}-duration-labels`,
+        afterDatasetsDraw(chart) {
+          const { ctx } = chart;
+          const metaSet = chart.getDatasetMeta(0);
+          ctx.save();
+          ctx.fillStyle = '#c6d3ea';
+          ctx.font = '11px Inter, system-ui, sans-serif';
+          ctx.textAlign = 'center';
+          metaSet.data.forEach((bar, index) => {
+            const row = view[index];
+            if (!row) return;
+            const label = formatDurationCompact(row.totalDurationSeconds || row.downtime || 0);
+            ctx.fillText(label, bar.x, bar.y - 6);
+          });
+          ctx.restore();
+        }
+      }] : []
     });
     if (!rendered && !view.length) setRankingChartEmptyState(key, 'No ranking data available for current filters/metric.');
-    document.querySelector(`[data-rank-card="${key}"] .micro`).textContent = `${expanded ? 'Full ranking' : 'Top 8'} by ${metric}. Source: ${meta.source}. ${meta.subtitle}`;
+    document.querySelector(`[data-rank-card="${key}"] .micro`).textContent = isPressImpactChart
+      ? `${expanded ? 'Full ranking' : 'Top 8'} by ${metric}. Ranked by accumulated downtime. Source: ${meta.source}. ${meta.subtitle}`
+      : `${expanded ? 'Full ranking' : 'Top 8'} by ${metric}. Source: ${meta.source}. ${meta.subtitle}`;
     document.querySelector(`[data-expand="${key}"]`).textContent = expanded ? 'Collapse' : 'Show all';
     if ((key === 'press' || key === 'subsystem') && metric === 'events') {
       console.info('[events-first-chart-alignment]', {
@@ -2617,8 +2711,8 @@
     }
     if (key === 'press' && metric === 'downtime') {
       console.info('[consistency-debug] top-presses-downtime-plot', {
-        source: 'availabilityAgg',
-        first10Plotted: view.slice(0, 10).map((x, i) => ({ rank: i + 1, label: x.name, downtimeHours: Number((x.downtime / 3600).toFixed(4)) }))
+        source: 'errorsAgg.totalErrorDurationSeconds',
+        first10Plotted: view.slice(0, 10).map((x, i) => ({ rank: i + 1, label: x.name, downtimeSeconds: Math.round(x.downtime || 0), downtimeClock: formatClockDuration(x.downtime || 0) }))
       });
     }
   }
@@ -3948,6 +4042,7 @@
     }
     document.querySelectorAll('[data-metric]').forEach(sel => {
       const key = sel.dataset.metric;
+      if (key === 'press' && STATE.metricByChart[key] === 'normalized') STATE.metricByChart[key] = 'downtime';
       if (STATE.metricByChart[key]) sel.value = STATE.metricByChart[key];
     });
 
@@ -4155,7 +4250,8 @@
     }));
 
     document.querySelectorAll('[data-metric]').forEach(sel => sel.addEventListener('change', e => {
-      STATE.metricByChart[e.target.dataset.metric] = e.target.value;
+      const key = e.target.dataset.metric;
+      STATE.metricByChart[key] = key === 'press' && e.target.value === 'normalized' ? 'downtime' : e.target.value;
       renderDashboard();
     }));
 
