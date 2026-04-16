@@ -100,6 +100,10 @@
     .chart-head { display:flex; justify-content:space-between; align-items:center; gap:8px; }
     .chart-tools { display:flex; gap:8px; }
     .chart-area{position:relative;height:300px;min-height:300px}
+    .press-analysis-shell { padding:14px; background:linear-gradient(160deg, rgba(18,26,40,.96), rgba(14,21,33,.96)); border-color:rgba(173,194,229,.2); }
+    .press-impact-main { height:420px; min-height:420px; margin-top:4px; }
+    .press-analysis-grid { margin-top:12px; display:grid; grid-template-columns: 1.2fr .8fr; gap:10px; }
+    .press-analysis-child { padding:10px; background:rgba(255,255,255,.02); box-shadow:none; }
     .chart-empty-state { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; text-align:center; color:var(--muted); font-size:.86rem; padding:14px; background:rgba(12,17,25,.35); border:1px dashed rgba(255,255,255,.14); border-radius:10px; pointer-events:none; }
     .micro { color:var(--muted); font-size:.82rem; margin:6px 0 8px; }
     .dashboard-status { margin-bottom:12px; border:1px solid var(--border); border-radius:12px; padding:12px; background:rgba(255,255,255,.02); }
@@ -181,7 +185,7 @@
     .summary-preview{border:1px solid var(--border);background:#fff;border-radius:10px;padding:10px;max-height:420px;overflow:auto}
     .summary-preview iframe{width:100%;height:380px;border:0}
 
-    @media(max-width:1000px){ .kpis{grid-template-columns:repeat(2,minmax(140px,1fr));}.topbar{grid-template-columns:1fr}.span-6,.span-4,.span-8,.span-3{grid-column:span 12}.file-row{grid-template-columns:1fr} .file-state{justify-content:flex-start} }
+    @media(max-width:1000px){ .kpis{grid-template-columns:repeat(2,minmax(140px,1fr));}.topbar{grid-template-columns:1fr}.span-6,.span-4,.span-8,.span-3{grid-column:span 12}.file-row{grid-template-columns:1fr} .file-state{justify-content:flex-start}.press-analysis-grid{grid-template-columns:1fr}.press-impact-main{height:360px;min-height:360px;} }
     @media(max-width:760px){ .summary-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr));}.exec-signal-card,.exec-story-card,.exec-insight-card,.exec-action-card{grid-column:span 12;} }
   </style>
 </head>
@@ -289,15 +293,23 @@
     </section>
 
     <main class="grid">
-      <article class="card span-6" data-rank-card="press">
-        <div class="chart-head"><h3>Top Presses by Impact</h3><div class="chart-tools"><select data-metric="press" class="select"><option value="events">Events</option><option value="downtime" selected>Downtime</option><option value="avgDuration">Avg Duration</option></select><button class="btn secondary" data-expand="press">Show all</button></div></div>
-        <div class="micro">Ranked by accumulated downtime.</div><div class="chart-area"><canvas id="pressChart"></canvas></div>
-      </article>
-
-      <article class="card span-6">
-        <div class="chart-head"><h3>Press Impact Scatter</h3></div>
-        <div class="micro" id="pressImpactScatterNote">X-axis: total events • Y-axis: total duration (hh:mm:ss) • Color: avg duration impact.</div>
-        <div class="chart-area"><canvas id="pressImpactScatterChart"></canvas></div>
+      <article class="card span-12 press-analysis-shell">
+        <div class="chart-head"><h3>Press Impact Map</h3></div>
+        <div class="micro" id="pressImpactScatterNote">X-axis: total events • Y-axis: total duration • Bubble size: avg duration per event • Color: impact tier.</div>
+        <div class="micro" id="pressValidationNote">Validating scoped duration data before render…</div>
+        <div class="chart-area press-impact-main"><canvas id="pressImpactScatterChart"></canvas></div>
+        <div class="press-analysis-grid">
+          <article class="card press-analysis-child" data-rank-card="press">
+            <div class="chart-head"><h3>Highest Downtime Exposure</h3><div class="chart-tools"><select data-metric="press" class="select"><option value="downtime" selected>Duration</option><option value="events">Events</option><option value="avgDuration">Avg Duration</option></select><button class="btn secondary" data-expand="press">Show all</button></div></div>
+            <div class="micro">Ranked presses with tier-based color and formatted duration labels.</div>
+            <div class="chart-area" style="height:280px;min-height:280px;"><canvas id="pressChart"></canvas></div>
+          </article>
+          <article class="card press-analysis-child">
+            <div class="chart-head"><h3>Avg Recovery Burden</h3></div>
+            <div class="micro">Highest average duration per event across presses.</div>
+            <div class="chart-area" style="height:280px;min-height:280px;"><canvas id="pressAvgBurdenChart"></canvas></div>
+          </article>
+        </div>
       </article>
 
       <article class="card span-6" data-rank-card="subsystem">
@@ -2521,19 +2533,33 @@
     };
   }
 
-  function getAvgDurationTone(avgDurationSeconds) {
-    if (!Number.isFinite(avgDurationSeconds) || avgDurationSeconds <= 120) return { label: 'low', color: '#57c98a' };
-    if (avgDurationSeconds <= 420) return { label: 'medium', color: '#f0b165' };
-    return { label: 'high', color: '#f36b63' };
+  function deriveImpactTier(row) {
+    const totalDurationSeconds = Number(row?.totalDurationSeconds || row?.downtime || 0);
+    const avgDurationSeconds = Number(row?.avgDurationSeconds || row?.avgDuration || 0);
+    if (totalDurationSeconds >= 7200 || avgDurationSeconds >= 420) return { tier: 'Critical', color: '#d96b6b' };
+    if (totalDurationSeconds >= 1800 || avgDurationSeconds >= 180) return { tier: 'Elevated', color: '#d7a86b' };
+    return { tier: 'Stable', color: '#6cae8a' };
   }
 
   function buildValidatedPressImpactRows(errorsAgg = []) {
     const byPress = new Map();
     const seenRows = new Set();
-    const diagnostics = { nullDurationRows: 0, negativeDurationRows: 0, duplicateRows: 0, acceptedRows: 0 };
+    const diagnostics = {
+      durationSource: 'errorsAgg.totalErrorDurationSeconds (scoped)',
+      nullDurationRows: 0,
+      negativeDurationRows: 0,
+      invalidDurationRows: 0,
+      duplicateRows: 0,
+      processedRows: 0,
+      acceptedRows: 0,
+      acceptedDurationSeconds: 0,
+      validationChecks: [],
+      validationPassed: true,
+    };
 
     (errorsAgg || []).forEach((row, idx) => {
       if (!row) return;
+      diagnostics.processedRows += 1;
       const rowKey = String(row.key || `${row.canonicalPress || row.press || 'Unspecified'}|${row.day || ''}|${idx}`);
       if (seenRows.has(rowKey)) {
         diagnostics.duplicateRows += 1;
@@ -2551,10 +2577,11 @@
       if (Number.isFinite(parsedDuration) && parsedDuration >= 0) {
         slot.totalDurationSeconds += parsedDuration;
         diagnostics.acceptedRows += 1;
+        diagnostics.acceptedDurationSeconds += parsedDuration;
       } else if (Number.isFinite(parsedDuration) && parsedDuration < 0) {
         diagnostics.negativeDurationRows += 1;
-      } else if (durationValue != null) {
-        diagnostics.nullDurationRows += 1;
+      } else {
+        diagnostics.invalidDurationRows += 1;
       }
 
       byPress.set(pressName, slot);
@@ -2562,14 +2589,29 @@
 
     const rows = [...byPress.values()].map(slot => {
       const avgDurationSeconds = slot.totalEvents > 0 ? (slot.totalDurationSeconds / slot.totalEvents) : 0;
+      const tier = deriveImpactTier({ totalDurationSeconds: slot.totalDurationSeconds, avgDurationSeconds });
       return {
         ...slot,
         events: slot.totalEvents,
         downtime: slot.totalDurationSeconds,
         avgDurationSeconds,
         avgDuration: avgDurationSeconds,
+        impactTier: tier.tier,
+        impactColor: tier.color,
       };
     });
+
+    const recomputedDuration = rows.reduce((sum, row) => sum + Number(row.totalDurationSeconds || 0), 0);
+    const uniqueRows = diagnostics.processedRows - diagnostics.duplicateRows;
+    const noDoubleCount = uniqueRows === seenRows.size;
+    const durationSumMatches = Math.abs(recomputedDuration - diagnostics.acceptedDurationSeconds) < 0.001;
+    diagnostics.validationChecks = [
+      { id: 'source', pass: true, detail: `Duration source confirmed as ${diagnostics.durationSource}.` },
+      { id: 'dedupe', pass: noDoubleCount, detail: `Deduplication by scoped row key removed ${diagnostics.duplicateRows.toLocaleString()} duplicate rows.` },
+      { id: 'invalid', pass: true, detail: `Excluded ${diagnostics.nullDurationRows.toLocaleString()} null, ${diagnostics.negativeDurationRows.toLocaleString()} negative, ${diagnostics.invalidDurationRows.toLocaleString()} invalid duration rows.` },
+      { id: 'sum', pass: durationSumMatches, detail: `Press totals (${formatClockDuration(recomputedDuration)}) ${durationSumMatches ? 'match' : 'do not match'} sum(valid scoped error durations) (${formatClockDuration(diagnostics.acceptedDurationSeconds)}).` }
+    ];
+    diagnostics.validationPassed = diagnostics.validationChecks.every(check => check.pass);
 
     return { rows, diagnostics };
   }
@@ -2591,8 +2633,9 @@
     };
     if (key === 'press') {
       const { rows: validatedPressRows, diagnostics } = buildValidatedPressImpactRows(errorsAgg);
-      if (diagnostics.nullDurationRows || diagnostics.negativeDurationRows || diagnostics.duplicateRows) {
-        console.warn('[press-impact-duration-validation]', diagnostics);
+      console.info('[press-impact-duration-validation]', diagnostics);
+      if (diagnostics.nullDurationRows || diagnostics.negativeDurationRows || diagnostics.invalidDurationRows || diagnostics.duplicateRows || !diagnostics.validationPassed) {
+        console.warn('[press-impact-duration-validation-warning]', diagnostics);
       }
       validatedPressRows.forEach(r => {
         add(r.name, {
@@ -2601,7 +2644,9 @@
           avgDuration: r.avgDurationSeconds,
           totalEvents: r.totalEvents,
           totalDurationSeconds: r.totalDurationSeconds,
-          avgDurationSeconds: r.avgDurationSeconds
+          avgDurationSeconds: r.avgDurationSeconds,
+          impactTier: r.impactTier,
+          impactColor: r.impactColor
         });
       });
       volumeAgg.forEach(r => {
@@ -2699,24 +2744,32 @@
         datasets: [{
           data,
           backgroundColor: view.map((row, i) => isPressImpactChart
-            ? getAvgDurationTone(row.avgDurationSeconds || row.avgDuration || 0).color
+            ? (row.impactColor || deriveImpactTier(row).color)
             : COLORS[i % COLORS.length]),
           borderRadius: 6
         }]
       },
       options: {
         ...baseOptions(key, labels, payloads),
+        indexAxis: isPressImpactChart ? 'y' : 'x',
         scales: {
           ...baseOptions(key, labels, payloads).scales,
-          y: {
-            ...baseOptions(key, labels, payloads).scales.y,
-            title: { display: true, text: meta.axisLabel, color: '#c6d3ea' },
+          x: {
+            ...baseOptions(key, labels, payloads).scales.x,
+            title: isPressImpactChart ? { display: true, text: meta.axisLabel, color: '#c6d3ea' } : undefined,
             ticks: {
-              ...baseOptions(key, labels, payloads).scales.y.ticks,
+              ...baseOptions(key, labels, payloads).scales.x.ticks,
               callback: value => {
                 if (isPressImpactChart && (metric === 'downtime' || metric === 'avgDuration')) return formatClockDuration(Number(value));
                 return value;
               }
+            }
+          },
+          y: {
+            ...baseOptions(key, labels, payloads).scales.y,
+            ticks: {
+              ...baseOptions(key, labels, payloads).scales.y.ticks,
+              autoSkip: false
             }
           }
         },
@@ -2728,13 +2781,15 @@
               label: ctx => {
                 if (isPressImpactChart) {
                   const item = view[ctx.dataIndex] || {};
+                  const tier = item.impactTier || deriveImpactTier(item).tier;
                   return [
                     `Total Events: ${(item.totalEvents || item.events || 0).toLocaleString()}`,
                     `Total Duration: ${formatClockDuration(item.totalDurationSeconds || item.downtime || 0)}`,
-                    `Avg Duration: ${formatClockDuration(item.avgDurationSeconds || item.avgDuration || 0)}`
+                    `Avg Duration: ${formatClockDuration(item.avgDurationSeconds || item.avgDuration || 0)}`,
+                    `Impact Tier: ${tier}`
                   ];
                 }
-                return `${ctx.parsed.y.toLocaleString(undefined, { maximumFractionDigits: 3 })} ${meta.tooltip}`;
+                return `${ctx.parsed.y?.toLocaleString(undefined, { maximumFractionDigits: 3 }) ?? ctx.parsed.x.toLocaleString(undefined, { maximumFractionDigits: 3 })} ${meta.tooltip}`;
               }
             }
           }
@@ -2748,12 +2803,12 @@
           ctx.save();
           ctx.fillStyle = '#c6d3ea';
           ctx.font = '11px Inter, system-ui, sans-serif';
-          ctx.textAlign = 'center';
+          ctx.textAlign = 'left';
           metaSet.data.forEach((bar, index) => {
             const row = view[index];
             if (!row) return;
             const label = formatDurationCompact(row.totalDurationSeconds || row.downtime || 0);
-            ctx.fillText(label, bar.x, bar.y - 6);
+            ctx.fillText(label, bar.x + 8, bar.y + 4);
           });
           ctx.restore();
         }
@@ -2761,7 +2816,7 @@
     });
     if (!rendered && !view.length) setRankingChartEmptyState(key, 'No ranking data available for current filters/metric.');
     document.querySelector(`[data-rank-card="${key}"] .micro`).textContent = isPressImpactChart
-      ? `${expanded ? 'Full ranking' : 'Top 8'} by ${metric}. Ranked by accumulated downtime. Source: ${meta.source}. ${meta.subtitle}`
+      ? `${expanded ? 'Full ranking' : 'Top 8'} by ${metric}. Tier colors: Critical / Elevated / Stable. Source: ${meta.source}. ${meta.subtitle}`
       : `${expanded ? 'Full ranking' : 'Top 8'} by ${metric}. Source: ${meta.source}. ${meta.subtitle}`;
     document.querySelector(`[data-expand="${key}"]`).textContent = expanded ? 'Collapse' : 'Show all';
     if ((key === 'press' || key === 'subsystem') && metric === 'events') {
@@ -2779,8 +2834,18 @@
     }
   }
 
-  function renderPressImpactScatter(sourceScope) {
-    const { rows } = buildValidatedPressImpactRows(sourceScope?.errorsAgg || []);
+  function renderPressValidationNote(diagnostics) {
+    const note = document.getElementById('pressValidationNote');
+    if (!note) return;
+    const statusPrefix = diagnostics?.validationPassed ? 'Validation passed.' : 'Validation warning.';
+    const checkSummary = (diagnostics?.validationChecks || []).map(check => check.detail).join(' ');
+    note.textContent = `${statusPrefix} ${checkSummary}`;
+  }
+
+  function renderPressImpactScatter(sourceScope, validatedRows = null, diagnostics = null) {
+    const localValidation = validatedRows ? { rows: validatedRows, diagnostics: diagnostics || {} } : buildValidatedPressImpactRows(sourceScope?.errorsAgg || []);
+    const rows = localValidation.rows || [];
+    renderPressValidationNote(localValidation.diagnostics || {});
     const points = rows.map(row => ({
       x: row.totalEvents || 0,
       y: row.totalDurationSeconds || 0,
@@ -2788,7 +2853,8 @@
       totalEvents: row.totalEvents || 0,
       totalDurationSeconds: row.totalDurationSeconds || 0,
       avgDurationSeconds: row.avgDurationSeconds || 0,
-      ...getAvgDurationTone(row.avgDurationSeconds || 0)
+      impactTier: row.impactTier || deriveImpactTier(row).tier,
+      color: row.impactColor || deriveImpactTier(row).color
     }));
     const plotted = points.filter(point => Number.isFinite(point.x) && Number.isFinite(point.y) && (point.x > 0 || point.y > 0));
     if (!plotted.length) {
@@ -2808,9 +2874,11 @@
           data: plotted,
           pointRadius: ctx => {
             const row = plotted[ctx.dataIndex];
-            return highlighted.includes(row.press) ? 8 : 6;
+            const avg = Number(row?.avgDurationSeconds || 0);
+            const base = Math.min(18, Math.max(5, 5 + (avg / 120)));
+            return highlighted.includes(row.press) ? base + 2 : base;
           },
-          pointHoverRadius: 9,
+          pointHoverRadius: 14,
           pointBackgroundColor: plotted.map(point => point.color),
           pointBorderColor: plotted.map(point => highlighted.includes(point.press) ? '#ffffff' : 'rgba(255,255,255,.35)'),
           pointBorderWidth: plotted.map(point => highlighted.includes(point.press) ? 1.6 : 1),
@@ -2829,7 +2897,8 @@
                 return [
                   `Total Events: ${Number(raw.totalEvents || 0).toLocaleString()}`,
                   `Total Duration: ${formatClockDuration(raw.totalDurationSeconds || 0)}`,
-                  `Avg Duration: ${formatClockDuration(raw.avgDurationSeconds || 0)}`
+                  `Avg Duration: ${formatClockDuration(raw.avgDurationSeconds || 0)}`,
+                  `Impact Tier: ${raw.impactTier || 'Stable'}`
                 ];
               }
             }
@@ -2857,10 +2926,65 @@
     const note = document.getElementById('pressImpactScatterNote');
     if (note) {
       note.textContent = highlighted.length
-        ? `Highlighted ${highlighted.length} low-event / high-duration presses. Color indicates avg duration impact (green low, yellow medium, red high).`
-        : 'No low-event high-duration outliers in current scope. Color indicates avg duration impact (green low, yellow medium, red high).';
+        ? `Highlighted ${highlighted.length} low-event / high-duration presses. Tier color: Critical, Elevated, Stable.`
+        : 'No low-event high-duration outliers in current scope. Tier color: Critical, Elevated, Stable.';
     }
     return plotted;
+  }
+
+  function renderAvgRecoveryBurdenChart(pressRows = []) {
+    const ranked = [...(pressRows || [])]
+      .filter(row => Number.isFinite(row.avgDurationSeconds) && row.avgDurationSeconds > 0)
+      .sort((a, b) => (b.avgDurationSeconds || 0) - (a.avgDurationSeconds || 0))
+      .slice(0, 8);
+    if (!ranked.length) {
+      showNoDataChart('pressAvgBurdenChart', 'No average duration signals available for current filters.');
+      return;
+    }
+    const labels = ranked.map(row => row.name);
+    const payloads = ranked.map(row => ({ entityKey: row.name, displayLabel: row.name, metric: 'avgDuration', sourceType: 'errorsAgg' }));
+    replaceChart('pressAvgBurdenChart', {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [{
+          data: ranked.map(row => row.avgDurationSeconds || 0),
+          backgroundColor: ranked.map(row => row.impactColor || deriveImpactTier(row).color),
+          borderRadius: 6
+        }]
+      },
+      options: {
+        ...baseOptions('press', labels, payloads),
+        indexAxis: 'y',
+        scales: {
+          ...baseOptions('press', labels, payloads).scales,
+          x: {
+            ...baseOptions('press', labels, payloads).scales.x,
+            ticks: {
+              ...baseOptions('press', labels, payloads).scales.x.ticks,
+              callback: value => formatClockDuration(Number(value))
+            }
+          }
+        },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              title: ctx => ctx?.[0]?.label || '',
+              label: ctx => {
+                const row = ranked[ctx.dataIndex] || {};
+                return [
+                  `Avg Duration: ${formatClockDuration(row.avgDurationSeconds || 0)}`,
+                  `Total Duration: ${formatClockDuration(row.totalDurationSeconds || 0)}`,
+                  `Total Events: ${(row.totalEvents || 0).toLocaleString()}`,
+                  `Impact Tier: ${row.impactTier || deriveImpactTier(row).tier}`
+                ];
+              }
+            }
+          }
+        }
+      }
+    });
   }
 
   function renderTable(rows) {
@@ -3745,8 +3869,12 @@
         return [];
       }
     };
+    const pressValidation = buildValidatedPressImpactRows(sourceScope?.errorsAgg || []);
+    console.info('[press-impact-duration-validation-before-render]', pressValidation.diagnostics);
+    renderPressValidationNote(pressValidation.diagnostics);
     const pressRankings = safeRankingRender('press');
-    const pressImpactScatterRows = renderPressImpactScatter(sourceScope);
+    const pressImpactScatterRows = renderPressImpactScatter(sourceScope, pressValidation.rows, pressValidation.diagnostics);
+    renderAvgRecoveryBurdenChart(pressValidation.rows);
     const subsystemRankings = safeRankingRender('subsystem');
     const alertRankings = safeRankingRender('alert');
     const versionRankings = safeRankingRender('version');
