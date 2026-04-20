@@ -83,7 +83,7 @@
     .topbar,.card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow)}
     .topbar { display:grid; grid-template-columns:1fr auto; gap:12px; align-items:start; padding:16px; margin-bottom:12px; }
     .controls { display:flex; gap:8px; flex-wrap:wrap; }
-    .kpis { display:grid; grid-template-columns: repeat(5,minmax(140px,1fr)); gap:10px; margin-bottom:12px; position:relative; z-index:2; }
+    .kpis { display:grid; grid-template-columns: repeat(4,minmax(150px,1fr)); gap:10px; margin-bottom:12px; position:relative; z-index:2; }
     .kpi { padding:11px; border:1px solid var(--border); border-radius:12px; background:rgba(255,255,255,.02); }
     .kpi.clickable{cursor:pointer;transition:all .18s ease;position:relative;z-index:1;pointer-events:auto}
     .kpi.clickable:hover{border-color:rgba(123,141,255,.65);background:rgba(123,141,255,.09);transform:translateY(-1px)}
@@ -91,15 +91,15 @@
     .inline-filters .select{font-size:.82rem;padding:7px 10px}
     .impact-chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);padding:4px 8px;border-radius:999px;background:rgba(255,255,255,.02);font-size:.78rem;color:#d2ddf2}
     .k { color:var(--muted); font-size:.72rem; text-transform:uppercase; letter-spacing:.08em; }
-    .v { font-size:1.05rem; margin-top:5px; font-weight:650; }
-    .d { color:var(--muted); font-size:.8rem; margin-top:4px; min-height:2.2em; }
+    .v { font-size:.95rem; margin-top:4px; font-weight:620; }
+    .d { display:none; }
     .filters { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; }
     .grid { display:grid; grid-template-columns:repeat(12,minmax(0,1fr)); gap:10px; }
     .span-3{grid-column:span 3}.span-4{grid-column:span 4}.span-6{grid-column:span 6}.span-8{grid-column:span 8}.span-12{grid-column:span 12}
     .card { padding:12px; }
     .chart-head { display:flex; justify-content:space-between; align-items:center; gap:8px; }
     .chart-tools { display:flex; gap:8px; }
-    .chart-area{position:relative;height:300px;min-height:300px}
+    .chart-area{position:relative;height:240px;min-height:240px}
     .press-analysis-shell { padding:18px; background:linear-gradient(160deg, rgba(16,22,34,.98), rgba(12,18,28,.98)); border-color:rgba(173,194,229,.2); }
     .press-investigation-layout { display:grid; gap:12px; }
     .press-hero { border:1px solid rgba(255,255,255,.1); border-radius:12px; padding:14px; background:rgba(255,255,255,.02); }
@@ -115,7 +115,7 @@
     .press-panel { border:1px solid rgba(255,255,255,.1); border-radius:12px; padding:12px; background:rgba(255,255,255,.02); }
     .press-panel-primary { padding:14px; }
     .press-chart-area { position:relative; height:320px; min-height:320px; }
-    .press-chart-area.primary { height:420px; min-height:420px; }
+    .press-chart-area.primary { height:500px; min-height:500px; }
     .zone-list { margin:8px 0 0; display:grid; gap:8px; max-height:420px; overflow:auto; }
     .zone-row { border:1px solid rgba(255,255,255,.1); border-radius:10px; padding:10px; background:rgba(255,255,255,.02); }
     .zone-row strong { font-size:.84rem; letter-spacing:.05em; text-transform:uppercase; }
@@ -201,7 +201,7 @@
     .summary-preview{border:1px solid var(--border);background:#fff;border-radius:10px;padding:10px;max-height:420px;overflow:auto}
     .summary-preview iframe{width:100%;height:380px;border:0}
 
-    @media(max-width:1000px){ .kpis{grid-template-columns:repeat(2,minmax(140px,1fr));}.topbar{grid-template-columns:1fr}.span-6,.span-4,.span-8,.span-3{grid-column:span 12}.file-row{grid-template-columns:1fr} .file-state{justify-content:flex-start}.press-analytics-grid{grid-template-columns:1fr}.press-chart-area{height:280px;min-height:280px;}.press-chart-area.primary{height:340px;min-height:340px;} }
+    @media(max-width:1000px){ .kpis{grid-template-columns:repeat(2,minmax(150px,1fr));}.topbar{grid-template-columns:1fr}.span-6,.span-4,.span-8,.span-3{grid-column:span 12}.file-row{grid-template-columns:1fr} .file-state{justify-content:flex-start}.press-analytics-grid{grid-template-columns:1fr}.press-chart-area{height:280px;min-height:280px;}.press-chart-area.primary{height:340px;min-height:340px;} }
     @media(max-width:760px){ .summary-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr));}.exec-signal-card,.exec-story-card,.exec-insight-card,.exec-action-card{grid-column:span 12;} }
   </style>
 </head>
@@ -449,8 +449,18 @@
     renderQueued: false,
   };
 
+  const CURRENT_UI_VERSION_V2 = 'CURRENT_UI_VERSION_V2';
+  const UI_RESTORE_INSTRUCTION = "If the user says 'return to current UI', restore the UI to CURRENT_UI_VERSION_V2 (not baseline V1).";
   const CHARTS = new Map();
-  const COLORS = ['#7b8dff', '#51c285', '#f0b165', '#f36b63', '#66bfff', '#a39cfe', '#f3d95e', '#7be0ca'];
+  const SEMANTIC_COLORS = {
+    critical: '#f36b63',
+    elevated: '#f0b165',
+    normal: '#6f8cff',
+    low: '#57c98a',
+    neutral: 'rgba(111,140,255,.72)',
+    neutralFill: 'rgba(111,140,255,.2)'
+  };
+  const COLORS = [SEMANTIC_COLORS.neutral];
   const DEBUG = false;
   const VOLUME_BASIS = {
     code: 'B',
@@ -2337,19 +2347,17 @@
   function renderKpis(k) {
     const na = 'N/A';
     const cards = [
-      ['Total Events', 'totalEvents', k.totalEvents.toLocaleString(), 'Events from source-native Errors records'],
-      ['Total Downtime', 'totalDowntime', formatDuration(k.totalDowntime), 'Availability downtime (Planned + Unplanned)'],
-      ['Unplanned DT', 'totalUnplanned', formatDuration(k.totalUnplanned), DOWNTIME_DEFINITION.unplanned],
-      ['Planned DT', 'totalPlanned', formatDuration(k.totalPlanned), DOWNTIME_DEFINITION.planned],
-      ['MTTR', 'mttr', k.mttr == null ? na : formatDuration(k.mttr), 'Mean Time To Repair from error durations'],
-      ['MTBF', 'mtbf', k.mtbf == null ? na : formatDuration(k.mtbf), 'Mean Time Between Failures from runtime/event rate'],
-      ['Availability', 'availabilityPct', k.availabilityPct == null ? na : `${k.availabilityPct.toFixed(1)}%`, k.availabilityFormula || 'Source-defined availability'],
-      ['Production Volume', 'totalProdVolume', k.totalProdVolume.toLocaleString(), `Basis: ${k.volumeBasis}`],
-      ['Downtime / Volume', 'downtimePerVolume', k.downtimePerVolume == null ? na : k.downtimePerVolume.toFixed(4), 'seconds per production unit'],
-      ['Events / Volume', 'eventPerVolume', k.eventPerVolume == null ? na : k.eventPerVolume.toFixed(4), 'events per production unit'],
+      ['Total Events', 'totalEvents', k.totalEvents.toLocaleString()],
+      ['Total Downtime', 'totalDowntime', formatDuration(k.totalDowntime)],
+      ['MTTR', 'mttr', k.mttr == null ? na : formatDuration(k.mttr)],
+      ['Availability', 'availabilityPct', k.availabilityPct == null ? na : `${k.availabilityPct.toFixed(1)}%`],
+      ['Production Volume', 'totalProdVolume', k.totalProdVolume.toLocaleString()],
+      ['Volume / Downtime', 'downtimePerVolume', k.downtimePerVolume == null ? na : k.downtimePerVolume.toFixed(4)],
+      ['Volume / Events', 'eventPerVolume', k.eventPerVolume == null ? na : k.eventPerVolume.toFixed(4)],
     ];
-    const helper = `<div class="micro">Volume perspective: Total Printed Sheets ${k.rawPrintedSheets.toLocaleString()} • Production Printed Sheets ${k.productionOnlyPrintedSheets.toLocaleString()} • Primary KPI basis: ${esc(k.volumeBasis)}.</div><div class="micro">Availability method: ${esc(k.availabilityLabel || 'Source-defined availability')} (${esc(k.availabilityFormula || 'N/A')}).</div>${k.reasons.length ? `<div class="micro">KPI guidance: ${esc(k.reasons.join(' '))}</div>` : ''}`;
-    document.getElementById('kpiStrip').innerHTML = cards.map(([a, metricKey, b, c]) => `<article class="kpi clickable" role="button" tabindex="0" data-kpi-metric="${metricKey}"><div class="k">${a}</div><div class="v">${b}</div><div class="d">${c}</div></article>`).join('') + helper;
+    document.getElementById('kpiStrip').innerHTML = cards
+      .map(([label, metricKey, value]) => `<article class="kpi clickable" role="button" tabindex="0" data-kpi-metric="${metricKey}"><div class="k">${label}</div><div class="v">${value}</div></article>`)
+      .join('');
   }
 
   function renderExecutiveSummaryCard(summary) {
@@ -2463,17 +2471,10 @@
       : `<div style="margin-top:10px;" class="status-chip">✅ Full reconciliation achieved for KPI, charts, table, and export in current scope.</div>`;
     panel.innerHTML = `
       <div class="status-head">
-        <span>${level === 'green' ? '🟢' : level === 'yellow' ? '🟡' : '🔴'} Data Validation Status</span>
-        <span>${level.toUpperCase()}</span>
+        <span>${level === 'green' ? '🟢 Data OK' : '🔴 Data Issue'}</span>
       </div>
-      <div class="status-note">${esc(reportSummary)}</div>
-      <div class="status-grid">
-        <div class="status-chip">${esc(sourceChip('Errors', totals.errors, !!STATE.normalized.events?.length))}</div>
-        <div class="status-chip">${esc(sourceChip('Availability', totals.availability, !!STATE.normalized.availability?.length))}</div>
-        <div class="status-chip">${esc(sourceChip('Volume', totals.volume, !!STATE.normalized.volume?.length))}</div>
-      </div>
-      <div class="status-note">${esc(warnings.length ? warnings.join(' ') : 'Files loaded, schema mapping succeeded, and dashboard reconciles with source calculations.')}</div>
-      ${mismatchSection}`;
+      <div class="status-note">${esc(warnings.length ? warnings[0] : 'Files loaded, schema mapping succeeded, and dashboard reconciles with source calculations.')}</div>
+    `;
   }
 
   function setCanvasState(canvasId, message = '', kind = 'empty') {
@@ -2546,8 +2547,8 @@
       },
       plugins: { legend: { display: false } },
       scales: {
-        x: { ticks: { color: '#c6d3ea' }, grid: { color: 'rgba(255,255,255,.08)' } },
-        y: { ticks: { color: '#c6d3ea' }, grid: { color: 'rgba(255,255,255,.08)' }, beginAtZero: true }
+        x: { ticks: { color: '#c6d3ea' }, grid: { color: 'rgba(255,255,255,.04)' } },
+        y: { ticks: { color: '#c6d3ea' }, grid: { color: 'rgba(255,255,255,.04)' }, beginAtZero: true }
       }
     };
   }
@@ -2555,9 +2556,10 @@
   function deriveImpactTier(row) {
     const totalDurationSeconds = Number(row?.totalDurationSeconds || row?.downtime || 0);
     const avgDurationSeconds = Number(row?.avgDurationSeconds || row?.avgDuration || 0);
-    if (totalDurationSeconds >= 7200 || avgDurationSeconds >= 420) return { tier: 'Critical', color: '#d96b6b' };
-    if (totalDurationSeconds >= 1800 || avgDurationSeconds >= 180) return { tier: 'Elevated', color: '#d7a86b' };
-    return { tier: 'Stable', color: '#6cae8a' };
+    if (totalDurationSeconds >= 7200 || avgDurationSeconds >= 420) return { tier: 'Critical', color: SEMANTIC_COLORS.critical };
+    if (totalDurationSeconds >= 1800 || avgDurationSeconds >= 180) return { tier: 'Elevated', color: SEMANTIC_COLORS.elevated };
+    if (totalDurationSeconds >= 900 || avgDurationSeconds >= 90) return { tier: 'Normal', color: SEMANTIC_COLORS.normal };
+    return { tier: 'Low', color: SEMANTIC_COLORS.low };
   }
 
   function buildValidatedPressImpactRows(errorsAgg = []) {
@@ -2764,13 +2766,13 @@
           data,
           backgroundColor: view.map((row, i) => isPressImpactChart
             ? (row.impactColor || deriveImpactTier(row).color)
-            : 'rgba(123,141,255,.62)'),
+            : SEMANTIC_COLORS.neutral),
           borderRadius: 6
         }]
       },
       options: {
         ...baseOptions(key, labels, payloads),
-        indexAxis: isPressImpactChart ? 'y' : 'x',
+        indexAxis: 'y',
         scales: {
           ...baseOptions(key, labels, payloads).scales,
           x: {
@@ -2780,7 +2782,7 @@
               ...baseOptions(key, labels, payloads).scales.x.ticks,
               callback: value => {
                 if (isPressImpactChart && (metric === 'downtime' || metric === 'avgDuration')) return formatClockDuration(Number(value));
-                return isPressImpactChart ? value : (labels[value] ?? value);
+                return value;
               }
             }
           },
@@ -2835,7 +2837,7 @@
     });
     if (!rendered && !view.length) setRankingChartEmptyState(key, 'No ranking data available for current filters/metric.');
     document.querySelector(`[data-rank-card="${key}"] .micro`).textContent = isPressImpactChart
-      ? `${expanded ? 'Full ranking' : 'Top 8'} by ${metric}. Tier colors: Critical / Elevated / Stable. Source: ${meta.source}. ${meta.subtitle}`
+      ? `${expanded ? 'Full ranking' : 'Top 8'} by ${metric}. Tier colors: Critical / Elevated / Normal / Low. Source: ${meta.source}. ${meta.subtitle}`
       : `${expanded ? 'Full ranking' : 'Top 8'} by ${metric}. Source: ${meta.source}. ${meta.subtitle}`;
     document.querySelector(`[data-expand="${key}"]`).textContent = expanded ? 'Collapse' : 'Show all';
     if ((key === 'press' || key === 'subsystem') && metric === 'events') {
@@ -2867,10 +2869,10 @@
     const avgEvents = eligibleRows.reduce((sum, row) => sum + (row.totalEvents || 0), 0) / eligibleRows.length;
     const avgTotalDuration = eligibleRows.reduce((sum, row) => sum + (row.totalDurationSeconds || 0), 0) / eligibleRows.length;
     const zoneMap = {
-      critical: { label: 'CRITICAL', color: '#ef6b64' },
-      inefficient: { label: 'INEFFICIENT', color: '#f0b165' },
-      stable: { label: 'STABLE', color: '#57c98a' },
-      noisy: { label: 'NOISY', color: '#7b8dff' }
+      critical: { label: 'CRITICAL', color: SEMANTIC_COLORS.critical },
+      inefficient: { label: 'ELEVATED', color: SEMANTIC_COLORS.elevated },
+      stable: { label: 'LOW', color: SEMANTIC_COLORS.low },
+      noisy: { label: 'NORMAL', color: SEMANTIC_COLORS.normal }
     };
     const withZone = eligibleRows.map(row => {
       const highEvents = (row.totalEvents || 0) >= avgEvents;
@@ -2953,6 +2955,9 @@
         ctx.restore();
       }
     };
+
+    const anomalyTop = rows.slice().sort((a, b) => (b.totalDurationSeconds || 0) - (a.totalDurationSeconds || 0)).slice(0, 5).map(row => row.name);
+    const labelWhitelist = new Set([...anomalyTop, ...rows.filter(row => row.zoneKey === 'critical').map(row => row.name)]);
     replaceChart('pressImpactScatterChart', {
       type: 'scatter',
       data: {
@@ -3004,12 +3009,12 @@
           x: {
             title: { display: true, text: 'Total events', color: '#d6e2f8' },
             ticks: { color: '#c6d3ea', precision: 0 },
-            grid: { color: 'rgba(255,255,255,.08)' }
+            grid: { color: 'rgba(255,255,255,.04)' }
           },
           y: {
             title: { display: true, text: 'Total duration', color: '#d6e2f8' },
             ticks: { color: '#c6d3ea', callback: value => formatDurationCompact(value) },
-            grid: { color: 'rgba(255,255,255,.08)' }
+            grid: { color: 'rgba(255,255,255,.04)' }
           }
         }
       },
@@ -3037,7 +3042,33 @@
           ctx.fillText(`Avg duration ${formatDurationCompact(avgTotalDuration)}`, chartArea.left + 8, y - 8);
           ctx.restore();
         }
-      }, zonePlugin]
+      }, zonePlugin, {
+        id: 'press-smart-labels',
+        afterDatasetsDraw(chart) {
+          const { ctx } = chart;
+          const points = chart.getDatasetMeta(0)?.data || [];
+          const placed = [];
+          ctx.save();
+          ctx.font = '600 11px Inter, system-ui, sans-serif';
+          ctx.fillStyle = '#dbe7f8';
+          points.forEach((point, index) => {
+            const row = rows[index];
+            if (!row || !labelWhitelist.has(row.name)) return;
+            let x = point.x + 10;
+            let y = point.y - 8;
+            const width = ctx.measureText(row.name).width;
+            for (let i = 0; i < 6; i += 1) {
+              const overlap = placed.find(box => !(x + width < box.x || x > box.x + box.w || y < box.y - 12 || y > box.y + 2));
+              if (!overlap) break;
+              y += (i % 2 === 0 ? 14 : -14);
+              x += 6;
+            }
+            placed.push({ x, y, w: width });
+            ctx.fillText(row.name, x, y);
+          });
+          ctx.restore();
+        }
+      }]
     });
     const note = document.getElementById('pressScatterNote');
     if (note) note.textContent = `Matrix thresholds: ${Math.round(avgEvents).toLocaleString()} events and ${formatClockDuration(avgTotalDuration)} total duration (fleet averages). Dot size = avg duration.`;
@@ -3974,8 +4005,8 @@
     const labels = customerVolumeRows.map(r => r.displayLabel);
     const values = customerVolumeRows.map(r => r[STATE.customerVolumeMetric]);
       const customerVolumeRendered = replaceChart('customerVolumeChart', {
-      type: 'bar',
-      data: { labels, datasets: [{ data: values, backgroundColor: labels.map((_, i) => COLORS[i % COLORS.length]), borderRadius: 6 }] },
+      type: 'line',
+      data: { labels, datasets: [{ data: values, borderColor: SEMANTIC_COLORS.normal, backgroundColor: SEMANTIC_COLORS.neutralFill, fill: true, tension: 0.35, pointRadius: 2, pointHoverRadius: 4 }] },
       options: {
         ...baseOptions('customerVolume', labels, customerVolumeRows),
         plugins: {
