@@ -337,7 +337,7 @@
           <article id="pressHeroInsight" class="press-hero"></article>
           <div class="press-analytics-grid">
             <article class="press-panel press-panel-primary">
-              <div class="chart-head"><h3>Press Impact Matrix</h3><div class="chart-tools"><div class="metric-toggle" data-chart-toggle="press"><button class="btn" data-mode="events">Events</button><button class="btn active" data-mode="duration">Duration</button></div></div></div>
+        <div class="chart-head"><h3>Press Impact Matrix</h3><div class="chart-tools"><div class="metric-toggle" data-chart-toggle="press"><button class="btn active" data-mode="events">Events</button><button class="btn" data-mode="duration">Duration</button></div></div></div>
               <div class="micro" id="pressScatterNote">X-axis: total events • Y-axis: total duration. Zones: Critical, Inefficient, Stable, Noisy.</div>
               <div class="press-chart-area primary"><canvas id="pressImpactScatterChart"></canvas></div>
             </article>
@@ -405,7 +405,7 @@
   <section class="drawer-panel">
     <div class="chart-head">
       <h3 id="drilldownTitle">Drilldown</h3>
-      <div class="chart-tools"><input id="drilldownSearch" placeholder="Search drilldown rows" /><button id="drilldownExport" class="btn secondary">Export subset</button><button id="closeDrilldown" class="btn">Close</button></div>
+      <div class="chart-tools"><button id="drilldownBack" class="btn secondary">← Back</button><input id="drilldownSearch" placeholder="Search drilldown rows" /><button id="drilldownExport" class="btn secondary">Export subset</button><button id="closeDrilldown" class="btn">Close</button></div>
     </div>
     <div id="drilldownBreadcrumbs" class="micro"></div>
     <div id="drilldownSummary" class="micro"></div>
@@ -451,7 +451,7 @@
     },
     lastRunSnapshot: null,
     expand: { press: false, subsystem: false, alert: false, version: false },
-    metricByChart: { press: 'downtime', subsystem: 'events', alert: 'events', version: 'events' },
+    metricByChart: { press: 'events', subsystem: 'events', alert: 'events', version: 'events' },
     customerVolumeMetric: 'productionPrintedSheets',
     customerVolumeMode: 'volume',
     customerVolumeSort: 'desc',
@@ -477,12 +477,12 @@
   const SEMANTIC_COLORS = {
     critical: '#f36b63',
     elevated: '#f0b165',
-    normal: '#6f8cff',
-    low: '#57c98a',
+    normal: '#57c98a',
+    low: '#6f8cff',
     neutral: 'rgba(111,140,255,.72)',
     neutralFill: 'rgba(111,140,255,.2)'
   };
-  const COLORS = [SEMANTIC_COLORS.neutral];
+  const COLORS = [SEMANTIC_COLORS.critical, SEMANTIC_COLORS.elevated, SEMANTIC_COLORS.normal, SEMANTIC_COLORS.low, SEMANTIC_COLORS.neutral];
   const DEBUG = false;
   const VOLUME_BASIS = {
     code: 'B',
@@ -1085,7 +1085,7 @@
     const classifyMaintenance = row => {
       const jobType = String(getField(row, ['Job Type'])).toLowerCase();
       const pressMode = String(getField(row, ['Press Mode', 'Mode'])).toLowerCase();
-      return /maintenance|service|repair|pm/.test(jobType) || /maintenance|service|repair|pm/.test(pressMode);
+      return (!isSpecialJobType(jobType)) && (/maintenance|service|repair|pm/.test(jobType) || /maintenance|service|repair|pm/.test(pressMode));
     };
 
     const total = Math.max(1, rows.length);
@@ -1102,10 +1102,11 @@
       const printedSheets = parseNumber(getField(r, ['Printed Sheets']));
       const printedFlats = parseNumber(getField(r, ['Printed Flats']));
       const preferredVolume = Number.isFinite(printedSheets) ? printedSheets : (Number.isFinite(printedFlats) ? printedFlats : 0);
-      const maintenance = classifyMaintenance(r);
       const customer = String(getField(r, ['Customer', 'Account', 'Client'])).trim() || 'Unspecified';
       const site = String(getField(r, ['Site', 'Location', 'Plant'])).trim() || 'Unspecified';
       const jobType = String(getField(r, ['Job Type'])).trim() || 'Unspecified';
+      const specialJob = isSpecialJobType(jobType);
+      const maintenance = !specialJob && classifyMaintenance(r);
       const jobStatus = String(getField(r, ['Job Status'])).trim() || 'Unspecified';
       const pressMode = String(getField(r, ['Press Mode', 'Mode'])).trim() || 'Unspecified';
       const perfector = String(getField(r, ['Perfector'])).trim();
@@ -1126,10 +1127,12 @@
         model: canonicalModel,
         pressCode,
         day,
-        productionVolume: maintenance ? 0 : preferredVolume,
+        productionVolume: (maintenance || specialJob) ? 0 : preferredVolume,
         maintenanceVolume: maintenance ? preferredVolume : 0,
+        wasteVolume: specialJob ? preferredVolume : 0,
         totalVolume: preferredVolume,
-        productionPrintedSheets: maintenance ? 0 : (Number.isFinite(printedSheets) ? printedSheets : 0),
+        productionPrintedSheets: (maintenance || specialJob) ? 0 : (Number.isFinite(printedSheets) ? printedSheets : 0),
+        wastePrintedSheets: specialJob ? (Number.isFinite(printedSheets) ? printedSheets : 0) : 0,
         printedSheets: Number.isFinite(printedSheets) ? printedSheets : 0,
         printedFlats: Number.isFinite(printedFlats) ? printedFlats : 0,
         simplexDuplex,
@@ -1165,7 +1168,9 @@
           productionVolume: 0,
           maintenanceVolume: 0,
           totalVolume: 0,
+          wasteVolume: 0,
           productionPrintedSheets: 0,
+          wastePrintedSheets: 0,
           printedSheets: 0,
           printedFlats: 0,
           raw: [],
@@ -1174,8 +1179,10 @@
       const slot = byKey.get(job.key);
       slot.productionVolume += job.productionVolume || 0;
       slot.maintenanceVolume += job.maintenanceVolume || 0;
+      slot.wasteVolume += job.wasteVolume || 0;
       slot.totalVolume += job.totalVolume || 0;
       slot.productionPrintedSheets += job.productionPrintedSheets || 0;
+      slot.wastePrintedSheets += job.wastePrintedSheets || 0;
       if (slot.customer === 'Unspecified' && job.customer) slot.customer = job.customer;
       if (slot.site === 'Unspecified' && job.site) slot.site = job.site;
       slot.printedSheets += job.printedSheets || 0;
@@ -2594,6 +2601,17 @@
     });
   }
 
+  function isSpecialJobType(jobType) {
+    return String(jobType || '').trim().toLowerCase() === 'special';
+  }
+
+  function hasDurationDataForRanking(metric, items = []) {
+    if (metric !== 'downtime') return true;
+    const hasDuration = items.some(item => Number(item?.downtime || item?.totalDurationSeconds || 0) > 0);
+    const hasEvents = items.some(item => Number(item?.events || item?.totalEvents || 0) > 0);
+    return hasDuration || !hasEvents;
+  }
+
   function deriveImpactTier(row) {
     const totalDurationSeconds = Number(row?.totalDurationSeconds || row?.downtime || 0);
     const avgDurationSeconds = Number(row?.avgDurationSeconds || row?.avgDuration || 0);
@@ -2695,20 +2713,31 @@
     };
     if (key === 'press') {
       const { rows: validatedPressRows, diagnostics } = buildValidatedPressImpactRows(errorsAgg);
+      const eventCountsByPress = new Map();
+      (errorEvents || []).forEach(ev => {
+        const pressName = ev?.press || 'Unspecified';
+        eventCountsByPress.set(pressName, (eventCountsByPress.get(pressName) || 0) + 1);
+      });
       console.info('[press-impact-duration-validation]', diagnostics);
       if (diagnostics.nullDurationRows || diagnostics.negativeDurationRows || diagnostics.invalidDurationRows || diagnostics.duplicateRows || !diagnostics.validationPassed) {
         console.warn('[press-impact-duration-validation-warning]', diagnostics);
       }
       validatedPressRows.forEach(r => {
+        const recomputedEvents = eventCountsByPress.get(r.name) || 0;
+        const normalizedEvents = (r.totalEvents === 0 && r.totalDurationSeconds > 0 && recomputedEvents > 0) ? recomputedEvents : r.totalEvents;
+        if (r.totalEvents === 0 && r.totalDurationSeconds > 0 && recomputedEvents > 0) {
+          console.error('[data-validation] corrected zero-event aggregation with non-zero duration', { press: r.name, previousEvents: r.totalEvents, correctedEvents: recomputedEvents, durationSeconds: r.totalDurationSeconds });
+        }
         add(r.name, {
-          events: r.totalEvents,
+          events: normalizedEvents,
           downtime: r.totalDurationSeconds,
-          avgDuration: r.avgDurationSeconds,
-          totalEvents: r.totalEvents,
+          avgDuration: normalizedEvents > 0 ? (r.totalDurationSeconds / normalizedEvents) : 0,
+          totalEvents: normalizedEvents,
           totalDurationSeconds: r.totalDurationSeconds,
-          avgDurationSeconds: r.avgDurationSeconds,
+          avgDurationSeconds: normalizedEvents > 0 ? (r.totalDurationSeconds / normalizedEvents) : 0,
           impactTier: r.impactTier,
-          impactColor: r.impactColor
+          impactColor: r.impactColor,
+          noDurationData: normalizedEvents > 0 && r.totalDurationSeconds === 0
         });
       });
       volumeAgg.forEach(r => {
@@ -2718,7 +2747,12 @@
       [...baseMap.values()].forEach(item => { item.normalized = item.volume > 0 ? item.events / item.volume : item.events; item.risk = 0; });
     } else {
       const eventAggregate = aggregateErrorEvents(errorEvents, r => nameOf(r));
-      eventAggregate.forEach(r => add(r.name, { events: r.events || 0, normalized: r.normalized || 0, risk: r.risk || 0 }));
+      eventAggregate.forEach(r => add(r.name, {
+        events: r.events || 0,
+        normalized: r.normalized || 0,
+        risk: r.risk || 0,
+        noDurationData: (r.events || 0) > 0 && (r.downtime || 0) === 0
+      }));
       if (metric === 'downtime') {
         if (key === 'subsystem') {
           const bySubsystem = new Map();
@@ -2781,6 +2815,12 @@
       if (!isPressImpactChart && metric === 'downtime') return (x.downtime || 0) / 3600;
       return x[metric] || 0;
     });
+    if (metric === 'downtime' && !hasDurationDataForRanking(metric, view)) {
+      showNoDataChart(`${key}Chart`, 'No duration data available for current selection');
+      document.querySelector(`[data-rank-card="${key}"] .micro`).textContent = 'No duration data available for current selection';
+      document.querySelector(`[data-expand="${key}"]`).textContent = expanded ? 'Collapse' : 'Show all';
+      return;
+    }
     const colorFamily = key === 'subsystem' ? '240,177,101' : key === 'alert' ? '243,107,99' : key === 'version' ? '111,140,255' : '111,140,255';
     const palette = buildTonePalette(view.length, colorFamily);
     if (!view.length || data.every(v => !Number.isFinite(v) || v === 0)) {
@@ -2791,9 +2831,10 @@
         first5Labels: labels.slice(0, 5),
         reason: !view.length ? 'No rows in ranking input.' : 'All plotted values are zero/invalid for current metric.',
       });
-      setRankingChartEmptyState(key, 'No ranking data available for current filters/metric.');
-    } else {
-      setRankingChartEmptyState(key, '');
+      showNoDataChart(`${key}Chart`, metric === 'downtime' ? 'No duration data available for current selection' : 'No ranking data available for current filters/metric.');
+      document.querySelector(`[data-rank-card="${key}"] .micro`).textContent = metric === 'downtime' ? 'No duration data available for current selection' : 'No ranking data available for current filters/metric.';
+      document.querySelector(`[data-expand="${key}"]`).textContent = expanded ? 'Collapse' : 'Show all';
+      return;
     }
     console.info('[ranking-chart-input]', {
       chart: key,
@@ -3214,11 +3255,12 @@
     STATE.customerVolumeLookup = new Map();
     volumeAggRows.forEach(r => {
       const entityKey = r.canonicalPress || 'Unspecified';
-      const slot = byPress.get(entityKey) || { entityKey, displayLabel: entityKey, canonicalPress: entityKey, productionPrintedSheets: 0, printedSheets: 0, printedFlats: 0, maintenanceVolume: 0, customers: new Set(), models: new Set(), sourceRows: 0 };
+      const slot = byPress.get(entityKey) || { entityKey, displayLabel: entityKey, canonicalPress: entityKey, productionPrintedSheets: 0, printedSheets: 0, printedFlats: 0, maintenanceVolume: 0, wastePrintedSheets: 0, customers: new Set(), models: new Set(), sourceRows: 0 };
       slot.productionPrintedSheets += r.productionPrintedSheets || 0;
       slot.printedSheets += r.printedSheets || 0;
       slot.printedFlats += r.printedFlats || 0;
       slot.maintenanceVolume += r.maintenanceVolume || 0;
+      slot.wastePrintedSheets += r.wastePrintedSheets || 0;
       if (r.customer) slot.customers.add(r.customer);
       if (r.canonicalModel) slot.models.add(r.canonicalModel);
       slot.sourceRows += 1;
@@ -3424,6 +3466,11 @@
       rows = rows.filter(r => eventValueForDimension(r, dimension) === entityKey);
     }
     const prevPath = Array.isArray(payload?.parentContext?.path) ? payload.parentContext.path : [];
+    const isDeeperNavigation = prevPath.length > 0;
+    if (!rows.length && isDeeperNavigation) {
+      setStatus('No deeper data available', 'warning');
+      return;
+    }
     const nextPath = [...prevPath, { dimension, entityKey: payload?.entityKey || value, displayLabel: payload?.displayLabel || value }];
     STATE.drilldown = {
       dimension,
@@ -3471,6 +3518,32 @@
     const dominant = topAlerts[0]?.[0] || 'Unspecified';
     const insight = `${rows.length} events in selected ${dimension}. Dominant issue: ${dominant}. Top press: ${topPresses[0]?.[0] || 'N/A'}.`;
     return { topAlerts, topPresses, topSubsystems, topStates, trendPoints, insight };
+  }
+
+  function semanticColorByShare(sharePct) {
+    if (sharePct >= 50) return SEMANTIC_COLORS.critical;
+    if (sharePct >= 20) return SEMANTIC_COLORS.elevated;
+    if (sharePct >= 5) return SEMANTIC_COLORS.normal;
+    return SEMANTIC_COLORS.low;
+  }
+
+  function compactContributionRows(rows = [], total = 0, thresholdPct = 2) {
+    if (!rows.length) return [];
+    const major = [];
+    let minorTotal = 0;
+    rows.forEach(([name, value]) => {
+      const pct = total > 0 ? (Number(value || 0) / total) * 100 : 0;
+      if (pct < thresholdPct) minorTotal += Number(value || 0);
+      else major.push([name, Number(value || 0)]);
+    });
+    if (minorTotal > 0) major.push(['Other (<2%)', minorTotal]);
+    return major;
+  }
+
+  function renderContributionBar(pct) {
+    const safePct = Math.max(0, Math.min(100, Number(pct || 0)));
+    const color = semanticColorByShare(safePct);
+    return `<div style="display:flex;align-items:center;gap:8px;min-width:180px;"><div style="flex:1;height:8px;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden;"><div style="width:${safePct.toFixed(2)}%;height:100%;background:${color};border-radius:999px;"></div></div><span style="min-width:44px;text-align:right;color:${color};font-weight:650;">${safePct.toFixed(1)}%</span></div>`;
   }
 
   function getNextErrorDrillDimension(dimension) {
@@ -3611,11 +3684,15 @@
       const tableWrap = document.getElementById('drilldownTableWrap');
       if (tableWrap) tableWrap.style.display = 'block';
     }
-    const scoped = !search ? rows : rows.filter(r => `${r.customer} ${r.site} ${r.press} ${r.subsystem || ''} ${r.name || ''} ${r.alertTitle || ''} ${r.version || ''} ${r.jobType || ''} ${r.jobStatus || ''}`.toLowerCase().includes(search.toLowerCase()));
+    const scoped = !search ? rows : rows.filter(r => `${r.press} ${r.subsystem || ''} ${r.name || ''} ${r.alertTitle || ''} ${r.version || ''} ${r.jobType || ''} ${r.jobStatus || ''}`.toLowerCase().includes(search.toLowerCase()));
     renderDrilldownBreadcrumbs();
     renderSimulationControls(0);
     setDrilldownHeading('drilldownTrendHeading', 'Trend');
     setDrilldownHeading('drilldownOpsHeading', 'Operational split');
+    const drillContext = document.getElementById('drilldownContext');
+    const drillFilters = document.getElementById('drilldownFilters');
+    if (drillContext) { drillContext.innerHTML = ''; drillContext.classList.add('hidden'); }
+    if (drillFilters) { drillFilters.innerHTML = ''; drillFilters.classList.add('hidden'); }
     if (isKpiDrilldown) {
       const drilldownPanel = document.querySelector('#drilldownDrawer .drawer-panel');
       const chartsContainer = document.getElementById('drilldownChartsContainer');
@@ -3744,7 +3821,8 @@
       } else {
         showNoDataChart('drilldownOpsChart');
       }
-      document.getElementById('drilldownTransparency').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Calculation transparency table</h4><span class="impact-chip">Availability components</span></div><div class="table-wrap" style="max-height:220px;margin-top:8px;"><table><thead><tr><th>Component</th><th>Planned</th><th>Unplanned</th><th>Total</th><th>Contribution %</th></tr></thead><tbody>${subs.slice(0,25).map(x=>`<tr><td>${esc(x.name)}</td><td>${esc(formatDuration(scoped.filter(r=>r.subsystem===x.name).reduce((a,r)=>a+(r.plannedDowntimeSeconds||0),0)))}</td><td>${esc(formatDuration(scoped.filter(r=>r.subsystem===x.name).reduce((a,r)=>a+(r.unplannedDowntimeSeconds||0),0)))}</td><td>${esc(formatDuration(x.downtime))}</td><td>${total?((x.downtime/total)*100).toFixed(2):'0.00'}%</td></tr>`).join('')}</tbody></table></div>`;
+      const groupedSubs = compactContributionRows(subs.map(x => [x.name, x.downtime]), total);
+      document.getElementById('drilldownTransparency').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Calculation transparency table</h4><span class="impact-chip">Availability components</span></div><div class="table-wrap" style="max-height:220px;margin-top:8px;"><table><thead><tr><th>Component</th><th>Total</th><th>Contribution</th></tr></thead><tbody>${groupedSubs.map(([name,val])=>`<tr><td>${esc(name)}</td><td>${esc(formatDuration(val))}</td><td>${renderContributionBar(total?((val/total)*100):0)}</td></tr>`).join('')}</tbody></table></div>`;
       document.getElementById('drilldownTable').innerHTML = `<thead><tr><th>press</th><th>day</th><th>subsystem</th><th>category</th><th>planned</th><th>unplanned</th><th>total</th></tr></thead><tbody>${scoped.slice(0, 1000).map(r => `<tr><td>${esc(r.canonicalPress || '')}</td><td>${esc(r.day)}</td><td>${esc(r.subsystem)}</td><td>${esc(r.downtimeCategory || 'Unspecified')}</td><td>${esc(formatDuration(r.plannedDowntimeSeconds || 0))}</td><td>${esc(formatDuration(r.unplannedDowntimeSeconds || 0))}</td><td>${esc(formatDuration(totalDowntimeFromAvailabilityRow(r)))}</td></tr>`).join('')}</tbody>`;
       return;
     }
@@ -3769,7 +3847,7 @@
         <div class="summary-stat span-2"><div class="label">Avg duration/job</div><div class="value">${formatDuration(avgDurationPerJob)}</div></div>`;
       const productionSplit = new Map([['Simplex', 0], ['Duplex', 0]]);
       const maintenanceSplit = new Map([['Simplex', 0], ['Duplex', 0]]);
-      const wasteSplit = new Map([['Waste', 0], ['Non-waste', 0]]);
+      const wasteSplit = new Map([['Waste', 0], ['Volume', 0]]);
       const substrateSplit = new Map();
       const byJobName = new Map();
       scoped.forEach(r => {
@@ -3784,8 +3862,8 @@
         const subKey = `${r.substrate || 'Unspecified'} • ${duplexKey}`;
         substrateSplit.set(subKey, (substrateSplit.get(subKey) || 0) + unit);
         byJobName.set(r.jobName || 'Unspecified', (byJobName.get(r.jobName || 'Unspecified') || 0) + unit);
-        const isWaste = /waste|reject|scrap|spoil/.test(String(r.jobStatus || '').toLowerCase()) || /waste/.test(String(r.jobType || '').toLowerCase());
-        wasteSplit.set(isWaste ? 'Waste' : 'Non-waste', (wasteSplit.get(isWaste ? 'Waste' : 'Non-waste') || 0) + unit);
+        const isWaste = isSpecialJobType(r.jobType);
+        wasteSplit.set(isWaste ? 'Waste' : 'Volume', (wasteSplit.get(isWaste ? 'Waste' : 'Volume') || 0) + unit);
       });
       const nextDimension = getNextVolumeDrillDimension(dimension);
       document.getElementById('drilldownInsight').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Volume split overview</h4><span class="risk-pill risk-medium">Sheets/Flats mode</span></div><div class="micro">Production split, maintenance split, substrate, and job analysis are calculated directly from volume jobs. Current metric: ${esc(measure)}.</div>`;
@@ -3808,7 +3886,7 @@
         ['Production', [...productionSplit.values()].reduce((a, v) => a + v, 0)],
         ['Maintenance', [...maintenanceSplit.values()].reduce((a, v) => a + v, 0)],
         ['Waste', wasteSplit.get('Waste') || 0],
-        ['Non-waste', wasteSplit.get('Non-waste') || 0],
+        ['Volume', wasteSplit.get('Volume') || 0],
       ].filter(([, value]) => Number(value || 0) > 0);
       if (productionCategoryRows.length) {
         replaceChart('drilldownOpsChart', { type: 'bar', data: { labels: productionCategoryRows.map(x => x[0]), datasets: [{ data: productionCategoryRows.map(x => x[1]), backgroundColor: COLORS, borderRadius: 6 }] }, options: baseOptions('drilldown', productionCategoryRows.map(x => x[0])) });
@@ -3817,7 +3895,8 @@
       } else {
         showNoDataChart('drilldownOpsChart');
       }
-      document.getElementById('drilldownTransparency').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Calculation transparency table</h4><span class="impact-chip">Source-native job contributions</span></div><div class="table-wrap" style="max-height:220px;margin-top:8px;"><table><thead><tr><th>Include</th><th>Component</th><th>Source contribution</th><th>Amount</th><th>Contribution %</th></tr></thead><tbody>${topJobs.map(([name,val])=>`<tr><td>✓</td><td>${esc(name)}</td><td>volumeJobs</td><td>${Number(val).toLocaleString()}</td><td>${(totalSheets?((val/totalSheets)*100):0).toFixed(2)}%</td></tr>`).join('')}</tbody></table></div>`;
+      const groupedJobs = compactContributionRows(topJobs, totalSheets);
+      document.getElementById('drilldownTransparency').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Calculation transparency table</h4><span class="impact-chip">Source-native job contributions</span></div><div class="table-wrap" style="max-height:220px;margin-top:8px;"><table><thead><tr><th>Component</th><th>Amount</th><th>Contribution</th></tr></thead><tbody>${groupedJobs.map(([name,val])=>`<tr><td>${esc(name)}</td><td>${Number(val).toLocaleString()}</td><td>${renderContributionBar(totalSheets?((val/totalSheets)*100):0)}</td></tr>`).join('')}</tbody></table></div>`;
       const columns = ['jobName', 'jobType', 'simplexDuplex', 'substrate', 'printedSheets', 'printedFlats', 'durationSeconds'];
       document.getElementById('drilldownTable').innerHTML = `<thead><tr>${columns.map(col => `<th>${esc(col)}</th>`).join('')}</tr></thead><tbody>${scoped.slice(0, 1000).map(r => `<tr><td>${esc(r.jobName)}</td><td>${esc(r.jobType)}</td><td>${esc(r.simplexDuplex)}</td><td>${esc(r.substrate)}</td><td>${(r.printedSheets || 0).toLocaleString()}</td><td>${(r.printedFlats || 0).toLocaleString()}</td><td>${esc(formatDuration(r.durationSeconds || 0))}</td></tr>`).join('')}</tbody>`;
       return;
@@ -3894,13 +3973,14 @@
     } else {
       showNoDataChart('drilldownOpsChart');
     }
-    document.getElementById('drilldownTransparency').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Calculation transparency table</h4><span class="impact-chip">Top component contributions</span></div><div class="table-wrap" style="max-height:220px;margin-top:8px;"><table><thead><tr><th>Component</th><th>Events</th><th>Contribution %</th></tr></thead><tbody>${topRows.map(([name,val])=>`<tr><td>${esc(name)}</td><td>${Number(val).toLocaleString()}</td><td>${count?((val/count)*100).toFixed(2):'0.00'}%</td></tr>`).join('')}</tbody></table></div>`;
+    const groupedTopRows = compactContributionRows(topRows, count);
+    document.getElementById('drilldownTransparency').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Calculation transparency table</h4><span class="impact-chip">Top component contributions</span></div><div class="table-wrap" style="max-height:220px;margin-top:8px;"><table><thead><tr><th>Component</th><th>Events</th><th>Contribution</th></tr></thead><tbody>${groupedTopRows.map(([name,val])=>`<tr><td>${esc(name)}</td><td>${Number(val).toLocaleString()}</td><td>${renderContributionBar(count?((val/count)*100):0)}</td></tr>`).join('')}</tbody></table></div>`;
     const columns = isVolume
-      ? ['customer', 'site', 'press', 'day', 'jobType', 'jobStatus', 'pressMode', 'totalVolume']
-      : ['customer', 'site', 'press', 'subsystem', 'alert', 'version', 'start', 'duration'];
+      ? ['press', 'day', 'jobType', 'jobStatus', 'pressMode', 'totalVolume']
+      : ['press', 'subsystem', 'alert', 'version', 'start', 'duration'];
     const sort = STATE.drilldown.sort || { key: columns[0], dir: 'asc' };
     const getVal = (r, key) => ({
-      customer: r.customer, site: r.site, press: r.press, subsystem: r.subsystem,
+      press: r.press, subsystem: r.subsystem,
       alert: r.name !== 'Unspecified' ? r.name : r.alertTitle, version: r.version,
       start: r.startTime?.toISOString() || '', duration: r.durationSeconds || 0,
       day: r.day, jobType: r.jobType, jobStatus: r.jobStatus, pressMode: r.pressMode, totalVolume: r.totalVolume || r.volume || 0
@@ -3911,8 +3991,8 @@
       return sort.dir === 'asc' ? cmp : -cmp;
     });
     document.getElementById('drilldownTable').innerHTML = `<thead><tr>${columns.map(col => `<th data-dd-col="${col}" style="cursor:pointer">${esc(col)} ${sort.key === col ? (sort.dir === 'asc' ? '▲' : '▼') : ''}</th>`).join('')}</tr></thead><tbody>${sorted.slice(0, 1000).map(r => isVolume
-      ? `<tr><td>${esc(r.customer)}</td><td>${esc(r.site)}</td><td>${esc(r.press)}</td><td>${esc(r.day)}</td><td>${esc(r.jobType)}</td><td>${esc(r.jobStatus)}</td><td>${esc(r.pressMode)}</td><td>${esc((r.totalVolume || r.volume || 0).toLocaleString())}</td></tr>`
-      : `<tr><td>${esc(r.customer)}</td><td>${esc(r.site)}</td><td>${esc(r.press)}</td><td>${esc(r.subsystem)}</td><td>${esc(r.name !== 'Unspecified' ? r.name : r.alertTitle)}</td><td>${esc(r.version)}</td><td>${esc(r.startTime?.toISOString() || '')}</td><td>${esc(formatDuration(r.durationSeconds))}</td></tr>`).join('')}</tbody>`;
+      ? `<tr><td>${esc(r.press)}</td><td>${esc(r.day)}</td><td>${esc(r.jobType)}</td><td>${esc(r.jobStatus)}</td><td>${esc(r.pressMode)}</td><td>${esc((r.totalVolume || r.volume || 0).toLocaleString())}</td></tr>`
+      : `<tr><td>${esc(r.press)}</td><td>${esc(r.subsystem)}</td><td>${esc(r.name !== 'Unspecified' ? r.name : r.alertTitle)}</td><td>${esc(r.version)}</td><td>${esc(r.startTime?.toISOString() || '')}</td><td>${esc(formatDuration(r.durationSeconds))}</td></tr>`).join('')}</tbody>`;
     document.querySelectorAll('#drilldownTable [data-dd-col]').forEach(th => th.addEventListener('click', () => {
       const key = th.dataset.ddCol;
       STATE.drilldown.sort = { key, dir: STATE.drilldown.sort?.key === key && STATE.drilldown.sort?.dir === 'asc' ? 'desc' : 'asc' };
@@ -4071,7 +4151,7 @@
     STATE.customerVolumeAllRows = customerVolumeAllRows;
     const labels = customerVolumeRows.map(r => r.displayLabel);
     const volumeValues = customerVolumeRows.map(r => r.productionPrintedSheets || 0);
-    const wasteValues = customerVolumeRows.map(r => Math.max(0, (r.maintenanceVolume || 0) || ((r.printedSheets || 0) - (r.productionPrintedSheets || 0))));
+    const wasteValues = customerVolumeRows.map(r => Math.max(0, r.wastePrintedSheets || 0));
       const customerVolumeRendered = replaceChart('customerVolumeChart', {
       type: 'bar',
       data: {
@@ -4786,10 +4866,26 @@
     customerVolumeSort.addEventListener('change', e => { STATE.customerVolumeSort = e.target.value; scheduleRender(); });
     customerVolumeExpand.addEventListener('click', () => { STATE.customerVolumeExpanded = !STATE.customerVolumeExpanded; scheduleRender(); });
     closeDrilldown.addEventListener('click', () => drilldownDrawer.classList.remove('show'));
+    document.getElementById('drilldownBack')?.addEventListener('click', () => {
+      const path = STATE.drilldown.path || [];
+      if (path.length <= 1) {
+        drilldownDrawer.classList.remove('show');
+        return;
+      }
+      const parent = path[path.length - 2];
+      const parentPath = path.slice(0, -2);
+      openDrilldown(parent.dimension, parent.entityKey, {
+        entityKey: parent.entityKey,
+        displayLabel: parent.displayLabel,
+        sourceType: STATE.drilldown.sourceType,
+        metric: STATE.drilldown.metric,
+        parentContext: { path: parentPath }
+      });
+    });
     drilldownDrawer.addEventListener('click', e => { if (e.target.id === 'drilldownDrawer') drilldownDrawer.classList.remove('show'); });
     drilldownSearch.addEventListener('input', e => { STATE.drilldown.search = e.target.value || ''; renderDrilldown(); });
     drilldownExport.addEventListener('click', () => {
-      const scoped = !STATE.drilldown.search ? STATE.drilldown.rows : STATE.drilldown.rows.filter(r => `${r.customer} ${r.site} ${r.press} ${r.subsystem} ${r.name} ${r.alertTitle} ${r.version}`.toLowerCase().includes(STATE.drilldown.search.toLowerCase()));
+      const scoped = !STATE.drilldown.search ? STATE.drilldown.rows : STATE.drilldown.rows.filter(r => `${r.press} ${r.subsystem} ${r.name} ${r.alertTitle} ${r.version}`.toLowerCase().includes(STATE.drilldown.search.toLowerCase()));
       exportRowsToCsv(scoped, 'drilldown-filtered-export.csv');
     });
   }
