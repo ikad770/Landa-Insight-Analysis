@@ -337,7 +337,7 @@
           <article id="pressHeroInsight" class="press-hero"></article>
           <div class="press-analytics-grid">
             <article class="press-panel press-panel-primary">
-        <div class="chart-head"><h3>Press Impact Matrix</h3><div class="chart-tools"><div class="metric-toggle" data-chart-toggle="press"><button class="btn active" data-mode="events">Events</button><button class="btn" data-mode="duration">Duration</button></div></div></div>
+        <div class="chart-head"><h3>Press Impact Matrix</h3></div>
               <div class="micro" id="pressScatterNote">X-axis: total events • Y-axis: total duration. Zones: Critical, Inefficient, Stable, Noisy.</div>
               <div class="press-chart-area primary"><canvas id="pressImpactScatterChart"></canvas></div>
             </article>
@@ -1081,9 +1081,11 @@
     const { controller = null, onProgress = null } = options;
     const jobs = [];
     let sourceRowsUsed = 0;
+    const rawJobTypes = new Set();
+    const normalizedJobTypes = new Map();
 
     const classifyMaintenance = row => {
-      const jobType = String(getField(row, ['Job Type'])).toLowerCase();
+      const jobType = normalizeJobType(getField(row, ['Job Type']));
       const pressMode = String(getField(row, ['Press Mode', 'Mode'])).toLowerCase();
       return (!isSpecialJobType(jobType)) && (/maintenance|service|repair|pm/.test(jobType) || /maintenance|service|repair|pm/.test(pressMode));
     };
@@ -1100,11 +1102,15 @@
 
       sourceRowsUsed += 1;
       const printedSheets = parseNumber(getField(r, ['Printed Sheets']));
+      const printedSheetsValue = Number.isFinite(printedSheets) ? printedSheets : 0;
       const printedFlats = parseNumber(getField(r, ['Printed Flats']));
       const preferredVolume = Number.isFinite(printedSheets) ? printedSheets : (Number.isFinite(printedFlats) ? printedFlats : 0);
       const customer = String(getField(r, ['Customer', 'Account', 'Client'])).trim() || 'Unspecified';
       const site = String(getField(r, ['Site', 'Location', 'Plant'])).trim() || 'Unspecified';
       const jobType = String(getField(r, ['Job Type'])).trim() || 'Unspecified';
+      rawJobTypes.add(jobType);
+      const normalizedJobType = normalizeJobType(jobType) || 'unspecified';
+      normalizedJobTypes.set(normalizedJobType, (normalizedJobTypes.get(normalizedJobType) || 0) + 1);
       const specialJob = isSpecialJobType(jobType);
       const maintenance = !specialJob && classifyMaintenance(r);
       const jobStatus = String(getField(r, ['Job Status'])).trim() || 'Unspecified';
@@ -1129,11 +1135,11 @@
         day,
         productionVolume: (maintenance || specialJob) ? 0 : preferredVolume,
         maintenanceVolume: maintenance ? preferredVolume : 0,
-        wasteVolume: specialJob ? preferredVolume : 0,
+        wasteVolume: specialJob ? printedSheetsValue : 0,
         totalVolume: preferredVolume,
-        productionPrintedSheets: (maintenance || specialJob) ? 0 : (Number.isFinite(printedSheets) ? printedSheets : 0),
-        wastePrintedSheets: specialJob ? (Number.isFinite(printedSheets) ? printedSheets : 0) : 0,
-        printedSheets: Number.isFinite(printedSheets) ? printedSheets : 0,
+        productionPrintedSheets: (maintenance || specialJob) ? 0 : printedSheetsValue,
+        wastePrintedSheets: specialJob ? printedSheetsValue : 0,
+        printedSheets: printedSheetsValue,
         printedFlats: Number.isFinite(printedFlats) ? printedFlats : 0,
         simplexDuplex,
         substrate,
@@ -1153,6 +1159,17 @@
       }
     }
     if (onProgress) onProgress({ completed: rows.length, total, detail: `Volume rows: ${rows.length.toLocaleString()} / ${total.toLocaleString()}` });
+    const mismatchJobTypes = [...rawJobTypes].filter(value => {
+      const normalized = normalizeJobType(value) || 'unspecified';
+      return value !== normalized;
+    });
+    console.info('[waste-debug] volume job_type normalization', {
+      uniqueRawJobTypes: [...rawJobTypes].sort(),
+      normalizedJobTypes: [...normalizedJobTypes.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([jobType, count]) => ({ jobType, count })),
+      normalizationMismatchDetected: mismatchJobTypes.length > 0,
+      mismatchSamples: mismatchJobTypes.slice(0, 20),
+      wasteDefinition: 'waste = SUM(printed_sheets WHERE normalized job_type == "special")',
+    });
 
     const byKey = new Map();
     jobs.forEach(job => {
@@ -1887,7 +1904,7 @@
     const totalFailures = totalEvents;
     const mttr = totalEvents ? (errorDowntime / totalEvents) : null;
     const mtbf = totalFailures > 0 && totals.runtime > 0 ? (totals.runtime / totalFailures) : null;
-    const mtbr = (mtbf != null && mttr != null) ? mtbf : null;
+    const mtbr = null;
     const availabilityDefinitions = computeAvailabilityDefinitions(availabilityAgg);
     STATE.availabilityDefinitions = availabilityDefinitions;
     const availabilityPct = availabilityDefinitions.selected.value;
@@ -2126,6 +2143,7 @@
 
     const overallStatus = deriveOperationalStatus(kpis, downtimeConcentrationPct, unplannedPct);
 
+    const topLine = `Main issue: ${topPressByEvents?.name || 'N/A'} driven by ${topAlert?.name || 'N/A'} \u2192 Action: ${topSubsystem?.name ? `stabilize ${topSubsystem.name}` : 'stabilize top subsystem'}`;
     return {
       status: overallStatus.label,
       statusTone: overallStatus.tone,
@@ -2136,30 +2154,20 @@
       topSubsystem,
       topAlert,
       topErrorDowntimePress,
+      topLine,
       downtimeConcentrationPct,
       unplannedPct,
       dominantPressShare,
-      insightCards: [
-        { title: 'Failure concentration', detail: totalDowntime > 0 ? `Top-3 presses drive ${downtimeConcentrationPct.toFixed(1)}% of downtime.` : 'Downtime concentration is not available in this scope.' },
-        { title: 'Recurring pattern', detail: topAlert ? `"${topAlert.name}" repeats ${topAlert.events.toLocaleString()} times.` : 'No dominant recurring error cluster was detected.' },
-        { title: 'Subsystem pressure', detail: topSubsystem ? `${topSubsystem.name} leads with ${topSubsystem.events.toLocaleString()} events.` : 'Subsystem pressure is distributed without a single leader.' },
-        { title: 'Operational balance', detail: totalDowntime > 0 ? `${(100 - unplannedPct).toFixed(1)}% planned vs ${unplannedPct.toFixed(1)}% unplanned downtime.` : 'Planned vs unplanned balance is not available in this scope.' },
-      ],
       actionCards: [
         {
-          title: `Stabilize ${topPressByEvents?.name || 'top disruption press'}`,
-          reason: topPressByEvents ? `${topPressByEvents.events.toLocaleString()} repeat events make it the top disruption source.` : 'Press-level event concentration remains the highest disruption signal.',
-          impact: 'Expected impact: fastest reduction in total interruption recurrence.',
+          title: `Stabilize ${topPressByEvents?.name || 'top press'}`,
+          reason: topPressByEvents ? `${topPressByEvents.events.toLocaleString()} events concentrated on this press.` : 'Highest event concentration is on one press.',
+          impact: 'Expected impact: immediate reduction in recurring stops.',
         },
         {
-          title: `Contain ${topSubsystem?.name || 'dominant subsystem'} pressure`,
-          reason: topSubsystem ? `${topSubsystem.events.toLocaleString()} events indicate the highest failure-loop pressure.` : 'Subsystem concentration is the strongest operational bottleneck signal.',
-          impact: 'Expected impact: lower repeat events and fewer stop-start escalations.',
-        },
-        {
-          title: `Eliminate "${topAlert?.name || 'leading recurring error'}" recurrence`,
-          reason: topAlert ? `${topAlert.events.toLocaleString()} repetitions indicate a systemic correction gap.` : 'The most repeated error remains the primary recurring pattern.',
-          impact: 'Expected impact: measurable drop in repeated faults across impacted presses.',
+          title: `Eliminate ${topAlert?.name || 'top recurring error'}`,
+          reason: topAlert ? `${topAlert.events.toLocaleString()} repeats show unresolved root cause.` : 'Recurring error pattern needs corrective action.',
+          impact: 'Expected impact: fewer repeated faults across impacted presses.',
         },
       ],
     };
@@ -2312,7 +2320,7 @@
       contextTags: [`Top risk: ${status.topPressByEvents?.name || 'N/A'}`, `Bottleneck: ${status.topSubsystem?.name || 'N/A'}`, `Error: ${status.topAlert?.name || 'N/A'}`],
       situationSnapshot,
       operationalInsights: status.insightCards || [],
-      topActionCards: (status.actionCards || []).slice(0, 3),
+      topActionCards: (status.actionCards || []).slice(0, 2),
       topErrors,
       topSubsystems,
       topPressDowntime,
@@ -2412,11 +2420,7 @@
       ['Total Downtime', 'totalDowntime', formatDuration(k.totalDowntime), 'Planned + unplanned downtime'],
       ['MTTR', 'mttr', k.mttr == null ? na : formatDuration(k.mttr), 'Avg repair time per failure event'],
       ...(k.mtbf == null ? [] : [['MTBF', 'mtbf', formatDuration(k.mtbf), 'Runtime / failure events']]),
-      ...(k.mtbr == null ? [] : [['MTBR', 'mtbr', formatDuration(k.mtbr), 'Shown when repair logic is available']]),
-      ['Availability', 'availabilityPct', k.availabilityPct == null ? na : `${k.availabilityPct.toFixed(1)}%`, 'Observed runtime availability'],
-      ['Production Volume', 'totalProdVolume', k.totalProdVolume.toLocaleString(), 'Production-only printed sheets'],
       ['Output Efficiency', 'outputEfficiency', k.outputEfficiency == null ? na : Math.round(k.outputEfficiency).toLocaleString(), 'Sheets per downtime hour'],
-      ['Output / Event', 'volumePerEvents', k.outputPerEvent == null ? na : k.outputPerEvent.toFixed(2), 'Output per error event'],
     ];
     document.getElementById('kpiStrip').innerHTML = cards
       .map(([label, metricKey, value, subtitle]) => `<article class="kpi clickable" role="button" tabindex="0" data-kpi-metric="${metricKey}"><div class="k">${label}</div><div class="v">${value}</div><div class="kpi-sub">${subtitle}</div></article>`)
@@ -2425,64 +2429,35 @@
 
   function renderExecutiveSummaryCard(summary) {
     const statusTone = summary.statusTone === 'critical'
-      ? { color: '#ffb7b2', border: 'rgba(243,107,99,.6)', glow: 'rgba(243,107,99,.32)', accent: '#f36b63' }
+      ? { border: 'rgba(243,107,99,.6)', glow: 'rgba(243,107,99,.28)' }
       : summary.statusTone === 'watch'
-        ? { color: '#ffd7a8', border: 'rgba(240,177,101,.58)', glow: 'rgba(240,177,101,.28)', accent: '#f0b165' }
-        : { color: '#c8f6db', border: 'rgba(87,201,138,.58)', glow: 'rgba(87,201,138,.28)', accent: '#57c98a' };
-    const concentrationPct = Number(summary.downtimeConcentrationPct || 0);
-    const concentrationWidth = Math.max(8, Math.min(100, concentrationPct));
-    const unplannedWidth = Math.max(8, Math.min(100, Number(summary.unplannedPct || 0)));
-    const contextTags = [
-      `Top risk: ${summary.topPressByEvents?.name || 'N/A'}`,
-      `Main bottleneck: ${summary.topSubsystem?.name || 'N/A'}`,
-      `Recurring error: ${summary.topAlert?.name || 'N/A'}`
-    ];
+        ? { border: 'rgba(240,177,101,.58)', glow: 'rgba(240,177,101,.22)' }
+        : { border: 'rgba(87,201,138,.58)', glow: 'rgba(87,201,138,.22)' };
     document.getElementById('executiveSummaryCard').innerHTML = `
       <div class="chart-head"><h3>Executive Situation Overview</h3></div>
       <div class="exec-brief">
         <section class="exec-status-banner" style="border-color:${statusTone.border};box-shadow:inset 0 1px 0 rgba(255,255,255,.05),0 0 0 1px ${statusTone.glow};">
-          <div class="exec-status-top">
-            <div>
-              <div class="exec-status-kicker">Operational Status</div>
-              <div class="exec-status-value" style="color:${statusTone.color};">${esc(summary.status)}</div>
-            </div>
-            <span class="risk-pill ${summary.statusClass}">Leadership brief</span>
-          </div>
-          <div class="exec-status-verdict">${esc(summary.statusVerdict || 'Operational performance should be monitored closely.')}</div>
-          <div class="exec-tag-row">${contextTags.map(tag => `<span class="exec-tag"><span class="exec-dot" style="color:${statusTone.accent};"></span>${esc(tag)}</span>`).join('')}</div>
+          <div class="exec-status-kicker">Top Line</div>
+          <div class="exec-status-value" style="font-size:1rem;color:#f1f6ff;">${esc(summary.topLine || 'Main issue: N/A driven by N/A → Action: N/A')}</div>
         </section>
         <section class="exec-signal-grid">
           <article class="exec-signal-card">
-            <div class="exec-signal-title">Top Press (Events)</div>
+            <div class="exec-signal-title">Top Press</div>
             <div class="exec-signal-value">${esc(summary.topPressByEvents?.name || 'N/A')}</div>
-            <div class="exec-signal-note">${summary.topPressByEvents ? `${summary.topPressByEvents.events.toLocaleString()} events are concentrated here.` : 'No concentrated press signal in this scope.'}</div>
           </article>
           <article class="exec-signal-card">
             <div class="exec-signal-title">Top Subsystem</div>
             <div class="exec-signal-value">${esc(summary.topSubsystem?.name || 'N/A')}</div>
-            <div class="exec-signal-note">${summary.topSubsystem ? `Primary failure cluster with ${summary.topSubsystem.events.toLocaleString()} events.` : 'No subsystem cluster identified in this scope.'}</div>
           </article>
           <article class="exec-signal-card">
-            <div class="exec-signal-title">Most Repeated Error</div>
+            <div class="exec-signal-title">Top Error</div>
             <div class="exec-signal-value">${esc(summary.topAlert?.name || 'N/A')}</div>
-            <div class="exec-signal-note">${summary.topAlert ? `Recurring ${summary.topAlert.events.toLocaleString()} times across impacted presses.` : 'No dominant recurring error in current scope.'}</div>
-          </article>
-          <article class="exec-signal-card">
-            <div class="exec-signal-title">Highest Downtime Press</div>
-            <div class="exec-signal-value">${esc(summary.topErrorDowntimePress?.entity || 'N/A')}</div>
-            <div class="exec-signal-note">${summary.topErrorDowntimePress ? `${formatDuration(summary.topErrorDowntimePress.downtime)} downtime impact.` : 'No downtime concentration identified in this scope.'}</div>
           </article>
         </section>
         <section class="exec-story-grid">
-          <article class="exec-story-card">
-            <div class="exec-story-head"><div class="exec-story-title" style="color:#95b6ff;">Insight Cards</div><span class="micro" style="margin:0;">Data-backed signals</span></div>
-            <div class="exec-priority-strip"><div class="exec-priority-fill" style="width:${concentrationWidth}%;background:linear-gradient(90deg,#4d6cfa,#8fd3ff);"></div></div>
-            <div class="exec-card-grid">${(summary.insightCards || []).map(card => `<article class="exec-insight-card"><div class="exec-mini-title">${esc(card.title)}</div><div class="exec-mini-note">${esc(card.detail)}</div></article>`).join('')}</div>
-          </article>
-          <article class="exec-story-card">
-            <div class="exec-story-head"><div class="exec-story-title" style="color:#85e2b4;">Top 3 Action Cards</div><span class="micro" style="margin:0;">Immediate leadership moves</span></div>
-            <div class="exec-priority-strip"><div class="exec-priority-fill" style="width:${unplannedWidth}%;background:linear-gradient(90deg,#25a65b,#7de3ac);"></div></div>
-            <div class="exec-card-grid">${(summary.actionCards || []).slice(0, 3).map(card => `<article class="exec-action-card"><div class="exec-mini-title">${esc(card.title)}</div><div class="exec-mini-note">${esc(card.reason)}</div><div class="exec-action-impact">${esc(card.impact)}</div></article>`).join('')}</div>
+          <article class="exec-story-card" style="grid-column:span 12;">
+            <div class="exec-story-head"><div class="exec-story-title" style="color:#85e2b4;">Top Actions</div><span class="micro" style="margin:0;">Max 2 cards</span></div>
+            <div class="exec-card-grid">${(summary.actionCards || []).slice(0, 2).map(card => `<article class="exec-action-card"><div class="exec-mini-title">${esc(card.title)}</div><div class="exec-mini-note">${esc(card.reason)}</div><div class="exec-action-impact">${esc(card.impact)}</div></article>`).join('')}</div>
           </article>
         </section>
       </div>`;
@@ -2608,8 +2583,13 @@
     });
   }
 
+  function normalizeJobType(jobType) {
+    return String(jobType || '').trim().toLowerCase();
+  }
+
   function isSpecialJobType(jobType) {
-    return String(jobType || '').trim().toLowerCase() === 'special';
+    const normalized = normalizeJobType(jobType);
+    return normalized === 'special' || normalized === 'special job' || normalized.includes('special');
   }
 
   function buildEntityMetricBundle(patch = {}) {
@@ -3141,15 +3121,15 @@
             const avg = Number(ctx.raw?.avgDurationSeconds || 0);
             const isCritical = String(ctx.raw?.zoneLabel || '').toUpperCase() === 'CRITICAL';
             const base = Math.max(4, Math.min(13, 4 + (avg / 120)));
-            return isCritical ? base + 3 : base;
+            return isCritical ? base + 5 : base;
           },
           pointHoverRadius: ctx => {
             const avg = Number(ctx.raw?.avgDurationSeconds || 0);
             return Math.max(6, Math.min(16, 6 + (avg / 120)));
           },
-          pointBackgroundColor: ctx => String(ctx.raw?.zoneLabel || '').toUpperCase() === 'CRITICAL' ? 'rgba(255,66,66,.96)' : (ctx.raw?.zoneColor || 'rgba(183,198,222,.56)'),
-          pointBorderColor: ctx => String(ctx.raw?.zoneLabel || '').toUpperCase() === 'CRITICAL' ? 'rgba(255,170,170,.95)' : 'rgba(0,0,0,0)',
-          pointBorderWidth: ctx => String(ctx.raw?.zoneLabel || '').toUpperCase() === 'CRITICAL' ? 2 : 0
+          pointBackgroundColor: ctx => String(ctx.raw?.zoneLabel || '').toUpperCase() === 'CRITICAL' ? 'rgba(255,66,66,1)' : (ctx.raw?.zoneColor || 'rgba(183,198,222,.56)'),
+          pointBorderColor: ctx => String(ctx.raw?.zoneLabel || '').toUpperCase() === 'CRITICAL' ? 'rgba(255,196,196,.98)' : 'rgba(0,0,0,0)',
+          pointBorderWidth: ctx => String(ctx.raw?.zoneLabel || '').toUpperCase() === 'CRITICAL' ? 2.5 : 0
         }]
       },
       options: {
@@ -3212,6 +3192,22 @@
           ctx.restore();
         }
       }, zonePlugin, {
+        id: 'press-critical-glow',
+        beforeDatasetsDraw(chart) {
+          const { ctx } = chart;
+          const points = chart.getDatasetMeta(0)?.data || [];
+          ctx.save();
+          points.forEach((point, index) => {
+            const row = rows[index];
+            if (!row || String(row.zoneLabel || '').toUpperCase() !== 'CRITICAL') return;
+            ctx.beginPath();
+            ctx.fillStyle = 'rgba(255,66,66,.20)';
+            ctx.arc(point.x, point.y, Math.max(10, point.options.radius + 6), 0, Math.PI * 2);
+            ctx.fill();
+          });
+          ctx.restore();
+        }
+      }, {
         id: 'press-smart-labels',
         afterDatasetsDraw(chart) {
           const { ctx } = chart;
@@ -4315,11 +4311,17 @@
       }
       });
       if (!customerVolumeRows.length) setCanvasState('customerVolumeChart', 'No print volume rows after source-native scope (volume owns press/day and native job metadata).');
-      if (STATE.customerVolumeMode === 'waste' && wasteValues.every(v => Number(v || 0) === 0)) {
-        showNoDataChart('customerVolumeChart', 'No waste detected');
+      const totalWasteInScope = wasteValues.reduce((sum, value) => sum + Number(value || 0), 0);
+      if (STATE.customerVolumeMode === 'waste' && totalWasteInScope <= 0) {
+        showNoDataChart('customerVolumeChart', 'No waste detected (verified from Special job_type printed sheets).');
+        console.info('[waste-debug] no waste detected after normalization and mapping verification');
       }
       if (!customerVolumeRendered) setCanvasState('customerVolumeChart', 'Chart library failed to load. Charts cannot render.', 'error');
-    document.getElementById('customerVolumeNote').textContent = `${STATE.customerVolumeExpanded ? 'Full press ranking' : 'Top 12'} in ${STATE.customerVolumeMode === 'waste' ? 'Waste mode' : 'Volume mode'} (${STATE.customerVolumeSort === 'asc' ? 'lowest first' : 'highest first'}) from source volume aggregates (canonical press grouping).`;
+    document.getElementById('customerVolumeNote').textContent = STATE.customerVolumeMode === 'waste'
+      ? (totalWasteInScope > 0
+        ? `${STATE.customerVolumeExpanded ? 'Full press ranking' : 'Top 12'} waste view (${STATE.customerVolumeSort === 'asc' ? 'lowest first' : 'highest first'}) using Special job_type printed sheets.`
+        : 'Waste verification complete: no Special job_type printed sheet waste in current scope.')
+      : `${STATE.customerVolumeExpanded ? 'Full press ranking' : 'Top 12'} in Volume mode (${STATE.customerVolumeSort === 'asc' ? 'lowest first' : 'highest first'}) from source volume aggregates (canonical press grouping).`;
     document.getElementById('customerVolumeExpand').textContent = STATE.customerVolumeExpanded ? 'Collapse' : 'Show all';
     console.info('[consistency-debug] print-volume-chart-plot', {
       source: 'volumeAgg',
