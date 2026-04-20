@@ -477,8 +477,8 @@
   const SEMANTIC_COLORS = {
     critical: '#f36b63',
     elevated: '#f0b165',
-    normal: '#57c98a',
-    low: '#6f8cff',
+    normal: '#6f8cff',
+    low: '#57c98a',
     neutral: 'rgba(111,140,255,.72)',
     neutralFill: 'rgba(111,140,255,.2)'
   };
@@ -1829,7 +1829,7 @@
       ['KPI • Availability', 'Availability', kpis.availabilityPct ?? null, availabilityPct, availabilityDefinitions.selected.formula],
       ['KPI • Production Volume', 'Volume', kpis.totalProdVolume, sourceTotals.prodSheets, 'sum(productionPrintedSheets)'],
       ['KPI • MTTR', 'Errors', kpis.mttr ?? null, sourceTotals.events ? sourceTotals.errorDuration / sourceTotals.events : null, 'sum(errorDuration) / events'],
-      ['KPI • MTBF', 'Errors+Availability', kpis.mtbf ?? null, sourceTotals.events ? sourceTotals.runtime / sourceTotals.events : null, 'runtime / events'],
+      ['KPI • MTBF', 'Errors+Availability', kpis.mtbf ?? null, sourceTotals.events ? sourceTotals.runtime / sourceTotals.events : null, 'runtime / failures (failure proxy = events)'],
       ['Chart • Top Presses by Impact', 'Errors by selected metric', rankings.press?.reduce((a, r) => a + (r[STATE.metricByChart.press] || 0), 0) || 0, rankingSources.press, `groupBy(press) on ${STATE.metricByChart.press}`],
       ['Chart • Top Subsystems', 'Errors or Availability-by-subsystem for downtime', rankings.subsystem?.reduce((a, r) => a + (r[STATE.metricByChart.subsystem] || 0), 0) || 0, rankingSources.subsystem, `groupBy(subsystem) on ${STATE.metricByChart.subsystem}`],
       ['Chart • Top Alerts', 'Errors', rankings.alert?.reduce((a, r) => a + (r[STATE.metricByChart.alert] || 0), 0) || 0, rankingSources.alert, `groupBy(alert) on ${STATE.metricByChart.alert}`],
@@ -1884,9 +1884,10 @@
     };
 
     const totalDowntime = totals.availabilityCount ? totals.totalAvailDowntime : errorDowntime;
+    const totalFailures = totalEvents;
     const mttr = totalEvents ? (errorDowntime / totalEvents) : null;
-    const mtbf = totalEvents && totals.runtime > 0 ? (totals.runtime / totalEvents) : null;
-    const mtbr = mtbf;
+    const mtbf = totalFailures > 0 && totals.runtime > 0 ? (totals.runtime / totalFailures) : null;
+    const mtbr = (mtbf != null && mttr != null) ? mtbf : null;
     const availabilityDefinitions = computeAvailabilityDefinitions(availabilityAgg);
     STATE.availabilityDefinitions = availabilityDefinitions;
     const availabilityPct = availabilityDefinitions.selected.value;
@@ -1915,8 +1916,13 @@
       availabilityPct,
       availabilityLabel: availabilityDefinitions.selected.label,
       availabilityFormula: availabilityDefinitions.selected.formula,
+      downtimeHours: totalDowntime > 0 ? (totalDowntime / 3600) : 0,
+      outputEfficiency: totalDowntime > 0 ? (totals.productionPrintedSheets / (totalDowntime / 3600)) : null,
       volumePerDowntime: totalDowntime > 0 ? (totals.productionPrintedSheets / totalDowntime) : null,
       volumePerEvents: totalEvents > 0 ? (totals.productionPrintedSheets / totalEvents) : null,
+      outputPerEvent: totalEvents > 0 ? (totals.productionPrintedSheets / totalEvents) : null,
+      downtimePerEventMinutes: totalEvents > 0 ? ((totalDowntime / 60) / totalEvents) : null,
+      downtimePerMillionSheetsMinutes: totals.productionPrintedSheets > 0 ? ((totalDowntime / 60) / (totals.productionPrintedSheets / 1000000)) : null,
       reasons,
     };
   }
@@ -2404,12 +2410,13 @@
     const cards = [
       ['Total Events', 'totalEvents', k.totalEvents.toLocaleString(), 'Total error events in selected range'],
       ['Total Downtime', 'totalDowntime', formatDuration(k.totalDowntime), 'Planned + unplanned downtime'],
-      ['MTTR', 'mttr', k.mttr == null ? na : formatDuration(k.mttr), 'Avg repair time per error'],
-      ['MTBR', 'mtbr', k.mtbr == null ? na : formatDuration(k.mtbr), 'Avg runtime between repair events'],
+      ['MTTR', 'mttr', k.mttr == null ? na : formatDuration(k.mttr), 'Avg repair time per failure event'],
+      ...(k.mtbf == null ? [] : [['MTBF', 'mtbf', formatDuration(k.mtbf), 'Runtime / failure events']]),
+      ...(k.mtbr == null ? [] : [['MTBR', 'mtbr', formatDuration(k.mtbr), 'Shown when repair logic is available']]),
       ['Availability', 'availabilityPct', k.availabilityPct == null ? na : `${k.availabilityPct.toFixed(1)}%`, 'Observed runtime availability'],
       ['Production Volume', 'totalProdVolume', k.totalProdVolume.toLocaleString(), 'Production-only printed sheets'],
-      ['Volume / Downtime', 'volumePerDowntime', k.volumePerDowntime == null ? na : k.volumePerDowntime.toFixed(4), 'Output per downtime unit'],
-      ['Volume / Events', 'volumePerEvents', k.volumePerEvents == null ? na : k.volumePerEvents.toFixed(2), 'Output per error event'],
+      ['Output Efficiency', 'outputEfficiency', k.outputEfficiency == null ? na : Math.round(k.outputEfficiency).toLocaleString(), 'Sheets per downtime hour'],
+      ['Output / Event', 'volumePerEvents', k.outputPerEvent == null ? na : k.outputPerEvent.toFixed(2), 'Output per error event'],
     ];
     document.getElementById('kpiStrip').innerHTML = cards
       .map(([label, metricKey, value, subtitle]) => `<article class="kpi clickable" role="button" tabindex="0" data-kpi-metric="${metricKey}"><div class="k">${label}</div><div class="v">${value}</div><div class="kpi-sub">${subtitle}</div></article>`)
@@ -2958,7 +2965,8 @@
                 }
                 if (metric === 'events') return `Events: ${(item.metrics?.events || item.events || 0).toLocaleString()}`;
                 if (metric === 'avgDuration') return `Avg Duration: ${formatClockDuration(item.metrics?.avgDuration || item.avgDuration || 0)}`;
-                return `${ctx.parsed.y?.toLocaleString(undefined, { maximumFractionDigits: 3 }) ?? ctx.parsed.x.toLocaleString(undefined, { maximumFractionDigits: 3 })} ${meta.tooltip}`;
+                const parsedValue = Number(ctx.parsed?.x ?? ctx.parsed?.y ?? 0);
+                return `${parsedValue.toLocaleString(undefined, { maximumFractionDigits: 3 })} ${meta.tooltip}`;
               }
             }
           }
@@ -3111,6 +3119,9 @@
       return m ? m[0].toUpperCase() : '';
     };
     const labelWhitelist = new Set(rows.filter(row => row.zoneKey === 'critical').map(row => row.name));
+    ['critical','inefficient','noisy','stable'].forEach(zone => {
+      rows.filter(row => row.zoneKey === zone).sort((a,b)=> (b.totalDurationSeconds||0)-(a.totalDurationSeconds||0)).slice(0,2).forEach(row => labelWhitelist.add(row.name));
+    });
     replaceChart('pressImpactScatterChart', {
       type: 'scatter',
       data: {
@@ -3128,14 +3139,17 @@
           })),
           pointRadius: ctx => {
             const avg = Number(ctx.raw?.avgDurationSeconds || 0);
-            return Math.max(4, Math.min(13, 4 + (avg / 120)));
+            const isCritical = String(ctx.raw?.zoneLabel || '').toUpperCase() === 'CRITICAL';
+            const base = Math.max(4, Math.min(13, 4 + (avg / 120)));
+            return isCritical ? base + 3 : base;
           },
           pointHoverRadius: ctx => {
             const avg = Number(ctx.raw?.avgDurationSeconds || 0);
             return Math.max(6, Math.min(16, 6 + (avg / 120)));
           },
-          pointBackgroundColor: ctx => ctx.raw?.zoneColor || 'rgba(183,198,222,.56)',
-          pointBorderWidth: 0
+          pointBackgroundColor: ctx => String(ctx.raw?.zoneLabel || '').toUpperCase() === 'CRITICAL' ? 'rgba(255,66,66,.96)' : (ctx.raw?.zoneColor || 'rgba(183,198,222,.56)'),
+          pointBorderColor: ctx => String(ctx.raw?.zoneLabel || '').toUpperCase() === 'CRITICAL' ? 'rgba(255,170,170,.95)' : 'rgba(0,0,0,0)',
+          pointBorderWidth: ctx => String(ctx.raw?.zoneLabel || '').toUpperCase() === 'CRITICAL' ? 2 : 0
         }]
       },
       options: {
@@ -3380,6 +3394,7 @@
       mtbf: { source: 'errorsAgg + availabilityAgg', formula: 'Runtime / total events.', primary: 'mtbf', unit: 'seconds' },
       availabilityPct: { source: 'availabilityAgg', formula: 'Runtime / (Runtime + Planned + Unplanned) × 100.', primary: 'availability', unit: '%' },
       totalProdVolume: { source: 'volumeAgg', formula: 'Sum of productionPrintedSheets.', primary: 'productionPrintedSheets', unit: 'units' },
+      outputEfficiency: { source: 'availabilityAgg + volumeAgg', formula: 'ProductionVolume / (TotalDowntimeSeconds / 3600).', primary: 'outputEfficiency', unit: 'sheets per downtime hour' },
       volumePerDowntime: { source: 'availabilityAgg + volumeAgg', formula: 'Production volume / total downtime seconds.', primary: 'ratio', unit: 'ratio' },
       volumePerEvents: { source: 'errorsAgg + volumeAgg', formula: 'Production volume / total events.', primary: 'ratio', unit: 'ratio' },
     };
@@ -3389,6 +3404,7 @@
   function kpiDimensionForMetric(metricKey) {
     if (['totalDowntime', 'totalUnplanned', 'totalPlanned', 'availabilityPct'].includes(metricKey)) return 'availability';
     if (['totalProdVolume'].includes(metricKey)) return 'volume';
+    if (['outputEfficiency','volumePerEvents','volumePerDowntime'].includes(metricKey)) return 'mixed';
     return 'errors';
   }
 
@@ -3434,6 +3450,10 @@
 
   function openKpiDrilldown(metricKey, metricName) {
     const baselineData = buildKpiBaselineData(metricKey);
+    if (!baselineData.length && metricKey !== 'outputEfficiency') {
+      setStatus('No KPI drilldown data for this metric in current scope.', 'warning');
+      return;
+    }
     const path = [{ dimension: 'kpi', entityKey: metricKey, displayLabel: metricName }];
     STATE.drilldown = {
       dimension: 'kpi',
@@ -3777,10 +3797,19 @@
       const metricName = STATE.drilldown.value;
       const profile = kpiMetricProfile(metricKey, metricName);
       const k = STATE.kpis || {};
-      const currentValue = metricKey === 'totalEvents' ? (k.totalEvents || 0).toLocaleString() : metricKey === 'totalDowntime' ? formatDuration(k.totalDowntime || 0) : metricKey === 'totalUnplanned' ? formatDuration(k.totalUnplanned || 0) : metricKey === 'totalPlanned' ? formatDuration(k.totalPlanned || 0) : metricKey === 'mttr' ? (k.mttr == null ? 'N/A' : formatDuration(k.mttr)) : metricKey === 'mtbf' ? (k.mtbf == null ? 'N/A' : formatDuration(k.mtbf)) : metricKey === 'mtbr' ? (k.mtbr == null ? 'N/A' : formatDuration(k.mtbr)) : metricKey === 'availabilityPct' ? (k.availabilityPct == null ? 'N/A' : `${k.availabilityPct.toFixed(1)}%`) : metricKey === 'totalProdVolume' ? (k.totalProdVolume || 0).toLocaleString() : metricKey === 'volumePerDowntime' ? (k.volumePerDowntime == null ? 'N/A' : k.volumePerDowntime.toFixed(4)) : metricKey === 'volumePerEvents' ? (k.volumePerEvents == null ? 'N/A' : k.volumePerEvents.toFixed(4)) : 'N/A';
+      const currentValue = metricKey === 'totalEvents' ? (k.totalEvents || 0).toLocaleString() : metricKey === 'totalDowntime' ? formatDuration(k.totalDowntime || 0) : metricKey === 'totalUnplanned' ? formatDuration(k.totalUnplanned || 0) : metricKey === 'totalPlanned' ? formatDuration(k.totalPlanned || 0) : metricKey === 'mttr' ? (k.mttr == null ? 'N/A' : formatDuration(k.mttr)) : metricKey === 'mtbf' ? (k.mtbf == null ? 'N/A' : formatDuration(k.mtbf)) : metricKey === 'mtbr' ? (k.mtbr == null ? 'N/A' : formatDuration(k.mtbr)) : metricKey === 'availabilityPct' ? (k.availabilityPct == null ? 'N/A' : `${k.availabilityPct.toFixed(1)}%`) : metricKey === 'totalProdVolume' ? (k.totalProdVolume || 0).toLocaleString() : metricKey === 'outputEfficiency' ? (k.outputEfficiency == null ? 'N/A' : `${Math.round(k.outputEfficiency).toLocaleString()} sheets per downtime hour`) : metricKey === 'volumePerDowntime' ? (k.volumePerDowntime == null ? 'N/A' : k.volumePerDowntime.toFixed(4)) : metricKey === 'volumePerEvents' ? (k.volumePerEvents == null ? 'N/A' : k.volumePerEvents.toFixed(4)) : 'N/A';
       document.getElementById('drilldownTitle').textContent = `${metricName} Drilldown`;
-      document.getElementById('drilldownSummary').textContent = `Professional metric drilldown with transparent components, simulation, and source-native support.`;
+      document.getElementById('drilldownSummary').textContent = `Validated KPI breakdown from scoped source aggregates.`;
       renderDrilldownContext(metricName, currentValue, profile);
+      if (metricKey === 'outputEfficiency') {
+        const drillRows = [
+          ['Output per downtime hour', k.outputEfficiency == null ? 'N/A' : `${Math.round(k.outputEfficiency).toLocaleString()} sheets per downtime hour`],
+          ['Output per event', k.outputPerEvent == null ? 'N/A' : `${k.outputPerEvent.toFixed(2)} sheets/event`],
+          ['Downtime per event', k.downtimePerEventMinutes == null ? 'N/A' : `${k.downtimePerEventMinutes.toFixed(2)} min/event`],
+          ['Downtime per 1M sheets', k.downtimePerMillionSheetsMinutes == null ? 'N/A' : `${k.downtimePerMillionSheetsMinutes.toFixed(2)} min / 1M sheets`]
+        ];
+        document.getElementById('drilldownSummaryGrid').innerHTML = drillRows.map(([label,val]) => `<div class="summary-stat span-3"><div class="label">${esc(label)}</div><div class="value">${esc(val)}</div></div>`).join('');
+      }
       const baselineRows = STATE.baselineData || scoped;
       const simulatedRows = STATE.simulationData || baselineRows;
       const components = computeKpiComponents(metricKey, baselineRows);
@@ -3788,7 +3817,9 @@
       const included = components.filter(c => !appliedExcluded.has(c.name));
       const appliedRows = simulationActive ? simulatedRows : baselineRows;
       const simTotal = included.reduce((a,c)=>a+c.metricValue,0);
-      document.getElementById('drilldownSummaryGrid').innerHTML = `<div class="summary-stat span-3"><div class="label">Baseline rows</div><div class="value">${baselineRows.length.toLocaleString()}</div></div><div class="summary-stat span-3"><div class="label">Components</div><div class="value">${components.length.toLocaleString()}</div></div><div class="summary-stat span-3"><div class="label">Included</div><div class="value">${included.length.toLocaleString()}</div></div><div class="summary-stat span-3"><div class="label">Simulated total</div><div class="value">${Number(simTotal).toLocaleString(undefined,{maximumFractionDigits:2})}</div></div>`;
+      if (metricKey !== 'outputEfficiency') {
+        document.getElementById('drilldownSummaryGrid').innerHTML = `<div class="summary-stat span-3"><div class="label">Baseline rows</div><div class="value">${baselineRows.length.toLocaleString()}</div></div><div class="summary-stat span-3"><div class="label">Components</div><div class="value">${components.length.toLocaleString()}</div></div><div class="summary-stat span-3"><div class="label">Included</div><div class="value">${included.length.toLocaleString()}</div></div><div class="summary-stat span-3"><div class="label">Simulated total</div><div class="value">${Number(simTotal).toLocaleString(undefined,{maximumFractionDigits:2})}</div></div>`;
+      }
       document.getElementById('drilldownFilters').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Interactive filtering</h4><span class="impact-chip">Staged simulation workflow</span></div><div class="micro">Use dashboard filters for time, press, subsystem, alert, and version. KPI simulation changes are staged until Apply is selected.</div>`;
       const topBaseline = components.slice().sort((a, b) => b.metricValue - a.metricValue).slice(0, 10);
       const topCurrentMap = new Map(included.map(x => [x.name, x.metricValue]));
@@ -4165,6 +4196,23 @@
     });
   }
 
+
+  function validateRenderConsistency(sourceScope, kpis) {
+    const checks = [];
+    const totalDowntimeSeconds = Number(kpis?.totalDowntime || 0);
+    const expectedHours = totalDowntimeSeconds > 0 ? totalDowntimeSeconds / 3600 : 0;
+    checks.push({ id: 'downtime-hours', pass: Math.abs((kpis?.downtimeHours || 0) - expectedHours) < 1e-6, detail: 'downtime hours conversion' });
+    const expectedEfficiency = expectedHours > 0 ? (Number(kpis?.totalProdVolume || 0) / expectedHours) : null;
+    const efficiencyPass = (expectedEfficiency == null && kpis?.outputEfficiency == null) || (expectedEfficiency != null && Math.abs((kpis?.outputEfficiency || 0) - expectedEfficiency) < 1e-6);
+    checks.push({ id: 'output-efficiency', pass: efficiencyPass, detail: 'output efficiency formula' });
+    const wasteFromAgg = (sourceScope?.volumeAgg || []).reduce((sum, row) => sum + Number(row?.wastePrintedSheets || 0), 0);
+    const wasteFromJobs = (sourceScope?.filteredVolumeRowsNative || []).reduce((sum, row) => sum + (isSpecialJobType(row?.jobType) ? Number(row?.printedSheets || 0) : 0), 0);
+    checks.push({ id: 'waste-mapping', pass: Math.abs(wasteFromAgg - wasteFromJobs) < 1e-6, detail: 'waste mapping aggregation' });
+    const failed = checks.filter(c => !c.pass);
+    if (failed.length) console.error('[render-validation] blocking render due to mismatch', { failed, checks });
+    return { ok: failed.length === 0, checks, failed };
+  }
+
   function renderDashboard() {
     try {
       const { filters, scopedMergedRows, scopedErrorRows, scopedSource, scopedKpis, executiveSummary, hasScopedData } = getCurrentDashboardScopeModel();
@@ -4200,6 +4248,12 @@
       STATE.metricByChart.subsystem = 'events';
       STATE.metricByChart.alert = 'events';
       STATE.metricByChart.version = 'events';
+    }
+    const renderValidation = validateRenderConsistency(sourceScope, STATE.kpis);
+    if (!renderValidation.ok) {
+      setStatus('Validation mismatch detected. Rendering blocked to prevent misleading values.', 'error');
+      ['pressImpactScatterChart', 'subsystemChart', 'alertChart', 'versionChart', 'customerVolumeChart'].forEach(id => showNoDataChart(id, 'Blocked: validation mismatch'));
+      return;
     }
     syncMetricToggleUI();
     renderKpis(STATE.kpis);
@@ -4261,6 +4315,9 @@
       }
       });
       if (!customerVolumeRows.length) setCanvasState('customerVolumeChart', 'No print volume rows after source-native scope (volume owns press/day and native job metadata).');
+      if (STATE.customerVolumeMode === 'waste' && wasteValues.every(v => Number(v || 0) === 0)) {
+        showNoDataChart('customerVolumeChart', 'No waste detected');
+      }
       if (!customerVolumeRendered) setCanvasState('customerVolumeChart', 'Chart library failed to load. Charts cannot render.', 'error');
     document.getElementById('customerVolumeNote').textContent = `${STATE.customerVolumeExpanded ? 'Full press ranking' : 'Top 12'} in ${STATE.customerVolumeMode === 'waste' ? 'Waste mode' : 'Volume mode'} (${STATE.customerVolumeSort === 'asc' ? 'lowest first' : 'highest first'}) from source volume aggregates (canonical press grouping).`;
     document.getElementById('customerVolumeExpand').textContent = STATE.customerVolumeExpanded ? 'Collapse' : 'Show all';
