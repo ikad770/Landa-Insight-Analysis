@@ -83,7 +83,10 @@
     .topbar,.card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow)}
     .topbar { display:grid; grid-template-columns:1fr auto; gap:8px; align-items:start; padding:14px; margin-bottom:8px; }
     .controls { display:flex; gap:8px; flex-wrap:wrap; }
-    .kpis { display:grid; grid-template-columns: repeat(4,minmax(150px,1fr)); gap:8px; margin-bottom:8px; position:relative; z-index:2; }
+    .kpis { display:grid; gap:8px; margin-bottom:8px; position:relative; z-index:2; }
+    .kpi-row { display:grid; gap:8px; }
+    .kpi-row.core { grid-template-columns: repeat(4,minmax(150px,1fr)); }
+    .kpi-row.context { grid-template-columns: repeat(3,minmax(150px,1fr)); }
     .kpi { padding:9px 10px; border:1px solid var(--border); border-radius:10px; background:rgba(255,255,255,.02); }
     .kpi.clickable{cursor:pointer;transition:all .18s ease;position:relative;z-index:1;pointer-events:auto}
     .kpi.clickable:hover{border-color:rgba(123,141,255,.65);background:rgba(123,141,255,.09);transform:translateY(-1px)}
@@ -156,33 +159,16 @@
     .summary-stat { background:rgba(255,255,255,.03); border:1px solid var(--border); border-radius:10px; padding:10px; }
     .summary-stat .label{color:var(--muted);font-size:.75rem;text-transform:uppercase;letter-spacing:.08em}
     .summary-stat .value{font-size:1rem;font-weight:650;margin-top:4px}
-    .exec-brief{display:grid;grid-template-columns:1fr;gap:12px}
-    .exec-status-banner{border:1px solid var(--border);border-radius:14px;padding:14px;background:linear-gradient(145deg,rgba(11,20,35,.88),rgba(16,26,44,.72));box-shadow:inset 0 1px 0 rgba(255,255,255,.05)}
-    .exec-status-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap}
-    .exec-status-kicker{color:#9fb6d7;font-size:.72rem;letter-spacing:.11em;text-transform:uppercase}
-    .exec-status-value{margin-top:4px;font-size:1.3rem;font-weight:760;line-height:1.1}
-    .exec-status-verdict{margin-top:8px;color:#dbe7fa;font-size:.89rem;line-height:1.45}
-    .exec-tag-row{margin-top:10px;display:flex;gap:8px;flex-wrap:wrap}
-    .exec-tag{display:inline-flex;align-items:center;gap:6px;padding:4px 9px;border-radius:999px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.04);font-size:.73rem;color:#d3e1f5}
-    .exec-dot{width:7px;height:7px;border-radius:999px;background:currentColor;opacity:.85}
-    .exec-signal-grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:10px}
-    .exec-signal-card{grid-column:span 3;border:1px solid var(--border);border-radius:12px;padding:10px;background:linear-gradient(180deg,rgba(255,255,255,.045),rgba(255,255,255,.02))}
-    .exec-signal-title{color:#9cb1cf;font-size:.71rem;text-transform:uppercase;letter-spacing:.08em}
-    .exec-signal-value{margin-top:6px;color:#f2f7ff;font-size:1rem;font-weight:700;line-height:1.25}
-    .exec-signal-note{margin-top:6px;color:#b4c5de;font-size:.77rem;line-height:1.35}
-    .exec-story-grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:10px}
-    .exec-story-card{grid-column:span 6;border:1px solid var(--border);border-radius:12px;padding:12px;background:rgba(255,255,255,.02)}
-    .exec-story-head{display:flex;justify-content:space-between;align-items:center;gap:8px}
-    .exec-story-title{font-size:.8rem;letter-spacing:.07em;text-transform:uppercase;font-weight:700}
-    .exec-priority-strip{height:5px;border-radius:999px;background:rgba(255,255,255,.08);margin-top:10px;overflow:hidden}
-    .exec-priority-fill{height:100%;border-radius:999px}
-    .exec-card-grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:9px;margin-top:10px}
-    .exec-insight-card,.exec-action-card{grid-column:span 6;border:1px solid var(--border);border-radius:10px;padding:9px 10px;background:rgba(255,255,255,.02)}
-    .exec-action-card{background:rgba(67,138,92,.1);border-color:rgba(96,191,135,.35)}
-    .exec-mini-title{font-size:.73rem;color:#9fb3d2;text-transform:uppercase;letter-spacing:.07em;font-weight:700}
-    .exec-mini-value{font-size:.9rem;color:#f3f7ff;margin-top:5px;line-height:1.35;font-weight:650}
-    .exec-mini-note{font-size:.76rem;color:#b8c9df;margin-top:5px;line-height:1.35}
-    .exec-action-impact{margin-top:6px;font-size:.74rem;color:#d9ffe8}
+    .exec-strip{border:1px solid var(--border);border-radius:14px;padding:12px;background:linear-gradient(160deg,rgba(11,20,35,.92),rgba(18,30,46,.78));display:grid;gap:8px}
+    .exec-line{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:.84rem}
+    .exec-chip{display:inline-flex;align-items:center;gap:6px;border:1px solid rgba(255,255,255,.18);padding:3px 9px;border-radius:999px;background:rgba(255,255,255,.05);font-weight:620}
+    .exec-chip.status-critical{color:#ffd7d4;border-color:rgba(243,107,99,.6);background:rgba(243,107,99,.18)}
+    .exec-chip.status-watch{color:#ffe5c7;border-color:rgba(240,177,101,.6);background:rgba(240,177,101,.16)}
+    .exec-chip.status-stable{color:#dcffe9;border-color:rgba(87,201,138,.6);background:rgba(87,201,138,.16)}
+    .exec-sep{opacity:.45}
+    .exec-action{border:1px solid rgba(96,191,135,.35);background:rgba(67,138,92,.1);padding:4px 10px;border-radius:9px;font-size:.8rem;color:#d9ffe8;max-width:360px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+    .exec-risk-track{height:7px;border-radius:999px;background:rgba(255,255,255,.1);overflow:hidden}
+    .exec-risk-fill{height:100%;border-radius:999px}
     .list-compact { margin:8px 0 0; padding-left:18px; color:#d8e2f2; }
     table { width:100%; border-collapse:collapse; font-size:.86rem; }
     th,td { border-bottom:1px solid rgba(255,255,255,.08); padding:8px; text-align:left; }
@@ -219,7 +205,7 @@
     .summary-preview iframe{width:100%;height:380px;border:0}
 
     @media(max-width:1000px){ .kpis{grid-template-columns:repeat(2,minmax(150px,1fr));}.topbar{grid-template-columns:1fr}.span-6,.span-4,.span-8,.span-3{grid-column:span 12}.file-row{grid-template-columns:1fr} .file-state{justify-content:flex-start}.press-analytics-grid{grid-template-columns:1fr}.press-chart-area{height:280px;min-height:280px;}.press-chart-area.primary{height:340px;min-height:340px;} }
-    @media(max-width:760px){ .summary-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr));}.exec-signal-card,.exec-story-card,.exec-insight-card,.exec-action-card{grid-column:span 12;} }
+    @media(max-width:760px){ .summary-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr));}.kpi-row.core,.kpi-row.context{grid-template-columns:repeat(2,minmax(150px,1fr));} }
   </style>
 </head>
 <body>
@@ -368,7 +354,7 @@
       </article>
 
       <article class="card span-6">
-        <div class="chart-head"><h3>Print Volume By Press</h3><div class="chart-tools"><div class="metric-toggle" data-chart-toggle="volume"><button class="btn active" data-mode="volume">Volume</button><button class="btn" data-mode="waste">Waste</button></div><select id="customerVolumeSort" class="select"><option value="desc">Highest first</option><option value="asc">Lowest first</option></select><button id="customerVolumeExpand" class="btn secondary">Show all</button></div></div>
+        <div class="chart-head"><h3>Print Volume By Press</h3><div class="chart-tools"><select id="customerVolumeSort" class="select"><option value="desc">Highest first</option><option value="asc">Lowest first</option></select><button id="customerVolumeExpand" class="btn secondary">Show all</button></div></div>
         <div class="micro" id="customerVolumeNote">Press-level workload from volumeAgg only.</div><div class="chart-area"><canvas id="customerVolumeChart"></canvas></div>
       </article>
 
@@ -453,7 +439,6 @@
     expand: { press: false, subsystem: false, alert: false, version: false },
     metricByChart: { press: 'events', subsystem: 'events', alert: 'events', version: 'events' },
     customerVolumeMetric: 'productionPrintedSheets',
-    customerVolumeMode: 'volume',
     customerVolumeSort: 'desc',
     customerVolumeExpanded: false,
     customerVolumeLookup: new Map(),
@@ -1492,7 +1477,6 @@
       filters: currentFilterValues(),
       metrics: STATE.metricByChart,
       volumeMetric: STATE.customerVolumeMetric,
-      volumeMode: STATE.customerVolumeMode,
       volumeSort: STATE.customerVolumeSort,
       simExclusions: [...(STATE.drilldown?.simulation?.appliedExcluded || [])],
     };
@@ -1529,7 +1513,6 @@
     if (state.volumeMetric) {
       STATE.customerVolumeMetric = state.volumeMetric;
     }
-    if (state.volumeMode) STATE.customerVolumeMode = state.volumeMode === 'waste' ? 'waste' : 'volume';
     if (state.volumeSort) {
       STATE.customerVolumeSort = state.volumeSort;
       if (customerVolumeSort) customerVolumeSort.value = state.volumeSort;
@@ -2415,52 +2398,54 @@
 
   function renderKpis(k) {
     const na = 'N/A';
-    const cards = [
-      ['Total Events', 'totalEvents', k.totalEvents.toLocaleString(), 'Total error events in selected range'],
-      ['Total Downtime', 'totalDowntime', formatDuration(k.totalDowntime), 'Planned + unplanned downtime'],
-      ['MTTR', 'mttr', k.mttr == null ? na : formatDuration(k.mttr), 'Avg repair time per failure event'],
-      ...(k.mtbf == null ? [] : [['MTBF', 'mtbf', formatDuration(k.mtbf), 'Runtime / failure events']]),
-      ['Output Efficiency', 'outputEfficiency', k.outputEfficiency == null ? na : Math.round(k.outputEfficiency).toLocaleString(), 'Sheets per downtime hour'],
-    ];
-    document.getElementById('kpiStrip').innerHTML = cards
-      .map(([label, metricKey, value, subtitle]) => `<article class="kpi clickable" role="button" tabindex="0" data-kpi-metric="${metricKey}"><div class="k">${label}</div><div class="v">${value}</div><div class="kpi-sub">${subtitle}</div></article>`)
-      .join('');
+    const rows = {
+      core: [
+        ['Total Downtime', 'totalDowntime', formatDuration(k.totalDowntime), 'Planned + unplanned downtime'],
+        ['MTTR', 'mttr', k.mttr == null ? na : formatDuration(k.mttr), 'Avg repair time per failure event'],
+        ['MTBF', 'mtbf', k.mtbf == null ? na : formatDuration(k.mtbf), 'Runtime / failure events'],
+        ['Output Efficiency', 'outputEfficiency', k.outputEfficiency == null ? na : Math.round(k.outputEfficiency).toLocaleString(), 'ProductionVolume / DowntimeHours'],
+      ],
+      context: [
+        ['Total Events', 'totalEvents', k.totalEvents.toLocaleString(), 'Total error events in selected range'],
+        ['Production Volume', 'totalProdVolume', Number(k.totalProdVolume || 0).toLocaleString(), 'Production printed sheets'],
+        ['Availability', 'availabilityPct', k.availabilityPct == null ? na : `${k.availabilityPct.toFixed(1)}%`, 'Weighted runtime availability'],
+      ]
+    };
+    const toCard = ([label, metricKey, value, subtitle]) => `<article class="kpi clickable" role="button" tabindex="0" data-kpi-metric="${metricKey}"><div class="k">${label}</div><div class="v">${value}</div><div class="kpi-sub">${subtitle}</div></article>`;
+    document.getElementById('kpiStrip').innerHTML = `
+      <div class="kpi-row core">${rows.core.map(toCard).join('')}</div>
+      <div class="kpi-row context">${rows.context.map(toCard).join('')}</div>`;
   }
 
   function renderExecutiveSummaryCard(summary) {
-    const statusTone = summary.statusTone === 'critical'
-      ? { border: 'rgba(243,107,99,.6)', glow: 'rgba(243,107,99,.28)' }
-      : summary.statusTone === 'watch'
-        ? { border: 'rgba(240,177,101,.58)', glow: 'rgba(240,177,101,.22)' }
-        : { border: 'rgba(87,201,138,.58)', glow: 'rgba(87,201,138,.22)' };
+    const tone = summary.statusTone === 'critical' ? 'critical' : summary.statusTone === 'watch' ? 'watch' : 'stable';
+    const riskPct = Math.max(6, Math.min(100, Number(summary.downtimeConcentrationPct || 0)));
+    const riskColor = tone === 'critical' ? '#f36b63' : tone === 'watch' ? '#f0b165' : '#57c98a';
+    const statusClass = tone === 'critical' ? 'status-critical' : tone === 'watch' ? 'status-watch' : 'status-stable';
+    const repeatCount = Number(summary.topAlert?.events || 0).toLocaleString();
+    const actions = (summary.actionCards || []).slice(0, 2);
     document.getElementById('executiveSummaryCard').innerHTML = `
       <div class="chart-head"><h3>Executive Situation Overview</h3></div>
-      <div class="exec-brief">
-        <section class="exec-status-banner" style="border-color:${statusTone.border};box-shadow:inset 0 1px 0 rgba(255,255,255,.05),0 0 0 1px ${statusTone.glow};">
-          <div class="exec-status-kicker">Top Line</div>
-          <div class="exec-status-value" style="font-size:1rem;color:#f1f6ff;">${esc(summary.topLine || 'Main issue: N/A driven by N/A → Action: N/A')}</div>
-        </section>
-        <section class="exec-signal-grid">
-          <article class="exec-signal-card">
-            <div class="exec-signal-title">Top Press</div>
-            <div class="exec-signal-value">${esc(summary.topPressByEvents?.name || 'N/A')}</div>
-          </article>
-          <article class="exec-signal-card">
-            <div class="exec-signal-title">Top Subsystem</div>
-            <div class="exec-signal-value">${esc(summary.topSubsystem?.name || 'N/A')}</div>
-          </article>
-          <article class="exec-signal-card">
-            <div class="exec-signal-title">Top Error</div>
-            <div class="exec-signal-value">${esc(summary.topAlert?.name || 'N/A')}</div>
-          </article>
-        </section>
-        <section class="exec-story-grid">
-          <article class="exec-story-card" style="grid-column:span 12;">
-            <div class="exec-story-head"><div class="exec-story-title" style="color:#85e2b4;">Top Actions</div><span class="micro" style="margin:0;">Max 2 cards</span></div>
-            <div class="exec-card-grid">${(summary.actionCards || []).slice(0, 2).map(card => `<article class="exec-action-card"><div class="exec-mini-title">${esc(card.title)}</div><div class="exec-mini-note">${esc(card.reason)}</div><div class="exec-action-impact">${esc(card.impact)}</div></article>`).join('')}</div>
-          </article>
-        </section>
-      </div>`;
+      <section class="exec-strip">
+        <div class="exec-line">
+          <span class="exec-chip ${statusClass}">${esc(summary.status || 'WATCH')}</span>
+          <span class="exec-sep">•</span>
+          <span class="exec-chip">${esc(summary.topPressByEvents?.name || 'N/A')}</span>
+          <span class="exec-sep">•</span>
+          <span class="exec-chip">${esc(summary.topAlert?.name || 'N/A')}</span>
+        </div>
+        <div class="exec-line">
+          <span class="exec-chip">${Number(summary.topPressByEvents?.events || 0).toLocaleString()} Events</span>
+          <span class="exec-sep">|</span>
+          <span class="exec-chip">${repeatCount} Repeats</span>
+          <span class="exec-sep">|</span>
+          <span class="exec-chip">${formatDuration(summary.topErrorDowntimePress?.downtime || 0)} Downtime</span>
+        </div>
+        <div class="exec-line">
+          ${actions.length ? actions.map(card => `<span class="exec-action" title="${esc(card.reason || card.title || '')}">${esc(card.title || 'Action')}</span>`).join('') : '<span class="exec-action">No prioritized action</span>'}
+        </div>
+        <div class="exec-risk-track" aria-label="Severity indicator"><div class="exec-risk-fill" style="width:${riskPct.toFixed(1)}%;background:${riskColor};"></div></div>
+      </section>`;
   }
 
   function renderRiskSection(riskRows) {
@@ -2581,6 +2566,13 @@
       const alpha = Math.max(0.24, 0.78 - (i * 0.045));
       return `rgba(${rgb},${alpha.toFixed(3)})`;
     });
+  }
+
+
+  function wasteRatioColor(wasteRatio) {
+    if (wasteRatio > 0.15) return '#f36b63';
+    if (wasteRatio >= 0.05) return '#f0b165';
+    return '#57c98a';
   }
 
   function normalizeJobType(jobType) {
@@ -3386,7 +3378,6 @@
       totalUnplanned: { source: 'availabilityAgg', formula: 'Recovery + Jams duration.', primary: 'unplannedDowntimeSeconds', unit: 'seconds' },
       totalPlanned: { source: 'availabilityAgg', formula: 'Preventive Maintenance + On Job Maintenance.', primary: 'plannedDowntimeSeconds', unit: 'seconds' },
       mttr: { source: 'errorsAgg', formula: 'Total error duration / total events.', primary: 'durationSeconds', unit: 'seconds' },
-      mtbr: { source: 'errorsAgg + availabilityAgg', formula: 'Runtime / total events.', primary: 'mtbr', unit: 'seconds' },
       mtbf: { source: 'errorsAgg + availabilityAgg', formula: 'Runtime / total events.', primary: 'mtbf', unit: 'seconds' },
       availabilityPct: { source: 'availabilityAgg', formula: 'Runtime / (Runtime + Planned + Unplanned) × 100.', primary: 'availability', unit: '%' },
       totalProdVolume: { source: 'volumeAgg', formula: 'Sum of productionPrintedSheets.', primary: 'productionPrintedSheets', unit: 'units' },
@@ -3793,14 +3784,13 @@
       const metricName = STATE.drilldown.value;
       const profile = kpiMetricProfile(metricKey, metricName);
       const k = STATE.kpis || {};
-      const currentValue = metricKey === 'totalEvents' ? (k.totalEvents || 0).toLocaleString() : metricKey === 'totalDowntime' ? formatDuration(k.totalDowntime || 0) : metricKey === 'totalUnplanned' ? formatDuration(k.totalUnplanned || 0) : metricKey === 'totalPlanned' ? formatDuration(k.totalPlanned || 0) : metricKey === 'mttr' ? (k.mttr == null ? 'N/A' : formatDuration(k.mttr)) : metricKey === 'mtbf' ? (k.mtbf == null ? 'N/A' : formatDuration(k.mtbf)) : metricKey === 'mtbr' ? (k.mtbr == null ? 'N/A' : formatDuration(k.mtbr)) : metricKey === 'availabilityPct' ? (k.availabilityPct == null ? 'N/A' : `${k.availabilityPct.toFixed(1)}%`) : metricKey === 'totalProdVolume' ? (k.totalProdVolume || 0).toLocaleString() : metricKey === 'outputEfficiency' ? (k.outputEfficiency == null ? 'N/A' : `${Math.round(k.outputEfficiency).toLocaleString()} sheets per downtime hour`) : metricKey === 'volumePerDowntime' ? (k.volumePerDowntime == null ? 'N/A' : k.volumePerDowntime.toFixed(4)) : metricKey === 'volumePerEvents' ? (k.volumePerEvents == null ? 'N/A' : k.volumePerEvents.toFixed(4)) : 'N/A';
+      const currentValue = metricKey === 'totalEvents' ? (k.totalEvents || 0).toLocaleString() : metricKey === 'totalDowntime' ? formatDuration(k.totalDowntime || 0) : metricKey === 'totalUnplanned' ? formatDuration(k.totalUnplanned || 0) : metricKey === 'totalPlanned' ? formatDuration(k.totalPlanned || 0) : metricKey === 'mttr' ? (k.mttr == null ? 'N/A' : formatDuration(k.mttr)) : metricKey === 'mtbf' ? (k.mtbf == null ? 'N/A' : formatDuration(k.mtbf)) : metricKey === 'availabilityPct' ? (k.availabilityPct == null ? 'N/A' : `${k.availabilityPct.toFixed(1)}%`) : metricKey === 'totalProdVolume' ? (k.totalProdVolume || 0).toLocaleString() : metricKey === 'outputEfficiency' ? (k.outputEfficiency == null ? 'N/A' : `${Math.round(k.outputEfficiency).toLocaleString()} sheets per downtime hour`) : metricKey === 'volumePerDowntime' ? (k.volumePerDowntime == null ? 'N/A' : k.volumePerDowntime.toFixed(4)) : metricKey === 'volumePerEvents' ? (k.volumePerEvents == null ? 'N/A' : k.volumePerEvents.toFixed(4)) : 'N/A';
       document.getElementById('drilldownTitle').textContent = `${metricName} Drilldown`;
       document.getElementById('drilldownSummary').textContent = `Validated KPI breakdown from scoped source aggregates.`;
       renderDrilldownContext(metricName, currentValue, profile);
       if (metricKey === 'outputEfficiency') {
         const drillRows = [
           ['Output per downtime hour', k.outputEfficiency == null ? 'N/A' : `${Math.round(k.outputEfficiency).toLocaleString()} sheets per downtime hour`],
-          ['Output per event', k.outputPerEvent == null ? 'N/A' : `${k.outputPerEvent.toFixed(2)} sheets/event`],
           ['Downtime per event', k.downtimePerEventMinutes == null ? 'N/A' : `${k.downtimePerEventMinutes.toFixed(2)} min/event`],
           ['Downtime per 1M sheets', k.downtimePerMillionSheetsMinutes == null ? 'N/A' : `${k.downtimePerMillionSheetsMinutes.toFixed(2)} min / 1M sheets`]
         ];
@@ -4279,49 +4269,60 @@
     STATE.customerVolumeRows = customerVolumeRows;
     STATE.customerVolumeAllRows = customerVolumeAllRows;
     const labels = customerVolumeRows.map(r => r.displayLabel);
-    const volumeValues = customerVolumeRows.map(r => r.productionPrintedSheets || 0);
-    const wasteValues = customerVolumeRows.map(r => Math.max(0, r.wastePrintedSheets || 0));
-      const customerVolumeRendered = replaceChart('customerVolumeChart', {
+    const totalVolumeValues = customerVolumeRows.map(r => Math.max(0, Number(r.totalVolume || r.printedSheets || 0)));
+    const wasteValues = customerVolumeRows.map(r => Math.max(0, Number(r.wastePrintedSheets || 0)));
+    const wasteRatios = totalVolumeValues.map((total, idx) => total > 0 ? (wasteValues[idx] / total) : 0);
+    const wasteColors = wasteRatios.map(wasteRatioColor);
+    const customerVolumeRendered = replaceChart('customerVolumeChart', {
       type: 'bar',
       data: {
         labels,
-        datasets: STATE.customerVolumeMode === 'waste'
-          ? [{ label: 'Waste', data: wasteValues, backgroundColor: buildTonePalette(labels.length, '243,107,99'), borderRadius: 5, metricKey: 'waste' }]
-          : [{ label: 'Volume', data: volumeValues, backgroundColor: buildTonePalette(labels.length, '87,201,138'), borderRadius: 5, metricKey: 'volume' }]
+        datasets: [
+          { label: 'Total Volume', data: totalVolumeValues, backgroundColor: 'rgba(87,201,138,.26)', borderColor: wasteColors, borderWidth: 1, borderRadius: 5, order: 1, categoryPercentage: 0.72, barPercentage: 0.9 },
+          { label: 'Waste Overlay', data: wasteValues, backgroundColor: wasteColors, borderColor: wasteColors, borderWidth: 1, borderRadius: 5, order: 2, categoryPercentage: 0.72, barPercentage: 0.64 }
+        ]
       },
       options: {
         ...baseOptions('customerVolume', labels, customerVolumeRows),
-        scales: {
-          ...baseOptions('customerVolume', labels, customerVolumeRows).scales,
-          x: { ...baseOptions('customerVolume', labels, customerVolumeRows).scales.x, stacked: true },
-          y: { ...baseOptions('customerVolume', labels, customerVolumeRows).scales.y, stacked: true }
-        },
         plugins: {
           legend: { display: true, labels: { color: '#c6d3ea' } },
           tooltip: {
             callbacks: {
+              title: ctx => `Press: ${ctx?.[0]?.label || 'N/A'}`,
               label: ctx => {
+                if (ctx.datasetIndex !== 0) return null;
                 const row = customerVolumeRows?.[ctx.dataIndex] || {};
-                if (ctx.dataset.metricKey === 'waste') return `Waste: ${Number(row.wastePrintedSheets || 0).toLocaleString()}`;
-                return `Volume: ${Number(row.productionPrintedSheets || 0).toLocaleString()}`;
+                const total = Number(row.totalVolume || row.printedSheets || 0);
+                const waste = Number(row.wastePrintedSheets || 0);
+                const good = Math.max(0, total - waste);
+                const ratio = total > 0 ? ((waste / total) * 100) : 0;
+                return [
+                  `Total Volume: ${total.toLocaleString()}`,
+                  `Waste: ${waste.toLocaleString()}`,
+                  `Good Volume: ${good.toLocaleString()}`,
+                  `Waste %: ${ratio.toFixed(1)}%`
+                ];
               }
-            }
+            },
+            filter: ctx => ctx.datasetIndex === 0
           }
         }
       }
-      });
-      if (!customerVolumeRows.length) setCanvasState('customerVolumeChart', 'No print volume rows after source-native scope (volume owns press/day and native job metadata).');
-      const totalWasteInScope = wasteValues.reduce((sum, value) => sum + Number(value || 0), 0);
-      if (STATE.customerVolumeMode === 'waste' && totalWasteInScope <= 0) {
-        showNoDataChart('customerVolumeChart', 'No waste detected (verified from Special job_type printed sheets).');
-        console.info('[waste-debug] no waste detected after normalization and mapping verification');
-      }
-      if (!customerVolumeRendered) setCanvasState('customerVolumeChart', 'Chart library failed to load. Charts cannot render.', 'error');
-    document.getElementById('customerVolumeNote').textContent = STATE.customerVolumeMode === 'waste'
-      ? (totalWasteInScope > 0
-        ? `${STATE.customerVolumeExpanded ? 'Full press ranking' : 'Top 12'} waste view (${STATE.customerVolumeSort === 'asc' ? 'lowest first' : 'highest first'}) using Special job_type printed sheets.`
-        : 'Waste verification complete: no Special job_type printed sheet waste in current scope.')
-      : `${STATE.customerVolumeExpanded ? 'Full press ranking' : 'Top 12'} in Volume mode (${STATE.customerVolumeSort === 'asc' ? 'lowest first' : 'highest first'}) from source volume aggregates (canonical press grouping).`;
+    });
+    if (!customerVolumeRows.length) setCanvasState('customerVolumeChart', 'No print volume rows after source-native scope (volume owns press/day and native job metadata).');
+    const totalWasteInScope = wasteValues.reduce((sum, value) => sum + Number(value || 0), 0);
+    if (totalWasteInScope <= 0) {
+      const hasVolumeRows = (sourceScope.filteredVolumeRowsNative || []).length > 0;
+      const hasSpecialRows = (sourceScope.filteredVolumeRowsNative || []).some(r => isSpecialJobType(r.jobType));
+      const reason = !hasVolumeRows
+        ? 'No filtered volume rows in current scope.'
+        : hasSpecialRows
+          ? 'Special rows exist but printed sheets sum to 0 after parsing.'
+          : 'No rows mapped to normalized job_type == "special".';
+      console.info('[waste-debug] no waste detected after normalization and mapping verification', { reason });
+    }
+    if (!customerVolumeRendered) setCanvasState('customerVolumeChart', 'Chart library failed to load. Charts cannot render.', 'error');
+    document.getElementById('customerVolumeNote').textContent = `${STATE.customerVolumeExpanded ? 'Full press ranking' : 'Top 12'} total volume with waste overlay (${STATE.customerVolumeSort === 'asc' ? 'lowest first' : 'highest first'}). Waste classification uses Special job_type printed sheets.`;
     document.getElementById('customerVolumeExpand').textContent = STATE.customerVolumeExpanded ? 'Collapse' : 'Show all';
     console.info('[consistency-debug] print-volume-chart-plot', {
       source: 'volumeAgg',
@@ -4398,7 +4399,6 @@
       subsystem: STATE.metricByChart.subsystem === 'downtime' ? 'duration' : 'events',
       alert: STATE.metricByChart.alert === 'downtime' ? 'duration' : 'events',
       version: STATE.metricByChart.version === 'downtime' ? 'duration' : 'events',
-      volume: STATE.customerVolumeMode,
     };
     document.querySelectorAll('[data-chart-toggle]').forEach(toggle => {
       const key = toggle.dataset.chartToggle;
@@ -4991,7 +4991,6 @@
       if (key === 'subsystem') STATE.metricByChart.subsystem = mode === 'duration' ? 'downtime' : 'events';
       if (key === 'alert') STATE.metricByChart.alert = mode === 'duration' ? 'downtime' : 'events';
       if (key === 'version') STATE.metricByChart.version = mode === 'duration' ? 'downtime' : 'events';
-      if (key === 'volume') STATE.customerVolumeMode = mode === 'waste' ? 'waste' : 'volume';
       syncMetricToggleUI();
       renderDashboard();
     }));
