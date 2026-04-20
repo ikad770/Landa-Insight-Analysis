@@ -2605,10 +2605,37 @@
     return String(jobType || '').trim().toLowerCase() === 'special';
   }
 
+  function buildEntityMetricBundle(patch = {}) {
+    const events = Number(patch.events || 0);
+    const durationSeconds = Number(patch.durationSeconds || 0);
+    const volume = Number(patch.volume || 0);
+    const waste = Number(patch.waste || 0);
+    return {
+      events: Number.isFinite(events) && events > 0 ? events : 0,
+      durationSeconds: Number.isFinite(durationSeconds) && durationSeconds > 0 ? durationSeconds : 0,
+      avgDuration: Number.isFinite(events) && events > 0 && Number.isFinite(durationSeconds) && durationSeconds > 0 ? (durationSeconds / events) : 0,
+      volume: Number.isFinite(volume) && volume > 0 ? volume : 0,
+      waste: Number.isFinite(waste) && waste > 0 ? waste : 0,
+    };
+  }
+
+  function validateEntityMetricBundle(entityLabel, metrics) {
+    const events = Number(metrics?.events || 0);
+    const durationSeconds = Number(metrics?.durationSeconds || 0);
+    const flags = {
+      noDurationData: events > 0 && durationSeconds === 0,
+      dataError: durationSeconds > 0 && events === 0,
+    };
+    if (flags.dataError) {
+      console.error('[data-validation] invalid metric row: duration without events', { entity: entityLabel, metrics });
+    }
+    return flags;
+  }
+
   function hasDurationDataForRanking(metric, items = []) {
     if (metric !== 'downtime') return true;
-    const hasDuration = items.some(item => Number(item?.downtime || item?.totalDurationSeconds || 0) > 0);
-    const hasEvents = items.some(item => Number(item?.events || item?.totalEvents || 0) > 0);
+    const hasDuration = items.some(item => Number(item?.metrics?.durationSeconds || item?.downtime || item?.totalDurationSeconds || 0) > 0);
+    const hasEvents = items.some(item => Number(item?.metrics?.events || item?.events || item?.totalEvents || 0) > 0);
     return hasDuration || !hasEvents;
   }
 
@@ -2701,8 +2728,19 @@
     const metric = STATE.metricByChart[key];
     const baseMap = new Map();
     const add = (name, patch) => {
-      if (!baseMap.has(name)) baseMap.set(name, { name, events: 0, downtime: 0, avgDuration: 0, volume: 0, normalized: 0, risk: 0, totalEvents: 0, totalDurationSeconds: 0, avgDurationSeconds: 0 });
+      if (!baseMap.has(name)) baseMap.set(name, {
+        name, events: 0, downtime: 0, avgDuration: 0, volume: 0, waste: 0, normalized: 0, risk: 0,
+        totalEvents: 0, totalDurationSeconds: 0, avgDurationSeconds: 0,
+        metrics: buildEntityMetricBundle()
+      });
       Object.assign(baseMap.get(name), patch);
+      const slot = baseMap.get(name);
+      slot.metrics = buildEntityMetricBundle({
+        events: slot.totalEvents || slot.events || 0,
+        durationSeconds: slot.totalDurationSeconds || slot.downtime || 0,
+        volume: slot.volume || 0,
+        waste: slot.waste || 0
+      });
     };
     const nameOf = (row) => {
       if (key === 'press') return row.canonicalPress || 'Unspecified';
@@ -2728,6 +2766,12 @@
         if (r.totalEvents === 0 && r.totalDurationSeconds > 0 && recomputedEvents > 0) {
           console.error('[data-validation] corrected zero-event aggregation with non-zero duration', { press: r.name, previousEvents: r.totalEvents, correctedEvents: recomputedEvents, durationSeconds: r.totalDurationSeconds });
         }
+        const rowMetrics = buildEntityMetricBundle({
+          events: normalizedEvents,
+          durationSeconds: r.totalDurationSeconds
+        });
+        const rowFlags = validateEntityMetricBundle(r.name, rowMetrics);
+        if (rowFlags.dataError) return;
         add(r.name, {
           events: normalizedEvents,
           downtime: r.totalDurationSeconds,
@@ -2737,12 +2781,15 @@
           avgDurationSeconds: normalizedEvents > 0 ? (r.totalDurationSeconds / normalizedEvents) : 0,
           impactTier: r.impactTier,
           impactColor: r.impactColor,
-          noDurationData: normalizedEvents > 0 && r.totalDurationSeconds === 0
+          noDurationData: rowFlags.noDurationData
         });
       });
       volumeAgg.forEach(r => {
         const n = r.canonicalPress || 'Unspecified';
-        add(n, { volume: (baseMap.get(n)?.volume || 0) + (r.productionVolume || 0) });
+        add(n, {
+          volume: (baseMap.get(n)?.volume || 0) + (r.productionVolume || 0),
+          waste: (baseMap.get(n)?.waste || 0) + (r.wasteVolume || r.wastePrintedSheets || 0)
+        });
       });
       [...baseMap.values()].forEach(item => { item.normalized = item.volume > 0 ? item.events / item.volume : item.events; item.risk = 0; });
     } else {
@@ -2751,6 +2798,9 @@
         events: r.events || 0,
         normalized: r.normalized || 0,
         risk: r.risk || 0,
+        totalEvents: r.events || 0,
+        totalDurationSeconds: r.downtime || 0,
+        downtime: r.downtime || 0,
         noDurationData: (r.events || 0) > 0 && (r.downtime || 0) === 0
       }));
       if (metric === 'downtime') {
@@ -2762,14 +2812,18 @@
               const dt = totalDowntimeFromAvailabilityRow(r);
               bySubsystem.set(n, (bySubsystem.get(n) || 0) + dt);
             });
-          [...bySubsystem.entries()].forEach(([name, downtime]) => add(name, { downtime }));
+          [...bySubsystem.entries()].forEach(([name, downtime]) => add(name, { downtime, totalDurationSeconds: downtime }));
         } else {
           const downtimeAggregate = aggregateErrorEvents(errorEvents, r => nameOf(r));
-          downtimeAggregate.forEach(r => add(r.name, { downtime: r.downtime || 0 }));
+          downtimeAggregate.forEach(r => add(r.name, { downtime: r.downtime || 0, totalDurationSeconds: r.downtime || 0 }));
         }
       }
     }
     return [...baseMap.values()]
+      .filter(item => {
+        const flags = validateEntityMetricBundle(item.name, item.metrics);
+        return !flags.dataError;
+      })
       .map(item => ({
         ...item,
         entityKey: item.name,
@@ -2811,8 +2865,11 @@
       parentContext: { path: [] }
     }));
     const data = view.map(x => {
-      if (isPressImpactChart && (metric === 'downtime' || metric === 'avgDuration')) return x[metric] || 0;
-      if (!isPressImpactChart && metric === 'downtime') return (x.downtime || 0) / 3600;
+      if (metric === 'events') return x.metrics?.events || x.events || 0;
+      if (metric === 'downtime') return isPressImpactChart
+        ? (x.metrics?.durationSeconds || x.totalDurationSeconds || x.downtime || 0)
+        : ((x.metrics?.durationSeconds || x.totalDurationSeconds || x.downtime || 0) / 3600);
+      if (metric === 'avgDuration') return x.metrics?.avgDuration || x.avgDuration || 0;
       return x[metric] || 0;
     });
     if (metric === 'downtime' && !hasDurationDataForRanking(metric, view)) {
@@ -2894,6 +2951,13 @@
                     `Impact Tier: ${tier}`
                   ];
                 }
+                const item = view[ctx.dataIndex] || {};
+                if (metric === 'downtime') {
+                  const durationSeconds = item.metrics?.durationSeconds || item.totalDurationSeconds || item.downtime || 0;
+                  return durationSeconds > 0 ? `Duration: ${formatClockDuration(durationSeconds)}` : 'Duration: no duration data';
+                }
+                if (metric === 'events') return `Events: ${(item.metrics?.events || item.events || 0).toLocaleString()}`;
+                if (metric === 'avgDuration') return `Avg Duration: ${formatClockDuration(item.metrics?.avgDuration || item.avgDuration || 0)}`;
                 return `${ctx.parsed.y?.toLocaleString(undefined, { maximumFractionDigits: 3 }) ?? ctx.parsed.x.toLocaleString(undefined, { maximumFractionDigits: 3 })} ${meta.tooltip}`;
               }
             }
@@ -3213,7 +3277,7 @@
   function renderTable(rows) {
     const table = document.getElementById('eventTable');
     if (!rows.length) { table.innerHTML = '<tbody><tr><td>No rows in current scope.</td></tr></tbody>'; return; }
-    table.innerHTML = `<thead><tr><th>Customer</th><th>Site</th><th>Press</th><th>Subsystem</th><th>Alert Name</th><th>Version</th><th>Start</th><th>Duration</th><th>Prod Vol</th><th>Avail Context</th></tr></thead><tbody>${rows.slice(0, 800).map(r => `<tr><td>${esc(r.customer)}</td><td>${esc(r.site)}</td><td>${esc(r.press)}</td><td>${esc(r.subsystem)}</td><td>${esc(r.name !== 'Unspecified' ? r.name : r.alertTitle)}</td><td>${esc(r.version)}</td><td>${esc(r.startTime?.toISOString() || '')}</td><td>${esc(formatDuration(r.durationSeconds))}</td><td>${esc(r?.volume?.productionVolume || 0)}</td><td>${esc(`U:${formatDuration(r?.availability?.unplannedDowntimeSeconds || 0)} P:${formatDuration(r?.availability?.plannedDowntimeSeconds || 0)} (${r?.mergeContext?.availabilityKeyUsed || 'none'})`)}</td></tr>`).join('')}</tbody>`;
+    table.innerHTML = `<thead><tr><th>Press</th><th>Subsystem</th><th>Alert Name</th><th>Version</th><th>Start</th><th>Duration</th><th>Prod Vol</th><th>Avail Context</th></tr></thead><tbody>${rows.slice(0, 800).map(r => `<tr><td>${esc(r.press)}</td><td>${esc(r.subsystem)}</td><td>${esc(r.name !== 'Unspecified' ? r.name : r.alertTitle)}</td><td>${esc(r.version)}</td><td>${esc(r.startTime?.toISOString() || '')}</td><td>${esc(formatDuration(r.durationSeconds))}</td><td>${esc(r?.volume?.productionVolume || 0)}</td><td>${esc(`U:${formatDuration(r?.availability?.unplannedDowntimeSeconds || 0)} P:${formatDuration(r?.availability?.plannedDowntimeSeconds || 0)} (${r?.mergeContext?.availabilityKeyUsed || 'none'})`)}</td></tr>`).join('')}</tbody>`;
   }
 
   function populateFilter(id, values, label) {
@@ -3466,8 +3530,7 @@
       rows = rows.filter(r => eventValueForDimension(r, dimension) === entityKey);
     }
     const prevPath = Array.isArray(payload?.parentContext?.path) ? payload.parentContext.path : [];
-    const isDeeperNavigation = prevPath.length > 0;
-    if (!rows.length && isDeeperNavigation) {
+    if (!rows.length) {
       setStatus('No deeper data available', 'warning');
       return;
     }
@@ -3685,6 +3748,15 @@
       if (tableWrap) tableWrap.style.display = 'block';
     }
     const scoped = !search ? rows : rows.filter(r => `${r.press} ${r.subsystem || ''} ${r.name || ''} ${r.alertTitle || ''} ${r.version || ''} ${r.jobType || ''} ${r.jobStatus || ''}`.toLowerCase().includes(search.toLowerCase()));
+    ['drilldownTrendChart', 'drilldownSecondaryChart', 'drilldownOpsChart'].forEach(id => {
+      const card = document.getElementById(id)?.closest('article');
+      if (card) card.classList.add('hidden');
+    });
+    const topCard = document.getElementById('drilldownTopChart')?.closest('article');
+    if (topCard) {
+      topCard.classList.remove('hidden');
+      topCard.classList.add('span-12');
+    }
     renderDrilldownBreadcrumbs();
     renderSimulationControls(0);
     setDrilldownHeading('drilldownTrendHeading', 'Trend');
@@ -4122,6 +4194,13 @@
     STATE.simulationData = null;
     STATE.lastSourceScope = sourceScope;
     STATE.kpis = scopedKpis;
+    const hasAnyDuration = (sourceScope?.errorsAgg || []).some(r => Number(r?.totalErrorDurationSeconds || 0) > 0);
+    if (!hasAnyDuration) {
+      STATE.metricByChart.press = 'events';
+      STATE.metricByChart.subsystem = 'events';
+      STATE.metricByChart.alert = 'events';
+      STATE.metricByChart.version = 'events';
+    }
     syncMetricToggleUI();
     renderKpis(STATE.kpis);
     const safeRankingRender = (key) => {
@@ -4157,11 +4236,8 @@
       data: {
         labels,
         datasets: STATE.customerVolumeMode === 'waste'
-          ? [{ label: 'Waste', data: wasteValues, backgroundColor: buildTonePalette(labels.length, '243,107,99'), borderRadius: 5 }]
-          : [
-            { label: 'Volume', data: volumeValues, backgroundColor: buildTonePalette(labels.length, '87,201,138'), borderRadius: 5 },
-            { label: 'Waste', data: wasteValues, backgroundColor: 'rgba(243,107,99,.35)', borderRadius: 5 }
-          ]
+          ? [{ label: 'Waste', data: wasteValues, backgroundColor: buildTonePalette(labels.length, '243,107,99'), borderRadius: 5, metricKey: 'waste' }]
+          : [{ label: 'Volume', data: volumeValues, backgroundColor: buildTonePalette(labels.length, '87,201,138'), borderRadius: 5, metricKey: 'volume' }]
       },
       options: {
         ...baseOptions('customerVolume', labels, customerVolumeRows),
@@ -4172,7 +4248,15 @@
         },
         plugins: {
           legend: { display: true, labels: { color: '#c6d3ea' } },
-          tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y.toLocaleString()}` } }
+          tooltip: {
+            callbacks: {
+              label: ctx => {
+                const row = customerVolumeRows?.[ctx.dataIndex] || {};
+                if (ctx.dataset.metricKey === 'waste') return `Waste: ${Number(row.wastePrintedSheets || 0).toLocaleString()}`;
+                return `Volume: ${Number(row.productionPrintedSheets || 0).toLocaleString()}`;
+              }
+            }
+          }
         }
       }
       });
@@ -4242,6 +4326,14 @@
   }
 
   function syncMetricToggleUI() {
+    const sourceScope = STATE.dashboardScopeModel?.scopedSource || STATE.lastSourceScope || {};
+    const durationRows = sourceScope?.errorsAgg || [];
+    const durationAvailability = {
+      press: durationRows.some(r => Number(r?.totalErrorDurationSeconds || 0) > 0),
+      subsystem: durationRows.some(r => Number(r?.totalErrorDurationSeconds || 0) > 0),
+      alert: durationRows.some(r => Number(r?.totalErrorDurationSeconds || 0) > 0),
+      version: durationRows.some(r => Number(r?.totalErrorDurationSeconds || 0) > 0),
+    };
     const mapping = {
       press: STATE.metricByChart.press === 'events' ? 'events' : 'duration',
       subsystem: STATE.metricByChart.subsystem === 'downtime' ? 'duration' : 'events',
@@ -4253,6 +4345,13 @@
       const key = toggle.dataset.chartToggle;
       const activeMode = mapping[key];
       toggle.querySelectorAll('[data-mode]').forEach(btn => {
+        if (btn.dataset.mode === 'duration') {
+          const hideDuration = key in durationAvailability ? !durationAvailability[key] : false;
+          btn.classList.toggle('hidden', hideDuration);
+          if (hideDuration && btn.classList.contains('active')) {
+            btn.classList.remove('active');
+          }
+        }
         btn.classList.toggle('active', btn.dataset.mode === activeMode);
       });
     });
