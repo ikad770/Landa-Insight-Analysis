@@ -159,15 +159,19 @@
     .summary-stat { background:rgba(255,255,255,.03); border:1px solid var(--border); border-radius:10px; padding:10px; }
     .summary-stat .label{color:var(--muted);font-size:.75rem;text-transform:uppercase;letter-spacing:.08em}
     .summary-stat .value{font-size:1rem;font-weight:650;margin-top:4px}
-    .exec-strip{border:1px solid var(--border);border-radius:14px;padding:10px 12px;background:linear-gradient(160deg,rgba(11,20,35,.92),rgba(18,30,46,.78));display:grid;gap:6px}
-    .exec-line{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:.84rem}
-    .exec-chip{display:inline-flex;align-items:center;gap:6px;border:1px solid rgba(255,255,255,.18);padding:3px 9px;border-radius:999px;background:rgba(255,255,255,.05);font-weight:620}
-    .exec-chip.status-critical{color:#ffd7d4;border-color:rgba(243,107,99,.6);background:rgba(243,107,99,.18)}
-    .exec-chip.status-watch{color:#ffe5c7;border-color:rgba(240,177,101,.6);background:rgba(240,177,101,.16)}
-    .exec-chip.status-stable{color:#dcffe9;border-color:rgba(87,201,138,.6);background:rgba(87,201,138,.16)}
-    .exec-sep{opacity:.45}
-    .exec-action{border:1px solid rgba(96,191,135,.35);background:rgba(67,138,92,.1);padding:4px 10px;border-radius:9px;font-size:.8rem;color:#d9ffe8;max-width:360px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    .exec-chip.metric{border-color:rgba(123,141,255,.35);background:rgba(123,141,255,.1);color:#dde6ff}
+    .exec-decision-panel{border:1px solid var(--border);border-radius:14px;padding:11px 12px;background:linear-gradient(160deg,rgba(11,20,35,.92),rgba(18,30,46,.78));display:grid;gap:9px}
+    .exec-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+    .exec-severity{display:inline-flex;align-items:center;border:1px solid rgba(255,255,255,.18);padding:4px 10px;border-radius:999px;font-weight:700;font-size:.75rem;letter-spacing:.04em}
+    .exec-severity.status-critical{color:#ffd7d4;border-color:rgba(243,107,99,.6);background:rgba(243,107,99,.18)}
+    .exec-severity.status-watch{color:#ffe5c7;border-color:rgba(240,177,101,.6);background:rgba(240,177,101,.16)}
+    .exec-severity.status-stable{color:#dcffe9;border-color:rgba(87,201,138,.6);background:rgba(87,201,138,.16)}
+    .exec-headline{font-size:.9rem;font-weight:630;color:#ebf2ff;line-height:1.35}
+    .exec-signals{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+    .exec-signal{border:1px solid rgba(123,141,255,.24);border-radius:9px;padding:7px 8px;background:rgba(123,141,255,.08)}
+    .exec-signal .label{font-size:.65rem;letter-spacing:.08em;text-transform:uppercase;color:#aebedf}
+    .exec-signal .value{margin-top:2px;font-size:.88rem;font-weight:650;color:#f0f5ff}
+    .exec-actions{display:grid;gap:6px}
+    .exec-action-item{border:1px solid rgba(96,191,135,.32);background:rgba(67,138,92,.1);padding:5px 9px;border-radius:8px;font-size:.8rem;color:#d9ffe8;line-height:1.35}
     .list-compact { margin:8px 0 0; padding-left:18px; color:#d8e2f2; }
     table { width:100%; border-collapse:collapse; font-size:.86rem; }
     th,td { border-bottom:1px solid rgba(255,255,255,.08); padding:8px; text-align:left; }
@@ -323,7 +327,7 @@
           <div class="press-analytics-grid">
             <article class="press-panel press-panel-primary">
         <div class="chart-head"><h3>Press Impact Matrix</h3></div>
-              <div class="micro" id="pressScatterNote">Vertical split = avg events, horizontal split = avg duration; each press lands by total events (X) and total duration (Y).</div>
+              <div class="micro" id="pressScatterNote">Split lines use scoped averages for events (X) and duration (Y). Colors show zone, with labels only for Zone Highlights.</div>
               <div class="micro" id="pressScatterLegend">Critical = low events / high duration • Inefficient = high events / high duration • Stable = low events / low duration • Noisy = high events / low duration</div>
               <div class="press-chart-area primary"><canvas id="pressImpactScatterChart"></canvas></div>
             </article>
@@ -355,7 +359,7 @@
 
       <article class="card span-6">
         <div class="chart-head"><h3>Print Volume By Press</h3><div class="chart-tools"><select id="customerVolumeSort" class="select"><option value="desc">Highest first</option><option value="asc">Lowest first</option></select><button id="customerVolumeExpand" class="btn secondary">Show all</button></div></div>
-        <div class="micro" id="customerVolumeNote">Press-level workload from volumeAgg only.</div><div class="chart-area"><canvas id="customerVolumeChart"></canvas></div>
+        <div class="micro" id="customerVolumeNote">Stacked bars: green base = good volume, top segment = waste from normalized Special job_type rows.</div><div class="chart-area"><canvas id="customerVolumeChart"></canvas></div>
       </article>
 
       <article class="card span-12" id="riskSection"></article>
@@ -2413,7 +2417,7 @@
         ['Total Downtime', 'totalDowntime', formatDuration(k.totalDowntime), 'Planned + unplanned downtime'],
         ['MTTR', 'mttr', k.mttr == null ? na : formatDuration(k.mttr), 'Avg repair time per failure event'],
         ['MTBF', 'mtbf', k.mtbf == null ? na : formatDuration(k.mtbf), 'Runtime / failure events'],
-        ['Output Efficiency', 'outputEfficiency', k.outputEfficiency == null ? na : Math.round(k.outputEfficiency).toLocaleString(), 'ProductionVolume / DowntimeHours'],
+        ['Output Efficiency', 'outputEfficiency', k.outputEfficiency == null ? na : Math.round(k.outputEfficiency).toLocaleString(), 'Sheets per downtime hour'],
       ],
       context: [
         ['Total Events', 'totalEvents', k.totalEvents.toLocaleString(), 'Total error events in selected range'],
@@ -2430,29 +2434,28 @@
   function renderExecutiveSummaryCard(summary) {
     const tone = summary.statusTone === 'critical' ? 'critical' : summary.statusTone === 'watch' ? 'watch' : 'stable';
     const statusClass = tone === 'critical' ? 'status-critical' : tone === 'watch' ? 'status-watch' : 'status-stable';
+    const topPress = summary.topPressByEvents?.name || 'N/A';
+    const topError = summary.topAlert?.name || 'N/A';
     const repeatCount = Number(summary.topAlert?.events || 0).toLocaleString();
-    const actions = (summary.actionCards || []).slice(0, 2);
+    const actions = (summary.actionCards || []).slice(0, 2).map(card => (card?.title || '').trim()).filter(Boolean);
     const totalEvents = Number(STATE.kpis?.totalEvents || 0).toLocaleString();
     const totalDowntime = formatDuration((Number(STATE.kpis?.totalPlanned || 0) + Number(STATE.kpis?.totalUnplanned || 0)));
+    const fallbackAction = topPress !== 'N/A' ? `Review ${topPress} recurring stops first` : 'Review recurring stops first';
+    const actionRows = actions.length ? actions.slice(0, 2) : [fallbackAction, 'Assign owner and execute within this shift'];
     document.getElementById('executiveSummaryCard').innerHTML = `
       <div class="chart-head"><h3>Executive Situation Overview</h3></div>
-      <section class="exec-strip">
-        <div class="exec-line">
-          <span class="exec-chip ${statusClass}">${esc(summary.status || 'WATCH')}</span>
-          <span class="exec-sep">•</span>
-          <span class="exec-chip">Top Press: ${esc(summary.topPressByEvents?.name || 'N/A')}</span>
-          <span class="exec-sep">•</span>
-          <span class="exec-chip">Top Error: ${esc(summary.topAlert?.name || 'N/A')}</span>
+      <section class="exec-decision-panel">
+        <div class="exec-row">
+          <span class="exec-severity ${statusClass}">${esc(summary.status || 'WATCH')}</span>
+          <div class="exec-headline">Main issue: ${esc(topPress)} driven by ${esc(topError)}</div>
         </div>
-        <div class="exec-line">
-          <span class="exec-chip metric">${totalEvents} Events</span>
-          <span class="exec-sep">•</span>
-          <span class="exec-chip metric">${repeatCount} Repeats</span>
-          <span class="exec-sep">•</span>
-          <span class="exec-chip metric">${totalDowntime} Downtime</span>
+        <div class="exec-signals">
+          <div class="exec-signal"><div class="label">Events</div><div class="value">${totalEvents}</div></div>
+          <div class="exec-signal"><div class="label">Repeats</div><div class="value">${repeatCount}</div></div>
+          <div class="exec-signal"><div class="label">Downtime</div><div class="value">${totalDowntime}</div></div>
         </div>
-        <div class="exec-line">
-          ${actions.length ? actions.map(card => `<span class="exec-action" title="${esc(card.reason || card.title || '')}">${esc(card.title || 'Action')}</span>`).join('') : '<span class="exec-action">No prioritized action</span>'}
+        <div class="exec-actions">
+          ${actionRows.slice(0, 2).map(action => `<div class="exec-action-item">${esc(action)}</div>`).join('')}
         </div>
       </section>`;
   }
@@ -3109,8 +3112,8 @@
       const m = String(name).match(/[A-Za-z]\d{1,3}/);
       return m ? m[0].toUpperCase() : '';
     };
-    const labelWhitelist = new Set(rows.filter(row => row.zoneKey === 'critical').map(row => row.name));
-    computeZoneHighlightRows(rows).forEach(row => labelWhitelist.add(row.name));
+    const highlightRows = computeZoneHighlightRows(rows);
+    const labelWhitelist = new Set(highlightRows.map(row => row.name));
     replaceChart('pressImpactScatterChart', {
       type: 'scatter',
       data: {
@@ -3126,19 +3129,11 @@
             zoneLabel: row.zoneLabel,
             zoneColor: row.zoneColor
           })),
-          pointRadius: ctx => {
-            const avg = Number(ctx.raw?.avgDurationSeconds || 0);
-            const isCritical = String(ctx.raw?.zoneLabel || '').toUpperCase() === 'CRITICAL';
-            const base = Math.max(4, Math.min(13, 4 + (avg / 120)));
-            return isCritical ? base + 5 : base;
-          },
-          pointHoverRadius: ctx => {
-            const avg = Number(ctx.raw?.avgDurationSeconds || 0);
-            return Math.max(6, Math.min(16, 6 + (avg / 120)));
-          },
+          pointRadius: ctx => labelWhitelist.has(ctx.raw?.name) ? 6 : 5,
+          pointHoverRadius: ctx => labelWhitelist.has(ctx.raw?.name) ? 8 : 7,
           pointBackgroundColor: ctx => String(ctx.raw?.zoneLabel || '').toUpperCase() === 'CRITICAL' ? 'rgba(255,66,66,1)' : (ctx.raw?.zoneColor || 'rgba(183,198,222,.44)'),
-          pointBorderColor: ctx => String(ctx.raw?.zoneLabel || '').toUpperCase() === 'CRITICAL' ? 'rgba(255,196,196,.98)' : 'rgba(183,198,222,.35)',
-          pointBorderWidth: ctx => String(ctx.raw?.zoneLabel || '').toUpperCase() === 'CRITICAL' ? 2.6 : 1
+          pointBorderColor: ctx => labelWhitelist.has(ctx.raw?.name) ? 'rgba(232,241,255,.92)' : 'rgba(183,198,222,.35)',
+          pointBorderWidth: ctx => labelWhitelist.has(ctx.raw?.name) ? 1.8 : 1
         }]
       },
       options: {
@@ -3201,22 +3196,6 @@
           ctx.restore();
         }
       }, zonePlugin, {
-        id: 'press-critical-glow',
-        beforeDatasetsDraw(chart) {
-          const { ctx } = chart;
-          const points = chart.getDatasetMeta(0)?.data || [];
-          ctx.save();
-          points.forEach((point, index) => {
-            const row = rows[index];
-            if (!row || String(row.zoneLabel || '').toUpperCase() !== 'CRITICAL') return;
-            ctx.beginPath();
-            ctx.fillStyle = 'rgba(255,66,66,.20)';
-            ctx.arc(point.x, point.y, Math.max(10, point.options.radius + 6), 0, Math.PI * 2);
-            ctx.fill();
-          });
-          ctx.restore();
-        }
-      }, {
         id: 'press-smart-labels',
         afterDatasetsDraw(chart) {
           const { ctx } = chart;
@@ -3258,7 +3237,7 @@
       }]
     });
     const note = document.getElementById('pressScatterNote');
-    if (note) note.textContent = `Vertical split = avg events (${Math.round(avgEvents).toLocaleString()}) and horizontal split = avg duration (${formatClockDuration(avgTotalDuration)}), both computed from current scoped press totals.`;
+    if (note) note.textContent = `Split lines use scoped averages: events on X and duration on Y. Colors mark each press zone; only Zone Highlights are outlined and labeled by press ID.`;
   }
 
   function renderPressOutliersList(model) {
@@ -4286,9 +4265,7 @@
     const labels = customerVolumeRows.map(r => r.displayLabel);
     const totalVolumeValues = customerVolumeRows.map(r => Math.max(0, Number(r.totalVolume || r.printedSheets || 0)));
     const wasteValues = customerVolumeRows.map(r => Math.max(0, Number(r.wastePrintedSheets || 0)));
-    const maxTotalVolume = totalVolumeValues.length ? Math.max(...totalVolumeValues) : 0;
-    const minOverlayValue = maxTotalVolume > 0 ? Math.max(1, maxTotalVolume * 0.015) : 0;
-    const wasteDisplayValues = wasteValues.map(value => (value > 0 ? Math.max(value, minOverlayValue) : 0));
+    const goodVolumeValues = totalVolumeValues.map((total, idx) => Math.max(0, total - wasteValues[idx]));
     const wasteRatios = totalVolumeValues.map((total, idx) => total > 0 ? (wasteValues[idx] / total) : 0);
     const wasteColors = wasteRatios.map(wasteRatioColor);
     const customerVolumeRendered = replaceChart('customerVolumeChart', {
@@ -4296,19 +4273,43 @@
       data: {
         labels,
         datasets: [
-          { label: 'Total Volume', data: totalVolumeValues, backgroundColor: 'rgba(87,201,138,.26)', borderColor: wasteColors, borderWidth: 1, borderRadius: 5, order: 1, categoryPercentage: 0.72, barPercentage: 0.9 },
-          { label: 'Waste Overlay', data: wasteDisplayValues, backgroundColor: wasteColors.map(color => `${color}cc`), borderColor: wasteColors, borderWidth: 1, borderRadius: 5, order: 2, categoryPercentage: 0.72, barPercentage: 0.64 }
+          {
+            label: 'Good Volume',
+            stack: 'volume',
+            data: goodVolumeValues,
+            backgroundColor: '#57c98a',
+            borderColor: '#57c98a',
+            borderWidth: 1,
+            borderRadius: { topLeft: 0, topRight: 0, bottomLeft: 5, bottomRight: 5 },
+            categoryPercentage: 0.72,
+            barPercentage: 0.9
+          },
+          {
+            label: 'Waste',
+            stack: 'volume',
+            data: wasteValues,
+            backgroundColor: wasteColors,
+            borderColor: wasteColors,
+            borderWidth: 1,
+            borderRadius: { topLeft: 5, topRight: 5, bottomLeft: 0, bottomRight: 0 },
+            minBarLength: 3,
+            categoryPercentage: 0.72,
+            barPercentage: 0.9
+          }
         ]
       },
       options: {
         ...baseOptions('customerVolume', labels, customerVolumeRows),
+        scales: {
+          x: { stacked: true, ticks: { color: '#c6d3ea' }, grid: { color: 'rgba(255,255,255,.04)' } },
+          y: { stacked: true, ticks: { color: '#c6d3ea' }, grid: { color: 'rgba(255,255,255,.04)' }, beginAtZero: true }
+        },
         plugins: {
           legend: { display: true, labels: { color: '#c6d3ea' } },
           tooltip: {
             callbacks: {
               title: ctx => `Press: ${ctx?.[0]?.label || 'N/A'}`,
               label: ctx => {
-                if (ctx.datasetIndex !== 0) return null;
                 const row = customerVolumeRows?.[ctx.dataIndex] || {};
                 const total = Number(row.totalVolume || row.printedSheets || 0);
                 const waste = Number(row.wastePrintedSheets || 0);
@@ -4328,30 +4329,22 @@
             filter: ctx => ctx.datasetIndex === 0
           }
         }
-      },
-      plugins: [{
-        id: 'volume-waste-top-accent',
-        afterDatasetsDraw(chart) {
-          const meta = chart.getDatasetMeta(0);
-          const bars = meta?.data || [];
-          const { ctx } = chart;
-          ctx.save();
-          bars.forEach((bar, idx) => {
-            const color = wasteColors[idx] || '#57c98a';
-            const half = (bar.width || 0) / 2;
-            ctx.strokeStyle = color;
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.moveTo(bar.x - half, bar.y + 0.5);
-            ctx.lineTo(bar.x + half, bar.y + 0.5);
-            ctx.stroke();
-          });
-          ctx.restore();
-        }
-      }]
+      }
     });
     if (!customerVolumeRows.length) setCanvasState('customerVolumeChart', 'No print volume rows after source-native scope (volume owns press/day and native job metadata).');
     const totalWasteInScope = wasteValues.reduce((sum, value) => sum + Number(value || 0), 0);
+    const normalizedJobTypes = [...new Set((sourceScope.filteredVolumeRowsNative || []).map(row => normalizeJobType(row?.jobType)).filter(Boolean))].sort();
+    const wasteFromRawRows = (sourceScope.filteredVolumeRowsNative || []).reduce((sum, row) => (
+      sum + (isSpecialJobType(row?.jobType) ? Number(row?.printedSheets || 0) : 0)
+    ), 0);
+    const wasteFromAggRows = (sourceScope.volumeAgg || []).reduce((sum, row) => sum + Number(row?.wastePrintedSheets || 0), 0);
+    const wastePlottedInChart = totalWasteInScope;
+    console.info('[waste-validation-debug]', {
+      uniqueNormalizedJobTypes: normalizedJobTypes,
+      totalWasteFromRawRows: wasteFromRawRows,
+      totalWasteFromVolumeAgg: wasteFromAggRows,
+      totalWastePlottedInChart: wastePlottedInChart
+    });
     if (totalWasteInScope <= 0) {
       const hasVolumeRows = (sourceScope.filteredVolumeRowsNative || []).length > 0;
       const hasSpecialRows = (sourceScope.filteredVolumeRowsNative || []).some(r => isSpecialJobType(r.jobType));
@@ -4363,7 +4356,7 @@
       console.info('[waste-debug] no waste detected after normalization and mapping verification', { reason });
     }
     if (!customerVolumeRendered) setCanvasState('customerVolumeChart', 'Chart library failed to load. Charts cannot render.', 'error');
-    document.getElementById('customerVolumeNote').textContent = `${STATE.customerVolumeExpanded ? 'Full press ranking' : 'Top 12'} total volume with in-bar waste overlay (${STATE.customerVolumeSort === 'asc' ? 'lowest first' : 'highest first'}). Waste = Special job_type (normalized trim+lowercase); overlay has minimum visible height while tooltip values remain exact.`;
+    document.getElementById('customerVolumeNote').textContent = `${STATE.customerVolumeExpanded ? 'Full press ranking' : 'Top 12'} stacked volume bars (${STATE.customerVolumeSort === 'asc' ? 'lowest first' : 'highest first'}): solid green = good volume, top segment = waste (Special job_type after normalized trim+lowercase). Tiny waste remains visible while tooltip values stay exact.`;
     document.getElementById('customerVolumeExpand').textContent = STATE.customerVolumeExpanded ? 'Collapse' : 'Show all';
     console.info('[consistency-debug] print-volume-chart-plot', {
       source: 'volumeAgg',
