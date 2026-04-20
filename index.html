@@ -15,7 +15,7 @@
     }
     * { box-sizing: border-box; }
     body { margin:0; min-height:100vh; font-family: Inter,Segoe UI,Roboto,Arial,sans-serif; color:var(--text); background: radial-gradient(1200px 500px at 5% -10%, #1f2b3f 0%, transparent 55%), var(--bg); }
-    .app { max-width: 1520px; margin: 0 auto; padding: 24px; }
+    .app { max-width: 1520px; margin: 0 auto; padding: 18px; }
     .hidden{display:none!important}
     .eyebrow { color: var(--muted); text-transform: uppercase; letter-spacing: .14em; font-size: .78rem; }
     .subtitle { color: var(--muted); line-height: 1.45; margin: 8px 0 0; }
@@ -81,28 +81,34 @@
     @keyframes pulse-progress { from{filter:brightness(1)} to{filter:brightness(1.2)} }
 
     .topbar,.card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow)}
-    .topbar { display:grid; grid-template-columns:1fr auto; gap:12px; align-items:start; padding:16px; margin-bottom:12px; }
+    .topbar { display:grid; grid-template-columns:1fr auto; gap:8px; align-items:start; padding:14px; margin-bottom:8px; }
     .controls { display:flex; gap:8px; flex-wrap:wrap; }
-    .kpis { display:grid; grid-template-columns: repeat(4,minmax(150px,1fr)); gap:10px; margin-bottom:12px; position:relative; z-index:2; }
-    .kpi { padding:11px; border:1px solid var(--border); border-radius:12px; background:rgba(255,255,255,.02); }
+    .kpis { display:grid; grid-template-columns: repeat(4,minmax(150px,1fr)); gap:8px; margin-bottom:8px; position:relative; z-index:2; }
+    .kpi { padding:9px 10px; border:1px solid var(--border); border-radius:10px; background:rgba(255,255,255,.02); }
     .kpi.clickable{cursor:pointer;transition:all .18s ease;position:relative;z-index:1;pointer-events:auto}
     .kpi.clickable:hover{border-color:rgba(123,141,255,.65);background:rgba(123,141,255,.09);transform:translateY(-1px)}
     .inline-filters{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
     .inline-filters .select{font-size:.82rem;padding:7px 10px}
     .impact-chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--border);padding:4px 8px;border-radius:999px;background:rgba(255,255,255,.02);font-size:.78rem;color:#d2ddf2}
-    .k { color:var(--muted); font-size:.72rem; text-transform:uppercase; letter-spacing:.08em; }
-    .v { font-size:.95rem; margin-top:4px; font-weight:620; }
+    .k { color:var(--muted); font-size:.68rem; text-transform:uppercase; letter-spacing:.08em; }
+    .v { font-size:.88rem; margin-top:3px; font-weight:620; }
+    .kpi-sub { margin-top:3px; color:#a7b6cf; font-size:.7rem; line-height:1.3; }
     .d { display:none; }
-    .filters { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px; }
-    .grid { display:grid; grid-template-columns:repeat(12,minmax(0,1fr)); gap:10px; }
+    .filters { display:flex; gap:7px; flex-wrap:wrap; margin-bottom:8px; }
+    .grid { display:grid; grid-template-columns:repeat(12,minmax(0,1fr)); gap:8px; }
     .span-3{grid-column:span 3}.span-4{grid-column:span 4}.span-6{grid-column:span 6}.span-8{grid-column:span 8}.span-12{grid-column:span 12}
-    .card { padding:12px; }
+    .card { padding:10px; }
     .chart-head { display:flex; justify-content:space-between; align-items:center; gap:8px; }
     .chart-tools { display:flex; gap:8px; }
     .chart-area{position:relative;height:240px;min-height:240px}
-    .press-analysis-shell { padding:18px; background:linear-gradient(160deg, rgba(16,22,34,.98), rgba(12,18,28,.98)); border-color:rgba(173,194,229,.2); }
+    .press-analysis-shell { padding:14px; background:linear-gradient(160deg, rgba(16,22,34,.98), rgba(12,18,28,.98)); border-color:rgba(173,194,229,.2); }
     .press-investigation-layout { display:grid; gap:12px; }
-    .press-hero { border:1px solid rgba(255,255,255,.1); border-radius:12px; padding:14px; background:rgba(255,255,255,.02); }
+    .press-hero { border:1px solid rgba(255,255,255,.1); border-radius:12px; padding:12px; background:rgba(255,255,255,.02); }
+    .press-hero-badge { display:inline-flex; align-items:center; gap:6px; border-radius:999px; border:1px solid; padding:3px 9px; font-size:.72rem; font-weight:700; }
+    .hero-critical { color:#ffd7d4; background:rgba(243,107,99,.16); border-color:rgba(243,107,99,.55); }
+    .hero-inefficient { color:#ffe5c7; background:rgba(240,177,101,.16); border-color:rgba(240,177,101,.55); }
+    .hero-noisy { color:#dce3ff; background:rgba(111,140,255,.15); border-color:rgba(111,140,255,.52); }
+    .hero-stable { color:#dbffeb; background:rgba(87,201,138,.14); border-color:rgba(87,201,138,.5); }
     .press-hero-kicker { color:#9db2cf; text-transform:uppercase; letter-spacing:.09em; font-size:.72rem; }
     .press-hero-title { margin:6px 0 0; font-size:1.2rem; font-weight:730; }
     .press-hero-summary { margin:8px 0 0; color:#dce6f7; line-height:1.45; font-size:.9rem; }
@@ -117,15 +123,26 @@
     .press-chart-area { position:relative; height:320px; min-height:320px; }
     .press-chart-area.primary { height:500px; min-height:500px; }
     .zone-list { margin:8px 0 0; display:grid; gap:8px; max-height:420px; overflow:auto; }
-    .zone-row { border:1px solid rgba(255,255,255,.1); border-radius:10px; padding:10px; background:rgba(255,255,255,.02); }
+    .zone-row { border:1px solid rgba(255,255,255,.1); border-radius:10px; padding:9px; background:rgba(255,255,255,.02); }
+    .zone-critical { border-color:rgba(243,107,99,.45); background:rgba(243,107,99,.1); }
+    .zone-inefficient { border-color:rgba(240,177,101,.45); background:rgba(240,177,101,.1); }
+    .zone-noisy { border-color:rgba(111,140,255,.45); background:rgba(111,140,255,.1); }
+    .zone-stable { border-color:rgba(87,201,138,.45); background:rgba(87,201,138,.1); }
     .zone-row strong { font-size:.84rem; letter-spacing:.05em; text-transform:uppercase; }
     .zone-row .meta { color:#b9c9e1; font-size:.79rem; margin-top:6px; line-height:1.35; }
     .chart-empty-state { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; text-align:center; color:var(--muted); font-size:.86rem; padding:14px; background:rgba(12,17,25,.35); border:1px dashed rgba(255,255,255,.14); border-radius:10px; pointer-events:none; }
     .micro { color:var(--muted); font-size:.82rem; margin:6px 0 8px; }
-    .dashboard-status { margin-bottom:12px; border:1px solid var(--border); border-radius:12px; padding:12px; background:rgba(255,255,255,.02); }
+    .dashboard-status { margin-bottom:8px; border:1px solid var(--border); border-radius:10px; padding:8px 10px; background:rgba(255,255,255,.02); }
     .dashboard-status.green { border-color:rgba(87,201,138,.45); background:rgba(87,201,138,.12); }
-    .dashboard-status.yellow { border-color:rgba(240,177,101,.45); background:rgba(240,177,101,.12); }
     .dashboard-status.red { border-color:rgba(243,107,99,.45); background:rgba(243,107,99,.12); }
+    .meta-indicators { margin-top:8px; display:flex; gap:8px; flex-wrap:wrap; }
+    .meta-pill { border:1px solid var(--border); border-radius:999px; padding:4px 10px; font-size:.76rem; color:#d9e4f7; background:rgba(255,255,255,.04); }
+    .meta-pill.ok { border-color:rgba(87,201,138,.45); background:rgba(87,201,138,.12); color:#dcffe9; }
+    .meta-pill.bad { border-color:rgba(243,107,99,.45); background:rgba(243,107,99,.12); color:#ffd8d4; }
+    .metric-toggle { display:inline-flex; border:1px solid var(--border); border-radius:999px; overflow:hidden; }
+    .metric-toggle .btn { border:0; border-right:1px solid var(--border); border-radius:0; padding:6px 10px; font-size:.75rem; background:transparent; }
+    .metric-toggle .btn:last-child { border-right:0; }
+    .metric-toggle .btn.active { background:rgba(123,141,255,.2); color:#e9f0ff; }
     .status-head { display:flex; justify-content:space-between; align-items:center; gap:8px; font-weight:650; }
     .status-note { color:var(--muted); font-size:.83rem; margin-top:6px; }
     .status-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; margin-top:10px; }
@@ -286,6 +303,10 @@
         <h1 class="brand-title">Landa Insight<span class="brand-plus">Pro+</span></h1>
         <p class="subtitle">Operational intelligence platform for press performance, downtime analysis, and production insights.</p>
         <p id="datasetMeta" class="subtitle">Dataset not loaded</p>
+        <div class="meta-indicators">
+          <span id="dataRangeIndicator" class="meta-pill">Data range: N/A</span>
+          <span id="headerDataStatus" class="meta-pill ok">🟢 Data OK</span>
+        </div>
       </div>
       <div class="controls">
         <button id="replaceBtn" class="btn">Load new dataset</button>
@@ -295,7 +316,7 @@
     </header>
 
     <section id="kpiStrip" class="kpis"></section>
-    <section id="dashboardStatusPanel" class="dashboard-status"></section>
+    <section id="dashboardStatusPanel" class="dashboard-status hidden"></section>
 
     <section id="executiveSummaryCard" class="card" style="margin-bottom:12px;"></section>
 
@@ -316,7 +337,7 @@
           <article id="pressHeroInsight" class="press-hero"></article>
           <div class="press-analytics-grid">
             <article class="press-panel press-panel-primary">
-              <div class="chart-head"><h3>Press Impact Matrix</h3></div>
+              <div class="chart-head"><h3>Press Impact Matrix</h3><div class="chart-tools"><div class="metric-toggle" data-chart-toggle="press"><button class="btn" data-mode="events">Events</button><button class="btn active" data-mode="duration">Duration</button></div></div></div>
               <div class="micro" id="pressScatterNote">X-axis: total events • Y-axis: total duration. Zones: Critical, Inefficient, Stable, Noisy.</div>
               <div class="press-chart-area primary"><canvas id="pressImpactScatterChart"></canvas></div>
             </article>
@@ -332,22 +353,22 @@
       </article>
 
       <article class="card span-6" data-rank-card="subsystem">
-        <div class="chart-head"><h3>Top Subsystems</h3><div class="chart-tools"><select data-metric="subsystem" class="select"><option value="events">By events</option><option value="downtime">By downtime</option><option value="normalized">By events/volume</option></select><button class="btn secondary" data-expand="subsystem">Show all</button></div></div>
+        <div class="chart-head"><h3>Top Subsystems</h3><div class="chart-tools"><div class="metric-toggle" data-chart-toggle="subsystem"><button class="btn active" data-mode="events">Events</button><button class="btn" data-mode="duration">Duration</button></div><button class="btn secondary" data-expand="subsystem">Show all</button></div></div>
         <div class="micro">Metric source shown dynamically by mode.</div><div class="chart-area"><canvas id="subsystemChart"></canvas></div>
       </article>
 
       <article class="card span-6" data-rank-card="alert">
-        <div class="chart-head"><h3>Top Errors</h3><div class="chart-tools"><select data-metric="alert" class="select"><option value="events">By events</option><option value="downtime">By downtime</option><option value="normalized">By events/volume</option></select><button class="btn secondary" data-expand="alert">Show all</button></div></div>
+        <div class="chart-head"><h3>Top Errors</h3><div class="chart-tools"><div class="metric-toggle" data-chart-toggle="alert"><button class="btn active" data-mode="events">Events</button><button class="btn" data-mode="duration">Duration</button></div><button class="btn secondary" data-expand="alert">Show all</button></div></div>
         <div class="micro">Alert ranking uses Name, with Alert Title fallback.</div><div class="chart-area"><canvas id="alertChart"></canvas></div>
       </article>
 
       <article class="card span-6" data-rank-card="version">
-        <div class="chart-head"><h3>Top Versions</h3><div class="chart-tools"><select data-metric="version" class="select"><option value="events">By events</option><option value="downtime">By downtime</option><option value="normalized">By events/volume</option></select><button class="btn secondary" data-expand="version">Show all</button></div></div>
+        <div class="chart-head"><h3>Top Versions</h3><div class="chart-tools"><div class="metric-toggle" data-chart-toggle="version"><button class="btn active" data-mode="events">Events</button><button class="btn" data-mode="duration">Duration</button></div><button class="btn secondary" data-expand="version">Show all</button></div></div>
         <div class="micro">Version exposure with production-normalized context.</div><div class="chart-area"><canvas id="versionChart"></canvas></div>
       </article>
 
       <article class="card span-6">
-        <div class="chart-head"><h3>Print Volume By Press</h3><div class="chart-tools"><select id="customerVolumeUnit" class="select"><option value="productionPrintedSheets">Production-only Printed Sheets</option><option value="printedSheets">Total Printed Sheets</option><option value="printedFlats">Printed Flats</option></select><select id="customerVolumeSort" class="select"><option value="desc">Highest first</option><option value="asc">Lowest first</option></select><button id="customerVolumeExpand" class="btn secondary">Show all</button></div></div>
+        <div class="chart-head"><h3>Print Volume By Press</h3><div class="chart-tools"><div class="metric-toggle" data-chart-toggle="volume"><button class="btn active" data-mode="volume">Volume</button><button class="btn" data-mode="waste">Waste</button></div><select id="customerVolumeSort" class="select"><option value="desc">Highest first</option><option value="asc">Lowest first</option></select><button id="customerVolumeExpand" class="btn secondary">Show all</button></div></div>
         <div class="micro" id="customerVolumeNote">Press-level workload from volumeAgg only.</div><div class="chart-area"><canvas id="customerVolumeChart"></canvas></div>
       </article>
 
@@ -432,6 +453,7 @@
     expand: { press: false, subsystem: false, alert: false, version: false },
     metricByChart: { press: 'downtime', subsystem: 'events', alert: 'events', version: 'events' },
     customerVolumeMetric: 'productionPrintedSheets',
+    customerVolumeMode: 'volume',
     customerVolumeSort: 'desc',
     customerVolumeExpanded: false,
     customerVolumeLookup: new Map(),
@@ -1446,6 +1468,7 @@
       filters: currentFilterValues(),
       metrics: STATE.metricByChart,
       volumeMetric: STATE.customerVolumeMetric,
+      volumeMode: STATE.customerVolumeMode,
       volumeSort: STATE.customerVolumeSort,
       simExclusions: [...(STATE.drilldown?.simulation?.appliedExcluded || [])],
     };
@@ -1478,15 +1501,11 @@
     if (state.metrics && typeof state.metrics === 'object') {
       STATE.metricByChart = { ...STATE.metricByChart, ...state.metrics };
       if (STATE.metricByChart.press === 'normalized') STATE.metricByChart.press = 'downtime';
-      document.querySelectorAll('[data-metric]').forEach(sel => {
-        const key = sel.dataset.metric;
-        if (STATE.metricByChart[key]) sel.value = STATE.metricByChart[key];
-      });
     }
     if (state.volumeMetric) {
       STATE.customerVolumeMetric = state.volumeMetric;
-      if (customerVolumeUnit) customerVolumeUnit.value = state.volumeMetric;
     }
+    if (state.volumeMode) STATE.customerVolumeMode = state.volumeMode === 'waste' ? 'waste' : 'volume';
     if (state.volumeSort) {
       STATE.customerVolumeSort = state.volumeSort;
       if (customerVolumeSort) customerVolumeSort.value = state.volumeSort;
@@ -1494,6 +1513,7 @@
     if (Array.isArray(state.simExclusions)) {
       STATE.drilldown.simulation.appliedExcluded = new Set(state.simExclusions);
     }
+    syncMetricToggleUI();
     return true;
   }
 
@@ -1859,6 +1879,7 @@
     const totalDowntime = totals.availabilityCount ? totals.totalAvailDowntime : errorDowntime;
     const mttr = totalEvents ? (errorDowntime / totalEvents) : null;
     const mtbf = totalEvents && totals.runtime > 0 ? (totals.runtime / totalEvents) : null;
+    const mtbr = mtbf;
     const availabilityDefinitions = computeAvailabilityDefinitions(availabilityAgg);
     STATE.availabilityDefinitions = availabilityDefinitions;
     const availabilityPct = availabilityDefinitions.selected.value;
@@ -1883,11 +1904,12 @@
       volumeBasis: VOLUME_BASIS.label,
       mttr,
       mtbf,
+      mtbr,
       availabilityPct,
       availabilityLabel: availabilityDefinitions.selected.label,
       availabilityFormula: availabilityDefinitions.selected.formula,
-      downtimePerVolume: totals.productionPrintedSheets > 0 ? totalDowntime / totals.productionPrintedSheets : null,
-      eventPerVolume: totals.productionPrintedSheets > 0 ? totalEvents / totals.productionPrintedSheets : null,
+      volumePerDowntime: totalDowntime > 0 ? (totals.productionPrintedSheets / totalDowntime) : null,
+      volumePerEvents: totalEvents > 0 ? (totals.productionPrintedSheets / totalEvents) : null,
       reasons,
     };
   }
@@ -2136,6 +2158,32 @@
     return Number.isNaN(d.getTime()) ? null : d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
   }
 
+  function formatShortRangeDate(isoLike) {
+    if (!isoLike) return null;
+    const d = new Date(isoLike);
+    return Number.isNaN(d.getTime()) ? null : d.toLocaleDateString(undefined, { month: 'short', day: '2-digit' });
+  }
+
+  function updateDataRangeIndicator(sourceScope) {
+    const indicator = document.getElementById('dataRangeIndicator');
+    if (!indicator) return;
+    const buckets = [];
+    (sourceScope?.filteredErrorEventsNative || []).forEach(r => buckets.push(r.startTime || r.date));
+    (sourceScope?.filteredAvailabilityRowsNative || []).forEach(r => buckets.push(r.date));
+    (sourceScope?.filteredVolumeRowsNative || []).forEach(r => buckets.push(r.date || r.printStart));
+    const dates = buckets
+      .map(v => new Date(v))
+      .filter(d => !Number.isNaN(d.getTime()))
+      .sort((a, b) => a.getTime() - b.getTime());
+    if (!dates.length) {
+      indicator.textContent = 'Data range: N/A';
+      return;
+    }
+    const start = formatShortRangeDate(dates[0]);
+    const end = formatShortRangeDate(dates[dates.length - 1]);
+    indicator.textContent = `Data range: ${start} → ${end}`;
+  }
+
 
   function defineExecutiveSummarySections() {
     return [
@@ -2240,8 +2288,8 @@
       executiveSnapshot: {
         availability: kpis.availabilityPct == null ? 'N/A' : `${kpis.availabilityPct.toFixed(1)}%`,
         productionVolume: kpis.totalProdVolume.toLocaleString(),
-        downtimePerVolume: kpis.downtimePerVolume == null ? 'N/A' : kpis.downtimePerVolume.toFixed(4),
-        eventsPerVolume: kpis.eventPerVolume == null ? 'N/A' : kpis.eventPerVolume.toFixed(4),
+        downtimePerVolume: kpis.volumePerDowntime == null ? 'N/A' : kpis.volumePerDowntime.toFixed(4),
+        eventsPerVolume: kpis.volumePerEvents == null ? 'N/A' : kpis.volumePerEvents.toFixed(4),
       },
       overallStatus: {
         label: status.status || 'Watch',
@@ -2347,16 +2395,17 @@
   function renderKpis(k) {
     const na = 'N/A';
     const cards = [
-      ['Total Events', 'totalEvents', k.totalEvents.toLocaleString()],
-      ['Total Downtime', 'totalDowntime', formatDuration(k.totalDowntime)],
-      ['MTTR', 'mttr', k.mttr == null ? na : formatDuration(k.mttr)],
-      ['Availability', 'availabilityPct', k.availabilityPct == null ? na : `${k.availabilityPct.toFixed(1)}%`],
-      ['Production Volume', 'totalProdVolume', k.totalProdVolume.toLocaleString()],
-      ['Volume / Downtime', 'downtimePerVolume', k.downtimePerVolume == null ? na : k.downtimePerVolume.toFixed(4)],
-      ['Volume / Events', 'eventPerVolume', k.eventPerVolume == null ? na : k.eventPerVolume.toFixed(4)],
+      ['Total Events', 'totalEvents', k.totalEvents.toLocaleString(), 'Total error events in selected range'],
+      ['Total Downtime', 'totalDowntime', formatDuration(k.totalDowntime), 'Planned + unplanned downtime'],
+      ['MTTR', 'mttr', k.mttr == null ? na : formatDuration(k.mttr), 'Avg repair time per error'],
+      ['MTBR', 'mtbr', k.mtbr == null ? na : formatDuration(k.mtbr), 'Avg runtime between repair events'],
+      ['Availability', 'availabilityPct', k.availabilityPct == null ? na : `${k.availabilityPct.toFixed(1)}%`, 'Observed runtime availability'],
+      ['Production Volume', 'totalProdVolume', k.totalProdVolume.toLocaleString(), 'Production-only printed sheets'],
+      ['Volume / Downtime', 'volumePerDowntime', k.volumePerDowntime == null ? na : k.volumePerDowntime.toFixed(4), 'Output per downtime unit'],
+      ['Volume / Events', 'volumePerEvents', k.volumePerEvents == null ? na : k.volumePerEvents.toFixed(2), 'Output per error event'],
     ];
     document.getElementById('kpiStrip').innerHTML = cards
-      .map(([label, metricKey, value]) => `<article class="kpi clickable" role="button" tabindex="0" data-kpi-metric="${metricKey}"><div class="k">${label}</div><div class="v">${value}</div></article>`)
+      .map(([label, metricKey, value, subtitle]) => `<article class="kpi clickable" role="button" tabindex="0" data-kpi-metric="${metricKey}"><div class="k">${label}</div><div class="v">${value}</div><div class="kpi-sub">${subtitle}</div></article>`)
       .join('');
   }
 
@@ -2433,6 +2482,7 @@
 
   function renderDashboardStatusPanel(sourceScope, mismatches = [], reconciliationReport = []) {
     const panel = document.getElementById('dashboardStatusPanel');
+    const headerStatus = document.getElementById('headerDataStatus');
     if (!panel) return;
     const totals = {
       errors: sourceScope?.filteredErrorEventsNative?.length || 0,
@@ -2444,31 +2494,15 @@
     if (!totals.availability) warnings.push(STATE.normalized.availability?.length ? 'Availability source filtered to zero rows.' : 'Availability source missing.');
     if (!totals.volume) warnings.push(STATE.normalized.volume?.length ? 'Volume source filtered to zero rows.' : 'Volume source missing.');
     if (mismatches.length) warnings.push(`${mismatches.length} reconciliation mismatch(es) detected.`);
-    const level = !totals.errors ? 'red' : (warnings.length ? 'yellow' : 'green');
-    panel.className = `dashboard-status ${level}`;
-    const sourceChip = (label, total, hasAny) => `${label}: ${hasAny ? (total ? 'GREEN' : 'YELLOW') : 'RED'} (${total.toLocaleString()} in scope)`;
-    const reportSummary = reconciliationReport.length
-      ? `${reconciliationReport.filter(r => r.status === 'match').length}/${reconciliationReport.length} KPI/chart checks aligned.`
-      : 'No reconciliation checks yet.';
-    const mismatchRows = reconciliationReport.filter(r => r.status !== 'match').slice(0, 8);
-    const mismatchSection = mismatchRows.length
-      ? `<div style="margin-top:10px;">
-          <div class="status-note" style="margin-bottom:6px;">Reconciliation mismatches</div>
-          <div class="table-wrap" style="max-height:220px;">
-            <table>
-              <thead><tr><th>Component</th><th>Dashboard</th><th>Source</th><th>Delta</th><th>Definition</th><th>Reason</th></tr></thead>
-              <tbody>${mismatchRows.map(row => `<tr>
-                <td>${esc(row.component)}</td>
-                <td>${esc(row.dashboardValue == null ? 'N/A' : Number(row.dashboardValue).toLocaleString(undefined, { maximumFractionDigits: 4 }))}</td>
-                <td>${esc(row.sourceValue == null ? 'N/A' : Number(row.sourceValue).toLocaleString(undefined, { maximumFractionDigits: 4 }))}</td>
-                <td>${esc(row.delta == null ? 'N/A' : Number(row.delta).toLocaleString(undefined, { maximumFractionDigits: 4 }))}</td>
-                <td>${esc(row.formula || '')}</td>
-                <td>${esc(row.mismatchReason || '')}</td>
-              </tr>`).join('')}</tbody>
-            </table>
-          </div>
-        </div>`
-      : `<div style="margin-top:10px;" class="status-chip">✅ Full reconciliation achieved for KPI, charts, table, and export in current scope.</div>`;
+    const level = !totals.errors || warnings.length ? 'red' : 'green';
+    panel.className = `dashboard-status ${level} hidden`;
+    if (headerStatus) {
+      headerStatus.className = `meta-pill ${level === 'green' ? 'ok' : 'bad'}`;
+      headerStatus.textContent = level === 'green' ? '🟢 Data OK' : '🔴 Data Issue';
+      headerStatus.title = warnings.length
+        ? warnings.join(' ')
+        : 'Files loaded, schema mapping succeeded, and calculations reconcile.';
+    }
     panel.innerHTML = `
       <div class="status-head">
         <span>${level === 'green' ? '🟢 Data OK' : '🔴 Data Issue'}</span>
@@ -2551,6 +2585,13 @@
         y: { ticks: { color: '#c6d3ea' }, grid: { color: 'rgba(255,255,255,.04)' }, beginAtZero: true }
       }
     };
+  }
+
+  function buildTonePalette(count, rgb = '111,140,255') {
+    return Array.from({ length: count }, (_, i) => {
+      const alpha = Math.max(0.24, 0.78 - (i * 0.045));
+      return `rgba(${rgb},${alpha.toFixed(3)})`;
+    });
   }
 
   function deriveImpactTier(row) {
@@ -2740,6 +2781,8 @@
       if (!isPressImpactChart && metric === 'downtime') return (x.downtime || 0) / 3600;
       return x[metric] || 0;
     });
+    const colorFamily = key === 'subsystem' ? '240,177,101' : key === 'alert' ? '243,107,99' : key === 'version' ? '111,140,255' : '111,140,255';
+    const palette = buildTonePalette(view.length, colorFamily);
     if (!view.length || data.every(v => !Number.isFinite(v) || v === 0)) {
       console.warn('[ranking-chart-empty]', {
         chart: key,
@@ -2766,7 +2809,7 @@
           data,
           backgroundColor: view.map((row, i) => isPressImpactChart
             ? (row.impactColor || deriveImpactTier(row).color)
-            : SEMANTIC_COLORS.neutral),
+            : palette[i]),
           borderRadius: 6
         }]
       },
@@ -2870,9 +2913,9 @@
     const avgTotalDuration = eligibleRows.reduce((sum, row) => sum + (row.totalDurationSeconds || 0), 0) / eligibleRows.length;
     const zoneMap = {
       critical: { label: 'CRITICAL', color: SEMANTIC_COLORS.critical },
-      inefficient: { label: 'ELEVATED', color: SEMANTIC_COLORS.elevated },
-      stable: { label: 'LOW', color: SEMANTIC_COLORS.low },
-      noisy: { label: 'NORMAL', color: SEMANTIC_COLORS.normal }
+      inefficient: { label: 'INEFFICIENT', color: SEMANTIC_COLORS.elevated },
+      stable: { label: 'STABLE', color: SEMANTIC_COLORS.low },
+      noisy: { label: 'NOISY', color: SEMANTIC_COLORS.normal }
     };
     const withZone = eligibleRows.map(row => {
       const highEvents = (row.totalEvents || 0) >= avgEvents;
@@ -2903,8 +2946,10 @@
       host.innerHTML = '<div class="press-hero-kicker">Hero Insight</div><p class="press-hero-summary">No abnormal press signal available in current scope.</p>';
       return;
     }
+    const badgeClass = `hero-${String(top.zoneKey || 'stable').toLowerCase()}`;
     host.innerHTML = `
       <div class="press-hero-kicker">Hero Insight</div>
+      <span class="press-hero-badge ${badgeClass}">${esc(top.zoneLabel || 'STABLE')}</span>
       <h4 class="press-hero-title">${esc(top.name)}</h4>
       <p class="press-hero-summary">${esc(top.name)} stands out in the ${esc(top.zoneLabel || 'CRITICAL')} zone, with ${Number(top.totalEvents || 0).toLocaleString()} events and ${formatClockDuration(top.totalDurationSeconds || 0)} total duration in the current scope.</p>
       <div class="press-hero-metrics">
@@ -2956,8 +3001,11 @@
       }
     };
 
-    const anomalyTop = rows.slice().sort((a, b) => (b.totalDurationSeconds || 0) - (a.totalDurationSeconds || 0)).slice(0, 5).map(row => row.name);
-    const labelWhitelist = new Set([...anomalyTop, ...rows.filter(row => row.zoneKey === 'critical').map(row => row.name)]);
+    const shortPressId = (name = '') => {
+      const m = String(name).match(/[A-Za-z]\d{1,3}/);
+      return m ? m[0].toUpperCase() : '';
+    };
+    const labelWhitelist = new Set(rows.filter(row => row.zoneKey === 'critical').map(row => row.name));
     replaceChart('pressImpactScatterChart', {
       type: 'scatter',
       data: {
@@ -2967,6 +3015,7 @@
             x: row.totalEvents || 0,
             y: row.totalDurationSeconds || 0,
             name: row.name,
+            shortName: shortPressId(row.name),
             totalDurationSeconds: row.totalDurationSeconds || 0,
             avgDurationSeconds: row.avgDurationSeconds || 0,
             zoneLabel: row.zoneLabel,
@@ -2996,6 +3045,7 @@
                 const row = ctx.raw || {};
                 return [
                   `Press: ${row.name || 'Press'}`,
+                  `Press ID: ${row.shortName || 'N/A'}`,
                   `Total events: ${(row.x || 0).toLocaleString()}`,
                   `Total duration: ${formatClockDuration(row.totalDurationSeconds || 0)}`,
                   `Avg duration: ${formatClockDuration(row.avgDurationSeconds || 0)}`
@@ -3054,9 +3104,11 @@
           points.forEach((point, index) => {
             const row = rows[index];
             if (!row || !labelWhitelist.has(row.name)) return;
+            if (!shortPressId(row.name)) return;
             let x = point.x + 10;
             let y = point.y - 8;
-            const width = ctx.measureText(row.name).width;
+            const label = shortPressId(row.name);
+            const width = ctx.measureText(label).width;
             for (let i = 0; i < 6; i += 1) {
               const overlap = placed.find(box => !(x + width < box.x || x > box.x + box.w || y < box.y - 12 || y > box.y + 2));
               if (!overlap) break;
@@ -3064,9 +3116,20 @@
               x += 6;
             }
             placed.push({ x, y, w: width });
-            ctx.fillText(row.name, x, y);
+            ctx.fillText(label, x, y);
           });
           ctx.restore();
+        }
+      }, {
+        id: 'press-scatter-click-drill',
+        afterEvent(chart, args) {
+          if (args.event.type !== 'click') return;
+          const points = chart.getElementsAtEventForMode(args.event, 'nearest', { intersect: true }, false);
+          if (!points.length) return;
+          const point = points[0];
+          const row = rows[point.index];
+          if (!row) return;
+          openDrilldown('press', row.name, { entityKey: row.name, displayLabel: row.name, sourceType: 'errorEvents', metric: 'events', parentContext: { path: [] } });
         }
       }]
     });
@@ -3097,7 +3160,7 @@
         ? top.map(row => `${esc(row.name)} (${Number(row.totalEvents || 0).toLocaleString()} events, ${formatClockDuration(row.totalDurationSeconds || 0)})`).join('<br />')
         : 'No presses in this zone.';
       return `
-      <article class="zone-row">
+      <article class="zone-row zone-${zone.key}">
         <div>
           <strong>${esc(zone.label)}</strong>
           <div class="meta">${esc(zone.subtitle)}<br />${body}</div>
@@ -3151,10 +3214,11 @@
     STATE.customerVolumeLookup = new Map();
     volumeAggRows.forEach(r => {
       const entityKey = r.canonicalPress || 'Unspecified';
-      const slot = byPress.get(entityKey) || { entityKey, displayLabel: entityKey, canonicalPress: entityKey, productionPrintedSheets: 0, printedSheets: 0, printedFlats: 0, customers: new Set(), models: new Set(), sourceRows: 0 };
+      const slot = byPress.get(entityKey) || { entityKey, displayLabel: entityKey, canonicalPress: entityKey, productionPrintedSheets: 0, printedSheets: 0, printedFlats: 0, maintenanceVolume: 0, customers: new Set(), models: new Set(), sourceRows: 0 };
       slot.productionPrintedSheets += r.productionPrintedSheets || 0;
       slot.printedSheets += r.printedSheets || 0;
       slot.printedFlats += r.printedFlats || 0;
+      slot.maintenanceVolume += r.maintenanceVolume || 0;
       if (r.customer) slot.customers.add(r.customer);
       if (r.canonicalModel) slot.models.add(r.canonicalModel);
       slot.sourceRows += 1;
@@ -3206,11 +3270,12 @@
       totalUnplanned: { source: 'availabilityAgg', formula: 'Recovery + Jams duration.', primary: 'unplannedDowntimeSeconds', unit: 'seconds' },
       totalPlanned: { source: 'availabilityAgg', formula: 'Preventive Maintenance + On Job Maintenance.', primary: 'plannedDowntimeSeconds', unit: 'seconds' },
       mttr: { source: 'errorsAgg', formula: 'Total error duration / total events.', primary: 'durationSeconds', unit: 'seconds' },
+      mtbr: { source: 'errorsAgg + availabilityAgg', formula: 'Runtime / total events.', primary: 'mtbr', unit: 'seconds' },
       mtbf: { source: 'errorsAgg + availabilityAgg', formula: 'Runtime / total events.', primary: 'mtbf', unit: 'seconds' },
       availabilityPct: { source: 'availabilityAgg', formula: 'Runtime / (Runtime + Planned + Unplanned) × 100.', primary: 'availability', unit: '%' },
       totalProdVolume: { source: 'volumeAgg', formula: 'Sum of productionPrintedSheets.', primary: 'productionPrintedSheets', unit: 'units' },
-      downtimePerVolume: { source: 'availabilityAgg + volumeAgg', formula: 'Total downtime seconds / production volume.', primary: 'ratio', unit: 'ratio' },
-      eventPerVolume: { source: 'errorsAgg + volumeAgg', formula: 'Total events / production volume.', primary: 'ratio', unit: 'ratio' },
+      volumePerDowntime: { source: 'availabilityAgg + volumeAgg', formula: 'Production volume / total downtime seconds.', primary: 'ratio', unit: 'ratio' },
+      volumePerEvents: { source: 'errorsAgg + volumeAgg', formula: 'Production volume / total events.', primary: 'ratio', unit: 'ratio' },
     };
     return map[metricKey] || { source: 'mixed', formula: `${metricName} is computed from current scoped source rows.`, primary: 'value', unit: 'value' };
   }
@@ -3563,7 +3628,7 @@
       const metricName = STATE.drilldown.value;
       const profile = kpiMetricProfile(metricKey, metricName);
       const k = STATE.kpis || {};
-      const currentValue = metricKey === 'totalEvents' ? (k.totalEvents || 0).toLocaleString() : metricKey === 'totalDowntime' ? formatDuration(k.totalDowntime || 0) : metricKey === 'totalUnplanned' ? formatDuration(k.totalUnplanned || 0) : metricKey === 'totalPlanned' ? formatDuration(k.totalPlanned || 0) : metricKey === 'mttr' ? (k.mttr == null ? 'N/A' : formatDuration(k.mttr)) : metricKey === 'mtbf' ? (k.mtbf == null ? 'N/A' : formatDuration(k.mtbf)) : metricKey === 'availabilityPct' ? (k.availabilityPct == null ? 'N/A' : `${k.availabilityPct.toFixed(1)}%`) : metricKey === 'totalProdVolume' ? (k.totalProdVolume || 0).toLocaleString() : metricKey === 'downtimePerVolume' ? (k.downtimePerVolume == null ? 'N/A' : k.downtimePerVolume.toFixed(4)) : metricKey === 'eventPerVolume' ? (k.eventPerVolume == null ? 'N/A' : k.eventPerVolume.toFixed(4)) : 'N/A';
+      const currentValue = metricKey === 'totalEvents' ? (k.totalEvents || 0).toLocaleString() : metricKey === 'totalDowntime' ? formatDuration(k.totalDowntime || 0) : metricKey === 'totalUnplanned' ? formatDuration(k.totalUnplanned || 0) : metricKey === 'totalPlanned' ? formatDuration(k.totalPlanned || 0) : metricKey === 'mttr' ? (k.mttr == null ? 'N/A' : formatDuration(k.mttr)) : metricKey === 'mtbf' ? (k.mtbf == null ? 'N/A' : formatDuration(k.mtbf)) : metricKey === 'mtbr' ? (k.mtbr == null ? 'N/A' : formatDuration(k.mtbr)) : metricKey === 'availabilityPct' ? (k.availabilityPct == null ? 'N/A' : `${k.availabilityPct.toFixed(1)}%`) : metricKey === 'totalProdVolume' ? (k.totalProdVolume || 0).toLocaleString() : metricKey === 'volumePerDowntime' ? (k.volumePerDowntime == null ? 'N/A' : k.volumePerDowntime.toFixed(4)) : metricKey === 'volumePerEvents' ? (k.volumePerEvents == null ? 'N/A' : k.volumePerEvents.toFixed(4)) : 'N/A';
       document.getElementById('drilldownTitle').textContent = `${metricName} Drilldown`;
       document.getElementById('drilldownSummary').textContent = `Professional metric drilldown with transparent components, simulation, and source-native support.`;
       renderDrilldownContext(metricName, currentValue, profile);
@@ -3955,7 +4020,8 @@
       STATE.filtered = scopedMergedRows;
       const errorEvents = scopedErrorRows;
       STATE.filteredErrors = errorEvents;
-      const sourceScope = scopedSource;
+    const sourceScope = scopedSource;
+    updateDataRangeIndicator(sourceScope);
     console.info('[scope-debug]', {
       activeFilters: filters,
       filteredEventsCount: STATE.filtered.length,
@@ -3976,6 +4042,7 @@
     STATE.simulationData = null;
     STATE.lastSourceScope = sourceScope;
     STATE.kpis = scopedKpis;
+    syncMetricToggleUI();
     renderKpis(STATE.kpis);
     const safeRankingRender = (key) => {
       try {
@@ -4003,21 +4070,35 @@
     STATE.customerVolumeRows = customerVolumeRows;
     STATE.customerVolumeAllRows = customerVolumeAllRows;
     const labels = customerVolumeRows.map(r => r.displayLabel);
-    const values = customerVolumeRows.map(r => r[STATE.customerVolumeMetric]);
+    const volumeValues = customerVolumeRows.map(r => r.productionPrintedSheets || 0);
+    const wasteValues = customerVolumeRows.map(r => Math.max(0, (r.maintenanceVolume || 0) || ((r.printedSheets || 0) - (r.productionPrintedSheets || 0))));
       const customerVolumeRendered = replaceChart('customerVolumeChart', {
-      type: 'line',
-      data: { labels, datasets: [{ data: values, borderColor: SEMANTIC_COLORS.normal, backgroundColor: SEMANTIC_COLORS.neutralFill, fill: true, tension: 0.35, pointRadius: 2, pointHoverRadius: 4 }] },
+      type: 'bar',
+      data: {
+        labels,
+        datasets: STATE.customerVolumeMode === 'waste'
+          ? [{ label: 'Waste', data: wasteValues, backgroundColor: buildTonePalette(labels.length, '243,107,99'), borderRadius: 5 }]
+          : [
+            { label: 'Volume', data: volumeValues, backgroundColor: buildTonePalette(labels.length, '87,201,138'), borderRadius: 5 },
+            { label: 'Waste', data: wasteValues, backgroundColor: 'rgba(243,107,99,.35)', borderRadius: 5 }
+          ]
+      },
       options: {
         ...baseOptions('customerVolume', labels, customerVolumeRows),
+        scales: {
+          ...baseOptions('customerVolume', labels, customerVolumeRows).scales,
+          x: { ...baseOptions('customerVolume', labels, customerVolumeRows).scales.x, stacked: true },
+          y: { ...baseOptions('customerVolume', labels, customerVolumeRows).scales.y, stacked: true }
+        },
         plugins: {
-          legend: { display: false },
-          tooltip: { callbacks: { label: ctx => `${ctx.parsed.y.toLocaleString()} ${volumeMetricLabel(STATE.customerVolumeMetric)}` } }
+          legend: { display: true, labels: { color: '#c6d3ea' } },
+          tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y.toLocaleString()}` } }
         }
       }
       });
       if (!customerVolumeRows.length) setCanvasState('customerVolumeChart', 'No print volume rows after source-native scope (volume owns press/day and native job metadata).');
       if (!customerVolumeRendered) setCanvasState('customerVolumeChart', 'Chart library failed to load. Charts cannot render.', 'error');
-    document.getElementById('customerVolumeNote').textContent = `${STATE.customerVolumeExpanded ? 'Full press ranking' : 'Top 12'} by ${volumeMetricLabel(STATE.customerVolumeMetric)} (${STATE.customerVolumeSort === 'asc' ? 'lowest first' : 'highest first'}) from source volume aggregates (canonical press grouping).`;
+    document.getElementById('customerVolumeNote').textContent = `${STATE.customerVolumeExpanded ? 'Full press ranking' : 'Top 12'} in ${STATE.customerVolumeMode === 'waste' ? 'Waste mode' : 'Volume mode'} (${STATE.customerVolumeSort === 'asc' ? 'lowest first' : 'highest first'}) from source volume aggregates (canonical press grouping).`;
     document.getElementById('customerVolumeExpand').textContent = STATE.customerVolumeExpanded ? 'Collapse' : 'Show all';
     console.info('[consistency-debug] print-volume-chart-plot', {
       source: 'volumeAgg',
@@ -4078,6 +4159,23 @@
       console.error('[dashboard-render-failure]', error);
       ['pressImpactScatterChart', 'subsystemChart', 'alertChart', 'versionChart', 'customerVolumeChart'].forEach(id => setCanvasState(id, `Failed to render ${id}.`, 'error'));
     }
+  }
+
+  function syncMetricToggleUI() {
+    const mapping = {
+      press: STATE.metricByChart.press === 'events' ? 'events' : 'duration',
+      subsystem: STATE.metricByChart.subsystem === 'downtime' ? 'duration' : 'events',
+      alert: STATE.metricByChart.alert === 'downtime' ? 'duration' : 'events',
+      version: STATE.metricByChart.version === 'downtime' ? 'duration' : 'events',
+      volume: STATE.customerVolumeMode,
+    };
+    document.querySelectorAll('[data-chart-toggle]').forEach(toggle => {
+      const key = toggle.dataset.chartToggle;
+      const activeMode = mapping[key];
+      toggle.querySelectorAll('[data-mode]').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.mode === activeMode);
+      });
+    });
   }
 
   function exportRowsToCsv(rows, filename = 'filtered-export.csv') {
@@ -4441,11 +4539,7 @@
     if (!hasChartLibrary()) {
       console.error('[library-missing] Chart library failed to load. Charts may use local fallback renderer.');
     }
-    document.querySelectorAll('[data-metric]').forEach(sel => {
-      const key = sel.dataset.metric;
-      if (key === 'press' && STATE.metricByChart[key] === 'normalized') STATE.metricByChart[key] = 'downtime';
-      if (STATE.metricByChart[key]) sel.value = STATE.metricByChart[key];
-    });
+    syncMetricToggleUI();
 
     document.querySelectorAll('[data-pick]').forEach(btn => btn.addEventListener('click', () => document.getElementById(`${btn.dataset.pick}Picker`).click()));
     errorsPicker.addEventListener('change', async e => {
@@ -4650,9 +4744,17 @@
       renderDashboard();
     }));
 
-    document.querySelectorAll('[data-metric]').forEach(sel => sel.addEventListener('change', e => {
-      const key = e.target.dataset.metric;
-      STATE.metricByChart[key] = key === 'press' && e.target.value === 'normalized' ? 'downtime' : e.target.value;
+    document.querySelectorAll('[data-chart-toggle]').forEach(toggle => toggle.addEventListener('click', e => {
+      const btn = e.target.closest('[data-mode]');
+      if (!btn) return;
+      const key = toggle.dataset.chartToggle;
+      const mode = btn.dataset.mode;
+      if (key === 'press') STATE.metricByChart.press = mode === 'events' ? 'events' : 'downtime';
+      if (key === 'subsystem') STATE.metricByChart.subsystem = mode === 'duration' ? 'downtime' : 'events';
+      if (key === 'alert') STATE.metricByChart.alert = mode === 'duration' ? 'downtime' : 'events';
+      if (key === 'version') STATE.metricByChart.version = mode === 'duration' ? 'downtime' : 'events';
+      if (key === 'volume') STATE.customerVolumeMode = mode === 'waste' ? 'waste' : 'volume';
+      syncMetricToggleUI();
       renderDashboard();
     }));
     const scheduleRender = () => {
@@ -4681,7 +4783,6 @@
 
     ['pressFilter', 'subsystemFilter', 'versionFilter', 'startDateFilter', 'endDateFilter'].forEach(id => document.getElementById(id).addEventListener('change', scheduleRender));
     searchFilter.addEventListener('input', scheduleRender);
-    customerVolumeUnit.addEventListener('change', e => { STATE.customerVolumeMetric = e.target.value; scheduleRender(); });
     customerVolumeSort.addEventListener('change', e => { STATE.customerVolumeSort = e.target.value; scheduleRender(); });
     customerVolumeExpand.addEventListener('click', () => { STATE.customerVolumeExpanded = !STATE.customerVolumeExpanded; scheduleRender(); });
     closeDrilldown.addEventListener('click', () => drilldownDrawer.classList.remove('show'));
