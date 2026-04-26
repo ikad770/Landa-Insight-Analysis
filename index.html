@@ -342,7 +342,7 @@
       </article>
 
       <article class="card span-6">
-        <div class="chart-head"><h3>Print Volume By Press</h3><div class="chart-tools"><select id="customerVolumeMetric" class="select"><option value="totalSheets">Total</option><option value="productionPrintedSheets">Good</option><option value="wasteSheets">Waste only</option></select><select id="customerVolumeSort" class="select"><option value="desc">Highest first</option><option value="asc">Lowest first</option></select><button id="customerVolumeExpand" class="btn secondary">Show all</button></div></div>
+        <div class="chart-head"><h3>Print Volume By Press</h3><div class="chart-tools"><select id="customerVolumeMetric" class="select"><option value="totalSheets">Total</option><option value="productionPrintedSheets">Good</option><option value="wasteSheets">Waste only</option><option value="wasteRatio">Waste ratio</option></select><select id="customerVolumeSort" class="select"><option value="desc">Highest first</option><option value="asc">Lowest first</option></select><button id="customerVolumeExpand" class="btn secondary">Show all</button></div></div>
         <div class="micro" id="customerVolumeNote">Stacked bars: green base = good volume, top segment = waste from normalized Special job_type rows.</div><div class="chart-area"><canvas id="customerVolumeChart"></canvas></div>
       </article>
 
@@ -451,8 +451,8 @@
   const SEMANTIC_COLORS = {
     critical: '#f36b63',
     elevated: '#f0b165',
-    normal: '#57c98a',
-    low: '#57c98a',
+    normal: '#5f8f76',
+    low: '#7f9b8a',
     neutral: 'rgba(151,167,194,.72)',
     neutralFill: 'rgba(151,167,194,.24)'
   };
@@ -1544,7 +1544,7 @@
     }
     if (state.volumeMetric) {
       STATE.customerVolumeMetric = state.volumeMetric;
-      STATE.customerVolumeMode = state.volumeMetric === 'wasteSheets' ? 'waste' : (state.volumeMetric === 'productionPrintedSheets' ? 'good' : 'total');
+      STATE.customerVolumeMode = state.volumeMetric === 'wasteSheets' ? 'waste' : (state.volumeMetric === 'productionPrintedSheets' ? 'good' : (state.volumeMetric === 'wasteRatio' ? 'wasteRatio' : 'total'));
       if (customerVolumeMetric) customerVolumeMetric.value = state.volumeMetric;
     }
     if (state.volumeSort) {
@@ -1786,14 +1786,18 @@
         ? (r.wastePrintedSheets || r.wasteSheets || 0)
         : selectedVolumeMetric === 'productionPrintedSheets'
           ? (r.productionPrintedSheets || r.goodSheets || 0)
-          : (r.totalSheets || r.totalVolume || ((r.productionPrintedSheets || 0) + (r.wastePrintedSheets || 0)))
+          : selectedVolumeMetric === 'wasteRatio'
+            ? (((r.totalSheets || r.totalVolume || ((r.productionPrintedSheets || 0) + (r.wastePrintedSheets || 0))) > 0) ? ((r.wastePrintedSheets || r.wasteSheets || 0) / (r.totalSheets || r.totalVolume || ((r.productionPrintedSheets || 0) + (r.wastePrintedSheets || 0)))) : 0)
+            : (r.totalSheets || r.totalVolume || ((r.productionPrintedSheets || 0) + (r.wastePrintedSheets || 0)))
     ), 0);
     const filteredVolumeAggForUnit = volumeAgg.reduce((a, r) => a + Number(
       selectedVolumeMetric === 'wasteSheets'
         ? (r.wastePrintedSheets || 0)
         : selectedVolumeMetric === 'productionPrintedSheets'
           ? (r.productionPrintedSheets || 0)
-          : (r.totalVolume || ((r.productionPrintedSheets || 0) + (r.wastePrintedSheets || 0)))
+          : selectedVolumeMetric === 'wasteRatio'
+            ? ((r.totalVolume || ((r.productionPrintedSheets || 0) + (r.wastePrintedSheets || 0))) > 0 ? ((r.wastePrintedSheets || 0) / (r.totalVolume || ((r.productionPrintedSheets || 0) + (r.wastePrintedSheets || 0)))) : 0)
+            : (r.totalVolume || ((r.productionPrintedSheets || 0) + (r.wastePrintedSheets || 0)))
     ), 0);
     const topPressDowntime = (() => {
       const m = new Map();
@@ -1820,7 +1824,7 @@
       { label: 'kpi.totalMaintenanceVolume', lhs: kpis.totalMaintenanceVolume, rhs: sourceTotals.maintenanceVolume, source: 'volumeAgg.maintenanceVolume', level: 'error' },
       { label: 'kpi.totalVolume', lhs: kpis.totalVolume, rhs: sourceTotals.totalVolume, source: 'volumeAgg.totalVolume', level: 'error' },
       { label: 'summary.topPressByEvents.events', lhs: summary?.topPressByEvents?.events || 0, rhs: topPressEvents, source: 'summary vs errorsAgg', level: 'error' },
-      { label: 'chart.customerVolume.total', lhs: customerVolumeTotal, rhs: filteredVolumeAggForUnit, source: `customerVolumeRows.${selectedVolumeMetric} vs volumeAgg.${selectedVolumeMetric === 'wasteSheets' ? 'wastePrintedSheets' : selectedVolumeMetric === 'productionPrintedSheets' ? 'productionPrintedSheets' : 'totalVolume'}`, level: 'warning' },
+      { label: 'chart.customerVolume.total', lhs: customerVolumeTotal, rhs: filteredVolumeAggForUnit, source: `customerVolumeRows.${selectedVolumeMetric} vs volumeAgg.${selectedVolumeMetric === 'wasteSheets' ? 'wastePrintedSheets' : selectedVolumeMetric === 'productionPrintedSheets' ? 'productionPrintedSheets' : selectedVolumeMetric === 'wasteRatio' ? 'waste/total ratio' : 'totalVolume'}`, level: 'warning' },
     ];
     checks.forEach(({ label, lhs, rhs, source, level }) => {
       if (Math.abs((lhs || 0) - (rhs || 0)) > 1e-6) logs.push({ level, label, lhs, rhs, source, message: `Mismatch ${label}: ${lhs} !== ${rhs}` });
@@ -1884,7 +1888,7 @@
       ['Chart • Top Subsystems', 'Errors or Availability-by-subsystem for downtime', rankings.subsystem?.reduce((a, r) => a + (r[STATE.metricByChart.subsystem] || 0), 0) || 0, rankingSources.subsystem, `groupBy(subsystem) on ${STATE.metricByChart.subsystem}`],
       ['Chart • Top Alerts', 'Errors', rankings.alert?.reduce((a, r) => a + (r[STATE.metricByChart.alert] || 0), 0) || 0, rankingSources.alert, `groupBy(alert) on ${STATE.metricByChart.alert}`],
       ['Chart • Top Versions', 'Errors', rankings.version?.reduce((a, r) => a + (r[STATE.metricByChart.version] || 0), 0) || 0, rankingSources.version, `groupBy(version) on ${STATE.metricByChart.version}`],
-      ['Chart • Print Volume By Press', 'Volume', customerVolumeRows.reduce((a, r) => a + (STATE.customerVolumeMetric === 'wasteSheets' ? (r.wasteSheets || r.wastePrintedSheets || 0) : (r[STATE.customerVolumeMetric] || 0)), 0), volumeAgg.reduce((a, r) => a + (STATE.customerVolumeMetric === 'wasteSheets' ? (r.wastePrintedSheets || 0) : STATE.customerVolumeMetric === 'printedFlats' ? (r.printedFlats || 0) : STATE.customerVolumeMetric === 'productionPrintedSheets' ? (r.productionPrintedSheets || 0) : (r.printedSheets || 0)), 0), `groupBy(press) sum(${STATE.customerVolumeMetric === 'wasteSheets' ? 'wastePrintedSheets' : STATE.customerVolumeMetric})`],
+      ['Chart • Print Volume By Press', 'Volume', customerVolumeRows.reduce((a, r) => a + volumeMetricValue(r, STATE.customerVolumeMetric), 0), volumeAgg.reduce((a, r) => a + volumeMetricValue({ totalSheets: (r.totalVolume || ((r.productionPrintedSheets || 0) + (r.wastePrintedSheets || 0))), goodSheets: r.productionPrintedSheets, wasteSheets: r.wastePrintedSheets }, STATE.customerVolumeMetric), 0), `groupBy(press) sum(${STATE.customerVolumeMetric === 'wasteSheets' ? 'wastePrintedSheets' : STATE.customerVolumeMetric})`],
       ['Table • Merged Event Explorer', 'Errors', filteredMergedRows.length, filteredErrorEventsNative.length, 'row_count(filtered errors events)'],
       ['Export • Filtered CSV', 'Errors', filteredMergedRows.length, filteredErrorEventsNative.length, 'export uses filtered merged explorer scope'],
     ].map(([component, source, dashboardValue, sourceValue, formula]) => {
@@ -2561,7 +2565,9 @@
           ? (row?.printedFlats || 0)
           : STATE.customerVolumeMetric === 'productionPrintedSheets'
             ? (row?.productionPrintedSheets || 0)
-            : STATE.customerVolumeMetric === 'totalSheets'
+            : STATE.customerVolumeMetric === 'wasteRatio'
+              ? (((row?.totalVolume || ((row?.productionPrintedSheets || 0) + (row?.wastePrintedSheets || 0))) > 0) ? ((row?.wastePrintedSheets || 0) / (row?.totalVolume || ((row?.productionPrintedSheets || 0) + (row?.wastePrintedSheets || 0)))) : 0)
+              : STATE.customerVolumeMetric === 'totalSheets'
               ? (row?.totalVolume || ((row?.productionPrintedSheets || 0) + (row?.wastePrintedSheets || 0)))
               : (row?.printedSheets || 0)
     ), 0);
@@ -2572,7 +2578,9 @@
           ? (row?.printedFlats || 0)
           : STATE.customerVolumeMetric === 'productionPrintedSheets'
             ? (row?.goodSheets || row?.productionPrintedSheets || 0)
-            : (row?.totalSheets || row?.printedSheets || row?.totalVolume || 0)
+            : STATE.customerVolumeMetric === 'wasteRatio'
+              ? (((row?.totalSheets || row?.totalPrintedSheets || row?.totalVolume || 0) > 0) ? ((row?.wasteSheets || row?.wastePrintedSheets || 0) / (row?.totalSheets || row?.totalPrintedSheets || row?.totalVolume || 0)) : 0)
+              : (row?.totalSheets || row?.printedSheets || row?.totalVolume || 0)
     ), 0);
     check(
       `volume.chart_basis.${STATE.customerVolumeMetric}`,
@@ -2726,6 +2734,25 @@
     if (wasteRatio > 0.10) return SEMANTIC_COLORS.critical;
     if (wasteRatio >= 0.05) return SEMANTIC_COLORS.elevated;
     return SEMANTIC_COLORS.low;
+  }
+
+  function sanitizeVolumeComponents(totalSheetsRaw, goodSheetsRaw, wasteSheetsRaw) {
+    const totalInput = Number(totalSheetsRaw || 0);
+    const waste = Math.max(0, Number(wasteSheetsRaw || 0));
+    const goodCandidate = Number.isFinite(Number(goodSheetsRaw)) ? Number(goodSheetsRaw || 0) : null;
+    let good = goodCandidate == null ? Math.max(0, totalInput - waste) : Math.max(0, goodCandidate);
+    let total = Math.max(0, Number.isFinite(totalInput) ? totalInput : (good + waste));
+    if (total <= 0) total = good + waste;
+    if (good + waste > total) total = good + waste;
+    return { totalSheets: total, goodSheets: good, wasteSheets: waste };
+  }
+
+  function volumeMetricValue(row, metric) {
+    const safe = sanitizeVolumeComponents(row?.totalPrintedSheets ?? row?.totalSheets ?? row?.totalVolume ?? row?.printedSheets, row?.goodSheets ?? row?.productionPrintedSheets, row?.wasteSheets ?? row?.wastePrintedSheets);
+    if (metric === 'wasteSheets') return safe.wasteSheets;
+    if (metric === 'productionPrintedSheets') return safe.goodSheets;
+    if (metric === 'wasteRatio') return safe.totalSheets > 0 ? (safe.wasteSheets / safe.totalSheets) : 0;
+    return safe.totalSheets;
   }
 
   function normalizeJobType(jobType) {
@@ -3197,8 +3224,8 @@
     const zoneMap = {
       critical: { label: 'CRITICAL', color: 'rgba(239,68,68,.9)' },
       inefficient: { label: 'INEFFICIENT', color: 'rgba(249,115,22,.9)' },
-      stable: { label: 'STABLE', color: 'rgba(59,130,246,.88)' },
-      noisy: { label: 'NOISY', color: 'rgba(59,130,246,.62)' }
+      stable: { label: 'STABLE', color: 'rgba(87,201,138,.88)' },
+      noisy: { label: 'NOISY', color: 'rgba(59,130,246,.72)' }
     };
     const withZone = eligibleRows.map(row => {
       const highEvents = (row.totalEvents || 0) >= avgEvents;
@@ -3252,7 +3279,7 @@
         ctx.fillRect(midX, chartArea.top, chartArea.right - midX, midY - chartArea.top);
         ctx.fillStyle = 'rgba(87,201,138,.08)';
         ctx.fillRect(chartArea.left, midY, midX - chartArea.left, chartArea.bottom - midY);
-        ctx.fillStyle = 'rgba(87,201,138,.06)';
+        ctx.fillStyle = 'rgba(59,130,246,.08)';
         ctx.fillRect(midX, midY, chartArea.right - midX, chartArea.bottom - midY);
         ctx.font = '700 11px Inter, system-ui, sans-serif';
         ctx.fillStyle = 'rgba(243,222,220,.92)';
@@ -3261,7 +3288,7 @@
         ctx.fillStyle = 'rgba(247,226,201,.92)';
         ctx.textAlign = 'right';
         ctx.fillText('INEFFICIENT', chartArea.right - 10, chartArea.top + 18);
-        ctx.fillStyle = 'rgba(214,232,255,.95)';
+        ctx.fillStyle = 'rgba(216,255,233,.95)';
         ctx.textAlign = 'left';
         ctx.fillText('STABLE', chartArea.left + 10, chartArea.bottom - 8);
         ctx.fillStyle = 'rgba(205,223,255,.95)';
@@ -3489,16 +3516,17 @@
   function buildCustomerVolumeChart(volumeAggRows, metric = 'totalSheets', sort = 'desc', expanded = false) {
     const byPress = new Map();
     STATE.customerVolumeLookup = new Map();
-    volumeAggRows.forEach(r => {
+    (volumeAggRows || []).forEach(r => {
       const entityKey = r.canonicalPress || 'Unspecified';
       const slot = byPress.get(entityKey) || { entityKey, displayLabel: entityKey, canonicalPress: entityKey, totalVolume: 0, productionPrintedSheets: 0, printedSheets: 0, printedFlats: 0, maintenanceVolume: 0, wasteVolume: 0, wastePrintedSheets: 0, customers: new Set(), models: new Set(), sourceRows: 0 };
-      slot.totalVolume += r.totalVolume || 0;
-      slot.productionPrintedSheets += r.productionPrintedSheets || 0;
-      slot.printedSheets += r.printedSheets || 0;
-      slot.printedFlats += r.printedFlats || 0;
-      slot.maintenanceVolume += r.maintenanceVolume || 0;
-      slot.wasteVolume += r.wasteVolume || 0;
-      slot.wastePrintedSheets += r.wastePrintedSheets || 0;
+      const safe = sanitizeVolumeComponents(r.totalVolume ?? ((r.productionPrintedSheets || 0) + (r.wastePrintedSheets || 0)), r.productionPrintedSheets, r.wastePrintedSheets);
+      slot.totalVolume += safe.totalSheets;
+      slot.productionPrintedSheets += safe.goodSheets;
+      slot.wastePrintedSheets += safe.wasteSheets;
+      slot.printedSheets += Number(r.printedSheets || 0);
+      slot.printedFlats += Number(r.printedFlats || 0);
+      slot.maintenanceVolume += Number(r.maintenanceVolume || 0);
+      slot.wasteVolume += Number(r.wasteVolume || 0);
       if (r.customer) slot.customers.add(r.customer);
       if (r.canonicalModel) slot.models.add(r.canonicalModel);
       slot.sourceRows += 1;
@@ -3508,104 +3536,104 @@
       STATE.customerVolumeLookup.set(entityKey, { canonicalPress: slot.canonicalPress, customers: [...slot.customers], models: [...slot.models] });
     });
     const dir = sort === 'asc' ? 1 : -1;
-    const sorted = [...byPress.values()].map(row => ({
-      ...row,
-      sourceType: 'volumeJobs',
-      metric,
-      wasteSheets: row.wastePrintedSheets || 0,
-      goodSheets: row.productionPrintedSheets || 0,
-      totalPrintedSheets: (row.productionPrintedSheets || 0) + (row.wastePrintedSheets || 0),
-      metricValue: metric === 'wasteSheets'
-        ? (row.wastePrintedSheets || 0)
-        : metric === 'productionPrintedSheets'
-          ? (row.productionPrintedSheets || 0)
-          : ((row.productionPrintedSheets || 0) + (row.wastePrintedSheets || 0)),
-      parentContext: { path: [] }
-    })).sort((a, b) => ((a.metricValue || 0) - (b.metricValue || 0)) * dir);
-    const fullRows = sorted;
-    const withAggregateSheets = fullRows.map(row => {
-      const jobsForPress = (STATE.lastSourceScope?.filteredVolumeRowsNative || []).filter(job => (job.canonicalPress || 'Unspecified') === row.entityKey);
-      const volumeTotals = buildVolumeAggregates(jobsForPress);
-      return { ...row, ...volumeTotals };
-    });
-    return { chartRows: withAggregateSheets.slice(0, expanded ? withAggregateSheets.length : 12), fullRows: withAggregateSheets };
+    const rows = [...byPress.values()].map(row => {
+      const safe = sanitizeVolumeComponents(row.totalVolume, row.productionPrintedSheets, row.wastePrintedSheets);
+      const wasteRatio = safe.totalSheets > 0 ? (safe.wasteSheets / safe.totalSheets) : 0;
+      return {
+        ...row,
+        sourceType: 'volumeJobs',
+        metric,
+        wasteSheets: safe.wasteSheets,
+        goodSheets: safe.goodSheets,
+        totalPrintedSheets: safe.totalSheets,
+        totalSheets: safe.totalSheets,
+        wasteRatio,
+        metricValue: metric === 'wasteRatio' ? wasteRatio : volumeMetricValue({ ...row, ...safe }, metric),
+        parentContext: { path: [] }
+      };
+    }).sort((a, b) => ((a.metricValue || 0) - (b.metricValue || 0)) * dir);
+    return { chartRows: rows.slice(0, expanded ? rows.length : 12), fullRows: rows };
   }
 
   function renderVolumeByPressChart(customerVolumeRows = []) {
     const selectedMetric = STATE.customerVolumeMetric || 'totalSheets';
-    const isWasteMode = selectedMetric === 'wasteSheets';
-    const isGoodMode = selectedMetric === 'productionPrintedSheets';
     const labels = customerVolumeRows.map(r => r.displayLabel || r.entityKey || r.canonicalPress || 'Unspecified');
-    const wasteValues = customerVolumeRows.map(r => Math.max(0, Number(r.wasteSheets || r.wastePrintedSheets || 0)));
-    const goodVolumeValues = customerVolumeRows.map(r => Math.max(0, Number(r.goodSheets || r.productionPrintedSheets || r.printedSheets || 0)));
-    const totalVolumeValues = customerVolumeRows.map((r, idx) => Math.max(0, Number(r.totalPrintedSheets || r.totalSheets || (goodVolumeValues[idx] + wasteValues[idx]) || r.totalVolume || 0)));
-    const wasteRatios = totalVolumeValues.map((total, idx) => total > 0 ? (wasteValues[idx] / total) : 0);
-    const wasteColors = wasteRatios.map(wasteRatioColor);
-    customerVolumeRows.forEach((row, idx) => {
-      const drilldownSpecialWaste = Number(row?.wasteSheets || row?.wastePrintedSheets || 0);
-      const chartWaste = Number(wasteValues[idx] || 0);
-      if (drilldownSpecialWaste > 0 && chartWaste === 0) {
-        console.error('WASTE PIPELINE ERROR', row?.displayLabel || row?.canonicalPress || row?.entityKey || 'Unspecified');
-      }
+    const enriched = customerVolumeRows.map(row => {
+      const safe = sanitizeVolumeComponents(row.totalPrintedSheets || row.totalSheets || row.totalVolume, row.goodSheets || row.productionPrintedSheets, row.wasteSheets || row.wastePrintedSheets);
+      const ratio = safe.totalSheets > 0 ? (safe.wasteSheets / safe.totalSheets) : 0;
+      return { ...row, ...safe, wasteRatio: ratio };
     });
-    const selectedValues = isWasteMode ? wasteValues : (isGoodMode ? goodVolumeValues : totalVolumeValues);
-    const datasets = [
-      { label: isWasteMode ? 'Waste' : (isGoodMode ? 'Good Volume' : 'Total Volume'), data: selectedValues, backgroundColor: wasteColors, borderColor: wasteColors, borderWidth: 1, borderRadius: 6, minBarLength: 3 }
-    ];
+    const goodValues = enriched.map(r => r.goodSheets);
+    const wasteValues = enriched.map(r => r.wasteSheets);
+    const totalValues = enriched.map(r => r.totalSheets);
+    const ratioValues = enriched.map(r => r.wasteRatio * 100);
+    const wasteColors = enriched.map(r => wasteRatioColor(r.wasteRatio));
+    const goodFill = '#5f8f76';
+
+    let datasets = [];
+    let stacked = false;
+    if (selectedMetric === 'productionPrintedSheets') {
+      datasets = [{ label: 'Good Volume', data: goodValues, backgroundColor: goodFill, borderColor: goodFill, borderWidth: 1, borderRadius: 6, minBarLength: 3 }];
+    } else if (selectedMetric === 'wasteSheets') {
+      datasets = [{ label: 'Waste', data: wasteValues, backgroundColor: wasteColors, borderColor: wasteColors, borderWidth: 1, borderRadius: 6, minBarLength: 3 }];
+    } else if (selectedMetric === 'wasteRatio') {
+      datasets = [{ label: 'Waste Ratio %', data: ratioValues, backgroundColor: wasteColors, borderColor: wasteColors, borderWidth: 1, borderRadius: 6, minBarLength: 3 }];
+    } else {
+      stacked = true;
+      datasets = [
+        { label: 'Good Volume', data: goodValues, backgroundColor: goodFill, borderColor: goodFill, borderWidth: 1, borderRadius: 6, minBarLength: 3, stack: 'volume' },
+        { label: 'Waste', data: wasteValues, backgroundColor: wasteColors, borderColor: wasteColors, borderWidth: 1, borderRadius: 6, minBarLength: 2, stack: 'volume' }
+      ];
+    }
+
     return replaceChart('customerVolumeChart', {
       type: 'bar',
-      data: {
-        labels,
-        datasets
-      },
+      data: { labels, datasets },
       options: {
-        ...baseOptions('customerVolume', labels, customerVolumeRows),
-        scales: { x: { stacked: false, ticks: { color: '#c6d3ea' }, grid: { color: 'rgba(255,255,255,.04)' } }, y: { stacked: false, ticks: { color: '#c6d3ea' }, grid: { color: 'rgba(255,255,255,.04)' }, beginAtZero: true } },
+        ...baseOptions('customerVolume', labels, enriched),
+        scales: {
+          x: { stacked, ticks: { color: '#c6d3ea' }, grid: { color: 'rgba(255,255,255,.04)' } },
+          y: { stacked, ticks: { color: '#c6d3ea', callback: value => selectedMetric === 'wasteRatio' ? `${value}%` : value.toLocaleString() }, grid: { color: 'rgba(255,255,255,.04)' }, beginAtZero: true }
+        },
         plugins: {
           legend: { display: true, labels: { color: '#c6d3ea' } },
-          tooltip: { callbacks: { title: ctx => `Press: ${customerVolumeRows?.[ctx?.[0]?.dataIndex || 0]?.displayLabel || ctx?.[0]?.label || 'Unspecified'}`, label: ctx => {
-            const row = customerVolumeRows?.[ctx.dataIndex] || {};
-            const press = row.displayLabel || row.entityKey || row.canonicalPress || ctx.label || 'Unspecified';
-            const total = Number(row.totalSheets || totalVolumeValues[ctx.dataIndex] || row.totalVolume || 0);
-            const waste = Number(row.wasteSheets || row.wastePrintedSheets || 0);
-            const good = Number(row.goodSheets || goodVolumeValues[ctx.dataIndex] || 0);
-            const ratio = total > 0 ? ((waste / total) * 100) : 0;
-            return [
-              `Press: ${press}`,
-              `${isWasteMode ? 'Waste' : (isGoodMode ? 'Good Volume' : 'Total Volume')}: ${Number(selectedValues[ctx.dataIndex] || 0).toLocaleString()}`,
-              `Good Volume: ${good.toLocaleString()}`,
-              `Waste: ${waste.toLocaleString()}`,
-              `Waste %: ${ratio.toFixed(1)}%`,
-              `Total Volume: ${total.toLocaleString()}`
-            ];
-          } }, filter: ctx => ctx.datasetIndex === 0 }
+          tooltip: {
+            callbacks: {
+              title: ctx => `Press: ${enriched?.[ctx?.[0]?.dataIndex || 0]?.displayLabel || ctx?.[0]?.label || 'Unspecified'}`,
+              label: ctx => {
+                const row = enriched?.[ctx.dataIndex] || {};
+                const ratioPct = (row.wasteRatio || 0) * 100;
+                if (selectedMetric === 'wasteRatio') return [`Waste ratio: ${ratioPct.toFixed(2)}%`, `Waste: ${(row.wasteSheets || 0).toLocaleString()}`, `Total: ${(row.totalSheets || 0).toLocaleString()}`];
+                if (selectedMetric === 'wasteSheets') return [`Waste: ${(row.wasteSheets || 0).toLocaleString()}`, `Waste ratio: ${ratioPct.toFixed(2)}%`];
+                if (selectedMetric === 'productionPrintedSheets') return [`Good volume: ${(row.goodSheets || 0).toLocaleString()}`, `Total: ${(row.totalSheets || 0).toLocaleString()}`];
+                return [`Total: ${(row.totalSheets || 0).toLocaleString()}`, `Good: ${(row.goodSheets || 0).toLocaleString()}`, `Waste: ${(row.wasteSheets || 0).toLocaleString()}`, `Waste ratio: ${ratioPct.toFixed(2)}%`];
+              }
+            }
+          }
         }
       },
       plugins: [{
         id: 'volume-value-labels',
         afterDatasetsDraw(chart) {
           const { ctx } = chart;
-          const primaryMeta = chart.getDatasetMeta(0);
-          const vals = selectedValues || [];
           const placed = [];
           ctx.save();
           ctx.font = '600 11px Inter, system-ui, sans-serif';
-          vals.forEach((_, i) => {
-            const bar = primaryMeta?.data?.[i];
-            const total = Number(selectedValues[i] || 0);
-            if (!bar || total <= 0) return;
-            const totalHeight = Math.abs((bar.base || 0) - (bar.y || 0));
-            const inside = totalHeight >= 24;
-            const label = formatCompactNumber(total);
+          enriched.forEach((row, i) => {
+            const meta = chart.getDatasetMeta(selectedMetric === 'totalSheets' ? 1 : 0);
+            const bar = meta?.data?.[i];
+            if (!bar) return;
+            const value = selectedMetric === 'wasteSheets' ? row.wasteSheets : selectedMetric === 'productionPrintedSheets' ? row.goodSheets : selectedMetric === 'wasteRatio' ? ((row.wasteRatio || 0) * 100) : row.totalSheets;
+            if (!(value > 0)) return;
+            const label = selectedMetric === 'wasteRatio' ? `${value.toFixed(1)}%` : formatCompactNumber(value);
             const width = ctx.measureText(label).width;
-            let x = bar.x - (width / 2);
-            let y = inside ? (((bar.y || 0) + bar.base) / 2 + 4) : ((bar.y || 0) - 6);
-            const overlap = placed.find(b => !(x + width < b.x || x > b.x + b.w || y < b.y - 11 || y > b.y + 2));
-            if (overlap) y -= 12;
-            placed.push({ x, y, w: width });
-            ctx.fillStyle = inside ? '#ffffff' : '#dbe7f8';
+            let y = ((bar.y || 0) - 6);
+            const x = bar.x;
+            if (placed.some(b => Math.abs(b.x - x) < width && Math.abs(b.y - y) < 11)) y -= 12;
+            placed.push({ x, y });
+            ctx.fillStyle = '#dbe7f8';
             ctx.textAlign = 'center';
-            ctx.fillText(label, bar.x, y);
+            ctx.fillText(label, x, y);
           });
           ctx.restore();
         }
@@ -4196,9 +4224,9 @@
     }
     if (isVolume) {
       const measure = STATE.customerVolumeMetric;
-      setDrilldownHeading('drilldownTrendHeading', 'Trend (Events / Duration / Volume / Waste)');
-      setDrilldownHeading('drilldownOpsHeading', 'Production Categories');
-      const totalSheets = scoped.reduce((a, r) => a + (r.printedSheets || 0), 0);
+      setDrilldownHeading('drilldownTrendHeading', 'Waste Ratio by Day');
+      setDrilldownHeading('drilldownOpsHeading', 'Breakdown by Job/Type');
+      const totalSheets = scoped.reduce((a, r) => a + (sanitizeVolumeComponents(r.printedSheets || ((r.productionPrintedSheets || 0) + (r.wastePrintedSheets || 0)), r.productionPrintedSheets, r.wastePrintedSheets).totalSheets || 0), 0);
       const totalFlats = scoped.reduce((a, r) => a + (r.printedFlats || 0), 0);
       const totalJobs = scoped.length;
       const avgSheetsPerJob = totalJobs ? totalSheets / totalJobs : 0;
@@ -4243,14 +4271,12 @@
       document.getElementById('drilldownInsight').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Volume split overview</h4><span class="risk-pill risk-medium">Sheets/Flats mode</span></div><div class="micro">Production split, maintenance split, waste split, and trend are calculated directly from volume jobs. Current metric: ${esc(measure)}.</div>`;
       const jobTypeRows = [...jobTypeMap.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10);
       const payloads = nextDimension ? jobTypeRows.map(([name]) => ({ entityKey: name, displayLabel: name, sourceType: 'volumeJobs', metric: measure, parentContext: { path: STATE.drilldown.path || [] } })) : null;
-      replaceChart('drilldownTopChart', { type: 'bar', data: { labels: jobTypeRows.map(x => x[0]), datasets: [{ data: jobTypeRows.map(x => x[1]), backgroundColor: COLORS, borderRadius: 6 }] }, options: baseOptions(nextDimension || 'drilldown', jobTypeRows.map(x => x[0]), payloads) });
+      replaceChart('drilldownTopChart', { type: 'bar', data: { labels: ['Good Sheets', 'Waste Sheets'], datasets: [{ label: 'Sheets', data: [scoped.reduce((a,r)=>a+sanitizeVolumeComponents(r.printedSheets || ((r.productionPrintedSheets || 0) + (r.wastePrintedSheets || 0)), r.productionPrintedSheets, r.wastePrintedSheets).goodSheets,0), scoped.reduce((a,r)=>a+sanitizeVolumeComponents(r.printedSheets || ((r.productionPrintedSheets || 0) + (r.wastePrintedSheets || 0)), r.productionPrintedSheets, r.wastePrintedSheets).wasteSheets,0)], backgroundColor: ['#5f8f76', '#f36b63'], borderRadius: 6 }] }, options: baseOptions('drilldown', ['Good Sheets','Waste Sheets']) });
       const trendLabels = [...dayTrend.keys()].sort((a, b) => a.localeCompare(b));
       replaceChart('drilldownTrendChart', { type: 'line', data: { labels: trendLabels, datasets: [
-        { label: 'Events', data: trendLabels.map(d => dayTrend.get(d)?.events || 0), borderColor: '#7b8dff', tension: 0.2, yAxisID: 'y' },
-        { label: 'Duration (h)', data: trendLabels.map(d => (dayTrend.get(d)?.duration || 0) / 3600), borderColor: '#f59e0b', tension: 0.2, yAxisID: 'y' },
-        { label: 'Volume', data: trendLabels.map(d => dayTrend.get(d)?.volume || 0), borderColor: '#3b82f6', tension: 0.2, yAxisID: 'y1' },
-        { label: 'Waste', data: trendLabels.map(d => dayTrend.get(d)?.waste || 0), borderColor: '#f36b63', tension: 0.2, yAxisID: 'y1' }
-      ] }, options: { ...baseOptions('drilldown', trendLabels), plugins: { legend: { labels: { color: '#c6d3ea' } } }, scales: { x: { ticks: { color: '#c6d3ea' }, grid: { color: 'rgba(255,255,255,.04)' } }, y: { beginAtZero: true, ticks: { color: '#c6d3ea' }, grid: { color: 'rgba(255,255,255,.04)' } }, y1: { beginAtZero: true, position: 'right', ticks: { color: '#9bc3ff' }, grid: { drawOnChartArea: false } } } } });
+        { label: 'Waste Ratio %', data: trendLabels.map(d => { const t = dayTrend.get(d); return (t && t.volume > 0) ? ((t.waste / t.volume) * 100) : 0; }), borderColor: '#f0b165', tension: 0.2, yAxisID: 'y' },
+        { label: 'Waste Sheets', data: trendLabels.map(d => dayTrend.get(d)?.waste || 0), borderColor: '#f36b63', tension: 0.2, yAxisID: 'y1' }
+      ] }, options: { ...baseOptions('drilldown', trendLabels), plugins: { legend: { labels: { color: '#c6d3ea' } } }, scales: { x: { ticks: { color: '#c6d3ea' }, grid: { color: 'rgba(255,255,255,.04)' } }, y: { beginAtZero: true, ticks: { color: '#c6d3ea', callback: v => `${v}%` }, grid: { color: 'rgba(255,255,255,.04)' } }, y1: { beginAtZero: true, position: 'right', ticks: { color: '#9bc3ff' }, grid: { drawOnChartArea: false } } } } });
       const maintenanceRows = [...maintenanceSplit.entries()];
       const wasteRows = [...wasteSplit.entries()];
       replaceChart('drilldownSecondaryChart', { type: 'bar', data: { labels: maintenanceRows.map(x => `Maintenance ${x[0]}`), datasets: [{ label: 'Maintenance', data: maintenanceRows.map(x => x[1]), backgroundColor: '#f0b165', borderRadius: 6 }, { label: 'Waste-oriented', data: wasteRows.map(x => x[1]), backgroundColor: '#f36b63', borderRadius: 6 }] }, options: { ...baseOptions('drilldown', maintenanceRows.map(x => x[0])), plugins: { legend: { labels: { color: '#c6d3ea' } } } } });
@@ -4576,7 +4602,7 @@
     const subsystemRankings = safeRankingRender('subsystem');
     const alertRankings = safeRankingRender('alert');
     const versionRankings = safeRankingRender('version');
-    STATE.customerVolumeMode = STATE.customerVolumeMetric === 'wasteSheets' ? 'waste' : (STATE.customerVolumeMetric === 'productionPrintedSheets' ? 'good' : 'total');
+    STATE.customerVolumeMode = STATE.customerVolumeMetric === 'wasteSheets' ? 'waste' : (STATE.customerVolumeMetric === 'productionPrintedSheets' ? 'good' : (STATE.customerVolumeMetric === 'wasteRatio' ? 'wasteRatio' : 'total'));
     const { chartRows: visibleCustomerVolumeRows, fullRows: allCustomerVolumeRows } = buildCustomerVolumeChart(sourceScope.volumeAgg, STATE.customerVolumeMetric, STATE.customerVolumeSort, STATE.customerVolumeExpanded);
     STATE.customerVolumeRows = visibleCustomerVolumeRows;
     const aggByPress = (sourceScope.volumeAgg || []).reduce((map, row) => {
@@ -4659,7 +4685,9 @@
       console.info('[waste-debug] no waste detected after normalization and mapping verification', { reason });
     }
     if (!customerVolumeRendered) setCanvasState('customerVolumeChart', 'Chart library failed to load. Charts cannot render.', 'error');
-    document.getElementById('customerVolumeNote').textContent = STATE.customerVolumeMetric === 'wasteSheets'
+    document.getElementById('customerVolumeNote').textContent = STATE.customerVolumeMetric === 'wasteRatio'
+      ? `${STATE.customerVolumeExpanded ? 'Full press ranking' : 'Top 12'} waste-ratio bars (${STATE.customerVolumeSort === 'asc' ? 'lowest first' : 'highest first'}). Colors reflect per-press waste ratio thresholds.`
+      : STATE.customerVolumeMetric === 'wasteSheets'
       ? `${STATE.customerVolumeExpanded ? 'Full press ranking' : 'Top 12'} waste bars (${STATE.customerVolumeSort === 'asc' ? 'lowest first' : 'highest first'}). Colors reflect waste ratio: green <5%, amber 5–10%, red >10%.`
       : STATE.customerVolumeMetric === 'productionPrintedSheets'
         ? `${STATE.customerVolumeExpanded ? 'Full press ranking' : 'Top 12'} good-volume bars (${STATE.customerVolumeSort === 'asc' ? 'lowest first' : 'highest first'}). Colors reflect waste ratio: green <5%, amber 5–10%, red >10%.`
@@ -4668,7 +4696,7 @@
     console.info('[consistency-debug] print-volume-chart-plot', {
       source: 'volumeAgg',
       metric: STATE.customerVolumeMetric,
-      first10Plotted: visibleCustomerVolumeRows.slice(0, 10).map((r, i) => ({ rank: i + 1, entityKey: r.entityKey, displayLabel: r.displayLabel, value: r[STATE.customerVolumeMetric] || 0 }))
+      first10Plotted: visibleCustomerVolumeRows.slice(0, 10).map((r, i) => ({ rank: i + 1, entityKey: r.entityKey, displayLabel: r.displayLabel, value: volumeMetricValue(r, STATE.customerVolumeMetric) }))
     });
     STATE.merged.pressRisk = [];
     renderRiskSection(STATE.merged.pressRisk);
@@ -5373,7 +5401,7 @@
     searchFilter.addEventListener('input', scheduleRender);
     customerVolumeMetric.addEventListener('change', e => {
       STATE.customerVolumeMetric = e.target.value || 'totalSheets';
-      STATE.customerVolumeMode = STATE.customerVolumeMetric === 'wasteSheets' ? 'waste' : (STATE.customerVolumeMetric === 'productionPrintedSheets' ? 'good' : 'total');
+      STATE.customerVolumeMode = STATE.customerVolumeMetric === 'wasteSheets' ? 'waste' : (STATE.customerVolumeMetric === 'productionPrintedSheets' ? 'good' : (STATE.customerVolumeMetric === 'wasteRatio' ? 'wasteRatio' : 'total'));
       scheduleRender();
     });
     customerVolumeSort.addEventListener('change', e => { STATE.customerVolumeSort = e.target.value; scheduleRender(); });
