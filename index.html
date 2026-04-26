@@ -1743,8 +1743,22 @@
     };
     const availabilityDefinitions = computeAvailabilityDefinitions(availabilityAgg);
     const weightedAvailability = availabilityDefinitions.selected.value;
-    const customerVolumeTotal = (customerVolumeRows || []).reduce((a, r) => a + (r[STATE.customerVolumeMetric] || 0), 0);
-    const filteredVolumeAggForUnit = volumeAgg.reduce((a, r) => a + (STATE.customerVolumeMetric === 'printedFlats' ? (r.printedFlats || 0) : STATE.customerVolumeMetric === 'productionPrintedSheets' ? (r.productionPrintedSheets || 0) : (r.printedSheets || 0)), 0);
+    const resolveMetricValue = (row = {}) => {
+      if (STATE.customerVolumeMetric === 'wasteSheets') return Number(row.wasteSheets || row.wastePrintedSheets || 0);
+      if (STATE.customerVolumeMetric === 'printedFlats') return Number(row.printedFlats || 0);
+      if (STATE.customerVolumeMetric === 'productionPrintedSheets') return Number(row.productionPrintedSheets || row.goodSheets || 0);
+      return Number(row.printedSheets || row.totalSheets || 0);
+    };
+    const customerVolumeTotal = (customerVolumeRows || []).reduce((a, r) => a + resolveMetricValue(r), 0);
+    const filteredVolumeAggForUnit = volumeAgg.reduce((a, r) => a + (
+      STATE.customerVolumeMetric === 'wasteSheets'
+        ? (r.wastePrintedSheets || 0)
+        : STATE.customerVolumeMetric === 'printedFlats'
+          ? (r.printedFlats || 0)
+          : STATE.customerVolumeMetric === 'productionPrintedSheets'
+            ? (r.productionPrintedSheets || 0)
+            : (r.printedSheets || 0)
+    ), 0);
     const topPressDowntime = (() => {
       const m = new Map();
       availabilityAgg.forEach(r => {
@@ -1770,7 +1784,7 @@
       { label: 'kpi.totalMaintenanceVolume', lhs: kpis.totalMaintenanceVolume, rhs: sourceTotals.maintenanceVolume, source: 'volumeAgg.maintenanceVolume', level: 'error' },
       { label: 'kpi.totalVolume', lhs: kpis.totalVolume, rhs: sourceTotals.totalVolume, source: 'volumeAgg.totalVolume', level: 'error' },
       { label: 'summary.topPressByEvents.events', lhs: summary?.topPressByEvents?.events || 0, rhs: topPressEvents, source: 'summary vs errorsAgg', level: 'error' },
-      { label: 'chart.customerVolume.total', lhs: customerVolumeTotal, rhs: filteredVolumeAggForUnit, source: `customerVolumeRows.${STATE.customerVolumeMetric} vs volumeAgg.${STATE.customerVolumeMetric}`, level: 'warning' },
+      { label: 'chart.customerVolume.total', lhs: customerVolumeTotal, rhs: filteredVolumeAggForUnit, source: `customerVolumeRows.${STATE.customerVolumeMetric} vs volumeAgg.${STATE.customerVolumeMetric === 'wasteSheets' ? 'wastePrintedSheets' : STATE.customerVolumeMetric}`, level: 'warning' },
     ];
     checks.forEach(({ label, lhs, rhs, source, level }) => {
       if (Math.abs((lhs || 0) - (rhs || 0)) > 1e-6) logs.push({ level, label, lhs, rhs, source, message: `Mismatch ${label}: ${lhs} !== ${rhs}` });
@@ -1834,7 +1848,7 @@
       ['Chart • Top Subsystems', 'Errors or Availability-by-subsystem for downtime', rankings.subsystem?.reduce((a, r) => a + (r[STATE.metricByChart.subsystem] || 0), 0) || 0, rankingSources.subsystem, `groupBy(subsystem) on ${STATE.metricByChart.subsystem}`],
       ['Chart • Top Alerts', 'Errors', rankings.alert?.reduce((a, r) => a + (r[STATE.metricByChart.alert] || 0), 0) || 0, rankingSources.alert, `groupBy(alert) on ${STATE.metricByChart.alert}`],
       ['Chart • Top Versions', 'Errors', rankings.version?.reduce((a, r) => a + (r[STATE.metricByChart.version] || 0), 0) || 0, rankingSources.version, `groupBy(version) on ${STATE.metricByChart.version}`],
-      ['Chart • Print Volume By Press', 'Volume', customerVolumeRows.reduce((a, r) => a + (r[STATE.customerVolumeMetric] || 0), 0), volumeAgg.reduce((a, r) => a + (STATE.customerVolumeMetric === 'printedFlats' ? (r.printedFlats || 0) : STATE.customerVolumeMetric === 'productionPrintedSheets' ? (r.productionPrintedSheets || 0) : (r.printedSheets || 0)), 0), `groupBy(press) sum(${STATE.customerVolumeMetric})`],
+      ['Chart • Print Volume By Press', 'Volume', customerVolumeRows.reduce((a, r) => a + (STATE.customerVolumeMetric === 'wasteSheets' ? (r.wasteSheets || r.wastePrintedSheets || 0) : (r[STATE.customerVolumeMetric] || 0)), 0), volumeAgg.reduce((a, r) => a + (STATE.customerVolumeMetric === 'wasteSheets' ? (r.wastePrintedSheets || 0) : STATE.customerVolumeMetric === 'printedFlats' ? (r.printedFlats || 0) : STATE.customerVolumeMetric === 'productionPrintedSheets' ? (r.productionPrintedSheets || 0) : (r.printedSheets || 0)), 0), `groupBy(press) sum(${STATE.customerVolumeMetric === 'wasteSheets' ? 'wastePrintedSheets' : STATE.customerVolumeMetric})`],
       ['Table • Merged Event Explorer', 'Errors', filteredMergedRows.length, filteredErrorEventsNative.length, 'row_count(filtered errors events)'],
       ['Export • Filtered CSV', 'Errors', filteredMergedRows.length, filteredErrorEventsNative.length, 'export uses filtered merged explorer scope'],
     ].map(([component, source, dashboardValue, sourceValue, formula]) => {
@@ -2490,7 +2504,7 @@
       <div class="micro">Risk-based prioritization is disabled (pending formal risk model definition). Dashboard is operating in events-first mode.</div>`;
   }
 
-  function buildGlobalDataValidation(sourceScope = {}, customerVolumeRows = []) {
+  function buildGlobalDataValidation(sourceScope = {}, allCustomerVolumeRows = []) {
     const issues = [];
     const errorsAgg = sourceScope?.errorsAgg || [];
     const rawErrors = sourceScope?.filteredErrorEventsNative || [];
@@ -2504,11 +2518,29 @@
     check('events', rawErrors.length, errorsAgg.reduce((sum, row) => sum + Number(row?.totalEvents || 0), 0), 'errors.rawRows vs errorsAgg.totalEvents');
     check('duration', rawErrors.reduce((sum, row) => sum + Number(row?.durationSeconds || 0), 0), errorsAgg.reduce((sum, row) => sum + Number(row?.totalErrorDurationSeconds || 0), 0), 'errors.rawRows.durationSeconds vs errorsAgg.totalErrorDurationSeconds');
     check('volume.raw_to_agg', rawVolumeRows.reduce((sum, row) => sum + Number(row?.printedSheets || 0), 0), volumeAgg.reduce((sum, row) => sum + Number(row?.printedSheets || 0), 0), 'volume.rawRows.printedSheets vs volumeAgg.printedSheets');
+    const expectedMetricTotal = volumeAgg.reduce((sum, row) => sum + Number(
+      STATE.customerVolumeMetric === 'wasteSheets'
+        ? (row?.wastePrintedSheets || 0)
+        : STATE.customerVolumeMetric === 'printedFlats'
+          ? (row?.printedFlats || 0)
+          : STATE.customerVolumeMetric === 'productionPrintedSheets'
+            ? (row?.productionPrintedSheets || 0)
+            : (row?.printedSheets || 0)
+    ), 0);
+    const actualMetricTotal = (allCustomerVolumeRows || []).reduce((sum, row) => sum + Number(
+      STATE.customerVolumeMetric === 'wasteSheets'
+        ? (row?.wasteSheets || row?.wastePrintedSheets || 0)
+        : STATE.customerVolumeMetric === 'printedFlats'
+          ? (row?.printedFlats || 0)
+          : STATE.customerVolumeMetric === 'productionPrintedSheets'
+            ? (row?.goodSheets || row?.productionPrintedSheets || 0)
+            : (row?.totalSheets || row?.printedSheets || row?.totalVolume || 0)
+    ), 0);
     check(
-      'volume.chart_basis',
-      volumeAgg.reduce((sum, row) => sum + Number(row?.printedSheets || 0), 0),
-      (customerVolumeRows || []).reduce((sum, row) => sum + Number(row?.totalSheets || row?.totalVolume || 0), 0),
-      'volumeAgg.printedSheets vs customerVolume.totalSheets',
+      `volume.chart_basis.${STATE.customerVolumeMetric}`,
+      expectedMetricTotal,
+      actualMetricTotal,
+      `volumeAgg.${STATE.customerVolumeMetric === 'wasteSheets' ? 'wastePrintedSheets' : STATE.customerVolumeMetric} vs customerVolumeAllRows.${STATE.customerVolumeMetric}`,
       'warning',
       'basis-difference-allowed'
     );
@@ -2534,19 +2566,20 @@
     if (mismatchErrors.length) warnings.push(`${mismatchErrors.length} reconciliation error mismatch(es) detected.`);
     if (mismatchWarnings.length) warnings.push(`${mismatchWarnings.length} reconciliation warning mismatch(es) detected.`);
     [...mismatchErrors, ...mismatchWarnings].forEach(item => {
-      warnings.push(`${item.level === 'warning' ? 'Warning' : 'Error'} • ${item.label}: expected ${Number(item.rhs || 0).toLocaleString()} vs actual ${Number(item.lhs || 0).toLocaleString()} (source: ${item.source || 'n/a'})`);
+      const diff = Number((item.lhs || 0) - (item.rhs || 0));
+      warnings.push(`${item.level === 'warning' ? 'Warning' : 'Error'} • metric=${item.label}; expected=${Number(item.rhs || 0).toLocaleString()}; actual=${Number(item.lhs || 0).toLocaleString()}; diff=${diff.toLocaleString()}; source=${item.source || 'n/a'}`);
     });
     if (renderValidation && renderValidation.warningCount) warnings.push(`Render validation warning: ${renderValidation.warningCount} check(s).`);
     if (renderValidation && renderValidation.errorCount) warnings.push(`Render validation corruption: ${renderValidation.errorCount} check(s).`);
     (renderValidation?.exactWarnings || []).forEach(item => {
-      warnings.push(`Warning • ${item.id} • ${item.metric}: expected ${Number(item.expected || 0).toLocaleString()} vs actual ${Number(item.actual || 0).toLocaleString()} (source: ${item.source || 'n/a'})`);
+      warnings.push(`Warning • metric=${item.metric}; expected=${Number(item.expected || 0).toLocaleString()}; actual=${Number(item.actual || 0).toLocaleString()}; diff=${Number((item.actual || 0) - (item.expected || 0)).toLocaleString()}; source=${item.source || 'n/a'}`);
     });
     (renderValidation?.exactErrors || []).forEach(item => {
-      warnings.push(`Error • ${item.id} • ${item.metric}: expected ${Number(item.expected || 0).toLocaleString()} vs actual ${Number(item.actual || 0).toLocaleString()} (source: ${item.source || 'n/a'})`);
+      warnings.push(`Error • metric=${item.metric}; expected=${Number(item.expected || 0).toLocaleString()}; actual=${Number(item.actual || 0).toLocaleString()}; diff=${Number((item.actual || 0) - (item.expected || 0)).toLocaleString()}; source=${item.source || 'n/a'}`);
     });
     (globalValidation?.issues || []).forEach(issue => {
       const prefix = issue.level === 'warning' ? 'Warning' : 'Error';
-      warnings.push(`${prefix} • ${issue.metric}: expected ${Number(issue.expected || 0).toLocaleString()} vs actual ${Number(issue.actual || 0).toLocaleString()} (source: ${issue.source || 'n/a'})`);
+      warnings.push(`${prefix} • metric=${issue.metric}; expected=${Number(issue.expected || 0).toLocaleString()}; actual=${Number(issue.actual || 0).toLocaleString()}; diff=${Number(issue.diff || 0).toLocaleString()}; source=${issue.source || 'n/a'}`);
     });
     const hasCorruption = (renderValidation?.errorCount || 0) > 0;
     const level = !totals.errors || mismatchErrors.length > 0 || hasCorruption || (globalValidation && !globalValidation.isValid) ? 'red' : 'green';
@@ -2664,7 +2697,7 @@
 
   function isSpecialJobType(jobType) {
     const normalized = normalizeJobType(jobType);
-    return normalized === 'special' || normalized === 'special job' || normalized.includes('special');
+    return normalized === 'special';
   }
 
   function buildVolumeAggregates(volumeRows = []) {
@@ -3456,10 +3489,12 @@
   }
 
   function renderVolumeByPressChart(customerVolumeRows = []) {
+    const isWasteMetric = STATE.customerVolumeMetric === 'wasteSheets';
     const labels = customerVolumeRows.map(r => r.displayLabel || r.entityKey || r.canonicalPress || 'Unspecified');
     const wasteValues = customerVolumeRows.map(r => Math.max(0, Number(r.wasteSheets || r.wastePrintedSheets || 0)));
     const goodVolumeValues = customerVolumeRows.map(r => Math.max(0, Number(r.goodSheets || r.productionPrintedSheets || r.printedSheets || 0)));
     const totalVolumeValues = customerVolumeRows.map((r, idx) => Math.max(0, Number(r.totalSheets || (goodVolumeValues[idx] + wasteValues[idx]) || r.totalVolume || 0)));
+    const activeLabelValues = isWasteMetric ? wasteValues : totalVolumeValues;
     const wasteRatios = totalVolumeValues.map((total, idx) => total > 0 ? (wasteValues[idx] / total) : 0);
     const wasteColors = wasteRatios.map(wasteRatioColor);
     customerVolumeRows.forEach((row, idx) => {
@@ -3469,18 +3504,23 @@
         console.error('WASTE PIPELINE ERROR', row?.displayLabel || row?.canonicalPress || row?.entityKey || 'Unspecified');
       }
     });
+    const datasets = isWasteMetric
+      ? [
+          { label: 'Waste', data: wasteValues, backgroundColor: wasteColors, borderColor: wasteColors, borderWidth: 1, borderRadius: 6, minBarLength: 3 }
+        ]
+      : [
+          { label: 'Good Volume', stack: 'volume', data: goodVolumeValues, backgroundColor: '#22c55e', borderColor: '#22c55e', borderWidth: 1, borderRadius: { topLeft: 0, topRight: 0, bottomLeft: 5, bottomRight: 5 } },
+          { label: 'Waste', stack: 'volume', data: wasteValues, backgroundColor: wasteColors, borderColor: wasteColors, borderWidth: 1, borderRadius: { topLeft: 5, topRight: 5, bottomLeft: 0, bottomRight: 0 }, minBarLength: 3 }
+        ];
     return replaceChart('customerVolumeChart', {
       type: 'bar',
       data: {
         labels,
-        datasets: [
-          { label: 'Good Volume', stack: 'volume', data: goodVolumeValues, backgroundColor: '#22c55e', borderColor: '#22c55e', borderWidth: 1, borderRadius: { topLeft: 0, topRight: 0, bottomLeft: 5, bottomRight: 5 } },
-          { label: 'Waste', stack: 'volume', data: wasteValues, backgroundColor: wasteColors, borderColor: wasteColors, borderWidth: 1, borderRadius: { topLeft: 5, topRight: 5, bottomLeft: 0, bottomRight: 0 }, minBarLength: 3 }
-        ]
+        datasets
       },
       options: {
         ...baseOptions('customerVolume', labels, customerVolumeRows),
-        scales: { x: { stacked: true, ticks: { color: '#c6d3ea' }, grid: { color: 'rgba(255,255,255,.04)' } }, y: { stacked: true, ticks: { color: '#c6d3ea' }, grid: { color: 'rgba(255,255,255,.04)' }, beginAtZero: true } },
+        scales: { x: { stacked: !isWasteMetric, ticks: { color: '#c6d3ea' }, grid: { color: 'rgba(255,255,255,.04)' } }, y: { stacked: !isWasteMetric, ticks: { color: '#c6d3ea' }, grid: { color: 'rgba(255,255,255,.04)' }, beginAtZero: true } },
         plugins: {
           legend: { display: true, labels: { color: '#c6d3ea' } },
           tooltip: { callbacks: { title: ctx => `Press: ${customerVolumeRows?.[ctx?.[0]?.dataIndex || 0]?.displayLabel || ctx?.[0]?.label || 'Unspecified'}`, label: ctx => {
@@ -3490,8 +3530,10 @@
             const waste = Number(row.wasteSheets || row.wastePrintedSheets || 0);
             const good = Number(row.goodSheets || goodVolumeValues[ctx.dataIndex] || 0);
             const ratio = total > 0 ? ((waste / total) * 100) : 0;
-            return [`Press: ${press}`, `Good Volume: ${good.toLocaleString()}`, `Waste: ${waste.toLocaleString()}`, `Waste %: ${ratio.toFixed(1)}%`, `Total Volume: ${total.toLocaleString()}`];
-          } }, filter: ctx => ctx.datasetIndex === 0 }
+            return isWasteMetric
+              ? [`Press: ${press}`, `Waste: ${waste.toLocaleString()}`, `Total Volume: ${total.toLocaleString()}`, `Waste %: ${ratio.toFixed(1)}%`]
+              : [`Press: ${press}`, `Good Volume: ${good.toLocaleString()}`, `Waste: ${waste.toLocaleString()}`, `Waste %: ${ratio.toFixed(1)}%`, `Total Volume: ${total.toLocaleString()}`];
+          } }, filter: ctx => isWasteMetric ? ctx.datasetIndex === 0 : ctx.datasetIndex === 0 }
         }
       },
       plugins: [{
@@ -3499,15 +3541,15 @@
         afterDatasetsDraw(chart) {
           const { ctx } = chart;
           const goodMeta = chart.getDatasetMeta(0);
-          const wasteMeta = chart.getDatasetMeta(1);
-          const vals = goodMeta?._dataset?.data || [];
+          const wasteMeta = isWasteMetric ? chart.getDatasetMeta(0) : chart.getDatasetMeta(1);
+          const vals = activeLabelValues || [];
           const placed = [];
           ctx.save();
           ctx.font = '600 11px Inter, system-ui, sans-serif';
           vals.forEach((_, i) => {
             const goodBar = goodMeta?.data?.[i];
             const wasteBar = wasteMeta?.data?.[i];
-            const total = Number(totalVolumeValues[i] || 0);
+            const total = Number(activeLabelValues[i] || 0);
             if (!goodBar || !wasteBar || total <= 0) return;
             const totalHeight = Math.abs((goodBar.base || 0) - (wasteBar.y || goodBar.y || 0));
             const inside = totalHeight >= 24;
@@ -4487,8 +4529,8 @@
     const subsystemRankings = safeRankingRender('subsystem');
     const alertRankings = safeRankingRender('alert');
     const versionRankings = safeRankingRender('version');
-    const { chartRows: customerVolumeRows, fullRows: customerVolumeAllRows } = buildCustomerVolumeChart(sourceScope.volumeAgg, STATE.customerVolumeMetric, STATE.customerVolumeSort, STATE.customerVolumeExpanded);
-    STATE.customerVolumeRows = customerVolumeRows;
+    const { chartRows: visibleCustomerVolumeRows, fullRows: allCustomerVolumeRows } = buildCustomerVolumeChart(sourceScope.volumeAgg, STATE.customerVolumeMetric, STATE.customerVolumeSort, STATE.customerVolumeExpanded);
+    STATE.customerVolumeRows = visibleCustomerVolumeRows;
     const aggByPress = (sourceScope.volumeAgg || []).reduce((map, row) => {
       const press = row.canonicalPress || 'Unspecified';
       const slot = map.get(press) || { volume: 0, waste: 0 };
@@ -4497,19 +4539,20 @@
       map.set(press, slot);
       return map;
     }, new Map());
-    (customerVolumeAllRows || []).forEach(row => {
+    (allCustomerVolumeRows || []).forEach(row => {
       const press = row.entityKey || row.displayLabel || 'Unspecified';
       const agg = aggByPress.get(press) || { volume: 0, waste: 0 };
       const chartVolume = Number(row.goodSheets || row.productionPrintedSheets || row.printedSheets || 0);
       const chartWaste = Number(row.wasteSheets || row.wastePrintedSheets || 0);
       if (Math.abs(chartVolume - agg.volume) > 1e-6 || Math.abs(chartWaste - agg.waste) > 1e-6) {
+        console.error('[waste-consistency-error]', { press, chartWaste, drilldownWaste: agg.waste, diff: chartWaste - agg.waste });
         console.error('[consistency-validation]', { press, chartVolume, drilldownVolume: agg.volume, chartWaste, drilldownWaste: agg.waste });
       }
     });
-    STATE.customerVolumeAllRows = customerVolumeAllRows;
-    const customerVolumeRendered = renderVolumeByPressChart(customerVolumeRows);
-    if (!customerVolumeRows.length) setCanvasState('customerVolumeChart', 'No print volume rows after source-native scope (volume owns press/day and native job metadata).');
-    const totalWasteInScope = customerVolumeRows.reduce((sum, row) => sum + Number(row.wasteSheets || row.wastePrintedSheets || 0), 0);
+    STATE.customerVolumeAllRows = allCustomerVolumeRows;
+    const customerVolumeRendered = renderVolumeByPressChart(visibleCustomerVolumeRows);
+    if (!visibleCustomerVolumeRows.length) setCanvasState('customerVolumeChart', 'No print volume rows after source-native scope (volume owns press/day and native job metadata).');
+    const totalWasteInScope = visibleCustomerVolumeRows.reduce((sum, row) => sum + Number(row.wasteSheets || row.wastePrintedSheets || 0), 0);
     const normalizedJobTypes = [...new Set((sourceScope.filteredVolumeRowsNative || []).map(row => normalizeJobType(row?.jobType)).filter(Boolean))].sort();
     const wasteFromRawRows = (sourceScope.filteredVolumeRowsNative || []).reduce((sum, row) => (
       sum + (isSpecialJobType(row?.jobType) ? Number(row?.printedSheets || 0) : 0)
@@ -4527,7 +4570,7 @@
       map.set(press, (map.get(press) || 0) + Number(row?.wastePrintedSheets || 0));
       return map;
     }, new Map());
-    const wasteByPressChart = (customerVolumeRows || []).reduce((map, row) => {
+    const wasteByPressChart = (allCustomerVolumeRows || []).reduce((map, row) => {
       const press = row?.canonicalPress || row?.entityKey || 'Unspecified';
       map.set(press, (map.get(press) || 0) + Number(row?.wastePrintedSheets || 0));
       return map;
@@ -4563,25 +4606,27 @@
       console.info('[waste-debug] no waste detected after normalization and mapping verification', { reason });
     }
     if (!customerVolumeRendered) setCanvasState('customerVolumeChart', 'Chart library failed to load. Charts cannot render.', 'error');
-    document.getElementById('customerVolumeNote').textContent = `${STATE.customerVolumeExpanded ? 'Full press ranking' : 'Top 12'} stacked bars (${STATE.customerVolumeSort === 'asc' ? 'lowest first' : 'highest first'}): base=good volume, top=waste.`;
+    document.getElementById('customerVolumeNote').textContent = STATE.customerVolumeMetric === 'wasteSheets'
+      ? `${STATE.customerVolumeExpanded ? 'Full press ranking' : 'Top 12'} waste bars (${STATE.customerVolumeSort === 'asc' ? 'lowest first' : 'highest first'}): blue = waste sheets.`
+      : `${STATE.customerVolumeExpanded ? 'Full press ranking' : 'Top 12'} stacked bars (${STATE.customerVolumeSort === 'asc' ? 'lowest first' : 'highest first'}): base=good volume, top=waste.`;
     document.getElementById('customerVolumeExpand').textContent = STATE.customerVolumeExpanded ? 'Collapse' : 'Show all';
     console.info('[consistency-debug] print-volume-chart-plot', {
       source: 'volumeAgg',
       metric: STATE.customerVolumeMetric,
-      first10Plotted: customerVolumeRows.slice(0, 10).map((r, i) => ({ rank: i + 1, entityKey: r.entityKey, displayLabel: r.displayLabel, value: r[STATE.customerVolumeMetric] || 0 }))
+      first10Plotted: visibleCustomerVolumeRows.slice(0, 10).map((r, i) => ({ rank: i + 1, entityKey: r.entityKey, displayLabel: r.displayLabel, value: r[STATE.customerVolumeMetric] || 0 }))
     });
     STATE.merged.pressRisk = [];
     renderRiskSection(STATE.merged.pressRisk);
     STATE.merged.summary = executiveSummary;
     renderExecutiveSummaryCard(STATE.merged.summary);
-    const mismatches = validateSourceAndLayerConsistency(sourceScope, STATE.filtered, STATE.kpis, STATE.merged.summary, STATE.merged.pressRisk, customerVolumeAllRows);
+    const mismatches = validateSourceAndLayerConsistency(sourceScope, STATE.filtered, STATE.kpis, STATE.merged.summary, STATE.merged.pressRisk, allCustomerVolumeRows);
     STATE.reconciliation.logs = mismatches;
     STATE.reconciliation.report = buildReconciliationReport(sourceScope, STATE.kpis, {
       press: pressRankings,
       subsystem: subsystemRankings,
       alert: alertRankings,
       version: versionRankings
-    }, customerVolumeAllRows);
+    }, allCustomerVolumeRows);
     console.info('[volume-validation]', {
       rawPrintedSheetsFromVolumeAgg: sourceScope.volumeAgg.reduce((a, r) => a + (r.printedSheets || 0), 0),
       productionOnlyPrintedSheetsFromVolumeAgg: sourceScope.volumeAgg.reduce((a, r) => a + (r.productionPrintedSheets || 0), 0),
@@ -4618,7 +4663,7 @@
         topOutlier: pressAbnormalityModel.topOutlier?.name || 'N/A'
       },
     });
-      const globalValidation = buildGlobalDataValidation(sourceScope, customerVolumeRows);
+      const globalValidation = buildGlobalDataValidation(sourceScope, allCustomerVolumeRows);
       if (!globalValidation.isValid) console.warn('[global-data-validation]', globalValidation);
       renderDashboardStatusPanel(sourceScope, mismatches, STATE.reconciliation.report, renderValidation, globalValidation);
       renderTable(STATE.filtered);
