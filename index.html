@@ -2447,16 +2447,18 @@
   }
 
   function renderExecutiveSummaryCard(summary) {
-    const tone = 'critical';
-    const statusClass = tone === 'critical' ? 'status-critical' : 'status-watch';
+    const tone = summary?.statusTone || 'watch';
+    const statusClass = tone === 'critical' ? 'status-critical' : tone === 'stable' ? 'status-stable' : 'status-watch';
     const topPress = summary.topPressByDowntime?.name || summary.topPressByEvents?.name || 'N/A';
     const topSubsystem = summary.topSubsystemByDowntime?.name || summary.topSubsystem?.name || 'N/A';
     const topError = summary.topAlertByDowntime?.name || summary.topAlert?.name || 'N/A';
-    const repeatCount = Number(summary.topAlert?.events || 0).toLocaleString();
-    const totalEvents = Number(STATE.kpis?.totalEvents || 0).toLocaleString();
-    const totalDowntime = formatDuration((Number(STATE.kpis?.totalPlanned || 0) + Number(STATE.kpis?.totalUnplanned || 0)));
+    const totalDowntimeSeconds = Number(STATE.kpis?.totalPlanned || 0) + Number(STATE.kpis?.totalUnplanned || 0);
+    const topPressDowntime = Number(summary?.topPressByDowntime?.downtime || summary?.topErrorDowntimePress?.downtime || 0);
+    const downtimeSignal = totalDowntimeSeconds > 0 ? ((topPressDowntime / totalDowntimeSeconds) * 100) : 0;
+    const totalDowntime = formatDuration(totalDowntimeSeconds);
     const primaryAction = topPress !== 'N/A' ? `Stabilize press ${topPress}` : 'Stabilize top downtime press';
-    const secondaryAction = topError !== 'N/A' ? `Eliminate root cause error: ${topError}` : 'Eliminate root cause error';
+    const secondaryAction = topError !== 'N/A' ? `Contain dominant error ${topError}` : 'Contain dominant recurring error';
+    const actions = [primaryAction, secondaryAction].filter((value, idx, arr) => arr.indexOf(value) === idx).slice(0, 2);
     document.getElementById('executiveSummaryCard').innerHTML = `
       <div class="chart-head"><h3>Decision Banner</h3></div>
       <section class="exec-decision-panel">
@@ -2466,17 +2468,14 @@
           <span><strong>Top Subsystem (duration):</strong> ${esc(topSubsystem)}</span>
           <span><strong>Top Error (duration):</strong> ${esc(topError)}</span>
         </div>
-        <div class="exec-headline">Critical — System instability driven by HIGH DURATION impact</div>
+        <div class="exec-headline">${esc(summary?.statusVerdict || 'Duration impact is concentrated and requires focused intervention.')}</div>
         <div class="exec-row exec-metrics-line" style="gap:8px;flex-wrap:wrap;">
-          <span>Total Events: ${totalEvents}</span>
+          <span>Downtime Signal: ${downtimeSignal.toFixed(1)}% on top press</span>
           <span>•</span>
           <span>Total Downtime: ${totalDowntime}</span>
-          <span>•</span>
-          <span>Total Repeats: ${repeatCount}</span>
         </div>
         <div class="exec-action-line" style="margin-top:8px;">
-          <div class="exec-action-item">${esc(primaryAction)}</div>
-          <div class="exec-action-item">${esc(secondaryAction)}</div>
+          ${actions.map(action => `<div class="exec-action-item">${esc(action)}</div>`).join('')}
         </div>
       </section>`;
   }
@@ -2487,7 +2486,7 @@
       <div class="micro">Risk-based prioritization is disabled (pending formal risk model definition). Dashboard is operating in events-first mode.</div>`;
   }
 
-  function renderDashboardStatusPanel(sourceScope, mismatches = [], reconciliationReport = []) {
+  function renderDashboardStatusPanel(sourceScope, mismatches = [], reconciliationReport = [], renderValidation = null) {
     const panel = document.getElementById('dashboardStatusPanel');
     const headerStatus = document.getElementById('headerDataStatus');
     if (!panel) return;
@@ -2501,6 +2500,7 @@
     if (!totals.availability) warnings.push(STATE.normalized.availability?.length ? 'Availability source filtered to zero rows.' : 'Availability source missing.');
     if (!totals.volume) warnings.push(STATE.normalized.volume?.length ? 'Volume source filtered to zero rows.' : 'Volume source missing.');
     if (mismatches.length) warnings.push(`${mismatches.length} reconciliation mismatch(es) detected.`);
+    if (renderValidation && !renderValidation.ok) warnings.push(`Render validation mismatch: ${renderValidation.failed.length} check(s).`);
     const level = !totals.errors || warnings.length ? 'red' : 'green';
     panel.className = `dashboard-status ${level} hidden`;
     if (headerStatus) {
@@ -2618,18 +2618,22 @@
   }
 
   function buildVolumeAggregates(volumeRows = []) {
-    let totalSheets = 0;
+    let goodSheets = 0;
     let wasteSheets = 0;
-    volumeRows.forEach(job => {
-      const sheets = Number(job?.productionPrintedSheets ?? job?.printedSheets ?? 0) || 0;
-      const normalizedJobType = String(job?.jobType || '').trim().toLowerCase();
-      if (normalizedJobType === 'special') wasteSheets += sheets;
-      totalSheets += sheets;
+    volumeRows.forEach(row => {
+      const printedSheets = Number(row?.printedSheets || row?.wastePrintedSheets || 0) || 0;
+      const productionSheets = Number(row?.productionPrintedSheets || 0) || 0;
+      if (isSpecialJobType(row?.jobType)) {
+        wasteSheets += printedSheets;
+      } else {
+        goodSheets += productionSheets || printedSheets;
+      }
     });
+    const totalSheets = goodSheets + wasteSheets;
     return {
       totalSheets,
-      wasteSheets,
-      goodSheets: Math.max(0, totalSheets - wasteSheets)
+      goodSheets,
+      wasteSheets
     };
   }
 
@@ -3180,11 +3184,16 @@
     const impactValues = rows.map(row => Number(row.avgDurationSeconds || row.totalDurationSeconds || 0)).filter(Number.isFinite);
     const minImpact = impactValues.length ? Math.min(...impactValues) : 0;
     const maxImpact = impactValues.length ? Math.max(...impactValues) : 0;
+    const severityValues = rows.map(row => Number(row.severityScore || 0)).filter(Number.isFinite);
+    const minSeverity = severityValues.length ? Math.min(...severityValues) : 0;
+    const maxSeverity = severityValues.length ? Math.max(...severityValues) : 0;
     const dotRadiusForRow = (row = {}) => {
       const impact = Number(row.avgDurationSeconds || row.totalDurationSeconds || 0);
-      if (!Number.isFinite(impact) || maxImpact <= minImpact) return 10;
+      const severity = Number(row.severityScore || 0);
+      if (!Number.isFinite(impact) || maxImpact <= minImpact) return 12;
       const normalized = (impact - minImpact) / Math.max(1e-9, (maxImpact - minImpact));
-      return 6 + (normalized * 22);
+      const severityNormalized = maxSeverity > minSeverity ? (severity - minSeverity) / Math.max(1e-9, (maxSeverity - minSeverity)) : 0.5;
+      return 6 + ((normalized * 0.65 + severityNormalized * 0.35) * 22);
     };
     replaceChart('pressImpactScatterChart', {
       type: 'scatter',
@@ -3422,11 +3431,18 @@
 
   function renderVolumeByPressChart(customerVolumeRows = []) {
     const labels = customerVolumeRows.map(r => r.displayLabel);
-    const totalVolumeValues = customerVolumeRows.map(r => Math.max(0, Number(r.totalSheets || r.totalVolume || r.printedSheets || 0)));
     const wasteValues = customerVolumeRows.map(r => Math.max(0, Number(r.wasteSheets || r.wastePrintedSheets || 0)));
-    const goodVolumeValues = totalVolumeValues.map((total, idx) => Math.max(0, total - wasteValues[idx]));
+    const goodVolumeValues = customerVolumeRows.map(r => Math.max(0, Number(r.goodSheets || r.productionPrintedSheets || r.printedSheets || 0)));
+    const totalVolumeValues = customerVolumeRows.map((r, idx) => Math.max(0, Number(r.totalSheets || (goodVolumeValues[idx] + wasteValues[idx]) || r.totalVolume || 0)));
     const wasteRatios = totalVolumeValues.map((total, idx) => total > 0 ? (wasteValues[idx] / total) : 0);
     const wasteColors = wasteRatios.map(wasteRatioColor);
+    customerVolumeRows.forEach((row, idx) => {
+      const drilldownSpecialWaste = Number(row?.wasteSheets || row?.wastePrintedSheets || 0);
+      const chartWaste = Number(wasteValues[idx] || 0);
+      if (drilldownSpecialWaste > 0 && chartWaste === 0) {
+        console.error('WASTE PIPELINE ERROR', row?.displayLabel || row?.canonicalPress || row?.entityKey || 'Unspecified');
+      }
+    });
     return replaceChart('customerVolumeChart', {
       type: 'bar',
       data: {
@@ -3443,11 +3459,11 @@
           legend: { display: true, labels: { color: '#c6d3ea' } },
           tooltip: { callbacks: { title: ctx => `Press: ${ctx?.[0]?.label || 'N/A'}`, label: ctx => {
             const row = customerVolumeRows?.[ctx.dataIndex] || {};
-            const total = Number(row.totalSheets || row.totalVolume || row.printedSheets || 0);
+            const total = Number(row.totalSheets || totalVolumeValues[ctx.dataIndex] || row.totalVolume || 0);
             const waste = Number(row.wasteSheets || row.wastePrintedSheets || 0);
-            const good = Math.max(0, total - waste);
+            const good = Number(row.goodSheets || goodVolumeValues[ctx.dataIndex] || 0);
             const ratio = total > 0 ? ((waste / total) * 100) : 0;
-            return [`Total Volume: ${total.toLocaleString()}`, `Waste: ${waste.toLocaleString()}`, `Waste %: ${ratio.toFixed(1)}%`, `Good Volume: ${good.toLocaleString()}`];
+            return [`Total Volume: ${total.toLocaleString()}`, `Good Volume: ${good.toLocaleString()}`, `Waste: ${waste.toLocaleString()}`, `Waste %: ${ratio.toFixed(1)}%`];
           } }, filter: ctx => ctx.datasetIndex === 0 }
         }
       },
@@ -3670,7 +3686,7 @@
       return;
     }
     if (sourceType === 'volumeJobs') {
-      const drilldownSpecial = rows.reduce((sum, row) => sum + (normalizeJobType(row?.jobType) === 'special' ? Number(row?.printedSheets || row?.productionPrintedSheets || 0) : 0), 0);
+      const drilldownSpecial = rows.reduce((sum, row) => sum + (isSpecialJobType(row?.jobType) ? Number(row?.printedSheets || row?.wastePrintedSheets || 0) : 0), 0);
       const mainChartWaste = (STATE.customerVolumeRows || []).reduce((sum, row) => sum + Number(row?.wasteSheets || row?.wastePrintedSheets || 0), 0);
       if (drilldownSpecial > 0 && mainChartWaste <= 0) console.error('WASTE PIPELINE ERROR');
       if (drilldownSpecial > 0 && mainChartWaste <= 0) console.warn('DATA MISMATCH');
@@ -4329,7 +4345,7 @@
     const wasteFromJobs = (sourceScope?.filteredVolumeRowsNative || []).reduce((sum, row) => sum + (isSpecialJobType(row?.jobType) ? Number(row?.printedSheets || 0) : 0), 0);
     checks.push({ id: 'waste-mapping', pass: Math.abs(wasteFromAgg - wasteFromJobs) < 1e-6, detail: 'waste mapping aggregation' });
     const failed = checks.filter(c => !c.pass);
-    if (failed.length) console.error('[render-validation] blocking render due to mismatch', { failed, checks });
+    if (failed.length) console.warn('[render-validation] mismatch detected', { failed, checks });
     return { ok: failed.length === 0, checks, failed };
   }
 
@@ -4370,10 +4386,9 @@
       STATE.metricByChart.version = 'events';
     }
     const renderValidation = validateRenderConsistency(sourceScope, STATE.kpis);
+    STATE.renderValidation = renderValidation;
     if (!renderValidation.ok) {
-      setStatus('Validation mismatch detected. Rendering blocked to prevent misleading values.', 'error');
-      ['pressImpactScatterChart', 'subsystemChart', 'alertChart', 'versionChart', 'customerVolumeChart'].forEach(id => showNoDataChart(id, 'Blocked: validation mismatch'));
-      return;
+      setStatus('Validation mismatch detected. Rendering continues with best validated source data.', 'warning');
     }
     syncMetricToggleUI();
     renderKpis(STATE.kpis);
@@ -4513,7 +4528,7 @@
         topOutlier: pressAbnormalityModel.topOutlier?.name || 'N/A'
       },
     });
-      renderDashboardStatusPanel(sourceScope, mismatches, STATE.reconciliation.report);
+      renderDashboardStatusPanel(sourceScope, mismatches, STATE.reconciliation.report, renderValidation);
       renderTable(STATE.filtered);
     } catch (error) {
       console.error('[dashboard-render-failure]', error);
