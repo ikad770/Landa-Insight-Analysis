@@ -1634,7 +1634,9 @@
       productionVolume: row.productionVolume || 0,
       maintenanceVolume: row.maintenanceVolume || 0,
       totalVolume: row.totalVolume || 0,
+      wasteVolume: row.wasteVolume || 0,
       productionPrintedSheets: row.productionPrintedSheets || 0,
+      wastePrintedSheets: row.wastePrintedSheets || 0,
       printedSheets: row.printedSheets || 0,
       printedFlats: row.printedFlats || 0
     }));
@@ -2435,6 +2437,7 @@
     const topPress = summary.topPressByEvents?.name || 'N/A';
     const topError = summary.topAlert?.name || 'N/A';
     const repeatCount = Number(summary.topAlert?.events || 0).toLocaleString();
+    const mainSubsystem = summary.topSubsystem?.name || 'N/A';
     const actions = (summary.actionCards || []).slice(0, 2).map(card => (card?.title || '').trim()).filter(Boolean);
     const totalEvents = Number(STATE.kpis?.totalEvents || 0).toLocaleString();
     const totalDowntime = formatDuration((Number(STATE.kpis?.totalPlanned || 0) + Number(STATE.kpis?.totalUnplanned || 0)));
@@ -2442,21 +2445,23 @@
     const actionRows = actions.length ? actions.slice(0, 2) : [fallbackAction, 'Assign owner and execute within this shift'];
     const [primaryAction, secondaryAction] = [actionRows[0] || fallbackAction, actionRows[1] || 'Assign owner and execute within this shift'];
     document.getElementById('executiveSummaryCard').innerHTML = `
-      <div class="chart-head"><h3>Executive Situation Overview</h3></div>
+      <div class="chart-head"><h3>Decision Banner</h3></div>
       <section class="exec-decision-panel">
-        <div class="exec-row">
+        <div class="exec-row" style="gap:10px;flex-wrap:wrap;">
           <span class="exec-severity ${statusClass}">${esc(summary.status || 'WATCH')}</span>
-          <span class="exec-separator">—</span>
-          <div class="exec-headline">${esc(topPress)} | ${esc(topError)}</div>
+          <span><strong>Top Press:</strong> ${esc(topPress)}</span>
+          <span><strong>Top Error:</strong> ${esc(topError)}</span>
         </div>
-        <div class="exec-row exec-metrics-line">
+        <div class="exec-row exec-metrics-line" style="gap:8px;flex-wrap:wrap;">
           <span>Events: ${totalEvents}</span>
           <span>•</span>
-          <span>Repeats: ${repeatCount}</span>
+          <span>Error repeats: ${repeatCount}</span>
           <span>•</span>
           <span>Downtime: ${totalDowntime}</span>
+          <span>•</span>
+          <span>Main subsystem: ${esc(mainSubsystem)}</span>
         </div>
-        <div class="exec-action-line">
+        <div class="exec-action-line" style="margin-top:8px;">
           <div class="exec-action-item">${esc(primaryAction)}</div>
           <div class="exec-action-item">${esc(secondaryAction)}</div>
         </div>
@@ -3122,9 +3127,9 @@
     const maxImpact = impactValues.length ? Math.max(...impactValues) : 0;
     const dotRadiusForRow = (row = {}) => {
       const impact = Number(row.avgDurationSeconds || row.severityScore || 0);
-      if (!Number.isFinite(impact) || maxImpact <= minImpact) return 5;
+      if (!Number.isFinite(impact) || maxImpact <= minImpact) return 8;
       const normalized = (impact - minImpact) / Math.max(1e-9, (maxImpact - minImpact));
-      return 4 + (normalized * 7);
+      return 6 + (normalized * 14);
     };
     replaceChart('pressImpactScatterChart', {
       type: 'scatter',
@@ -3143,7 +3148,7 @@
             zoneColor: row.zoneColor
           })),
           pointRadius: ctx => dotRadiusForRow(ctx.raw || {}),
-          pointHoverRadius: ctx => dotRadiusForRow(ctx.raw || {}) + 1.5,
+          pointHoverRadius: ctx => dotRadiusForRow(ctx.raw || {}) + 2.5,
           pointBackgroundColor: ctx => (ctx.raw?.zoneColor || 'rgba(183,198,222,.44)'),
           pointBorderColor: ctx => labelWhitelist.has(ctx.raw?.name) ? 'rgba(232,241,255,.92)' : 'rgba(183,198,222,.35)',
           pointBorderWidth: ctx => labelWhitelist.has(ctx.raw?.name) ? 1.8 : 1
@@ -3250,7 +3255,7 @@
       }]
     });
     const note = document.getElementById('pressScatterNote');
-    if (note) note.textContent = `Split lines use scoped averages: events on X and duration on Y. Colors mark each press zone; only Zone Highlights are outlined and labeled by press ID.`;
+    if (note) note.innerHTML = `Split lines use scoped averages: events on X, duration on Y.<br />Colors map zone meaning; only Zone Highlights get outline + press ID labels.`;
   }
 
   function renderPressOutliersList(model) {
@@ -3328,11 +3333,13 @@
     STATE.customerVolumeLookup = new Map();
     volumeAggRows.forEach(r => {
       const entityKey = r.canonicalPress || 'Unspecified';
-      const slot = byPress.get(entityKey) || { entityKey, displayLabel: entityKey, canonicalPress: entityKey, productionPrintedSheets: 0, printedSheets: 0, printedFlats: 0, maintenanceVolume: 0, wastePrintedSheets: 0, customers: new Set(), models: new Set(), sourceRows: 0 };
+      const slot = byPress.get(entityKey) || { entityKey, displayLabel: entityKey, canonicalPress: entityKey, totalVolume: 0, productionPrintedSheets: 0, printedSheets: 0, printedFlats: 0, maintenanceVolume: 0, wasteVolume: 0, wastePrintedSheets: 0, customers: new Set(), models: new Set(), sourceRows: 0 };
+      slot.totalVolume += r.totalVolume || 0;
       slot.productionPrintedSheets += r.productionPrintedSheets || 0;
       slot.printedSheets += r.printedSheets || 0;
       slot.printedFlats += r.printedFlats || 0;
       slot.maintenanceVolume += r.maintenanceVolume || 0;
+      slot.wasteVolume += r.wasteVolume || 0;
       slot.wastePrintedSheets += r.wastePrintedSheets || 0;
       if (r.customer) slot.customers.add(r.customer);
       if (r.canonicalModel) slot.models.add(r.canonicalModel);
@@ -4352,11 +4359,37 @@
     ), 0);
     const wasteFromAggRows = (sourceScope.volumeAgg || []).reduce((sum, row) => sum + Number(row?.wastePrintedSheets || 0), 0);
     const wastePlottedInChart = totalWasteInScope;
+    const wasteByPressRaw = (sourceScope.filteredVolumeRowsNative || []).reduce((map, row) => {
+      const press = row?.canonicalPress || 'Unspecified';
+      const waste = isSpecialJobType(row?.jobType) ? Number(row?.printedSheets || 0) : 0;
+      map.set(press, (map.get(press) || 0) + waste);
+      return map;
+    }, new Map());
+    const wasteByPressAgg = (sourceScope.volumeAgg || []).reduce((map, row) => {
+      const press = row?.canonicalPress || 'Unspecified';
+      map.set(press, (map.get(press) || 0) + Number(row?.wastePrintedSheets || 0));
+      return map;
+    }, new Map());
+    const wasteByPressChart = (customerVolumeRows || []).reduce((map, row) => {
+      const press = row?.canonicalPress || row?.entityKey || 'Unspecified';
+      map.set(press, (map.get(press) || 0) + Number(row?.wastePrintedSheets || 0));
+      return map;
+    }, new Map());
+    const wasteMismatches = [...new Set([...wasteByPressRaw.keys(), ...wasteByPressAgg.keys(), ...wasteByPressChart.keys()])]
+      .filter(press => {
+        const raw = wasteByPressRaw.get(press) || 0;
+        const agg = wasteByPressAgg.get(press) || 0;
+        const chart = wasteByPressChart.get(press) || 0;
+        return Math.abs(raw - agg) > 1e-6 || Math.abs(agg - chart) > 1e-6;
+      });
     console.info('[waste-validation-debug]', {
       uniqueNormalizedJobTypes: normalizedJobTypes,
       totalWasteFromRawRows: wasteFromRawRows,
       totalWasteFromVolumeAgg: wasteFromAggRows,
-      totalWastePlottedInChart: wastePlottedInChart
+      totalWastePlottedInChart: wastePlottedInChart,
+      parityPass: Math.abs(wasteFromRawRows - wasteFromAggRows) < 1e-6 && Math.abs(wasteFromAggRows - wastePlottedInChart) < 1e-6 && wasteMismatches.length === 0,
+      mismatchedPressCount: wasteMismatches.length,
+      mismatchedPressesPreview: wasteMismatches.slice(0, 12)
     });
     if (totalWasteInScope <= 0) {
       const hasVolumeRows = (sourceScope.filteredVolumeRowsNative || []).length > 0;
@@ -4369,7 +4402,7 @@
       console.info('[waste-debug] no waste detected after normalization and mapping verification', { reason });
     }
     if (!customerVolumeRendered) setCanvasState('customerVolumeChart', 'Chart library failed to load. Charts cannot render.', 'error');
-    document.getElementById('customerVolumeNote').textContent = `${STATE.customerVolumeExpanded ? 'Full press ranking' : 'Top 12'} stacked volume bars (${STATE.customerVolumeSort === 'asc' ? 'lowest first' : 'highest first'}): solid green = good volume, top segment = waste (Special job_type after normalized trim+lowercase). Tiny waste remains visible while tooltip values stay exact.`;
+    document.getElementById('customerVolumeNote').textContent = `${STATE.customerVolumeExpanded ? 'Full press ranking' : 'Top 12'} stacked bars (${STATE.customerVolumeSort === 'asc' ? 'lowest first' : 'highest first'}): green base = good volume; top segment = waste from normalized Special job_type rows.`;
     document.getElementById('customerVolumeExpand').textContent = STATE.customerVolumeExpanded ? 'Collapse' : 'Show all';
     console.info('[consistency-debug] print-volume-chart-plot', {
       source: 'volumeAgg',
