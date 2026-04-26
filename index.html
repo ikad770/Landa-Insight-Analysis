@@ -2034,6 +2034,15 @@
     return `${m}m`;
   }
 
+  function formatCompactNumber(value) {
+    const num = Number(value || 0);
+    if (!Number.isFinite(num)) return '0';
+    const abs = Math.abs(num);
+    if (abs >= 1000000) return `${(num / 1000000).toFixed(1).replace(/\.0$/, '')}M`;
+    if (abs >= 1000) return `${(num / 1000).toFixed(1).replace(/\.0$/, '')}K`;
+    return Math.round(num).toLocaleString();
+  }
+
   function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], topSubsystems = [], topErrors = [] } = {}) {
     const asPct = (num, den) => den > 0 ? ((num / den) * 100) : 0;
     const leaderSummary = (rows, valueKey, unitLabel, labelPlural) => {
@@ -2115,8 +2124,11 @@
   function buildExecutiveSummary(errorEvents, sourceScope, kpis) {
     const { availabilityAgg = [] } = sourceScope || {};
     const topPressByEvents = aggregateErrorEvents(errorEvents, r => r.press).sort((a, b) => b.events - a.events)[0] || null;
+    const topPressByDowntime = aggregateErrorEvents(errorEvents, r => r.press).sort((a, b) => b.downtime - a.downtime)[0] || null;
     const topSubsystem = aggregateErrorEvents(errorEvents, r => r.subsystem).sort((a, b) => b.events - a.events)[0] || null;
     const topAlert = aggregateErrorEvents(errorEvents, r => (r.name !== 'Unspecified' ? r.name : r.alertTitle)).sort((a, b) => b.events - a.events)[0] || null;
+    const topSubsystemByDowntime = aggregateErrorEvents(errorEvents, r => r.subsystem).sort((a, b) => b.downtime - a.downtime)[0] || null;
+    const topAlertByDowntime = aggregateErrorEvents(errorEvents, r => (r.name !== 'Unspecified' ? r.name : r.alertTitle)).sort((a, b) => b.downtime - a.downtime)[0] || null;
     const downtimeByPress = new Map();
     availabilityAgg.forEach(r => {
       const press = r.canonicalPress || 'Unspecified';
@@ -2148,8 +2160,11 @@
       statusVerdict: overallStatus.verdict,
       statusStyles: overallStatus,
       topPressByEvents,
+      topPressByDowntime,
       topSubsystem,
       topAlert,
+      topSubsystemByDowntime,
+      topAlertByDowntime,
       topErrorDowntimePress,
       topLine,
       downtimeConcentrationPct,
@@ -2432,34 +2447,32 @@
   }
 
   function renderExecutiveSummaryCard(summary) {
-    const tone = summary.statusTone === 'critical' ? 'critical' : summary.statusTone === 'watch' ? 'watch' : 'stable';
-    const statusClass = tone === 'critical' ? 'status-critical' : tone === 'watch' ? 'status-watch' : 'status-stable';
-    const topPress = summary.topPressByEvents?.name || 'N/A';
-    const topError = summary.topAlert?.name || 'N/A';
+    const tone = 'critical';
+    const statusClass = tone === 'critical' ? 'status-critical' : 'status-watch';
+    const topPress = summary.topPressByDowntime?.name || summary.topPressByEvents?.name || 'N/A';
+    const topSubsystem = summary.topSubsystemByDowntime?.name || summary.topSubsystem?.name || 'N/A';
+    const topError = summary.topAlertByDowntime?.name || summary.topAlert?.name || 'N/A';
     const repeatCount = Number(summary.topAlert?.events || 0).toLocaleString();
-    const mainSubsystem = summary.topSubsystem?.name || 'N/A';
-    const actions = (summary.actionCards || []).slice(0, 2).map(card => (card?.title || '').trim()).filter(Boolean);
     const totalEvents = Number(STATE.kpis?.totalEvents || 0).toLocaleString();
     const totalDowntime = formatDuration((Number(STATE.kpis?.totalPlanned || 0) + Number(STATE.kpis?.totalUnplanned || 0)));
-    const fallbackAction = topPress !== 'N/A' ? `Review ${topPress} recurring stops first` : 'Review recurring stops first';
-    const actionRows = actions.length ? actions.slice(0, 2) : [fallbackAction, 'Assign owner and execute within this shift'];
-    const [primaryAction, secondaryAction] = [actionRows[0] || fallbackAction, actionRows[1] || 'Assign owner and execute within this shift'];
+    const primaryAction = topPress !== 'N/A' ? `Stabilize press ${topPress}` : 'Stabilize top downtime press';
+    const secondaryAction = topError !== 'N/A' ? `Eliminate root cause error: ${topError}` : 'Eliminate root cause error';
     document.getElementById('executiveSummaryCard').innerHTML = `
       <div class="chart-head"><h3>Decision Banner</h3></div>
       <section class="exec-decision-panel">
         <div class="exec-row" style="gap:10px;flex-wrap:wrap;">
           <span class="exec-severity ${statusClass}">${esc(summary.status || 'WATCH')}</span>
-          <span><strong>Top Press:</strong> ${esc(topPress)}</span>
-          <span><strong>Top Error:</strong> ${esc(topError)}</span>
+          <span><strong>Top Press (duration):</strong> ${esc(topPress)}</span>
+          <span><strong>Top Subsystem (duration):</strong> ${esc(topSubsystem)}</span>
+          <span><strong>Top Error (duration):</strong> ${esc(topError)}</span>
         </div>
+        <div class="exec-headline">Critical — System instability driven by HIGH DURATION impact</div>
         <div class="exec-row exec-metrics-line" style="gap:8px;flex-wrap:wrap;">
-          <span>Events: ${totalEvents}</span>
+          <span>Total Events: ${totalEvents}</span>
           <span>•</span>
-          <span>Error repeats: ${repeatCount}</span>
+          <span>Total Downtime: ${totalDowntime}</span>
           <span>•</span>
-          <span>Downtime: ${totalDowntime}</span>
-          <span>•</span>
-          <span>Main subsystem: ${esc(mainSubsystem)}</span>
+          <span>Total Repeats: ${repeatCount}</span>
         </div>
         <div class="exec-action-line" style="margin-top:8px;">
           <div class="exec-action-item">${esc(primaryAction)}</div>
@@ -2590,8 +2603,8 @@
 
 
   function wasteRatioColor(wasteRatio) {
-    if (wasteRatio > 0.15) return '#f36b63';
-    if (wasteRatio >= 0.05) return '#f0b165';
+    if (wasteRatio >= 0.05) return '#f36b63';
+    if (wasteRatio >= 0.02) return '#f0d166';
     return '#57c98a';
   }
 
@@ -2602,6 +2615,22 @@
   function isSpecialJobType(jobType) {
     const normalized = normalizeJobType(jobType);
     return normalized === 'special' || normalized === 'special job' || normalized.includes('special');
+  }
+
+  function buildVolumeAggregates(volumeRows = []) {
+    let totalSheets = 0;
+    let wasteSheets = 0;
+    volumeRows.forEach(job => {
+      const sheets = Number(job?.productionPrintedSheets ?? job?.printedSheets ?? 0) || 0;
+      const normalizedJobType = String(job?.jobType || '').trim().toLowerCase();
+      if (normalizedJobType === 'special') wasteSheets += sheets;
+      totalSheets += sheets;
+    });
+    return {
+      totalSheets,
+      wasteSheets,
+      goodSheets: Math.max(0, totalSheets - wasteSheets)
+    };
   }
 
   function buildEntityMetricBundle(patch = {}) {
@@ -2964,7 +2993,7 @@
           }
         }
       },
-      plugins: isPressImpactChart ? [{
+      plugins: (isPressImpactChart ? [{
         id: `${key}-duration-labels`,
         afterDatasetsDraw(chart) {
           const { ctx } = chart;
@@ -2981,7 +3010,30 @@
           });
           ctx.restore();
         }
-      }] : []
+      }] : []).concat([{
+        id: `${key}-value-labels`,
+        afterDatasetsDraw(chart) {
+          const { ctx } = chart;
+          const datasetMeta = chart.getDatasetMeta(0);
+          if (!datasetMeta?.data?.length) return;
+          const values = datasetMeta._dataset?.data || [];
+          const maxValue = Math.max(0, ...values.map(v => Number(v || 0)));
+          ctx.save();
+          ctx.font = '600 11px Inter, system-ui, sans-serif';
+          datasetMeta.data.forEach((bar, idx) => {
+            const rawValue = Number(values[idx] || 0);
+            if (!Number.isFinite(rawValue) || rawValue <= 0) return;
+            const label = formatCompactNumber(rawValue);
+            const inside = maxValue > 0 && rawValue >= (maxValue * 0.22);
+            ctx.fillStyle = inside ? '#0f1725' : '#dbe7f8';
+            ctx.textAlign = 'left';
+            const x = inside ? (bar.x - 38) : (bar.x + 6);
+            const y = bar.y + 4;
+            ctx.fillText(label, x, y);
+          });
+          ctx.restore();
+        }
+      }])
     });
     if (!rendered && !view.length) setRankingChartEmptyState(key, 'No ranking data available for current filters/metric.');
     document.querySelector(`[data-rank-card="${key}"] .micro`).textContent = isPressImpactChart
@@ -3017,10 +3069,10 @@
     const avgEvents = eligibleRows.reduce((sum, row) => sum + (row.totalEvents || 0), 0) / eligibleRows.length;
     const avgTotalDuration = eligibleRows.reduce((sum, row) => sum + (row.totalDurationSeconds || 0), 0) / eligibleRows.length;
     const zoneMap = {
-      critical: { label: 'CRITICAL', color: 'rgba(255,66,66,.95)' },
-      inefficient: { label: 'INEFFICIENT', color: 'rgba(240,177,101,.45)' },
-      stable: { label: 'STABLE', color: 'rgba(87,201,138,.45)' },
-      noisy: { label: 'NOISY', color: 'rgba(123,141,255,.45)' }
+      critical: { label: 'CRITICAL', color: 'rgba(243,107,99,.95)' },
+      inefficient: { label: 'INEFFICIENT', color: 'rgba(240,177,101,.92)' },
+      stable: { label: 'STABLE', color: 'rgba(87,201,138,.9)' },
+      noisy: { label: 'NOISY', color: 'rgba(111,140,255,.9)' }
     };
     const withZone = eligibleRows.map(row => {
       const highEvents = (row.totalEvents || 0) >= avgEvents;
@@ -3121,15 +3173,18 @@
       return m ? m[0].toUpperCase() : '';
     };
     const highlightRows = computeZoneHighlightRows(rows);
-    const labelWhitelist = new Set(highlightRows.map(row => row.name));
-    const impactValues = rows.map(row => Number(row.avgDurationSeconds || row.severityScore || 0)).filter(Number.isFinite);
+    const labelWhitelist = new Set([
+      ...highlightRows.map(row => row.name),
+      ...rows.filter(row => row.zoneKey === 'critical').map(row => row.name)
+    ]);
+    const impactValues = rows.map(row => Number(row.avgDurationSeconds || row.totalDurationSeconds || 0)).filter(Number.isFinite);
     const minImpact = impactValues.length ? Math.min(...impactValues) : 0;
     const maxImpact = impactValues.length ? Math.max(...impactValues) : 0;
     const dotRadiusForRow = (row = {}) => {
-      const impact = Number(row.avgDurationSeconds || row.severityScore || 0);
-      if (!Number.isFinite(impact) || maxImpact <= minImpact) return 8;
+      const impact = Number(row.avgDurationSeconds || row.totalDurationSeconds || 0);
+      if (!Number.isFinite(impact) || maxImpact <= minImpact) return 10;
       const normalized = (impact - minImpact) / Math.max(1e-9, (maxImpact - minImpact));
-      return 6 + (normalized * 14);
+      return 6 + (normalized * 22);
     };
     replaceChart('pressImpactScatterChart', {
       type: 'scatter',
@@ -3255,7 +3310,7 @@
       }]
     });
     const note = document.getElementById('pressScatterNote');
-    if (note) note.innerHTML = `Split lines use scoped averages: events on X, duration on Y.<br />Colors map zone meaning; only Zone Highlights get outline + press ID labels.`;
+    if (note) note.textContent = 'Events vs duration; color = impact zone.';
   }
 
   function renderPressOutliersList(model) {
@@ -3357,7 +3412,66 @@
       parentContext: { path: [] }
     })).sort((a, b) => (a[metric] - b[metric]) * dir);
     const fullRows = sorted;
-    return { chartRows: sorted.slice(0, expanded ? sorted.length : 12), fullRows };
+    const withAggregateSheets = fullRows.map(row => {
+      const jobsForPress = (STATE.lastSourceScope?.filteredVolumeRowsNative || []).filter(job => (job.canonicalPress || 'Unspecified') === row.entityKey);
+      const volumeTotals = buildVolumeAggregates(jobsForPress);
+      return { ...row, ...volumeTotals };
+    });
+    return { chartRows: withAggregateSheets.slice(0, expanded ? withAggregateSheets.length : 12), fullRows: withAggregateSheets };
+  }
+
+  function renderVolumeByPressChart(customerVolumeRows = []) {
+    const labels = customerVolumeRows.map(r => r.displayLabel);
+    const totalVolumeValues = customerVolumeRows.map(r => Math.max(0, Number(r.totalSheets || r.totalVolume || r.printedSheets || 0)));
+    const wasteValues = customerVolumeRows.map(r => Math.max(0, Number(r.wasteSheets || r.wastePrintedSheets || 0)));
+    const goodVolumeValues = totalVolumeValues.map((total, idx) => Math.max(0, total - wasteValues[idx]));
+    const wasteRatios = totalVolumeValues.map((total, idx) => total > 0 ? (wasteValues[idx] / total) : 0);
+    const wasteColors = wasteRatios.map(wasteRatioColor);
+    return replaceChart('customerVolumeChart', {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [
+          { label: 'Good Volume', stack: 'volume', data: goodVolumeValues, backgroundColor: '#57c98a', borderColor: '#57c98a', borderWidth: 1, borderRadius: { topLeft: 0, topRight: 0, bottomLeft: 5, bottomRight: 5 } },
+          { label: 'Waste', stack: 'volume', data: wasteValues, backgroundColor: wasteColors, borderColor: wasteColors, borderWidth: 1, borderRadius: { topLeft: 5, topRight: 5, bottomLeft: 0, bottomRight: 0 }, minBarLength: 3 }
+        ]
+      },
+      options: {
+        ...baseOptions('customerVolume', labels, customerVolumeRows),
+        scales: { x: { stacked: true, ticks: { color: '#c6d3ea' }, grid: { color: 'rgba(255,255,255,.04)' } }, y: { stacked: true, ticks: { color: '#c6d3ea' }, grid: { color: 'rgba(255,255,255,.04)' }, beginAtZero: true } },
+        plugins: {
+          legend: { display: true, labels: { color: '#c6d3ea' } },
+          tooltip: { callbacks: { title: ctx => `Press: ${ctx?.[0]?.label || 'N/A'}`, label: ctx => {
+            const row = customerVolumeRows?.[ctx.dataIndex] || {};
+            const total = Number(row.totalSheets || row.totalVolume || row.printedSheets || 0);
+            const waste = Number(row.wasteSheets || row.wastePrintedSheets || 0);
+            const good = Math.max(0, total - waste);
+            const ratio = total > 0 ? ((waste / total) * 100) : 0;
+            return [`Total Volume: ${total.toLocaleString()}`, `Waste: ${waste.toLocaleString()}`, `Waste %: ${ratio.toFixed(1)}%`, `Good Volume: ${good.toLocaleString()}`];
+          } }, filter: ctx => ctx.datasetIndex === 0 }
+        }
+      },
+      plugins: [{
+        id: 'volume-value-labels',
+        afterDatasetsDraw(chart) {
+          const { ctx } = chart;
+          const meta = chart.getDatasetMeta(0);
+          const vals = meta?._dataset?.data || [];
+          const max = Math.max(0, ...vals.map(v => Number(v || 0)));
+          ctx.save();
+          ctx.font = '600 11px Inter, system-ui, sans-serif';
+          vals.forEach((v, i) => {
+            const bar = meta.data[i];
+            const n = Number(v || 0);
+            if (!bar || !Number.isFinite(n) || n <= 0) return;
+            const inside = n >= max * 0.22;
+            ctx.fillStyle = inside ? '#102035' : '#dbe7f8';
+            ctx.fillText(formatCompactNumber(n), inside ? bar.x - 34 : bar.x + 6, bar.y + 4);
+          });
+          ctx.restore();
+        }
+      }]
+    });
   }
 
   function eventValueForDimension(row, dimension) {
@@ -3554,6 +3668,12 @@
     if (!rows.length) {
       setStatus('No deeper data available', 'warning');
       return;
+    }
+    if (sourceType === 'volumeJobs') {
+      const drilldownSpecial = rows.reduce((sum, row) => sum + (normalizeJobType(row?.jobType) === 'special' ? Number(row?.printedSheets || row?.productionPrintedSheets || 0) : 0), 0);
+      const mainChartWaste = (STATE.customerVolumeRows || []).reduce((sum, row) => sum + Number(row?.wasteSheets || row?.wastePrintedSheets || 0), 0);
+      if (drilldownSpecial > 0 && mainChartWaste <= 0) console.error('WASTE PIPELINE ERROR');
+      if (drilldownSpecial > 0 && mainChartWaste <= 0) console.warn('DATA MISMATCH');
     }
     const nextPath = [...prevPath, { dimension, entityKey: payload?.entityKey || value, displayLabel: payload?.displayLabel || value }];
     STATE.drilldown = {
@@ -4282,77 +4402,9 @@
     const { chartRows: customerVolumeRows, fullRows: customerVolumeAllRows } = buildCustomerVolumeChart(sourceScope.volumeAgg, STATE.customerVolumeMetric, STATE.customerVolumeSort, STATE.customerVolumeExpanded);
     STATE.customerVolumeRows = customerVolumeRows;
     STATE.customerVolumeAllRows = customerVolumeAllRows;
-    const labels = customerVolumeRows.map(r => r.displayLabel);
-    const totalVolumeValues = customerVolumeRows.map(r => Math.max(0, Number(r.totalVolume || r.printedSheets || 0)));
-    const wasteValues = customerVolumeRows.map(r => Math.max(0, Number(r.wastePrintedSheets || 0)));
-    const goodVolumeValues = totalVolumeValues.map((total, idx) => Math.max(0, total - wasteValues[idx]));
-    const wasteRatios = totalVolumeValues.map((total, idx) => total > 0 ? (wasteValues[idx] / total) : 0);
-    const wasteColors = wasteRatios.map(wasteRatioColor);
-    const customerVolumeRendered = replaceChart('customerVolumeChart', {
-      type: 'bar',
-      data: {
-        labels,
-        datasets: [
-          {
-            label: 'Good Volume',
-            stack: 'volume',
-            data: goodVolumeValues,
-            backgroundColor: '#57c98a',
-            borderColor: '#57c98a',
-            borderWidth: 1,
-            borderRadius: { topLeft: 0, topRight: 0, bottomLeft: 5, bottomRight: 5 },
-            categoryPercentage: 0.72,
-            barPercentage: 0.9
-          },
-          {
-            label: 'Waste',
-            stack: 'volume',
-            data: wasteValues,
-            backgroundColor: wasteColors,
-            borderColor: wasteColors,
-            borderWidth: 1,
-            borderRadius: { topLeft: 5, topRight: 5, bottomLeft: 0, bottomRight: 0 },
-            minBarLength: 3,
-            categoryPercentage: 0.72,
-            barPercentage: 0.9
-          }
-        ]
-      },
-      options: {
-        ...baseOptions('customerVolume', labels, customerVolumeRows),
-        scales: {
-          x: { stacked: true, ticks: { color: '#c6d3ea' }, grid: { color: 'rgba(255,255,255,.04)' } },
-          y: { stacked: true, ticks: { color: '#c6d3ea' }, grid: { color: 'rgba(255,255,255,.04)' }, beginAtZero: true }
-        },
-        plugins: {
-          legend: { display: true, labels: { color: '#c6d3ea' } },
-          tooltip: {
-            callbacks: {
-              title: ctx => `Press: ${ctx?.[0]?.label || 'N/A'}`,
-              label: ctx => {
-                const row = customerVolumeRows?.[ctx.dataIndex] || {};
-                const total = Number(row.totalVolume || row.printedSheets || 0);
-                const waste = Number(row.wastePrintedSheets || 0);
-                const good = Math.max(0, total - waste);
-                const ratio = total > 0 ? ((waste / total) * 100) : 0;
-                const ratioBand = ratio > 15 ? 'High waste' : ratio >= 5 ? 'Watch waste' : 'Healthy waste';
-                return [
-                  `Press: ${row.displayLabel || 'N/A'}`,
-                  `Total Volume: ${total.toLocaleString()}`,
-                  `Waste: ${waste.toLocaleString()}`,
-                  `Good Volume: ${good.toLocaleString()}`,
-                  `Waste %: ${ratio.toFixed(1)}%`,
-                  `Waste Band: ${ratioBand}`
-                ];
-              }
-            },
-            filter: ctx => ctx.datasetIndex === 0
-          }
-        }
-      }
-    });
+    const customerVolumeRendered = renderVolumeByPressChart(customerVolumeRows);
     if (!customerVolumeRows.length) setCanvasState('customerVolumeChart', 'No print volume rows after source-native scope (volume owns press/day and native job metadata).');
-    const totalWasteInScope = wasteValues.reduce((sum, value) => sum + Number(value || 0), 0);
+    const totalWasteInScope = customerVolumeRows.reduce((sum, row) => sum + Number(row.wasteSheets || row.wastePrintedSheets || 0), 0);
     const normalizedJobTypes = [...new Set((sourceScope.filteredVolumeRowsNative || []).map(row => normalizeJobType(row?.jobType)).filter(Boolean))].sort();
     const wasteFromRawRows = (sourceScope.filteredVolumeRowsNative || []).reduce((sum, row) => (
       sum + (isSpecialJobType(row?.jobType) ? Number(row?.printedSheets || 0) : 0)
@@ -4391,6 +4443,10 @@
       mismatchedPressCount: wasteMismatches.length,
       mismatchedPressesPreview: wasteMismatches.slice(0, 12)
     });
+    if (wasteFromRawRows > 0 && totalWasteInScope <= 0) {
+      console.error('WASTE ERROR');
+      console.error('WASTE PIPELINE ERROR');
+    }
     if (totalWasteInScope <= 0) {
       const hasVolumeRows = (sourceScope.filteredVolumeRowsNative || []).length > 0;
       const hasSpecialRows = (sourceScope.filteredVolumeRowsNative || []).some(r => isSpecialJobType(r.jobType));
@@ -4402,7 +4458,7 @@
       console.info('[waste-debug] no waste detected after normalization and mapping verification', { reason });
     }
     if (!customerVolumeRendered) setCanvasState('customerVolumeChart', 'Chart library failed to load. Charts cannot render.', 'error');
-    document.getElementById('customerVolumeNote').textContent = `${STATE.customerVolumeExpanded ? 'Full press ranking' : 'Top 12'} stacked bars (${STATE.customerVolumeSort === 'asc' ? 'lowest first' : 'highest first'}): green base = good volume; top segment = waste from normalized Special job_type rows.`;
+    document.getElementById('customerVolumeNote').textContent = `${STATE.customerVolumeExpanded ? 'Full press ranking' : 'Top 12'} stacked bars (${STATE.customerVolumeSort === 'asc' ? 'lowest first' : 'highest first'}): base=good volume, top=waste.`;
     document.getElementById('customerVolumeExpand').textContent = STATE.customerVolumeExpanded ? 'Collapse' : 'Show all';
     console.info('[consistency-debug] print-volume-chart-plot', {
       source: 'volumeAgg',
@@ -5067,6 +5123,14 @@
       if (!btn) return;
       const key = toggle.dataset.chartToggle;
       const mode = btn.dataset.mode;
+      if (mode === 'duration') {
+        const hasDuration = (STATE.lastSourceScope?.filteredErrorEventsNative || []).some(r => Number(r?.durationSeconds || 0) > 0);
+        if (!hasDuration) {
+          console.warn('DATA MISMATCH');
+          setStatus('Duration mode unavailable: no duration values in current scope.', 'warning');
+          return;
+        }
+      }
       if (key === 'press') STATE.metricByChart.press = mode === 'events' ? 'events' : 'downtime';
       if (key === 'subsystem') STATE.metricByChart.subsystem = mode === 'duration' ? 'downtime' : 'events';
       if (key === 'alert') STATE.metricByChart.alert = mode === 'duration' ? 'downtime' : 'events';
