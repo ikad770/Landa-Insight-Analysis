@@ -106,19 +106,6 @@
     .chart-area{position:relative;height:240px;min-height:240px}
     .press-analysis-shell { padding:14px; background:linear-gradient(160deg, rgba(16,22,34,.98), rgba(12,18,28,.98)); border-color:rgba(173,194,229,.2); }
     .press-investigation-layout { display:grid; gap:12px; }
-    .press-hero { border:1px solid rgba(255,255,255,.1); border-radius:12px; padding:12px; background:rgba(255,255,255,.02); }
-    .press-hero-badge { display:inline-flex; align-items:center; gap:6px; border-radius:999px; border:1px solid; padding:3px 9px; font-size:.72rem; font-weight:700; }
-    .hero-critical { color:#ffd7d4; background:rgba(243,107,99,.16); border-color:rgba(243,107,99,.55); }
-    .hero-inefficient { color:#ffe5c7; background:rgba(240,177,101,.16); border-color:rgba(240,177,101,.55); }
-    .hero-noisy { color:#dce3ff; background:rgba(111,140,255,.15); border-color:rgba(111,140,255,.52); }
-    .hero-stable { color:#dbffeb; background:rgba(87,201,138,.14); border-color:rgba(87,201,138,.5); }
-    .press-hero-kicker { color:#9db2cf; text-transform:uppercase; letter-spacing:.09em; font-size:.72rem; }
-    .press-hero-title { margin:6px 0 0; font-size:1.2rem; font-weight:730; }
-    .press-hero-summary { margin:8px 0 0; color:#dce6f7; line-height:1.45; font-size:.9rem; }
-    .press-hero-metrics { margin-top:11px; display:grid; grid-template-columns:repeat(4,minmax(120px,1fr)); gap:8px; }
-    .press-hero-metric { border:1px solid rgba(255,255,255,.08); border-radius:10px; padding:9px; background:rgba(0,0,0,.16); }
-    .press-hero-metric .k { font-size:.68rem; }
-    .press-hero-metric .v { margin-top:4px; font-size:.95rem; }
     .press-analytics-grid { display:grid; grid-template-columns: 1.3fr .7fr; gap:14px; align-items:start; }
     .press-side-stack { display:grid; gap:10px; }
     .press-panel { border:1px solid rgba(255,255,255,.1); border-radius:12px; padding:12px; background:rgba(255,255,255,.02); }
@@ -321,7 +308,6 @@
         <div class="chart-head"><h3>Press Abnormality Investigation</h3></div>
         <div class="micro" id="pressValidationNote">Validating scoped duration data before render…</div>
         <section class="press-investigation-layout">
-          <article id="pressHeroInsight" class="press-hero"></article>
           <div class="press-analytics-grid">
             <article class="press-panel press-panel-primary">
         <div class="chart-head"><h3>Press Impact Matrix</h3></div>
@@ -1776,18 +1762,18 @@
       return Math.max(0, ...m.values(), 0);
     })();
     const checks = [
-      ['kpi.totalEvents', kpis.totalEvents, sourceTotals.events],
-      ['kpi.totalDowntime', kpis.totalDowntime, sourceTotals.totalDowntime],
-      ['kpi.totalPlanned', kpis.totalPlanned, sourceTotals.planned],
-      ['kpi.totalUnplanned', kpis.totalUnplanned, sourceTotals.unplanned],
-      ['kpi.totalProdVolume', kpis.totalProdVolume, sourceTotals.productionPrintedSheets],
-      ['kpi.totalMaintenanceVolume', kpis.totalMaintenanceVolume, sourceTotals.maintenanceVolume],
-      ['kpi.totalVolume', kpis.totalVolume, sourceTotals.totalVolume],
-      ['summary.topPressByEvents.events', summary?.topPressByEvents?.events || 0, topPressEvents],
-      ['chart.customerVolume.total', customerVolumeTotal, filteredVolumeAggForUnit],
+      { label: 'kpi.totalEvents', lhs: kpis.totalEvents, rhs: sourceTotals.events, source: 'errorsAgg.totalEvents', level: 'error' },
+      { label: 'kpi.totalDowntime', lhs: kpis.totalDowntime, rhs: sourceTotals.totalDowntime, source: 'availabilityAgg.totalDowntime', level: 'error' },
+      { label: 'kpi.totalPlanned', lhs: kpis.totalPlanned, rhs: sourceTotals.planned, source: 'availabilityAgg.plannedDowntimeSeconds', level: 'error' },
+      { label: 'kpi.totalUnplanned', lhs: kpis.totalUnplanned, rhs: sourceTotals.unplanned, source: 'availabilityAgg.unplannedDowntimeSeconds', level: 'error' },
+      { label: 'kpi.totalProdVolume', lhs: kpis.totalProdVolume, rhs: sourceTotals.productionPrintedSheets, source: 'volumeAgg.productionPrintedSheets', level: 'error' },
+      { label: 'kpi.totalMaintenanceVolume', lhs: kpis.totalMaintenanceVolume, rhs: sourceTotals.maintenanceVolume, source: 'volumeAgg.maintenanceVolume', level: 'error' },
+      { label: 'kpi.totalVolume', lhs: kpis.totalVolume, rhs: sourceTotals.totalVolume, source: 'volumeAgg.totalVolume', level: 'error' },
+      { label: 'summary.topPressByEvents.events', lhs: summary?.topPressByEvents?.events || 0, rhs: topPressEvents, source: 'summary vs errorsAgg', level: 'error' },
+      { label: 'chart.customerVolume.total', lhs: customerVolumeTotal, rhs: filteredVolumeAggForUnit, source: `customerVolumeRows.${STATE.customerVolumeMetric} vs volumeAgg.${STATE.customerVolumeMetric}`, level: 'warning' },
     ];
-    checks.forEach(([label, lhs, rhs]) => {
-      if (Math.abs((lhs || 0) - (rhs || 0)) > 1e-6) logs.push({ level: 'error', label, lhs, rhs, message: `Mismatch ${label}: ${lhs} !== ${rhs}` });
+    checks.forEach(({ label, lhs, rhs, source, level }) => {
+      if (Math.abs((lhs || 0) - (rhs || 0)) > 1e-6) logs.push({ level, label, lhs, rhs, source, message: `Mismatch ${label}: ${lhs} !== ${rhs}` });
     });
     if (weightedAvailability != null && kpis.availabilityPct != null && Math.abs(weightedAvailability - kpis.availabilityPct) > 1e-6) {
       logs.push({
@@ -2465,7 +2451,7 @@
     const statusClass = tone === 'critical' ? 'status-critical' : tone === 'stable' ? 'status-stable' : 'status-watch';
     const topPress = summary.focusPress || summary.topPressByDowntime?.name || summary.topPressByEvents?.name || 'N/A';
     const topSubsystem = summary.pressTopSubsystem?.name || summary.topSubsystemByDowntime?.name || summary.topSubsystem?.name || 'N/A';
-    const topError = summary.pressTopError?.name || summary.topAlertByDowntime?.name || summary.topAlert?.name || 'N/A';
+    const topError = summary.pressTopError?.name || 'N/A';
     const totalDowntimeSeconds = Number(STATE.kpis?.totalPlanned || 0) + Number(STATE.kpis?.totalUnplanned || 0);
     const topPressDowntime = Number(summary?.topPressByDowntime?.downtime || summary?.topErrorDowntimePress?.downtime || 0);
     const downtimeSignal = totalDowntimeSeconds > 0 ? ((topPressDowntime / totalDowntimeSeconds) * 100) : 0;
@@ -2478,9 +2464,9 @@
       <section class="exec-decision-panel">
         <div class="exec-row" style="gap:10px;flex-wrap:wrap;">
           <span class="exec-severity ${statusClass}">${esc(summary.status || 'WATCH')}</span>
-          <span class="exec-headline">Main risk: <strong>${esc(topPress)}</strong> driven by <strong>${esc(topError)}</strong>.</span>
+          <span class="exec-headline">Main risk: <strong>${esc(topPress)}</strong> driven by <strong>${esc(topError)}</strong> (press-scoped).</span>
         </div>
-        <div class="micro" style="margin:0;">Global driver: <strong>${esc(summary.globalDriver?.name || 'N/A')}</strong> contributing ${Number(summary.globalDriverShare || 0).toFixed(1)}% of total downtime.</div>
+        <div class="micro" style="margin:0;">Global duration driver: <strong>${esc(summary.globalDriver?.name || 'N/A')}</strong> contributing ${Number(summary.globalDriverShare || 0).toFixed(1)}% of total downtime.</div>
         <div class="exec-row" style="gap:8px;flex-wrap:wrap;">
           <span class="impact-chip">Top press: ${esc(topPress)}</span>
           <span class="impact-chip">Top subsystem: ${esc(topSubsystem)}</span>
@@ -2510,14 +2496,24 @@
     const rawErrors = sourceScope?.filteredErrorEventsNative || [];
     const volumeAgg = sourceScope?.volumeAgg || [];
     const rawVolumeRows = sourceScope?.filteredVolumeRowsNative || [];
-    const check = (metric, expected, actual) => {
-      if (Math.abs((expected || 0) - (actual || 0)) > 1e-6) issues.push({ metric, expected, actual, diff: (actual || 0) - (expected || 0) });
+    const check = (metric, expected, actual, source, level = 'error', reason = 'strict-equality-check') => {
+      if (Math.abs((expected || 0) - (actual || 0)) > 1e-6) {
+        issues.push({ metric, expected, actual, diff: (actual || 0) - (expected || 0), source, level, reason });
+      }
     };
-    check('events', rawErrors.length, errorsAgg.reduce((sum, row) => sum + Number(row?.totalEvents || 0), 0));
-    check('duration', rawErrors.reduce((sum, row) => sum + Number(row?.durationSeconds || 0), 0), errorsAgg.reduce((sum, row) => sum + Number(row?.totalErrorDurationSeconds || 0), 0));
-    check('volume', rawVolumeRows.reduce((sum, row) => sum + Number(row?.printedSheets || 0), 0), volumeAgg.reduce((sum, row) => sum + Number(row?.printedSheets || 0), 0));
-    check('volume', volumeAgg.reduce((sum, row) => sum + Number(row?.printedSheets || 0), 0), (customerVolumeRows || []).reduce((sum, row) => sum + Number(row?.totalSheets || row?.totalVolume || 0), 0));
-    return { isValid: issues.length === 0, issues };
+    check('events', rawErrors.length, errorsAgg.reduce((sum, row) => sum + Number(row?.totalEvents || 0), 0), 'errors.rawRows vs errorsAgg.totalEvents');
+    check('duration', rawErrors.reduce((sum, row) => sum + Number(row?.durationSeconds || 0), 0), errorsAgg.reduce((sum, row) => sum + Number(row?.totalErrorDurationSeconds || 0), 0), 'errors.rawRows.durationSeconds vs errorsAgg.totalErrorDurationSeconds');
+    check('volume.raw_to_agg', rawVolumeRows.reduce((sum, row) => sum + Number(row?.printedSheets || 0), 0), volumeAgg.reduce((sum, row) => sum + Number(row?.printedSheets || 0), 0), 'volume.rawRows.printedSheets vs volumeAgg.printedSheets');
+    check(
+      'volume.chart_basis',
+      volumeAgg.reduce((sum, row) => sum + Number(row?.printedSheets || 0), 0),
+      (customerVolumeRows || []).reduce((sum, row) => sum + Number(row?.totalSheets || row?.totalVolume || 0), 0),
+      'volumeAgg.printedSheets vs customerVolume.totalSheets',
+      'warning',
+      'basis-difference-allowed'
+    );
+    const hardIssues = issues.filter(issue => issue.level === 'error');
+    return { isValid: hardIssues.length === 0, issues, hardIssues, warningIssues: issues.filter(issue => issue.level === 'warning') };
   }
 
   function renderDashboardStatusPanel(sourceScope, mismatches = [], reconciliationReport = [], renderValidation = null, globalValidation = null) {
@@ -2533,24 +2529,32 @@
     if (!totals.errors) warnings.push('Errors source has no rows in current filter scope.');
     if (!totals.availability) warnings.push(STATE.normalized.availability?.length ? 'Availability source filtered to zero rows.' : 'Availability source missing.');
     if (!totals.volume) warnings.push(STATE.normalized.volume?.length ? 'Volume source filtered to zero rows.' : 'Volume source missing.');
-    if (mismatches.length) warnings.push(`${mismatches.length} reconciliation mismatch(es) detected.`);
+    const mismatchErrors = (mismatches || []).filter(item => item.level !== 'warning');
+    const mismatchWarnings = (mismatches || []).filter(item => item.level === 'warning');
+    if (mismatchErrors.length) warnings.push(`${mismatchErrors.length} reconciliation error mismatch(es) detected.`);
+    if (mismatchWarnings.length) warnings.push(`${mismatchWarnings.length} reconciliation warning mismatch(es) detected.`);
+    [...mismatchErrors, ...mismatchWarnings].forEach(item => {
+      warnings.push(`${item.level === 'warning' ? 'Warning' : 'Error'} • ${item.label}: expected ${Number(item.rhs || 0).toLocaleString()} vs actual ${Number(item.lhs || 0).toLocaleString()} (source: ${item.source || 'n/a'})`);
+    });
     if (renderValidation && renderValidation.warningCount) warnings.push(`Render validation warning: ${renderValidation.warningCount} check(s).`);
     if (renderValidation && renderValidation.errorCount) warnings.push(`Render validation corruption: ${renderValidation.errorCount} check(s).`);
     (globalValidation?.issues || []).forEach(issue => {
-      warnings.push(`${issue.metric}: expected ${Number(issue.expected || 0).toLocaleString()} vs actual ${Number(issue.actual || 0).toLocaleString()} (diff ${Number(issue.diff || 0).toLocaleString()})`);
+      const prefix = issue.level === 'warning' ? 'Warning' : 'Error';
+      warnings.push(`${prefix} • ${issue.metric}: expected ${Number(issue.expected || 0).toLocaleString()} vs actual ${Number(issue.actual || 0).toLocaleString()} (source: ${issue.source || 'n/a'})`);
     });
-    const level = !totals.errors || (renderValidation?.errorCount > 0) || (globalValidation && !globalValidation.isValid) ? 'red' : 'green';
+    const level = !totals.errors || mismatchErrors.length > 0 || (renderValidation?.errorCount > 0) || (globalValidation && !globalValidation.isValid) ? 'red' : 'green';
+    const hasWarningsOnly = level === 'green' && (globalValidation?.warningIssues?.length || 0) > 0;
     panel.className = `dashboard-status ${level} hidden`;
     if (headerStatus) {
       headerStatus.className = `meta-pill ${level === 'green' ? 'ok' : 'bad'}`;
-      headerStatus.textContent = level === 'green' ? '🟢 Data OK' : '🔴 Data Issue';
+      headerStatus.textContent = level === 'green' ? (hasWarningsOnly ? '🟡 Data Warning' : '🟢 Data OK') : '🔴 Data Issue';
       headerStatus.title = warnings.length
         ? warnings.join(' ')
         : 'Files loaded, schema mapping succeeded, and calculations reconcile.';
     }
     panel.innerHTML = `
       <div class="status-head">
-        <span>${level === 'green' ? '🟢 Data OK' : '🔴 Data Issue'}</span>
+        <span>${level === 'green' ? (hasWarningsOnly ? '🟡 Data Warning' : '🟢 Data OK') : '🔴 Data Issue'}</span>
       </div>
       <div class="status-note">${esc(warnings.length ? warnings[0] : 'Files loaded, schema mapping succeeded, and dashboard reconciles with source calculations.')}</div>
     `;
@@ -3117,7 +3121,7 @@
       critical: { label: 'CRITICAL', color: 'rgba(239,68,68,.9)' },
       inefficient: { label: 'INEFFICIENT', color: 'rgba(249,115,22,.9)' },
       stable: { label: 'STABLE', color: 'rgba(59,130,246,.88)' },
-      noisy: { label: 'NOISY', color: 'rgba(250,204,21,.9)' }
+      noisy: { label: 'NOISY', color: 'rgba(59,130,246,.62)' }
     };
     const withZone = eligibleRows.map(row => {
       const highEvents = (row.totalEvents || 0) >= avgEvents;
@@ -3137,29 +3141,6 @@
       topOutlier: outliers[0] || withZone.slice().sort((a, b) => (b.severityScore || 0) - (a.severityScore || 0))[0] || null,
       averages: { avgTotalDuration, avgEvents }
     };
-  }
-
-  function renderPressHeroInsight(model) {
-    const host = document.getElementById('pressHeroInsight');
-    if (!host) return;
-    const top = model?.topOutlier;
-    const averages = model?.averages;
-    if (!top || !averages) {
-      host.innerHTML = '<div class="press-hero-kicker">Hero Insight</div><p class="press-hero-summary">No abnormal press signal available in current scope.</p>';
-      return;
-    }
-    const badgeClass = `hero-${String(top.zoneKey || 'stable').toLowerCase()}`;
-    host.innerHTML = `
-      <div class="press-hero-kicker">Hero Insight</div>
-      <span class="press-hero-badge ${badgeClass}">${esc(top.zoneLabel || 'STABLE')}</span>
-      <h4 class="press-hero-title">${esc(top.name)}</h4>
-      <p class="press-hero-summary">${esc(top.name)} stands out in the ${esc(top.zoneLabel || 'CRITICAL')} zone, with ${Number(top.totalEvents || 0).toLocaleString()} events and ${formatClockDuration(top.totalDurationSeconds || 0)} total duration in the current scope.</p>
-      <div class="press-hero-metrics">
-        <div class="press-hero-metric"><div class="k">Total Duration</div><div class="v">${formatClockDuration(top.totalDurationSeconds || 0)}</div></div>
-        <div class="press-hero-metric"><div class="k">Total Events</div><div class="v">${Number(top.totalEvents || 0).toLocaleString()}</div></div>
-        <div class="press-hero-metric"><div class="k">Avg Duration / Event</div><div class="v">${formatClockDuration(top.avgDurationSeconds || 0)}</div></div>
-        <div class="press-hero-metric"><div class="k">Impact Zone</div><div class="v">${esc(top.zoneLabel || 'STABLE')}</div></div>
-      </div>`;
   }
 
   function computeZoneHighlightRows(rows = []) {
@@ -3192,9 +3173,9 @@
         ctx.fillRect(chartArea.left, chartArea.top, midX - chartArea.left, midY - chartArea.top);
         ctx.fillStyle = 'rgba(240,177,101,.08)';
         ctx.fillRect(midX, chartArea.top, chartArea.right - midX, midY - chartArea.top);
-        ctx.fillStyle = 'rgba(87,201,138,.07)';
+        ctx.fillStyle = 'rgba(66,133,244,.07)';
         ctx.fillRect(chartArea.left, midY, midX - chartArea.left, chartArea.bottom - midY);
-        ctx.fillStyle = 'rgba(123,141,255,.07)';
+        ctx.fillStyle = 'rgba(59,130,246,.06)';
         ctx.fillRect(midX, midY, chartArea.right - midX, chartArea.bottom - midY);
         ctx.font = '700 11px Inter, system-ui, sans-serif';
         ctx.fillStyle = 'rgba(243,222,220,.92)';
@@ -3203,10 +3184,10 @@
         ctx.fillStyle = 'rgba(247,226,201,.92)';
         ctx.textAlign = 'right';
         ctx.fillText('INEFFICIENT', chartArea.right - 10, chartArea.top + 18);
-        ctx.fillStyle = 'rgba(214,248,230,.92)';
+        ctx.fillStyle = 'rgba(214,232,255,.95)';
         ctx.textAlign = 'left';
         ctx.fillText('STABLE', chartArea.left + 10, chartArea.bottom - 8);
-        ctx.fillStyle = 'rgba(218,224,255,.92)';
+        ctx.fillStyle = 'rgba(205,223,255,.95)';
         ctx.textAlign = 'right';
         ctx.fillText('NOISY', chartArea.right - 10, chartArea.bottom - 8);
         ctx.restore();
@@ -3227,9 +3208,11 @@
     const maxSeverity = severityValues.length ? Math.max(...severityValues) : 0;
     const dotRadiusForRow = (row = {}) => {
       const severity = Number(row.severityScore || 0);
-      if (!Number.isFinite(severity) || maxSeverity <= minSeverity) return 10;
+      if (!Number.isFinite(severity) || maxSeverity <= minSeverity) return 11;
       const normalized = (severity - minSeverity) / Math.max(1e-9, (maxSeverity - minSeverity));
-      return Math.max(6, Math.min(28, 6 + (normalized * 22)));
+      const minRadius = 7;
+      const maxRadius = 18;
+      return Math.max(minRadius, Math.min(maxRadius, minRadius + (normalized * (maxRadius - minRadius))));
     };
     replaceChart('pressImpactScatterChart', {
       type: 'scatter',
@@ -3355,7 +3338,7 @@
       }]
     });
     const note = document.getElementById('pressScatterNote');
-    if (note) note.textContent = 'X=total events • Y=total duration • bubble size = duration × log(events + 1).';
+    if (note) note.textContent = 'X=total events • Y=total duration • bubble size = scoped impact metric (clamped 7–18).';
   }
 
   function renderPressOutliersList(model) {
@@ -3501,7 +3484,7 @@
             const waste = Number(row.wasteSheets || row.wastePrintedSheets || 0);
             const good = Number(row.goodSheets || goodVolumeValues[ctx.dataIndex] || 0);
             const ratio = total > 0 ? ((waste / total) * 100) : 0;
-            return [`Total Volume: ${total.toLocaleString()}`, `Good Volume: ${good.toLocaleString()}`, `Waste: ${waste.toLocaleString()}`, `Waste %: ${ratio.toFixed(1)}%`];
+            return [`Good Volume: ${good.toLocaleString()}`, `Waste: ${waste.toLocaleString()}`, `Waste %: ${ratio.toFixed(1)}%`, `Total Volume: ${total.toLocaleString()}`];
           } }, filter: ctx => ctx.datasetIndex === 0 }
         }
       },
@@ -4459,7 +4442,6 @@
     renderPressValidationNote(pressValidation.diagnostics);
     const pressRankings = buildMetricRankings(sourceScope, STATE.filtered, 'press', errorEvents);
     const pressAbnormalityModel = buildPressAbnormalityModel(pressValidation.rows);
-    renderPressHeroInsight(pressAbnormalityModel);
     renderPressImpactScatter(pressAbnormalityModel);
     renderPressOutliersList(pressAbnormalityModel);
     const subsystemRankings = safeRankingRender('subsystem');
