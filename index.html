@@ -2123,6 +2123,7 @@
 
   function buildExecutiveSummary(errorEvents, sourceScope, kpis) {
     const { availabilityAgg = [] } = sourceScope || {};
+    const selectedPress = (currentFilterValues()?.press && currentFilterValues().press !== 'all') ? currentFilterValues().press : null;
     const topPressByEvents = aggregateErrorEvents(errorEvents, r => r.press).sort((a, b) => b.events - a.events)[0] || null;
     const topPressByDowntime = aggregateErrorEvents(errorEvents, r => r.press).sort((a, b) => b.downtime - a.downtime)[0] || null;
     const topSubsystem = aggregateErrorEvents(errorEvents, r => r.subsystem).sort((a, b) => b.events - a.events)[0] || null;
@@ -2152,7 +2153,14 @@
 
     const overallStatus = deriveOperationalStatus(kpis, downtimeConcentrationPct, unplannedPct);
 
-    const topLine = `Main issue: ${topPressByEvents?.name || 'N/A'} driven by ${topAlert?.name || 'N/A'} \u2192 Action: ${topSubsystem?.name ? `stabilize ${topSubsystem.name}` : 'stabilize top subsystem'}`;
+    const focusPress = selectedPress || topPressByDowntime?.name || topPressByEvents?.name || 'N/A';
+    const pressRows = (errorEvents || []).filter(row => (row?.press || 'Unspecified') === focusPress);
+    const pressTopError = aggregateErrorEvents(pressRows, r => (r.name !== 'Unspecified' ? r.name : r.alertTitle)).sort((a, b) => b.downtime - a.downtime)[0] || null;
+    const pressTopSubsystem = aggregateErrorEvents(pressRows, r => r.subsystem).sort((a, b) => b.downtime - a.downtime)[0] || null;
+    const repeatFailures = pressTopError?.events || 0;
+    const globalDriver = topAlertByDowntime;
+    const globalDriverShare = totalDowntime > 0 ? ((Number(globalDriver?.downtime || 0) / totalDowntime) * 100) : 0;
+    const topLine = `Main issue: ${focusPress} driven by ${pressTopError?.name || 'N/A'} \u2192 Action: ${pressTopSubsystem?.name ? `stabilize ${pressTopSubsystem.name}` : 'stabilize top subsystem'}`;
     return {
       status: overallStatus.label,
       statusTone: overallStatus.tone,
@@ -2167,6 +2175,12 @@
       topAlertByDowntime,
       topErrorDowntimePress,
       topLine,
+      focusPress,
+      pressTopError,
+      pressTopSubsystem,
+      repeatFailures,
+      globalDriver,
+      globalDriverShare,
       downtimeConcentrationPct,
       unplannedPct,
       dominantPressShare,
@@ -2429,15 +2443,15 @@
     const na = 'N/A';
     const rows = {
       core: [
+        ['Production Volume', 'totalProdVolume', Number(k.totalProdVolume || 0).toLocaleString(), 'Production printed sheets'],
+        ['Availability', 'availabilityPct', k.availabilityPct == null ? na : `${k.availabilityPct.toFixed(1)}%`, 'Weighted runtime availability'],
+        ['Total Events', 'totalEvents', k.totalEvents.toLocaleString(), 'Total error events in selected range'],
         ['Total Downtime', 'totalDowntime', formatDuration(k.totalDowntime), 'Planned + unplanned downtime'],
+      ],
+      context: [
         ['MTTR', 'mttr', k.mttr == null ? na : formatDuration(k.mttr), 'Avg repair time per failure event'],
         ['MTBF', 'mtbf', k.mtbf == null ? na : formatDuration(k.mtbf), 'Runtime / failure events'],
         ['Output Efficiency', 'outputEfficiency', k.outputEfficiency == null ? na : Math.round(k.outputEfficiency).toLocaleString(), 'Sheets per downtime hour'],
-      ],
-      context: [
-        ['Total Events', 'totalEvents', k.totalEvents.toLocaleString(), 'Total error events in selected range'],
-        ['Production Volume', 'totalProdVolume', Number(k.totalProdVolume || 0).toLocaleString(), 'Production printed sheets'],
-        ['Availability', 'availabilityPct', k.availabilityPct == null ? na : `${k.availabilityPct.toFixed(1)}%`, 'Weighted runtime availability'],
       ]
     };
     const toCard = ([label, metricKey, value, subtitle]) => `<article class="kpi clickable" role="button" tabindex="0" data-kpi-metric="${metricKey}"><div class="k">${label}</div><div class="v">${value}</div><div class="kpi-sub">${subtitle}</div></article>`;
@@ -2449,9 +2463,9 @@
   function renderExecutiveSummaryCard(summary) {
     const tone = summary?.statusTone || 'watch';
     const statusClass = tone === 'critical' ? 'status-critical' : tone === 'stable' ? 'status-stable' : 'status-watch';
-    const topPress = summary.topPressByDowntime?.name || summary.topPressByEvents?.name || 'N/A';
-    const topSubsystem = summary.topSubsystemByDowntime?.name || summary.topSubsystem?.name || 'N/A';
-    const topError = summary.topAlertByDowntime?.name || summary.topAlert?.name || 'N/A';
+    const topPress = summary.focusPress || summary.topPressByDowntime?.name || summary.topPressByEvents?.name || 'N/A';
+    const topSubsystem = summary.pressTopSubsystem?.name || summary.topSubsystemByDowntime?.name || summary.topSubsystem?.name || 'N/A';
+    const topError = summary.pressTopError?.name || summary.topAlertByDowntime?.name || summary.topAlert?.name || 'N/A';
     const totalDowntimeSeconds = Number(STATE.kpis?.totalPlanned || 0) + Number(STATE.kpis?.totalUnplanned || 0);
     const topPressDowntime = Number(summary?.topPressByDowntime?.downtime || summary?.topErrorDowntimePress?.downtime || 0);
     const downtimeSignal = totalDowntimeSeconds > 0 ? ((topPressDowntime / totalDowntimeSeconds) * 100) : 0;
@@ -2464,8 +2478,9 @@
       <section class="exec-decision-panel">
         <div class="exec-row" style="gap:10px;flex-wrap:wrap;">
           <span class="exec-severity ${statusClass}">${esc(summary.status || 'WATCH')}</span>
-          <span class="exec-headline">Main risk: <strong>${esc(topPress)}</strong> impacted by <strong>${esc(topError)}</strong> causing high downtime.</span>
+          <span class="exec-headline">Main risk: <strong>${esc(topPress)}</strong> driven by <strong>${esc(topError)}</strong>.</span>
         </div>
+        <div class="micro" style="margin:0;">Global driver: <strong>${esc(summary.globalDriver?.name || 'N/A')}</strong> contributing ${Number(summary.globalDriverShare || 0).toFixed(1)}% of total downtime.</div>
         <div class="exec-row" style="gap:8px;flex-wrap:wrap;">
           <span class="impact-chip">Top press: ${esc(topPress)}</span>
           <span class="impact-chip">Top subsystem: ${esc(topSubsystem)}</span>
@@ -2473,7 +2488,7 @@
         </div>
         <div class="exec-row exec-metrics-line" style="gap:8px;flex-wrap:wrap;">
           <span>Events: ${(summary?.totalEvents || STATE.kpis?.totalEvents || 0).toLocaleString()}</span>
-          <span>• Repeats: ${(summary?.topAlertByDowntime?.events || summary?.topAlert?.events || 0).toLocaleString()}</span>
+          <span title="Recurring identical error events in the scoped press.">• Repeat failures: ${(summary?.repeatFailures || summary?.topAlertByDowntime?.events || summary?.topAlert?.events || 0).toLocaleString()}</span>
           <span>• Downtime: ${totalDowntime}</span>
         </div>
         <div class="exec-action-line" style="margin-top:8px;">
@@ -2489,7 +2504,23 @@
       <div class="micro">Risk-based prioritization is disabled (pending formal risk model definition). Dashboard is operating in events-first mode.</div>`;
   }
 
-  function renderDashboardStatusPanel(sourceScope, mismatches = [], reconciliationReport = [], renderValidation = null) {
+  function buildGlobalDataValidation(sourceScope = {}, customerVolumeRows = []) {
+    const issues = [];
+    const errorsAgg = sourceScope?.errorsAgg || [];
+    const rawErrors = sourceScope?.filteredErrorEventsNative || [];
+    const volumeAgg = sourceScope?.volumeAgg || [];
+    const rawVolumeRows = sourceScope?.filteredVolumeRowsNative || [];
+    const check = (metric, expected, actual) => {
+      if (Math.abs((expected || 0) - (actual || 0)) > 1e-6) issues.push({ metric, expected, actual, diff: (actual || 0) - (expected || 0) });
+    };
+    check('events', rawErrors.length, errorsAgg.reduce((sum, row) => sum + Number(row?.totalEvents || 0), 0));
+    check('duration', rawErrors.reduce((sum, row) => sum + Number(row?.durationSeconds || 0), 0), errorsAgg.reduce((sum, row) => sum + Number(row?.totalErrorDurationSeconds || 0), 0));
+    check('volume', rawVolumeRows.reduce((sum, row) => sum + Number(row?.printedSheets || 0), 0), volumeAgg.reduce((sum, row) => sum + Number(row?.printedSheets || 0), 0));
+    check('volume', volumeAgg.reduce((sum, row) => sum + Number(row?.printedSheets || 0), 0), (customerVolumeRows || []).reduce((sum, row) => sum + Number(row?.totalSheets || row?.totalVolume || 0), 0));
+    return { isValid: issues.length === 0, issues };
+  }
+
+  function renderDashboardStatusPanel(sourceScope, mismatches = [], reconciliationReport = [], renderValidation = null, globalValidation = null) {
     const panel = document.getElementById('dashboardStatusPanel');
     const headerStatus = document.getElementById('headerDataStatus');
     if (!panel) return;
@@ -2505,7 +2536,10 @@
     if (mismatches.length) warnings.push(`${mismatches.length} reconciliation mismatch(es) detected.`);
     if (renderValidation && renderValidation.warningCount) warnings.push(`Render validation warning: ${renderValidation.warningCount} check(s).`);
     if (renderValidation && renderValidation.errorCount) warnings.push(`Render validation corruption: ${renderValidation.errorCount} check(s).`);
-    const level = !totals.errors || (renderValidation?.errorCount > 0) ? 'red' : 'green';
+    (globalValidation?.issues || []).forEach(issue => {
+      warnings.push(`${issue.metric}: expected ${Number(issue.expected || 0).toLocaleString()} vs actual ${Number(issue.actual || 0).toLocaleString()} (diff ${Number(issue.diff || 0).toLocaleString()})`);
+    });
+    const level = !totals.errors || (renderValidation?.errorCount > 0) || (globalValidation && !globalValidation.isValid) ? 'red' : 'green';
     panel.className = `dashboard-status ${level} hidden`;
     if (headerStatus) {
       headerStatus.className = `meta-pill ${level === 'green' ? 'ok' : 'bad'}`;
@@ -2607,9 +2641,10 @@
 
 
   function wasteRatioColor(wasteRatio) {
-    if (wasteRatio >= 0.05) return '#f36b63';
-    if (wasteRatio >= 0.02) return '#f59e0b';
-    return '#14b8a6';
+    if (wasteRatio >= 0.08) return '#1d4ed8';
+    if (wasteRatio >= 0.04) return '#2563eb';
+    if (wasteRatio >= 0.02) return '#3b82f6';
+    return '#60a5fa';
   }
 
   function normalizeJobType(jobType) {
@@ -3079,10 +3114,10 @@
     const avgEvents = eligibleRows.reduce((sum, row) => sum + (row.totalEvents || 0), 0) / eligibleRows.length;
     const avgTotalDuration = eligibleRows.reduce((sum, row) => sum + (row.totalDurationSeconds || 0), 0) / eligibleRows.length;
     const zoneMap = {
-      critical: { label: 'CRITICAL', color: 'rgba(243,107,99,.95)' },
-      inefficient: { label: 'INEFFICIENT', color: 'rgba(240,177,101,.92)' },
-      stable: { label: 'STABLE', color: 'rgba(87,201,138,.9)' },
-      noisy: { label: 'NOISY', color: 'rgba(111,140,255,.9)' }
+      critical: { label: 'CRITICAL', color: 'rgba(239,68,68,.9)' },
+      inefficient: { label: 'INEFFICIENT', color: 'rgba(249,115,22,.9)' },
+      stable: { label: 'STABLE', color: 'rgba(59,130,246,.88)' },
+      noisy: { label: 'NOISY', color: 'rgba(250,204,21,.9)' }
     };
     const withZone = eligibleRows.map(row => {
       const highEvents = (row.totalEvents || 0) >= avgEvents;
@@ -3092,7 +3127,7 @@
           : !highEvents && !highDuration ? 'stable'
             : 'noisy';
       const zone = zoneMap[zoneKey];
-      const severityScore = highDuration ? ((row.totalDurationSeconds || 0) / Math.max(1, avgTotalDuration)) : ((row.totalEvents || 0) / Math.max(1, avgEvents));
+      const severityScore = Number(row.totalDurationSeconds || 0) * Math.log((Number(row.totalEvents || 0)) + 1);
       return { ...row, zoneKey, zoneLabel: zone.label, zoneColor: zone.color, severityScore };
     });
     const outliers = withZone.filter(row => row.zoneKey === 'critical' || row.zoneKey === 'inefficient').sort((a, b) => (b.severityScore || 0) - (a.severityScore || 0));
@@ -3183,10 +3218,7 @@
       return m ? m[0].toUpperCase() : '';
     };
     const highlightRows = computeZoneHighlightRows(rows);
-    const labelWhitelist = new Set([
-      ...highlightRows.map(row => row.name),
-      ...rows.filter(row => row.zoneKey === 'critical').map(row => row.name)
-    ]);
+    const labelWhitelist = new Set(highlightRows.map(row => row.name));
     const impactValues = rows.map(row => Number(row.avgDurationSeconds || row.totalDurationSeconds || 0)).filter(Number.isFinite);
     const minImpact = impactValues.length ? Math.min(...impactValues) : 0;
     const maxImpact = impactValues.length ? Math.max(...impactValues) : 0;
@@ -3194,12 +3226,10 @@
     const minSeverity = severityValues.length ? Math.min(...severityValues) : 0;
     const maxSeverity = severityValues.length ? Math.max(...severityValues) : 0;
     const dotRadiusForRow = (row = {}) => {
-      const impact = Number(row.avgDurationSeconds || row.totalDurationSeconds || 0);
       const severity = Number(row.severityScore || 0);
-      if (!Number.isFinite(impact) || maxImpact <= minImpact) return 11;
-      const normalized = (impact - minImpact) / Math.max(1e-9, (maxImpact - minImpact));
-      const sqrtScaled = Math.sqrt(Math.max(0, normalized));
-      return Math.max(7, Math.min(20, 7 + (sqrtScaled * 13)));
+      if (!Number.isFinite(severity) || maxSeverity <= minSeverity) return 10;
+      const normalized = (severity - minSeverity) / Math.max(1e-9, (maxSeverity - minSeverity));
+      return Math.max(6, Math.min(28, 6 + (normalized * 22)));
     };
     replaceChart('pressImpactScatterChart', {
       type: 'scatter',
@@ -3218,7 +3248,7 @@
             zoneColor: row.zoneColor
           })),
           pointRadius: ctx => dotRadiusForRow(ctx.raw || {}),
-          pointHoverRadius: ctx => dotRadiusForRow(ctx.raw || {}) + 2.5,
+          pointHoverRadius: ctx => dotRadiusForRow(ctx.raw || {}) + 3,
           pointBackgroundColor: ctx => (ctx.raw?.zoneColor || 'rgba(183,198,222,.44)'),
           pointBorderColor: ctx => labelWhitelist.has(ctx.raw?.name) ? 'rgba(232,241,255,.92)' : 'rgba(0,0,0,0)',
           pointBorderWidth: ctx => labelWhitelist.has(ctx.raw?.name) ? 1.8 : 0
@@ -3325,7 +3355,7 @@
       }]
     });
     const note = document.getElementById('pressScatterNote');
-    if (note) note.textContent = 'Events vs duration; color = impact zone.';
+    if (note) note.textContent = 'X=total events • Y=total duration • bubble size = duration × log(events + 1).';
   }
 
   function renderPressOutliersList(model) {
@@ -3456,7 +3486,7 @@
       data: {
         labels,
         datasets: [
-          { label: 'Good Volume', stack: 'volume', data: goodVolumeValues, backgroundColor: '#3b82f6', borderColor: '#3b82f6', borderWidth: 1, borderRadius: { topLeft: 0, topRight: 0, bottomLeft: 5, bottomRight: 5 } },
+          { label: 'Good Volume', stack: 'volume', data: goodVolumeValues, backgroundColor: '#22c55e', borderColor: '#22c55e', borderWidth: 1, borderRadius: { topLeft: 0, topRight: 0, bottomLeft: 5, bottomRight: 5 } },
           { label: 'Waste', stack: 'volume', data: wasteValues, backgroundColor: wasteColors, borderColor: wasteColors, borderWidth: 1, borderRadius: { topLeft: 5, topRight: 5, bottomLeft: 0, bottomRight: 0 }, minBarLength: 3 }
         ]
       },
@@ -3479,21 +3509,21 @@
         id: 'volume-value-labels',
         afterDatasetsDraw(chart) {
           const { ctx } = chart;
-          const meta = chart.getDatasetMeta(0);
-          const vals = meta?._dataset?.data || [];
-          const max = Math.max(0, ...vals.map(v => Number(v || 0)));
+          const goodMeta = chart.getDatasetMeta(0);
+          const wasteMeta = chart.getDatasetMeta(1);
+          const vals = goodMeta?._dataset?.data || [];
           ctx.save();
           ctx.font = '600 11px Inter, system-ui, sans-serif';
-          vals.forEach((v, i) => {
-            const bar = meta.data[i];
-            const n = Number(v || 0);
-            if (!bar || !Number.isFinite(n) || n <= 0) return;
-            const barWidth = Math.abs((bar.x || 0) - (bar.base || 0));
-            if (barWidth < 26) return;
-            const inside = n >= max * 0.18;
-            ctx.fillStyle = inside ? '#ffffff' : '#dbe7f8';
-            ctx.textAlign = inside ? 'right' : 'left';
-            ctx.fillText(formatCompactNumber(n), inside ? bar.x - 8 : bar.x + 6, bar.y + 4);
+          vals.forEach((_, i) => {
+            const goodBar = goodMeta?.data?.[i];
+            const wasteBar = wasteMeta?.data?.[i];
+            const total = Number(totalVolumeValues[i] || 0);
+            if (!goodBar || !wasteBar || total <= 0) return;
+            const segmentHeight = Math.abs((goodBar.base || 0) - (goodBar.y || 0));
+            if (segmentHeight < 20) return;
+            ctx.fillStyle = '#ffffff';
+            ctx.textAlign = 'center';
+            ctx.fillText(formatCompactNumber(total), goodBar.x, (wasteBar.y + goodBar.base) / 2 + 4);
           });
           ctx.restore();
         }
@@ -4156,7 +4186,7 @@
       document.getElementById('drilldownTable').innerHTML = `<thead><tr>${columns.map(col => `<th>${esc(col)}</th>`).join('')}</tr></thead><tbody>${scoped.slice(0, 1000).map(r => `<tr><td>${esc(r.jobName)}</td><td>${esc(r.jobType)}</td><td>${esc(r.simplexDuplex)}</td><td>${esc(r.substrate)}</td><td>${(r.printedSheets || 0).toLocaleString()}</td><td>${(r.printedFlats || 0).toLocaleString()}</td><td>${esc(formatDuration(r.durationSeconds || 0))}</td></tr>`).join('')}</tbody>`;
       return;
     }
-    setDrilldownHeading('drilldownTrendHeading', 'Events over Time');
+    setDrilldownHeading('drilldownTrendHeading', 'Events + Duration over Time');
     setDrilldownHeading('drilldownOpsHeading', 'Error Composition');
     const count = scoped.length;
     const downtime = scoped.reduce((a, r) => a + (r.durationSeconds || 0), 0);
@@ -4197,8 +4227,11 @@
     if (trendPoints.length) {
       replaceChart('drilldownTrendChart', {
         type: 'line',
-        data: { labels: trendPoints.map(x => x[0]), datasets: [{ label: 'Events', data: trendPoints.map(x => x[1].events), borderColor: '#7b8dff', backgroundColor: 'rgba(123,141,255,.25)', tension: 0.25, fill: true }] },
-        options: { ...baseOptions('drilldown', trendPoints.map(x => x[0])), plugins: { legend: { display: false } } }
+        data: { labels: trendPoints.map(x => x[0]), datasets: [
+          { label: 'Events', data: trendPoints.map(x => x[1].events), borderColor: '#7b8dff', backgroundColor: 'rgba(123,141,255,.25)', tension: 0.25, fill: true, yAxisID: 'y' },
+          { label: 'Duration', data: trendPoints.map(x => x[1].downtime), borderColor: '#f97316', backgroundColor: 'rgba(249,115,22,.12)', tension: 0.25, fill: false, yAxisID: 'y1' }
+        ] },
+        options: { ...baseOptions('drilldown', trendPoints.map(x => x[0])), plugins: { legend: { display: true, labels: { color: '#c6d3ea' } } }, scales: { x: { ticks: { color: '#c6d3ea' }, grid: { color: 'rgba(255,255,255,.04)' } }, y: { beginAtZero: true, ticks: { color: '#c6d3ea' }, grid: { color: 'rgba(255,255,255,.04)' } }, y1: { beginAtZero: true, position: 'right', ticks: { color: '#fbbf24', callback: v => formatDurationCompact(v) }, grid: { drawOnChartArea: false } } } }
       });
     } else if (topRows.length) {
       setDrilldownHeading('drilldownTrendHeading', 'Events by Top Group (fallback)');
@@ -4563,7 +4596,9 @@
         topOutlier: pressAbnormalityModel.topOutlier?.name || 'N/A'
       },
     });
-      renderDashboardStatusPanel(sourceScope, mismatches, STATE.reconciliation.report, renderValidation);
+      const globalValidation = buildGlobalDataValidation(sourceScope, customerVolumeRows);
+      if (!globalValidation.isValid) console.warn('[global-data-validation]', globalValidation);
+      renderDashboardStatusPanel(sourceScope, mismatches, STATE.reconciliation.report, renderValidation, globalValidation);
       renderTable(STATE.filtered);
     } catch (error) {
       console.error('[dashboard-render-failure]', error);
