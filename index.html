@@ -2460,23 +2460,26 @@
     const secondaryAction = topError !== 'N/A' ? `Contain dominant error ${topError}` : 'Contain dominant recurring error';
     const actions = [primaryAction, secondaryAction].filter((value, idx, arr) => arr.indexOf(value) === idx).slice(0, 2);
     document.getElementById('executiveSummaryCard').innerHTML = `
-      <div class="chart-head"><h3>Decision Banner</h3></div>
+      <div class="chart-head"><h3>Executive Snapshot</h3></div>
       <section class="exec-decision-panel">
         <div class="exec-row" style="gap:10px;flex-wrap:wrap;">
           <span class="exec-severity ${statusClass}">${esc(summary.status || 'WATCH')}</span>
-          <span><strong>Top Press (duration):</strong> ${esc(topPress)}</span>
-          <span><strong>Top Subsystem (duration):</strong> ${esc(topSubsystem)}</span>
-          <span><strong>Top Error (duration):</strong> ${esc(topError)}</span>
+          <span class="exec-headline">Main risk: <strong>${esc(topPress)}</strong> impacted by <strong>${esc(topError)}</strong> causing high downtime.</span>
         </div>
-        <div class="exec-headline">${esc(summary?.statusVerdict || 'Duration impact is concentrated and requires focused intervention.')}</div>
+        <div class="exec-row" style="gap:8px;flex-wrap:wrap;">
+          <span class="impact-chip">Top press: ${esc(topPress)}</span>
+          <span class="impact-chip">Top subsystem: ${esc(topSubsystem)}</span>
+          <span class="impact-chip">Top error: ${esc(topError)}</span>
+        </div>
         <div class="exec-row exec-metrics-line" style="gap:8px;flex-wrap:wrap;">
-          <span>Downtime Signal: ${downtimeSignal.toFixed(1)}% on top press</span>
-          <span>•</span>
-          <span>Total Downtime: ${totalDowntime}</span>
+          <span>Events: ${(summary?.totalEvents || STATE.kpis?.totalEvents || 0).toLocaleString()}</span>
+          <span>• Repeats: ${(summary?.topAlertByDowntime?.events || summary?.topAlert?.events || 0).toLocaleString()}</span>
+          <span>• Downtime: ${totalDowntime}</span>
         </div>
         <div class="exec-action-line" style="margin-top:8px;">
           ${actions.map(action => `<div class="exec-action-item">${esc(action)}</div>`).join('')}
         </div>
+        <div class="micro" style="margin:0;">Impact ranked by downtime severity (not event count). Top-press downtime signal: ${downtimeSignal.toFixed(1)}%.</div>
       </section>`;
   }
 
@@ -2500,8 +2503,9 @@
     if (!totals.availability) warnings.push(STATE.normalized.availability?.length ? 'Availability source filtered to zero rows.' : 'Availability source missing.');
     if (!totals.volume) warnings.push(STATE.normalized.volume?.length ? 'Volume source filtered to zero rows.' : 'Volume source missing.');
     if (mismatches.length) warnings.push(`${mismatches.length} reconciliation mismatch(es) detected.`);
-    if (renderValidation && !renderValidation.ok) warnings.push(`Render validation mismatch: ${renderValidation.failed.length} check(s).`);
-    const level = !totals.errors || warnings.length ? 'red' : 'green';
+    if (renderValidation && renderValidation.warningCount) warnings.push(`Render validation warning: ${renderValidation.warningCount} check(s).`);
+    if (renderValidation && renderValidation.errorCount) warnings.push(`Render validation corruption: ${renderValidation.errorCount} check(s).`);
+    const level = !totals.errors || (renderValidation?.errorCount > 0) ? 'red' : 'green';
     panel.className = `dashboard-status ${level} hidden`;
     if (headerStatus) {
       headerStatus.className = `meta-pill ${level === 'green' ? 'ok' : 'bad'}`;
@@ -2604,8 +2608,8 @@
 
   function wasteRatioColor(wasteRatio) {
     if (wasteRatio >= 0.05) return '#f36b63';
-    if (wasteRatio >= 0.02) return '#f0d166';
-    return '#57c98a';
+    if (wasteRatio >= 0.02) return '#f59e0b';
+    return '#14b8a6';
   }
 
   function normalizeJobType(jobType) {
@@ -3028,10 +3032,12 @@
             const rawValue = Number(values[idx] || 0);
             if (!Number.isFinite(rawValue) || rawValue <= 0) return;
             const label = formatCompactNumber(rawValue);
-            const inside = maxValue > 0 && rawValue >= (maxValue * 0.22);
-            ctx.fillStyle = inside ? '#0f1725' : '#dbe7f8';
-            ctx.textAlign = 'left';
-            const x = inside ? (bar.x - 38) : (bar.x + 6);
+            const barWidth = Math.abs((bar.x || 0) - (bar.base || 0));
+            if (barWidth < 24) return;
+            const inside = maxValue > 0 && rawValue >= (maxValue * 0.18);
+            ctx.fillStyle = inside ? '#ffffff' : '#dbe7f8';
+            ctx.textAlign = inside ? 'right' : 'left';
+            const x = inside ? (bar.x - 8) : (bar.x + 6);
             const y = bar.y + 4;
             ctx.fillText(label, x, y);
           });
@@ -3190,10 +3196,10 @@
     const dotRadiusForRow = (row = {}) => {
       const impact = Number(row.avgDurationSeconds || row.totalDurationSeconds || 0);
       const severity = Number(row.severityScore || 0);
-      if (!Number.isFinite(impact) || maxImpact <= minImpact) return 12;
+      if (!Number.isFinite(impact) || maxImpact <= minImpact) return 11;
       const normalized = (impact - minImpact) / Math.max(1e-9, (maxImpact - minImpact));
-      const severityNormalized = maxSeverity > minSeverity ? (severity - minSeverity) / Math.max(1e-9, (maxSeverity - minSeverity)) : 0.5;
-      return 6 + ((normalized * 0.65 + severityNormalized * 0.35) * 22);
+      const sqrtScaled = Math.sqrt(Math.max(0, normalized));
+      return Math.max(7, Math.min(20, 7 + (sqrtScaled * 13)));
     };
     replaceChart('pressImpactScatterChart', {
       type: 'scatter',
@@ -3214,8 +3220,8 @@
           pointRadius: ctx => dotRadiusForRow(ctx.raw || {}),
           pointHoverRadius: ctx => dotRadiusForRow(ctx.raw || {}) + 2.5,
           pointBackgroundColor: ctx => (ctx.raw?.zoneColor || 'rgba(183,198,222,.44)'),
-          pointBorderColor: ctx => labelWhitelist.has(ctx.raw?.name) ? 'rgba(232,241,255,.92)' : 'rgba(183,198,222,.35)',
-          pointBorderWidth: ctx => labelWhitelist.has(ctx.raw?.name) ? 1.8 : 1
+          pointBorderColor: ctx => labelWhitelist.has(ctx.raw?.name) ? 'rgba(232,241,255,.92)' : 'rgba(0,0,0,0)',
+          pointBorderWidth: ctx => labelWhitelist.has(ctx.raw?.name) ? 1.8 : 0
         }]
       },
       options: {
@@ -3418,8 +3424,10 @@
       ...row,
       sourceType: 'volumeJobs',
       metric,
+      wasteSheets: row.wastePrintedSheets || 0,
+      metricValue: metric === 'wasteSheets' ? (row.wastePrintedSheets || 0) : (row[metric] || 0),
       parentContext: { path: [] }
-    })).sort((a, b) => (a[metric] - b[metric]) * dir);
+    })).sort((a, b) => ((a.metricValue || 0) - (b.metricValue || 0)) * dir);
     const fullRows = sorted;
     const withAggregateSheets = fullRows.map(row => {
       const jobsForPress = (STATE.lastSourceScope?.filteredVolumeRowsNative || []).filter(job => (job.canonicalPress || 'Unspecified') === row.entityKey);
@@ -3430,7 +3438,7 @@
   }
 
   function renderVolumeByPressChart(customerVolumeRows = []) {
-    const labels = customerVolumeRows.map(r => r.displayLabel);
+    const labels = customerVolumeRows.map(r => r.displayLabel || r.entityKey || r.canonicalPress || 'Unspecified');
     const wasteValues = customerVolumeRows.map(r => Math.max(0, Number(r.wasteSheets || r.wastePrintedSheets || 0)));
     const goodVolumeValues = customerVolumeRows.map(r => Math.max(0, Number(r.goodSheets || r.productionPrintedSheets || r.printedSheets || 0)));
     const totalVolumeValues = customerVolumeRows.map((r, idx) => Math.max(0, Number(r.totalSheets || (goodVolumeValues[idx] + wasteValues[idx]) || r.totalVolume || 0)));
@@ -3448,7 +3456,7 @@
       data: {
         labels,
         datasets: [
-          { label: 'Good Volume', stack: 'volume', data: goodVolumeValues, backgroundColor: '#57c98a', borderColor: '#57c98a', borderWidth: 1, borderRadius: { topLeft: 0, topRight: 0, bottomLeft: 5, bottomRight: 5 } },
+          { label: 'Good Volume', stack: 'volume', data: goodVolumeValues, backgroundColor: '#3b82f6', borderColor: '#3b82f6', borderWidth: 1, borderRadius: { topLeft: 0, topRight: 0, bottomLeft: 5, bottomRight: 5 } },
           { label: 'Waste', stack: 'volume', data: wasteValues, backgroundColor: wasteColors, borderColor: wasteColors, borderWidth: 1, borderRadius: { topLeft: 5, topRight: 5, bottomLeft: 0, bottomRight: 0 }, minBarLength: 3 }
         ]
       },
@@ -3457,7 +3465,7 @@
         scales: { x: { stacked: true, ticks: { color: '#c6d3ea' }, grid: { color: 'rgba(255,255,255,.04)' } }, y: { stacked: true, ticks: { color: '#c6d3ea' }, grid: { color: 'rgba(255,255,255,.04)' }, beginAtZero: true } },
         plugins: {
           legend: { display: true, labels: { color: '#c6d3ea' } },
-          tooltip: { callbacks: { title: ctx => `Press: ${ctx?.[0]?.label || 'N/A'}`, label: ctx => {
+          tooltip: { callbacks: { title: ctx => `Press: ${customerVolumeRows?.[ctx?.[0]?.dataIndex || 0]?.displayLabel || ctx?.[0]?.label || 'Unspecified'}`, label: ctx => {
             const row = customerVolumeRows?.[ctx.dataIndex] || {};
             const total = Number(row.totalSheets || totalVolumeValues[ctx.dataIndex] || row.totalVolume || 0);
             const waste = Number(row.wasteSheets || row.wastePrintedSheets || 0);
@@ -3480,9 +3488,12 @@
             const bar = meta.data[i];
             const n = Number(v || 0);
             if (!bar || !Number.isFinite(n) || n <= 0) return;
-            const inside = n >= max * 0.22;
-            ctx.fillStyle = inside ? '#102035' : '#dbe7f8';
-            ctx.fillText(formatCompactNumber(n), inside ? bar.x - 34 : bar.x + 6, bar.y + 4);
+            const barWidth = Math.abs((bar.x || 0) - (bar.base || 0));
+            if (barWidth < 26) return;
+            const inside = n >= max * 0.18;
+            ctx.fillStyle = inside ? '#ffffff' : '#dbe7f8';
+            ctx.textAlign = inside ? 'right' : 'left';
+            ctx.fillText(formatCompactNumber(n), inside ? bar.x - 8 : bar.x + 6, bar.y + 4);
           });
           ctx.restore();
         }
@@ -4066,9 +4077,9 @@
       return;
     }
     if (isVolume) {
-      setDrilldownHeading('drilldownTrendHeading', 'Volume Trend');
-      setDrilldownHeading('drilldownOpsHeading', 'Production Categories');
       const measure = STATE.customerVolumeMetric;
+      setDrilldownHeading('drilldownTrendHeading', 'Trend (Events / Duration / Volume / Waste)');
+      setDrilldownHeading('drilldownOpsHeading', 'Production Categories');
       const totalSheets = scoped.reduce((a, r) => a + (r.printedSheets || 0), 0);
       const totalFlats = scoped.reduce((a, r) => a + (r.printedFlats || 0), 0);
       const totalJobs = scoped.length;
@@ -4087,36 +4098,41 @@
       const productionSplit = new Map([['Simplex', 0], ['Duplex', 0]]);
       const maintenanceSplit = new Map([['Simplex', 0], ['Duplex', 0]]);
       const wasteSplit = new Map([['Waste', 0], ['Volume', 0]]);
-      const substrateSplit = new Map();
       const byJobName = new Map();
+      const jobTypeMap = new Map();
+      const dayTrend = new Map();
       scoped.forEach(r => {
-        const unit = measure === 'printedFlats'
-          ? (r.printedFlats || 0)
-          : measure === 'productionPrintedSheets'
-            ? (r.maintenance ? 0 : (r.printedSheets || 0))
-            : (r.printedSheets || 0);
+        const unit = measure === 'printedFlats' ? (r.printedFlats || 0) : (r.printedSheets || 0);
         const duplexKey = r.simplexDuplex || 'Simplex';
         if (r.maintenance) maintenanceSplit.set(duplexKey, (maintenanceSplit.get(duplexKey) || 0) + unit);
         else productionSplit.set(duplexKey, (productionSplit.get(duplexKey) || 0) + unit);
-        const subKey = `${r.substrate || 'Unspecified'} • ${duplexKey}`;
-        substrateSplit.set(subKey, (substrateSplit.get(subKey) || 0) + unit);
         byJobName.set(r.jobName || 'Unspecified', (byJobName.get(r.jobName || 'Unspecified') || 0) + unit);
         const isWaste = isSpecialJobType(r.jobType);
         wasteSplit.set(isWaste ? 'Waste' : 'Volume', (wasteSplit.get(isWaste ? 'Waste' : 'Volume') || 0) + unit);
-      });
-      const nextDimension = getNextVolumeDrillDimension(dimension);
-      document.getElementById('drilldownInsight').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Volume split overview</h4><span class="risk-pill risk-medium">Sheets/Flats mode</span></div><div class="micro">Production split, maintenance split, substrate, and job analysis are calculated directly from volume jobs. Current metric: ${esc(measure)}.</div>`;
-      const jobTypeMap = new Map();
-      scoped.forEach(r => {
-        const unit = measure === 'printedFlats' ? (r.printedFlats || 0) : (r.printedSheets || 0);
         const jt = r.jobType || 'Unspecified';
         jobTypeMap.set(jt, (jobTypeMap.get(jt) || 0) + unit);
+        const day = r.day || toDayBucket(r.date || r.startTime);
+        if (day) {
+          const slot = dayTrend.get(day) || { events: 0, duration: 0, volume: 0, waste: 0 };
+          slot.events += 1;
+          slot.duration += Number(r.durationSeconds || 0);
+          slot.volume += unit;
+          if (isWaste) slot.waste += unit;
+          dayTrend.set(day, slot);
+        }
       });
+      const nextDimension = getNextVolumeDrillDimension(dimension);
+      document.getElementById('drilldownInsight').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Volume split overview</h4><span class="risk-pill risk-medium">Sheets/Flats mode</span></div><div class="micro">Production split, maintenance split, waste split, and trend are calculated directly from volume jobs. Current metric: ${esc(measure)}.</div>`;
       const jobTypeRows = [...jobTypeMap.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10);
       const payloads = nextDimension ? jobTypeRows.map(([name]) => ({ entityKey: name, displayLabel: name, sourceType: 'volumeJobs', metric: measure, parentContext: { path: STATE.drilldown.path || [] } })) : null;
       replaceChart('drilldownTopChart', { type: 'bar', data: { labels: jobTypeRows.map(x => x[0]), datasets: [{ data: jobTypeRows.map(x => x[1]), backgroundColor: COLORS, borderRadius: 6 }] }, options: baseOptions(nextDimension || 'drilldown', jobTypeRows.map(x => x[0]), payloads) });
-      const substrateRows = [...substrateSplit.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10);
-      replaceChart('drilldownTrendChart', { type: 'bar', data: { labels: substrateRows.map(x => x[0]), datasets: [{ data: substrateRows.map(x => x[1]), backgroundColor: COLORS, borderRadius: 6 }] }, options: baseOptions('drilldown', substrateRows.map(x => x[0])) });
+      const trendLabels = [...dayTrend.keys()].sort((a, b) => a.localeCompare(b));
+      replaceChart('drilldownTrendChart', { type: 'line', data: { labels: trendLabels, datasets: [
+        { label: 'Events', data: trendLabels.map(d => dayTrend.get(d)?.events || 0), borderColor: '#7b8dff', tension: 0.2, yAxisID: 'y' },
+        { label: 'Duration (h)', data: trendLabels.map(d => (dayTrend.get(d)?.duration || 0) / 3600), borderColor: '#f59e0b', tension: 0.2, yAxisID: 'y' },
+        { label: 'Volume', data: trendLabels.map(d => dayTrend.get(d)?.volume || 0), borderColor: '#3b82f6', tension: 0.2, yAxisID: 'y1' },
+        { label: 'Waste', data: trendLabels.map(d => dayTrend.get(d)?.waste || 0), borderColor: '#f36b63', tension: 0.2, yAxisID: 'y1' }
+      ] }, options: { ...baseOptions('drilldown', trendLabels), plugins: { legend: { labels: { color: '#c6d3ea' } } }, scales: { x: { ticks: { color: '#c6d3ea' }, grid: { color: 'rgba(255,255,255,.04)' } }, y: { beginAtZero: true, ticks: { color: '#c6d3ea' }, grid: { color: 'rgba(255,255,255,.04)' } }, y1: { beginAtZero: true, position: 'right', ticks: { color: '#9bc3ff' }, grid: { drawOnChartArea: false } } } } });
       const maintenanceRows = [...maintenanceSplit.entries()];
       const wasteRows = [...wasteSplit.entries()];
       replaceChart('drilldownSecondaryChart', { type: 'bar', data: { labels: maintenanceRows.map(x => `Maintenance ${x[0]}`), datasets: [{ label: 'Maintenance', data: maintenanceRows.map(x => x[1]), backgroundColor: '#f0b165', borderRadius: 6 }, { label: 'Waste-oriented', data: wasteRows.map(x => x[1]), backgroundColor: '#f36b63', borderRadius: 6 }] }, options: { ...baseOptions('drilldown', maintenanceRows.map(x => x[0])), plugins: { legend: { labels: { color: '#c6d3ea' } } } } });
@@ -4337,16 +4353,18 @@
     const checks = [];
     const totalDowntimeSeconds = Number(kpis?.totalDowntime || 0);
     const expectedHours = totalDowntimeSeconds > 0 ? totalDowntimeSeconds / 3600 : 0;
-    checks.push({ id: 'downtime-hours', pass: Math.abs((kpis?.downtimeHours || 0) - expectedHours) < 1e-6, detail: 'downtime hours conversion' });
+    checks.push({ id: 'downtime-hours', pass: Math.abs((kpis?.downtimeHours || 0) - expectedHours) < 1e-6, explainable: false, metric: 'downtimeHours', expected: expectedHours, actual: Number(kpis?.downtimeHours || 0), source: 'kpis.totalDowntime' });
     const expectedEfficiency = expectedHours > 0 ? (Number(kpis?.totalProdVolume || 0) / expectedHours) : null;
     const efficiencyPass = (expectedEfficiency == null && kpis?.outputEfficiency == null) || (expectedEfficiency != null && Math.abs((kpis?.outputEfficiency || 0) - expectedEfficiency) < 1e-6);
-    checks.push({ id: 'output-efficiency', pass: efficiencyPass, detail: 'output efficiency formula' });
+    checks.push({ id: 'output-efficiency', pass: efficiencyPass, explainable: expectedHours === 0, metric: 'outputEfficiency', expected: expectedEfficiency, actual: Number(kpis?.outputEfficiency || 0), source: 'kpis.totalProdVolume / kpis.downtimeHours' });
     const wasteFromAgg = (sourceScope?.volumeAgg || []).reduce((sum, row) => sum + Number(row?.wastePrintedSheets || 0), 0);
-    const wasteFromJobs = (sourceScope?.filteredVolumeRowsNative || []).reduce((sum, row) => sum + (isSpecialJobType(row?.jobType) ? Number(row?.printedSheets || 0) : 0), 0);
-    checks.push({ id: 'waste-mapping', pass: Math.abs(wasteFromAgg - wasteFromJobs) < 1e-6, detail: 'waste mapping aggregation' });
+    const wasteFromJobs = (sourceScope?.filteredVolumeRowsNative || []).reduce((sum, row) => sum + (isSpecialJobType(row?.jobType) ? Number(row?.printedSheets || row?.wastePrintedSheets || 0) : 0), 0);
+    checks.push({ id: 'waste-mapping', pass: Math.abs(wasteFromAgg - wasteFromJobs) < 1e-6, explainable: false, metric: 'wastePrintedSheets', expected: wasteFromJobs, actual: wasteFromAgg, source: 'volumeAgg vs filteredVolumeRowsNative' });
     const failed = checks.filter(c => !c.pass);
-    if (failed.length) console.warn('[render-validation] mismatch detected', { failed, checks });
-    return { ok: failed.length === 0, checks, failed };
+    const warnings = failed.filter(c => c.explainable);
+    const errors = failed.filter(c => !c.explainable);
+    if (failed.length) console.warn('[render-validation] mismatch detected', failed.map(c => ({ metric: c.metric, expected: c.expected, actual: c.actual, source: c.source })));
+    return { ok: errors.length === 0, checks, failed, warnings, errors, warningCount: warnings.length, errorCount: errors.length };
   }
 
   function renderDashboard() {
@@ -4416,6 +4434,23 @@
     const versionRankings = safeRankingRender('version');
     const { chartRows: customerVolumeRows, fullRows: customerVolumeAllRows } = buildCustomerVolumeChart(sourceScope.volumeAgg, STATE.customerVolumeMetric, STATE.customerVolumeSort, STATE.customerVolumeExpanded);
     STATE.customerVolumeRows = customerVolumeRows;
+    const aggByPress = (sourceScope.volumeAgg || []).reduce((map, row) => {
+      const press = row.canonicalPress || 'Unspecified';
+      const slot = map.get(press) || { volume: 0, waste: 0 };
+      slot.volume += Number(row.productionPrintedSheets || row.printedSheets || 0);
+      slot.waste += Number(row.wastePrintedSheets || 0);
+      map.set(press, slot);
+      return map;
+    }, new Map());
+    (customerVolumeAllRows || []).forEach(row => {
+      const press = row.entityKey || row.displayLabel || 'Unspecified';
+      const agg = aggByPress.get(press) || { volume: 0, waste: 0 };
+      const chartVolume = Number(row.goodSheets || row.productionPrintedSheets || row.printedSheets || 0);
+      const chartWaste = Number(row.wasteSheets || row.wastePrintedSheets || 0);
+      if (Math.abs(chartVolume - agg.volume) > 1e-6 || Math.abs(chartWaste - agg.waste) > 1e-6) {
+        console.error('[consistency-validation]', { press, chartVolume, drilldownVolume: agg.volume, chartWaste, drilldownWaste: agg.waste });
+      }
+    });
     STATE.customerVolumeAllRows = customerVolumeAllRows;
     const customerVolumeRendered = renderVolumeByPressChart(customerVolumeRows);
     if (!customerVolumeRows.length) setCanvasState('customerVolumeChart', 'No print volume rows after source-native scope (volume owns press/day and native job metadata).');
