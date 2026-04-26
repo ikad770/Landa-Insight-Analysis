@@ -1053,6 +1053,7 @@
   async function normalizeVolumeRows(rows, options = {}) {
     const { controller = null, onProgress = null } = options;
     const jobs = [];
+    const seenVolumeRowKeys = new Set();
     let sourceRowsUsed = 0;
     const rawJobTypes = new Set();
     const normalizedJobTypes = new Map();
@@ -1076,15 +1077,18 @@
       sourceRowsUsed += 1;
       const printedSheets = parseNumber(getField(r, ['Printed Sheets']));
       const printedSheetsValue = Number.isFinite(printedSheets) ? printedSheets : 0;
+      const productionPrintedSheetsRaw = parseNumber(getField(r, ['Production Printed Sheets', 'Production Sheets']));
+      const productionPrintedSheetsValue = Number.isFinite(productionPrintedSheetsRaw) ? productionPrintedSheetsRaw : 0;
       const printedFlats = parseNumber(getField(r, ['Printed Flats']));
       const preferredVolume = Number.isFinite(printedSheets) ? printedSheets : (Number.isFinite(printedFlats) ? printedFlats : 0);
       const customer = String(getField(r, ['Customer', 'Account', 'Client'])).trim() || 'Unspecified';
       const site = String(getField(r, ['Site', 'Location', 'Plant'])).trim() || 'Unspecified';
       const jobType = String(getField(r, ['Job Type'])).trim() || 'Unspecified';
+      const normalizedRawType = (jobType || '').trim().toLowerCase();
       rawJobTypes.add(jobType);
       const normalizedJobType = normalizeJobType(jobType) || 'unspecified';
       normalizedJobTypes.set(normalizedJobType, (normalizedJobTypes.get(normalizedJobType) || 0) + 1);
-      const specialJob = isSpecialJobType(jobType);
+      const specialJob = normalizedRawType === 'special';
       const maintenance = !specialJob && classifyMaintenance(r);
       const jobStatus = String(getField(r, ['Job Status'])).trim() || 'Unspecified';
       const pressMode = String(getField(r, ['Press Mode', 'Mode'])).trim() || 'Unspecified';
@@ -1095,6 +1099,21 @@
       const printEnd = parseUsDateTime(getField(r, ['Print End', 'End Time']));
       const durationSeconds = printStart && printEnd ? Math.max(0, (printEnd.getTime() - printStart.getTime()) / 1000) : 0;
       const key = buildKey({ canonicalPress, canonicalModel, day });
+      const uniqueRowKey = [
+        canonicalPress,
+        canonicalModel,
+        day,
+        printStart ? printStart.toISOString() : '',
+        printEnd ? printEnd.toISOString() : '',
+        jobName,
+        normalizedRawType,
+        printedSheetsValue,
+        productionPrintedSheetsValue,
+      ].join('|');
+      if (seenVolumeRowKeys.has(uniqueRowKey)) continue;
+      seenVolumeRowKeys.add(uniqueRowKey);
+      const wastePrintedSheets = specialJob ? (printedSheetsValue || productionPrintedSheetsValue || 0) : 0;
+      const goodProductionPrintedSheets = (!specialJob) ? (productionPrintedSheetsValue || printedSheetsValue || 0) : 0;
       jobs.push({
         key,
         fallbackKey: buildPressDayKey({ canonicalPress, day }),
@@ -1108,10 +1127,10 @@
         day,
         productionVolume: (maintenance || specialJob) ? 0 : preferredVolume,
         maintenanceVolume: maintenance ? preferredVolume : 0,
-        wasteVolume: specialJob ? printedSheetsValue : 0,
-        totalVolume: preferredVolume,
-        productionPrintedSheets: (maintenance || specialJob) ? 0 : printedSheetsValue,
-        wastePrintedSheets: specialJob ? printedSheetsValue : 0,
+        wasteVolume: wastePrintedSheets,
+        totalVolume: goodProductionPrintedSheets + wastePrintedSheets,
+        productionPrintedSheets: goodProductionPrintedSheets,
+        wastePrintedSheets,
         printedSheets: printedSheetsValue,
         printedFlats: Number.isFinite(printedFlats) ? printedFlats : 0,
         simplexDuplex,
@@ -1119,6 +1138,7 @@
         jobName,
         durationSeconds,
         maintenance,
+        normalizedRawType,
         jobType,
         jobStatus,
         pressMode,
@@ -1170,7 +1190,7 @@
       slot.productionVolume += job.productionVolume || 0;
       slot.maintenanceVolume += job.maintenanceVolume || 0;
       slot.wasteVolume += job.wasteVolume || 0;
-      slot.totalVolume += job.totalVolume || 0;
+      slot.totalVolume += (job.productionPrintedSheets || 0) + (job.wastePrintedSheets || 0);
       slot.productionPrintedSheets += job.productionPrintedSheets || 0;
       slot.wastePrintedSheets += job.wastePrintedSheets || 0;
       if (slot.customer === 'Unspecified' && job.customer) slot.customer = job.customer;
@@ -1179,8 +1199,8 @@
       slot.printedFlats += job.printedFlats || 0;
       if (slot.raw.length < 20) slot.raw.push(job.raw);
     });
-    const specialJobRows = jobs.filter(job => isSpecialJobType(job.jobType));
-    const specialJobPrintedSheets = specialJobRows.reduce((sum, job) => sum + Number(job.printedSheets || 0), 0);
+    const specialJobRows = jobs.filter(job => job.normalizedRawType === 'special');
+    const specialJobPrintedSheets = specialJobRows.reduce((sum, job) => sum + Number(job.printedSheets || job.productionPrintedSheets || 0), 0);
     const specialAggPrintedSheets = [...byKey.values()].reduce((sum, row) => sum + Number(row.wastePrintedSheets || 0), 0);
     console.info('[waste-debug] special-row-aggregation-validation', {
       specialJobRows: specialJobRows.length,
@@ -1189,11 +1209,21 @@
       parityPass: Math.abs(specialJobPrintedSheets - specialAggPrintedSheets) < 1e-6,
       note: 'Special rows are aggregated into press/day volumeAgg as wastePrintedSheets.'
     });
+    const rawWaste = jobs.reduce((sum, row) => sum + ((row.normalizedRawType === 'special') ? Number(row.printedSheets || row.productionPrintedSheets || 0) : 0), 0);
+    const rawProduction = jobs.reduce((sum, row) => sum + ((row.normalizedRawType !== 'special') ? Number(row.productionPrintedSheets || row.printedSheets || 0) : 0), 0);
+    const aggWaste = [...byKey.values()].reduce((sum, row) => sum + Number(row.wastePrintedSheets || 0), 0);
+    const aggProduction = [...byKey.values()].reduce((sum, row) => sum + Number(row.productionPrintedSheets || 0), 0);
+    console.log('[volume-validation]', {
+      rawWaste,
+      aggWaste,
+      rawProduction,
+      aggProduction
+    });
 
     return {
       rows: [...byKey.values()],
       jobs,
-      diagnostics: { parsedRows: rows.length, sourceRowsUsed, normalizedRowsCreated: jobs.length, aggregatedRowsCreated: byKey.size },
+      diagnostics: { parsedRows: rows.length, sourceRowsUsed, normalizedRowsCreated: jobs.length, aggregatedRowsCreated: byKey.size, deduplicatedRowsSkipped: Math.max(0, sourceRowsUsed - jobs.length) },
     };
   }
 
@@ -1257,6 +1287,7 @@
         maintenanceVolume: 0,
         totalVolume: 0,
         productionPrintedSheets: 0,
+        wastePrintedSheets: 0,
         printedSheets: 0,
         printedFlats: 0,
         sourceRows: 0,
@@ -1264,8 +1295,9 @@
       const slot = map.get(key);
       slot.productionVolume += row.productionVolume || 0;
       slot.maintenanceVolume += row.maintenanceVolume || 0;
-      slot.totalVolume += row.totalVolume || 0;
       slot.productionPrintedSheets += row.productionPrintedSheets || 0;
+      slot.wastePrintedSheets += row.wastePrintedSheets || 0;
+      slot.totalVolume += (row.productionPrintedSheets || 0) + (row.wastePrintedSheets || 0);
       if (slot.customer === 'Unspecified' && row.customer) slot.customer = row.customer;
       if (slot.site === 'Unspecified' && row.site) slot.site = row.site;
       slot.printedSheets += row.printedSheets || 0;
@@ -1437,6 +1469,7 @@
       maintenanceVolume: row.maintenanceVolume || 0,
       totalVolume: row.totalVolume || 0,
       productionPrintedSheets: row.productionPrintedSheets || 0,
+      wastePrintedSheets: row.wastePrintedSheets || 0,
       printedSheets: row.printedSheets || 0,
       printedFlats: row.printedFlats || 0
     }));
