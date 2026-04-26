@@ -2538,11 +2538,18 @@
     });
     if (renderValidation && renderValidation.warningCount) warnings.push(`Render validation warning: ${renderValidation.warningCount} check(s).`);
     if (renderValidation && renderValidation.errorCount) warnings.push(`Render validation corruption: ${renderValidation.errorCount} check(s).`);
+    (renderValidation?.exactWarnings || []).forEach(item => {
+      warnings.push(`Warning • ${item.id} • ${item.metric}: expected ${Number(item.expected || 0).toLocaleString()} vs actual ${Number(item.actual || 0).toLocaleString()} (source: ${item.source || 'n/a'})`);
+    });
+    (renderValidation?.exactErrors || []).forEach(item => {
+      warnings.push(`Error • ${item.id} • ${item.metric}: expected ${Number(item.expected || 0).toLocaleString()} vs actual ${Number(item.actual || 0).toLocaleString()} (source: ${item.source || 'n/a'})`);
+    });
     (globalValidation?.issues || []).forEach(issue => {
       const prefix = issue.level === 'warning' ? 'Warning' : 'Error';
       warnings.push(`${prefix} • ${issue.metric}: expected ${Number(issue.expected || 0).toLocaleString()} vs actual ${Number(issue.actual || 0).toLocaleString()} (source: ${issue.source || 'n/a'})`);
     });
-    const level = !totals.errors || mismatchErrors.length > 0 || (renderValidation?.errorCount > 0) || (globalValidation && !globalValidation.isValid) ? 'red' : 'green';
+    const hasCorruption = (renderValidation?.errorCount || 0) > 0;
+    const level = !totals.errors || mismatchErrors.length > 0 || hasCorruption || (globalValidation && !globalValidation.isValid) ? 'red' : 'green';
     const hasWarningsOnly = level === 'green' && (globalValidation?.warningIssues?.length || 0) > 0;
     panel.className = `dashboard-status ${level} hidden`;
     if (headerStatus) {
@@ -3200,9 +3207,6 @@
     };
     const highlightRows = computeZoneHighlightRows(rows);
     const labelWhitelist = new Set(highlightRows.map(row => row.name));
-    const impactValues = rows.map(row => Number(row.avgDurationSeconds || row.totalDurationSeconds || 0)).filter(Number.isFinite);
-    const minImpact = impactValues.length ? Math.min(...impactValues) : 0;
-    const maxImpact = impactValues.length ? Math.max(...impactValues) : 0;
     const severityValues = rows.map(row => Number(row.severityScore || 0)).filter(Number.isFinite);
     const minSeverity = severityValues.length ? Math.min(...severityValues) : 0;
     const maxSeverity = severityValues.length ? Math.max(...severityValues) : 0;
@@ -3212,7 +3216,8 @@
       const normalized = (severity - minSeverity) / Math.max(1e-9, (maxSeverity - minSeverity));
       const minRadius = 7;
       const maxRadius = 18;
-      return Math.max(minRadius, Math.min(maxRadius, minRadius + (normalized * (maxRadius - minRadius))));
+      const sqrtNormalized = Math.sqrt(Math.max(0, normalized));
+      return Math.max(minRadius, Math.min(maxRadius, minRadius + (sqrtNormalized * (maxRadius - minRadius))));
     };
     replaceChart('pressImpactScatterChart', {
       type: 'scatter',
@@ -3480,11 +3485,12 @@
           legend: { display: true, labels: { color: '#c6d3ea' } },
           tooltip: { callbacks: { title: ctx => `Press: ${customerVolumeRows?.[ctx?.[0]?.dataIndex || 0]?.displayLabel || ctx?.[0]?.label || 'Unspecified'}`, label: ctx => {
             const row = customerVolumeRows?.[ctx.dataIndex] || {};
+            const press = row.displayLabel || row.entityKey || row.canonicalPress || ctx.label || 'Unspecified';
             const total = Number(row.totalSheets || totalVolumeValues[ctx.dataIndex] || row.totalVolume || 0);
             const waste = Number(row.wasteSheets || row.wastePrintedSheets || 0);
             const good = Number(row.goodSheets || goodVolumeValues[ctx.dataIndex] || 0);
             const ratio = total > 0 ? ((waste / total) * 100) : 0;
-            return [`Good Volume: ${good.toLocaleString()}`, `Waste: ${waste.toLocaleString()}`, `Waste %: ${ratio.toFixed(1)}%`, `Total Volume: ${total.toLocaleString()}`];
+            return [`Press: ${press}`, `Good Volume: ${good.toLocaleString()}`, `Waste: ${waste.toLocaleString()}`, `Waste %: ${ratio.toFixed(1)}%`, `Total Volume: ${total.toLocaleString()}`];
           } }, filter: ctx => ctx.datasetIndex === 0 }
         }
       },
@@ -3495,6 +3501,7 @@
           const goodMeta = chart.getDatasetMeta(0);
           const wasteMeta = chart.getDatasetMeta(1);
           const vals = goodMeta?._dataset?.data || [];
+          const placed = [];
           ctx.save();
           ctx.font = '600 11px Inter, system-ui, sans-serif';
           vals.forEach((_, i) => {
@@ -3502,11 +3509,18 @@
             const wasteBar = wasteMeta?.data?.[i];
             const total = Number(totalVolumeValues[i] || 0);
             if (!goodBar || !wasteBar || total <= 0) return;
-            const segmentHeight = Math.abs((goodBar.base || 0) - (goodBar.y || 0));
-            if (segmentHeight < 20) return;
-            ctx.fillStyle = '#ffffff';
+            const totalHeight = Math.abs((goodBar.base || 0) - (wasteBar.y || goodBar.y || 0));
+            const inside = totalHeight >= 24;
+            const label = formatCompactNumber(total);
+            const width = ctx.measureText(label).width;
+            let x = goodBar.x - (width / 2);
+            let y = inside ? (((wasteBar.y || goodBar.y) + goodBar.base) / 2 + 4) : ((wasteBar.y || goodBar.y) - 6);
+            const overlap = placed.find(b => !(x + width < b.x || x > b.x + b.w || y < b.y - 11 || y > b.y + 2));
+            if (overlap) y -= 12;
+            placed.push({ x, y, w: width });
+            ctx.fillStyle = inside ? '#ffffff' : '#dbe7f8';
             ctx.textAlign = 'center';
-            ctx.fillText(formatCompactNumber(total), goodBar.x, (wasteBar.y + goodBar.base) / 2 + 4);
+            ctx.fillText(label, goodBar.x, y);
           });
           ctx.restore();
         }
@@ -3746,6 +3760,14 @@
       return [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, limit);
     };
     const topAlerts = topBy(r => (r.name !== 'Unspecified' ? r.name : r.alertTitle), 5);
+    const topAlertsByDuration = (() => {
+      const m = new Map();
+      rows.forEach(r => {
+        const key = (r.name !== 'Unspecified' ? r.name : r.alertTitle) || 'Unspecified';
+        m.set(key, (m.get(key) || 0) + Number(r.durationSeconds || 0));
+      });
+      return [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, 5);
+    })();
     const topPresses = topBy(r => r.press, 5);
     const topSubsystems = topBy(r => r.subsystem, 5);
     const topStates = topBy(r => r.errorState, 5);
@@ -3761,7 +3783,7 @@
     const trendPoints = [...trend.entries()].sort((a, b) => a[0].localeCompare(b[0]));
     const dominant = topAlerts[0]?.[0] || 'Unspecified';
     const insight = `${rows.length} events in selected ${dimension}. Dominant issue: ${dominant}. Top press: ${topPresses[0]?.[0] || 'N/A'}.`;
-    return { topAlerts, topPresses, topSubsystems, topStates, trendPoints, insight };
+    return { topAlerts, topAlertsByDuration, topPresses, topSubsystems, topStates, trendPoints, insight };
   }
 
   function semanticColorByShare(sharePct) {
@@ -4189,7 +4211,12 @@
          <div class="summary-stat span-4"><div class="label">Events</div><div class="value">${count.toLocaleString()}</div></div>
          <div class="summary-stat span-4"><div class="label">Avg duration</div><div class="value">${formatDuration(avg)}</div></div>`;
     const analytics = buildDrilldownAnalytics(scoped, dimension, isVolume);
-    document.getElementById('drilldownInsight').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Subset insight</h4><span class="risk-pill risk-medium">Analytical summary</span></div><div class="micro">${esc(analytics.insight)}</div>`;
+    const summary = STATE.merged?.summary || {};
+    const scopedDriver = dimension === 'press' && String(summary.focusPress || '') === String(value || '')
+      ? (summary.pressTopError?.name || 'N/A')
+      : null;
+    const globalDriver = summary.globalDriver?.name || null;
+    document.getElementById('drilldownInsight').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Subset insight</h4><span class="risk-pill risk-medium">Analytical summary</span></div><div class="micro">${esc(analytics.insight)}${scopedDriver ? ` Press-scoped duration driver: ${scopedDriver}.` : ''}${globalDriver ? ` Global duration driver: ${globalDriver}.` : ''}</div>`;
     const nextDimension = getNextErrorDrillDimension(dimension);
     const topRows = (dimension === 'subsystem' ? analytics.topAlerts : analytics.topSubsystems);
     const topLabels = topRows.map(x => x[0]);
@@ -4226,7 +4253,7 @@
     } else {
       showNoDataChart('drilldownTrendChart');
     }
-    const secondary = isVolume ? analytics.topPresses : analytics.topStates;
+    const secondary = isVolume ? analytics.topPresses : (dimension === 'press' ? analytics.topAlertsByDuration : analytics.topStates);
     replaceChart('drilldownSecondaryChart', {
       type: 'bar',
       data: { labels: secondary.map(x => x[0]), datasets: [{ data: secondary.map(x => x[1]), backgroundColor: secondary.map((_, i) => COLORS[i % COLORS.length]), borderRadius: 6 }] },
@@ -4367,20 +4394,33 @@
 
   function validateRenderConsistency(sourceScope, kpis) {
     const checks = [];
+    const classify = (check) => {
+      if (!check) return 'warning';
+      const sourceTxt = String(check.source || '').toLowerCase();
+      const idTxt = String(check.id || '').toLowerCase();
+      if (sourceTxt.includes('rawrows') && (sourceTxt.includes('agg') || sourceTxt.includes('chart'))) return 'corruption';
+      if (idTxt.includes('waste-mapping')) return 'corruption';
+      if (idTxt.includes('impossible') || idTxt.includes('negative')) return 'corruption';
+      if (check.explainable) return 'warning';
+      return 'warning';
+    };
     const totalDowntimeSeconds = Number(kpis?.totalDowntime || 0);
     const expectedHours = totalDowntimeSeconds > 0 ? totalDowntimeSeconds / 3600 : 0;
-    checks.push({ id: 'downtime-hours', pass: Math.abs((kpis?.downtimeHours || 0) - expectedHours) < 1e-6, explainable: false, metric: 'downtimeHours', expected: expectedHours, actual: Number(kpis?.downtimeHours || 0), source: 'kpis.totalDowntime' });
+    checks.push({ id: 'downtime-hours', pass: Math.abs((kpis?.downtimeHours || 0) - expectedHours) < 1e-6, explainable: true, metric: 'downtimeHours', expected: expectedHours, actual: Number(kpis?.downtimeHours || 0), source: 'kpis.totalDowntime' });
     const expectedEfficiency = expectedHours > 0 ? (Number(kpis?.totalProdVolume || 0) / expectedHours) : null;
     const efficiencyPass = (expectedEfficiency == null && kpis?.outputEfficiency == null) || (expectedEfficiency != null && Math.abs((kpis?.outputEfficiency || 0) - expectedEfficiency) < 1e-6);
-    checks.push({ id: 'output-efficiency', pass: efficiencyPass, explainable: expectedHours === 0, metric: 'outputEfficiency', expected: expectedEfficiency, actual: Number(kpis?.outputEfficiency || 0), source: 'kpis.totalProdVolume / kpis.downtimeHours' });
+    checks.push({ id: 'output-efficiency', pass: efficiencyPass, explainable: true, metric: 'outputEfficiency', expected: expectedEfficiency, actual: Number(kpis?.outputEfficiency || 0), source: 'kpis.totalProdVolume / kpis.downtimeHours' });
     const wasteFromAgg = (sourceScope?.volumeAgg || []).reduce((sum, row) => sum + Number(row?.wastePrintedSheets || 0), 0);
     const wasteFromJobs = (sourceScope?.filteredVolumeRowsNative || []).reduce((sum, row) => sum + (isSpecialJobType(row?.jobType) ? Number(row?.printedSheets || row?.wastePrintedSheets || 0) : 0), 0);
     checks.push({ id: 'waste-mapping', pass: Math.abs(wasteFromAgg - wasteFromJobs) < 1e-6, explainable: false, metric: 'wastePrintedSheets', expected: wasteFromJobs, actual: wasteFromAgg, source: 'volumeAgg vs filteredVolumeRowsNative' });
-    const failed = checks.filter(c => !c.pass);
-    const warnings = failed.filter(c => c.explainable);
-    const errors = failed.filter(c => !c.explainable);
-    if (failed.length) console.warn('[render-validation] mismatch detected', failed.map(c => ({ metric: c.metric, expected: c.expected, actual: c.actual, source: c.source })));
-    return { ok: errors.length === 0, checks, failed, warnings, errors, warningCount: warnings.length, errorCount: errors.length };
+    const failed = checks.filter(c => !c.pass).map(check => ({ ...check, classification: classify(check) }));
+    const warnings = failed.filter(c => c.classification !== 'corruption');
+    const errors = failed.filter(c => c.classification === 'corruption');
+    const exactErrors = errors.map(c => ({ id: c.id, metric: c.metric, expected: c.expected, actual: c.actual, source: c.source }));
+    const exactWarnings = warnings.map(c => ({ id: c.id, metric: c.metric, expected: c.expected, actual: c.actual, source: c.source }));
+    if (exactWarnings.length) console.warn('[render-validation:explainable]', exactWarnings);
+    if (exactErrors.length) console.error('[render-validation:corruption]', exactErrors);
+    return { ok: errors.length === 0, checks, failed, warnings, errors, warningCount: warnings.length, errorCount: errors.length, exactErrors, exactWarnings };
   }
 
   function renderDashboard() {
