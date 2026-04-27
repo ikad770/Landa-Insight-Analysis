@@ -279,7 +279,7 @@
         <p id="datasetMeta" class="subtitle">Dataset not loaded</p>
         <div class="meta-indicators">
           <span id="dataRangeIndicator" class="meta-pill">Data range: N/A</span>
-          <span id="headerDataStatus" class="meta-pill ok">🟢 Data OK</span>
+          <span id="headerDataStatus" class="meta-pill ok hidden">🟢 Data OK</span>
         </div>
       </div>
       <div class="controls">
@@ -378,14 +378,14 @@
 <div id="drilldownDrawer" class="drawer">
   <section class="drawer-panel">
     <div class="chart-head">
-      <h3 id="drilldownTitle">Drilldown</h3>
+      <h3 id="drilldownTitle">Drilldown <span id="drilldownValidationBadge" class="badge optional hidden" style="vertical-align:middle;margin-left:8px;">Validation pending</span></h3>
       <div class="chart-tools"><button id="drilldownBack" class="btn secondary">← Back</button><input id="drilldownSearch" placeholder="Search drilldown rows" /><button id="drilldownExport" class="btn secondary">Export subset</button><button id="closeDrilldown" class="btn">Close</button></div>
     </div>
     <div id="drilldownBreadcrumbs" class="micro"></div>
-    <div id="drilldownSummary" class="micro"></div>
+    <div id="drilldownSummary" class="micro hidden"></div>
     <div id="drilldownSummaryGrid" class="summary-grid" style="margin-bottom:10px;"></div>
-    <div id="drilldownExplanation" class="card" style="margin-bottom:10px;"></div>
-    <details id="drilldownCalcDetails" class="card" style="margin-bottom:10px;"><summary style="cursor:pointer;font-weight:600;">Calculation details</summary><div id="drilldownCalcBody" style="margin-top:8px;"></div></details>
+    <div id="drilldownExplanation" class="card hidden" style="margin-bottom:10px;"></div>
+    <details id="drilldownCalcDetails" class="card hidden" style="margin-bottom:10px;"><summary style="cursor:pointer;font-weight:600;">Calculation details</summary><div id="drilldownCalcBody" style="margin-top:8px;"></div></details>
     <div id="drilldownChartsContainer" class="grid" style="margin-bottom:10px;">
       <article class="card span-6"><h4 id="drilldownTopHeading" style="margin:0 0 8px;">Top breakdown</h4><div class="chart-area" style="height:220px;min-height:220px;"><canvas id="drilldownTopChart"></canvas></div></article>
       <article class="card span-6"><h4 id="drilldownTrendHeading" style="margin:0 0 8px;">Trend over time</h4><div class="chart-area" style="height:220px;min-height:220px;"><canvas id="drilldownTrendChart"></canvas></div></article>
@@ -2484,20 +2484,24 @@
     const totalWasteSheets = volumeAgg.reduce((sum, row) => sum + Number(row?.wastePrintedSheets || 0), 0);
     const totalPrintedSheets = volumeAgg.reduce((sum, row) => sum + Number(row?.totalVolume || ((row?.productionPrintedSheets || 0) + (row?.wastePrintedSheets || 0))), 0);
     const wasteRatioPct = totalPrintedSheets > 0 ? (totalWasteSheets / totalPrintedSheets) * 100 : 0;
-    const dataStatusLabel = document.getElementById('headerDataStatus')?.textContent || 'Data status';
     const dataRangeLabel = document.getElementById('dataRangeIndicator')?.textContent?.replace('Data range: ', '') || 'N/A';
-    const mainRisk = STATE.merged?.summary?.mainRiskSentence || `Highest risk press is ${STATE.merged?.summary?.focusPress || 'N/A'}.`;
+    const mainRisk = String(STATE.merged?.summary?.mainRiskSentence || '').trim();
     const cards = [
-      ['Data Status', 'availabilityPct', dataStatusLabel, 'Open details in Data Status panel.'],
       ['Date Range', 'totalEvents', dataRangeLabel, 'Current filter scope.'],
       ['Events', 'totalEvents', Number(k.totalEvents || 0).toLocaleString(), 'Total error events in selected range.'],
+      ['Downtime', 'totalDowntime', formatDuration(k.totalDowntime || 0), 'Planned + unplanned downtime.'],
+      ['Avg Duration', 'mttr', k.avgDuration == null ? na : formatDuration(k.avgDuration), 'Average event duration.'],
+      ['MTTR', 'mttr', k.mttr == null ? na : formatDuration(k.mttr), 'Average time to resolve an event'],
+      ['MTBF', 'mtbf', k.mtbf == null ? na : formatDuration(k.mtbf), 'Average time between failures'],
       ['Production Volume', 'totalProdVolume', Number(k.totalProdVolume || 0).toLocaleString(), `Total printed sheets: ${Number(totalPrintedSheets || 0).toLocaleString()}`],
-      ['Waste', 'totalVolume', Number(totalWasteSheets || 0).toLocaleString(), `Waste ratio: ${wasteRatioPct.toFixed(2)}%`],
-      ['Availability', 'availabilityPct', k.availabilityPct == null ? na : `${k.availabilityPct.toFixed(1)}%`, 'Weighted availability across selected scope.'],
-      ['Main Risk / Insight', 'totalDowntime', mainRisk, 'Strongest issue detected in current scope.']
+      ['Waste', 'totalProdVolume', Number(totalWasteSheets || 0).toLocaleString(), `Waste ratio: ${wasteRatioPct.toFixed(2)}%`],
+      ['Availability', 'availabilityPct', k.availabilityPct == null ? na : `${k.availabilityPct.toFixed(1)}%`, 'Weighted availability across selected scope.']
     ];
-    const toCard = ([label, metricKey, value, subtitle]) => `<article class="kpi clickable" role="button" tabindex="0" data-kpi-metric="${metricKey}"><div class="k">${label}</div><div class="v">${esc(value)}</div><div class="kpi-sub">${esc(subtitle)}</div></article>`;
-    document.getElementById('kpiStrip').innerHTML = `<div class="kpi-row core" style="grid-template-columns:repeat(7,minmax(140px,1fr));">${cards.map(toCard).join('')}</div>`;
+    if (mainRisk && !/^n\/a$/i.test(mainRisk) && !/\bN\/A\b/i.test(mainRisk)) {
+      cards.push(['Main Risk / Insight', 'totalDowntime', mainRisk, 'Strongest issue detected in current scope.']);
+    }
+    const toCard = ([label, metricKey, value, subtitle]) => `<article class="kpi clickable" role="button" tabindex="0" data-kpi-metric="${metricKey}" title="${esc(subtitle)}"><div class="k">${label}</div><div class="v">${esc(value)}</div><div class="kpi-sub">${esc(subtitle)}</div></article>`;
+    document.getElementById('kpiStrip').innerHTML = `<div class="kpi-row core" style="grid-template-columns:repeat(${Math.max(4, cards.length)},minmax(140px,1fr));">${cards.map(toCard).join('')}</div>`;
   }
 
   function renderExecutiveSummaryCard(summary) {
@@ -2557,6 +2561,8 @@
     };
     check('events', rawErrors.length, errorsAgg.reduce((sum, row) => sum + Number(row?.totalEvents || 0), 0), 'errors.rawRows vs errorsAgg.totalEvents');
     check('duration', rawErrors.reduce((sum, row) => sum + Number(row?.durationSeconds || 0), 0), errorsAgg.reduce((sum, row) => sum + Number(row?.totalErrorDurationSeconds || 0), 0), 'errors.rawRows.durationSeconds vs errorsAgg.totalErrorDurationSeconds');
+    const expectedAvgDuration = rawErrors.length ? (rawErrors.reduce((sum, row) => sum + Number(row?.durationSeconds || 0), 0) / rawErrors.length) : 0;
+    check('errors.avg_duration', expectedAvgDuration, Number(STATE.kpis?.avgDuration || 0), 'errors.totalDuration / totalEvents');
     check('volume.raw_to_agg', rawVolumeRows.reduce((sum, row) => sum + Number(row?.printedSheets || 0), 0), volumeAgg.reduce((sum, row) => sum + Number(row?.printedSheets || 0), 0), 'volume.rawRows.printedSheets vs volumeAgg.printedSheets');
     const expectedMetricTotal = volumeAgg.reduce((sum, row) => sum + Number(
       STATE.customerVolumeMetric === 'wasteSheets'
@@ -2591,6 +2597,14 @@
       'basis-difference-allowed'
     );
     const availabilityRows = sourceScope?.filteredAvailabilityRowsNative || [];
+    const availabilityTotals = availabilityRows.reduce((acc, row) => {
+      acc.runtime += Number(row?.runtimeSeconds || 0);
+      acc.downtime += Number(totalDowntimeFromAvailabilityRow(row) || 0);
+      return acc;
+    }, { runtime: 0, downtime: 0 });
+    if (availabilityTotals.runtime < 0 || availabilityTotals.downtime < 0) {
+      issues.push({ metric: 'availability.non_negative', expected: '>=0', actual: `${availabilityTotals.runtime},${availabilityTotals.downtime}`, diff: 0, source: 'availability rows', level: 'error', reason: 'negative-duration' });
+    }
     availabilityRows.forEach((row, idx) => {
       const pct = Number(row?.availabilityPct);
       if (!Number.isFinite(pct) || pct < 0 || pct > 100) {
@@ -2601,6 +2615,13 @@
     if (weightedAvailabilityExpected != null && Number.isFinite(Number(STATE.kpis?.availabilityPct))) {
       check('availability.weighted', weightedAvailabilityExpected, Number(STATE.kpis.availabilityPct), 'availabilityAgg weighted availability', 'error', 'weighted-method-consistency');
     }
+    (sourceScope?.volumeAgg || []).forEach((row, idx) => {
+      const good = Number(row?.productionPrintedSheets || 0);
+      const waste = Number(row?.wastePrintedSheets || 0);
+      const total = Number(row?.totalVolume || (good + waste));
+      if (good < 0 || waste < 0 || total < 0) issues.push({ metric: `volume.non_negative.row_${idx+1}`, expected: '>=0', actual: `${good},${waste},${total}`, diff: 0, source: 'volumeAgg', level: 'error', reason: 'negative-volume' });
+      if (Math.abs((good + waste) - total) > 1e-6) issues.push({ metric: `volume.good_plus_waste.row_${idx+1}`, expected: total, actual: good + waste, diff: (good+waste)-total, source: 'volumeAgg', level: 'error', reason: 'volume-component-mismatch' });
+    });
     const pressTotal = (sourceScope?.volumeAgg || []).reduce((sum, row) => sum + Number(row?.totalVolume || 0), 0);
     const chartTotal = (allCustomerVolumeRows || []).reduce((sum, row) => sum + Number(row?.totalSheets || row?.totalVolume || 0), 0);
     check('volume.press_reconcile_global', pressTotal, chartTotal, 'volumeAgg press totals vs chart global total', 'error', 'press-global-reconciliation');
@@ -2646,7 +2667,8 @@
     const hasWarningsOnly = level === 'green' && (globalValidation?.warningIssues?.length || 0) > 0;
     panel.className = `dashboard-status ${level} hidden`;
     if (headerStatus) {
-      headerStatus.className = `meta-pill ${level === 'green' ? 'ok' : 'bad'}`;
+      const showStatus = level !== 'green' || hasWarningsOnly;
+      headerStatus.className = `meta-pill ${level === 'green' ? 'ok' : 'bad'}${showStatus ? '' : ' hidden'}`;
       headerStatus.textContent = level === 'green' ? (hasWarningsOnly ? '🟡 Data Warning' : '🟢 Data OK') : '🔴 Data Issue';
       headerStatus.title = warnings.length
         ? warnings.join(' ')
@@ -2679,6 +2701,39 @@
     node.style.color = kind === 'error' ? '#ffd2cf' : '';
   }
 
+
+  function buildBarValueLabelPlugin(config = {}) {
+    return {
+      id: 'bar-inline-values',
+      afterDatasetsDraw(chart) {
+        if (chart.config.type !== 'bar') return;
+        const { ctx } = chart;
+        const xScale = chart.scales.x;
+        const yScale = chart.scales.y;
+        const horizontal = xScale && yScale && xScale.isHorizontal && !yScale.isHorizontal;
+        const formatter = config.formatter || (v => formatCompactNumber(v));
+        ctx.save();
+        ctx.fillStyle = config.color || '#dbe7f8';
+        ctx.font = '600 11px Inter, system-ui, sans-serif';
+        ctx.textAlign = horizontal ? 'left' : 'center';
+        ctx.textBaseline = 'middle';
+        chart.data.datasets.forEach((ds, di) => {
+          if (!chart.isDatasetVisible(di)) return;
+          const meta = chart.getDatasetMeta(di);
+          meta.data.forEach((el, i) => {
+            const v = Number(ds.data?.[i] || 0);
+            if (!Number.isFinite(v) || v <= 0) return;
+            const label = formatter(v, ds, i);
+            const x = horizontal ? (el.x + 6) : el.x;
+            const y = horizontal ? el.y : (el.y - 8);
+            ctx.fillText(label, x, y);
+          });
+        });
+        ctx.restore();
+      }
+    };
+  }
+
   function replaceChart(id, config) {
     try {
       if (!hasChartLibrary()) {
@@ -2690,7 +2745,11 @@
       const canvas = document.getElementById(id);
       if (!canvas) throw new Error(`Canvas not found: ${id}`);
       if (CHARTS.has(id)) CHARTS.get(id).destroy();
-      const instance = new Chart(canvas.getContext('2d'), config);
+      const normalizedConfig = { ...config };
+      if (normalizedConfig.type === 'bar') {
+        normalizedConfig.plugins = [...(normalizedConfig.plugins || []), buildBarValueLabelPlugin(normalizedConfig.valueLabels || {})];
+      }
+      const instance = new Chart(canvas.getContext('2d'), normalizedConfig);
       CHARTS.set(id, instance);
       requestAnimationFrame(() => {
         try {
@@ -3074,6 +3133,7 @@
       if (metric === 'avgDuration') return x.metrics?.avgDuration || x.avgDuration || 0;
       return x[metric] || 0;
     });
+    payloads.forEach((p, i) => { p.parentContext = { path: [], parentValue: Number(data[i] || 0) }; });
     if (metric === 'downtime' && !hasDurationDataForRanking(metric, view)) {
       showNoDataChart(`${key}Chart`, 'No duration data available for current selection');
       document.querySelector(`[data-rank-card="${key}"] .micro`).textContent = 'No duration data available for current selection';
@@ -3572,7 +3632,7 @@
         totalSheets: safe.totalSheets,
         wasteRatio,
         metricValue: metric === 'wasteRatio' ? wasteRatio : volumeMetricValue({ ...row, ...safe }, metric),
-        parentContext: { path: [] }
+        parentContext: { path: [], parentValue: metric === 'wasteRatio' ? wasteRatio : volumeMetricValue({ ...row, ...safe }, metric) }
       };
     }).sort((a, b) => ((a.metricValue || 0) - (b.metricValue || 0)) * dir);
     return { chartRows: rows.slice(0, expanded ? rows.length : 12), fullRows: rows };
@@ -3792,9 +3852,7 @@
     STATE.appliedSimulationData = null;
     showBreakdown = false;
     document.getElementById('drilldownDrawer').classList.add('show');
-    renderDrilldown();
-    refreshDrilldownChartsAfterOpen();
-    scrollDrilldownChartsIntoView();
+    requestAnimationFrame(() => { renderDrilldown(); refreshDrilldownChartsAfterOpen(); scrollDrilldownChartsIntoView(); });
   }
 
   let showBreakdown = false;
@@ -3894,14 +3952,14 @@
       if (drilldownSpecial > 0 && mainChartWaste <= 0) console.error('WASTE PIPELINE ERROR');
       if (drilldownSpecial > 0 && mainChartWaste <= 0) console.warn('DATA MISMATCH');
     }
-    const nextPath = [...prevPath, { dimension, entityKey: payload?.entityKey || value, displayLabel: payload?.displayLabel || value }];
+    const nextPath = [...prevPath, { dimension, entityKey: payload?.entityKey || value, displayLabel: payload?.displayLabel || value, parentValue: Number(payload?.parentContext?.parentValue ?? payload?.parentValue ?? NaN) }];
     STATE.drilldown = {
       dimension,
       value: payload?.displayLabel || value,
       entityKey: payload?.entityKey || value,
       sourceType,
       metric: payload?.metric || '',
-      parentContext: payload?.parentContext || null,
+      parentContext: { ...(payload?.parentContext || {}), parentValue: Number(payload?.parentContext?.parentValue ?? payload?.parentValue ?? NaN) },
       path: nextPath,
       rows,
       search: '',
@@ -3910,9 +3968,7 @@
     };
     showBreakdown = false;
     document.getElementById('drilldownDrawer').classList.add('show');
-    renderDrilldown();
-    refreshDrilldownChartsAfterOpen();
-    scrollDrilldownChartsIntoView();
+    requestAnimationFrame(() => { renderDrilldown(); refreshDrilldownChartsAfterOpen(); scrollDrilldownChartsIntoView(); });
   }
 
   function buildDrilldownAnalytics(rows, dimension, isVolume = false) {
@@ -4117,6 +4173,26 @@
       if (tableWrap) tableWrap.style.display = 'block';
     }
     const scoped = !search ? rows : rows.filter(r => `${r.press} ${r.subsystem || ''} ${r.name || ''} ${r.alertTitle || ''} ${r.version || ''} ${r.jobType || ''} ${r.jobStatus || ''}`.toLowerCase().includes(search.toLowerCase()));
+    const validationBadge = document.getElementById('drilldownValidationBadge');
+    const parentValue = Number(STATE.drilldown.parentContext?.parentValue ?? NaN);
+    let scopedTotal = NaN;
+    if (sourceType === 'volumeJobs') scopedTotal = scoped.reduce((a, r) => a + Number(volumeMetricValue(r, STATE.customerVolumeMetric) || 0), 0);
+    else if (sourceType === 'availabilityNative' || sourceType === 'availabilityAgg') scopedTotal = scoped.reduce((a, r) => a + Number(totalDowntimeFromAvailabilityRow(r) || 0), 0);
+    else scopedTotal = scoped.length;
+    const hasParentValidation = Number.isFinite(parentValue) && parentValue > 0;
+    const mismatch = hasParentValidation && Math.abs(scopedTotal - parentValue) > 1e-6;
+    if (validationBadge) {
+      if (mismatch) {
+        validationBadge.className = 'badge missing';
+        validationBadge.textContent = 'Scope mismatch';
+        validationBadge.title = `Expected ${parentValue.toLocaleString()} but scoped ${scopedTotal.toLocaleString()}`;
+      } else {
+        validationBadge.className = 'badge validated';
+        validationBadge.textContent = 'Scope validated';
+        validationBadge.title = hasParentValidation ? `Scoped total matches selected value (${scopedTotal.toLocaleString()}).` : 'Scoped drilldown validated by active filters.';
+      }
+      validationBadge.classList.remove('hidden');
+    }
     ['drilldownTopChart', 'drilldownTrendChart', 'drilldownSecondaryChart', 'drilldownOpsChart'].forEach(id => {
       const card = document.getElementById(id)?.closest('article');
       if (!card) return;
