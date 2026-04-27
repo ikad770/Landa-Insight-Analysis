@@ -343,7 +343,7 @@
 
       <article class="card span-6">
         <div class="chart-head"><h3>Print Volume By Press</h3><div class="chart-tools"><select id="customerVolumeMetric" class="select"><option value="totalSheets">Total</option><option value="productionPrintedSheets">Good</option><option value="wasteSheets">Waste only</option><option value="wasteRatio">Waste ratio</option></select><select id="customerVolumeSort" class="select"><option value="desc">Highest first</option><option value="asc">Lowest first</option></select><button id="customerVolumeExpand" class="btn secondary">Show all</button></div></div>
-        <div class="micro" id="customerVolumeNote">Stacked bars: green base = good volume, top segment = waste from normalized Special job_type rows.</div><div class="chart-area"><canvas id="customerVolumeChart"></canvas></div>
+        <div class="micro" id="customerVolumeNote">Stacked bars: muted dollar green = Good Volume, top segment = Waste. Waste color is based on per-press waste ratio.</div><div class="chart-area"><canvas id="customerVolumeChart"></canvas></div>
       </article>
 
       <article class="card span-12" id="riskSection"></article>
@@ -384,15 +384,13 @@
     <div id="drilldownBreadcrumbs" class="micro"></div>
     <div id="drilldownSummary" class="micro"></div>
     <div id="drilldownSummaryGrid" class="summary-grid" style="margin-bottom:10px;"></div>
-    <div id="drilldownContext" class="card" style="margin-bottom:10px;"></div>
-    <div id="drilldownFilters" class="card" style="margin-bottom:10px;"></div>
-    <div id="drilldownTransparency" class="card" style="margin-bottom:10px;"></div>
-    <div id="drilldownInsight" class="card" style="margin-bottom:10px;"></div>
+    <div id="drilldownExplanation" class="card" style="margin-bottom:10px;"></div>
+    <details id="drilldownCalcDetails" class="card" style="margin-bottom:10px;"><summary style="cursor:pointer;font-weight:600;">Calculation details</summary><div id="drilldownCalcBody" style="margin-top:8px;"></div></details>
     <div id="drilldownChartsContainer" class="grid" style="margin-bottom:10px;">
-      <article class="card span-6"><h4 style="margin:0 0 8px;">Top breakdown</h4><div class="chart-area" style="height:220px;min-height:220px;"><canvas id="drilldownTopChart"></canvas></div></article>
-      <article class="card span-6"><h4 id="drilldownTrendHeading" style="margin:0 0 8px;">Trend</h4><div class="chart-area" style="height:220px;min-height:220px;"><canvas id="drilldownTrendChart"></canvas></div></article>
-      <article class="card span-6"><h4 style="margin:0 0 8px;">Secondary split</h4><div class="chart-area" style="height:220px;min-height:220px;"><canvas id="drilldownSecondaryChart"></canvas></div></article>
-      <article class="card span-6"><h4 id="drilldownOpsHeading" style="margin:0 0 8px;">Operational split</h4><div class="chart-area" style="height:220px;min-height:220px;"><canvas id="drilldownOpsChart"></canvas></div></article>
+      <article class="card span-6"><h4 id="drilldownTopHeading" style="margin:0 0 8px;">Top breakdown</h4><div class="chart-area" style="height:220px;min-height:220px;"><canvas id="drilldownTopChart"></canvas></div></article>
+      <article class="card span-6"><h4 id="drilldownTrendHeading" style="margin:0 0 8px;">Trend over time</h4><div class="chart-area" style="height:220px;min-height:220px;"><canvas id="drilldownTrendChart"></canvas></div></article>
+      <article class="card span-6"><h4 id="drilldownSecondaryHeading" style="margin:0 0 8px;">Secondary split</h4><div class="chart-area" style="height:220px;min-height:220px;"><canvas id="drilldownSecondaryChart"></canvas></div></article>
+      <article class="card span-6"><h4 id="drilldownOpsHeading" style="margin:0 0 8px;">Composition</h4><div class="chart-area" style="height:220px;min-height:220px;"><canvas id="drilldownOpsChart"></canvas></div></article>
     </div>
     <div id="simulationStateStrip" class="sim-state-strip hidden"></div>
     <div id="drilldownTableWrap" class="table-wrap"><table id="drilldownTable"></table></div>
@@ -2481,23 +2479,25 @@
 
   function renderKpis(k) {
     const na = 'N/A';
-    const rows = {
-      core: [
-        ['Production Volume', 'totalProdVolume', Number(k.totalProdVolume || 0).toLocaleString(), 'Production printed sheets'],
-        ['Availability', 'availabilityPct', k.availabilityPct == null ? na : `${k.availabilityPct.toFixed(1)}%`, 'Weighted runtime availability'],
-        ['Total Events', 'totalEvents', k.totalEvents.toLocaleString(), 'Total error events in selected range'],
-        ['Total Downtime', 'totalDowntime', formatDuration(k.totalDowntime), 'Planned + unplanned downtime'],
-      ],
-      context: [
-        ['MTTR', 'mttr', k.mttr == null ? na : formatDuration(k.mttr), 'Avg repair time per failure event'],
-        ['MTBF', 'mtbf', k.mtbf == null ? na : formatDuration(k.mtbf), 'Runtime / failure events'],
-        ['Output Efficiency', 'outputEfficiency', k.outputEfficiency == null ? na : Math.round(k.outputEfficiency).toLocaleString(), 'Sheets per downtime hour'],
-      ]
-    };
-    const toCard = ([label, metricKey, value, subtitle]) => `<article class="kpi clickable" role="button" tabindex="0" data-kpi-metric="${metricKey}"><div class="k">${label}</div><div class="v">${value}</div><div class="kpi-sub">${subtitle}</div></article>`;
-    document.getElementById('kpiStrip').innerHTML = `
-      <div class="kpi-row core">${rows.core.map(toCard).join('')}</div>
-      <div class="kpi-row context">${rows.context.map(toCard).join('')}</div>`;
+    const scope = STATE.lastSourceScope || {};
+    const volumeAgg = scope.volumeAgg || [];
+    const totalWasteSheets = volumeAgg.reduce((sum, row) => sum + Number(row?.wastePrintedSheets || 0), 0);
+    const totalPrintedSheets = volumeAgg.reduce((sum, row) => sum + Number(row?.totalVolume || ((row?.productionPrintedSheets || 0) + (row?.wastePrintedSheets || 0))), 0);
+    const wasteRatioPct = totalPrintedSheets > 0 ? (totalWasteSheets / totalPrintedSheets) * 100 : 0;
+    const dataStatusLabel = document.getElementById('headerDataStatus')?.textContent || 'Data status';
+    const dataRangeLabel = document.getElementById('dataRangeIndicator')?.textContent?.replace('Data range: ', '') || 'N/A';
+    const mainRisk = STATE.merged?.summary?.mainRiskSentence || `Highest risk press is ${STATE.merged?.summary?.focusPress || 'N/A'}.`;
+    const cards = [
+      ['Data Status', 'availabilityPct', dataStatusLabel, 'Open details in Data Status panel.'],
+      ['Date Range', 'totalEvents', dataRangeLabel, 'Current filter scope.'],
+      ['Events', 'totalEvents', Number(k.totalEvents || 0).toLocaleString(), 'Total error events in selected range.'],
+      ['Production Volume', 'totalProdVolume', Number(k.totalProdVolume || 0).toLocaleString(), `Total printed sheets: ${Number(totalPrintedSheets || 0).toLocaleString()}`],
+      ['Waste', 'totalVolume', Number(totalWasteSheets || 0).toLocaleString(), `Waste ratio: ${wasteRatioPct.toFixed(2)}%`],
+      ['Availability', 'availabilityPct', k.availabilityPct == null ? na : `${k.availabilityPct.toFixed(1)}%`, 'Weighted availability across selected scope.'],
+      ['Main Risk / Insight', 'totalDowntime', mainRisk, 'Strongest issue detected in current scope.']
+    ];
+    const toCard = ([label, metricKey, value, subtitle]) => `<article class="kpi clickable" role="button" tabindex="0" data-kpi-metric="${metricKey}"><div class="k">${label}</div><div class="v">${esc(value)}</div><div class="kpi-sub">${esc(subtitle)}</div></article>`;
+    document.getElementById('kpiStrip').innerHTML = `<div class="kpi-row core" style="grid-template-columns:repeat(7,minmax(140px,1fr));">${cards.map(toCard).join('')}</div>`;
   }
 
   function renderExecutiveSummaryCard(summary) {
@@ -2514,7 +2514,7 @@
     const secondaryAction = topError !== 'N/A' ? `Contain dominant error ${topError}` : 'Contain dominant recurring error';
     const actions = [primaryAction, secondaryAction].filter((value, idx, arr) => arr.indexOf(value) === idx).slice(0, 2);
     document.getElementById('executiveSummaryCard').innerHTML = `
-      <div class="chart-head"><h3>Executive Snapshot</h3></div>
+      <div class="chart-head"><h3>Operational Status Overview</h3></div>
       <section class="exec-decision-panel">
         <div class="exec-row" style="gap:10px;flex-wrap:wrap;">
           <span class="exec-severity ${statusClass}">${esc(summary.status || 'WATCH')}</span>
@@ -2590,6 +2590,20 @@
       'warning',
       'basis-difference-allowed'
     );
+    const availabilityRows = sourceScope?.filteredAvailabilityRowsNative || [];
+    availabilityRows.forEach((row, idx) => {
+      const pct = Number(row?.availabilityPct);
+      if (!Number.isFinite(pct) || pct < 0 || pct > 100) {
+        issues.push({ metric: `availability.range.row_${idx + 1}`, expected: '0-100', actual: row?.availabilityPct, diff: 0, source: 'Availability details.csv', level: 'error', reason: 'availability-out-of-range' });
+      }
+    });
+    const weightedAvailabilityExpected = computeAvailabilityDefinitions(sourceScope?.availabilityAgg || []).selected?.value;
+    if (weightedAvailabilityExpected != null && Number.isFinite(Number(STATE.kpis?.availabilityPct))) {
+      check('availability.weighted', weightedAvailabilityExpected, Number(STATE.kpis.availabilityPct), 'availabilityAgg weighted availability', 'error', 'weighted-method-consistency');
+    }
+    const pressTotal = (sourceScope?.volumeAgg || []).reduce((sum, row) => sum + Number(row?.totalVolume || 0), 0);
+    const chartTotal = (allCustomerVolumeRows || []).reduce((sum, row) => sum + Number(row?.totalSheets || row?.totalVolume || 0), 0);
+    check('volume.press_reconcile_global', pressTotal, chartTotal, 'volumeAgg press totals vs chart global total', 'error', 'press-global-reconciliation');
     const hardIssues = issues.filter(issue => issue.level === 'error');
     return { isValid: hardIssues.length === 0, issues, hardIssues, warningIssues: issues.filter(issue => issue.level === 'warning') };
   }
@@ -2676,7 +2690,16 @@
       const canvas = document.getElementById(id);
       if (!canvas) throw new Error(`Canvas not found: ${id}`);
       if (CHARTS.has(id)) CHARTS.get(id).destroy();
-      CHARTS.set(id, new Chart(canvas.getContext('2d'), config));
+      const instance = new Chart(canvas.getContext('2d'), config);
+      CHARTS.set(id, instance);
+      requestAnimationFrame(() => {
+        try {
+          instance.resize();
+          instance.update('none');
+        } catch (e) {
+          console.warn('[chart-post-render-update-failed]', { chartId: id, error: e });
+        }
+      });
       setCanvasState(id, '');
       return true;
     } catch (error) {
@@ -3556,7 +3579,6 @@
   }
 
   function renderVolumeByPressChart(customerVolumeRows = []) {
-    const selectedMetric = STATE.customerVolumeMetric || 'totalSheets';
     const labels = customerVolumeRows.map(r => r.displayLabel || r.entityKey || r.canonicalPress || 'Unspecified');
     const enriched = customerVolumeRows.map(row => {
       const safe = sanitizeVolumeComponents(row.totalPrintedSheets || row.totalSheets || row.totalVolume, row.goodSheets || row.productionPrintedSheets, row.wasteSheets || row.wastePrintedSheets);
@@ -3565,48 +3587,59 @@
     });
     const goodValues = enriched.map(r => r.goodSheets);
     const wasteValues = enriched.map(r => r.wasteSheets);
-    const totalValues = enriched.map(r => r.totalSheets);
-    const ratioValues = enriched.map(r => r.wasteRatio * 100);
     const wasteColors = enriched.map(r => wasteRatioColor(r.wasteRatio));
-    const goodFill = '#5f8f76';
-
-    let datasets = [];
-    let stacked = false;
-    if (selectedMetric === 'productionPrintedSheets') {
-      datasets = [{ label: 'Good Volume', data: goodValues, backgroundColor: goodFill, borderColor: goodFill, borderWidth: 1, borderRadius: 6, minBarLength: 3 }];
-    } else if (selectedMetric === 'wasteSheets') {
-      datasets = [{ label: 'Waste', data: wasteValues, backgroundColor: wasteColors, borderColor: wasteColors, borderWidth: 1, borderRadius: 6, minBarLength: 3 }];
-    } else if (selectedMetric === 'wasteRatio') {
-      datasets = [{ label: 'Waste Ratio %', data: ratioValues, backgroundColor: wasteColors, borderColor: wasteColors, borderWidth: 1, borderRadius: 6, minBarLength: 3 }];
-    } else {
-      stacked = true;
-      datasets = [
-        { label: 'Good Volume', data: goodValues, backgroundColor: goodFill, borderColor: goodFill, borderWidth: 1, borderRadius: 6, minBarLength: 3, stack: 'volume' },
-        { label: 'Waste', data: wasteValues, backgroundColor: wasteColors, borderColor: wasteColors, borderWidth: 1, borderRadius: 6, minBarLength: 2, stack: 'volume' }
-      ];
-    }
+    const goodFill = '#2E8B57';
 
     return replaceChart('customerVolumeChart', {
       type: 'bar',
-      data: { labels, datasets },
+      data: {
+        labels,
+        datasets: [
+          { label: 'Good Volume', data: goodValues, backgroundColor: goodFill, borderColor: goodFill, borderWidth: 1, borderRadius: 6, minBarLength: 3, stack: 'volume' },
+          { label: 'Waste', data: wasteValues, backgroundColor: wasteColors, borderColor: wasteColors, borderWidth: 1, borderRadius: 6, minBarLength: 2, stack: 'volume' }
+        ]
+      },
       options: {
         ...baseOptions('customerVolume', labels, enriched),
         scales: {
-          x: { stacked, ticks: { color: '#c6d3ea' }, grid: { color: 'rgba(255,255,255,.04)' } },
-          y: { stacked, ticks: { color: '#c6d3ea', callback: value => selectedMetric === 'wasteRatio' ? `${value}%` : value.toLocaleString() }, grid: { color: 'rgba(255,255,255,.04)' }, beginAtZero: true }
+          x: { stacked: true, ticks: { color: '#c6d3ea' }, grid: { color: 'rgba(255,255,255,.04)' } },
+          y: { stacked: true, ticks: { color: '#c6d3ea', callback: value => Number(value || 0).toLocaleString() }, grid: { color: 'rgba(255,255,255,.04)' }, beginAtZero: true }
         },
         plugins: {
-          legend: { display: true, labels: { color: '#c6d3ea' } },
+          legend: {
+            display: true,
+            labels: { color: '#c6d3ea' },
+            onClick(e, item, legend) {
+              const chart = legend.chart;
+              const index = item.datasetIndex;
+              const meta = chart.getDatasetMeta(index);
+              meta.hidden = meta.hidden === null ? !chart.data.datasets[index].hidden : null;
+              chart.update();
+            }
+          },
           tooltip: {
             callbacks: {
               title: ctx => `Press: ${enriched?.[ctx?.[0]?.dataIndex || 0]?.displayLabel || ctx?.[0]?.label || 'Unspecified'}`,
               label: ctx => {
                 const row = enriched?.[ctx.dataIndex] || {};
                 const ratioPct = (row.wasteRatio || 0) * 100;
-                if (selectedMetric === 'wasteRatio') return [`Waste ratio: ${ratioPct.toFixed(2)}%`, `Waste: ${(row.wasteSheets || 0).toLocaleString()}`, `Total: ${(row.totalSheets || 0).toLocaleString()}`];
-                if (selectedMetric === 'wasteSheets') return [`Waste: ${(row.wasteSheets || 0).toLocaleString()}`, `Waste ratio: ${ratioPct.toFixed(2)}%`];
-                if (selectedMetric === 'productionPrintedSheets') return [`Good volume: ${(row.goodSheets || 0).toLocaleString()}`, `Total: ${(row.totalSheets || 0).toLocaleString()}`];
-                return [`Total: ${(row.totalSheets || 0).toLocaleString()}`, `Good: ${(row.goodSheets || 0).toLocaleString()}`, `Waste: ${(row.wasteSheets || 0).toLocaleString()}`, `Waste ratio: ${ratioPct.toFixed(2)}%`];
+                const status = ratioPct > 10 ? 'High waste' : ratioPct >= 5 ? 'Medium waste' : 'Low waste';
+                if (ctx.datasetIndex === 0) {
+                  return [`Good sheets: ${(row.goodSheets || 0).toLocaleString()}`, `Total sheets: ${(row.totalSheets || 0).toLocaleString()}`];
+                }
+                return [`Waste sheets: ${(row.wasteSheets || 0).toLocaleString()}`, `Waste ratio: ${ratioPct.toFixed(2)}%`, `Status: ${status}`];
+              },
+              afterBody: items => {
+                const row = enriched?.[items?.[0]?.dataIndex || 0] || {};
+                const ratioPct = (row.wasteRatio || 0) * 100;
+                const status = ratioPct > 10 ? 'High waste' : ratioPct >= 5 ? 'Medium waste' : 'Low waste';
+                return [
+                  `Good sheets: ${(row.goodSheets || 0).toLocaleString()}`,
+                  `Waste sheets: ${(row.wasteSheets || 0).toLocaleString()}`,
+                  `Total sheets: ${(row.totalSheets || 0).toLocaleString()}`,
+                  `Waste ratio: ${ratioPct.toFixed(2)}%`,
+                  `Status: ${status}`,
+                ];
               }
             }
           }
@@ -3616,24 +3649,24 @@
         id: 'volume-value-labels',
         afterDatasetsDraw(chart) {
           const { ctx } = chart;
-          const placed = [];
+          const goodVisible = chart.isDatasetVisible(0);
+          const wasteVisible = chart.isDatasetVisible(1);
+          const metaGood = chart.getDatasetMeta(0);
+          const metaWaste = chart.getDatasetMeta(1);
           ctx.save();
           ctx.font = '600 11px Inter, system-ui, sans-serif';
+          ctx.fillStyle = '#dbe7f8';
+          ctx.textAlign = 'center';
           enriched.forEach((row, i) => {
-            const meta = chart.getDatasetMeta(selectedMetric === 'totalSheets' ? 1 : 0);
-            const bar = meta?.data?.[i];
+            const bar = wasteVisible ? metaWaste?.data?.[i] : metaGood?.data?.[i];
             if (!bar) return;
-            const value = selectedMetric === 'wasteSheets' ? row.wasteSheets : selectedMetric === 'productionPrintedSheets' ? row.goodSheets : selectedMetric === 'wasteRatio' ? ((row.wasteRatio || 0) * 100) : row.totalSheets;
+            let value = 0;
+            if (goodVisible && wasteVisible) value = row.totalSheets || 0;
+            else if (wasteVisible) value = row.wasteSheets || 0;
+            else if (goodVisible) value = row.goodSheets || 0;
             if (!(value > 0)) return;
-            const label = selectedMetric === 'wasteRatio' ? `${value.toFixed(1)}%` : formatCompactNumber(value);
-            const width = ctx.measureText(label).width;
-            let y = ((bar.y || 0) - 6);
-            const x = bar.x;
-            if (placed.some(b => Math.abs(b.x - x) < width && Math.abs(b.y - y) < 11)) y -= 12;
-            placed.push({ x, y });
-            ctx.fillStyle = '#dbe7f8';
-            ctx.textAlign = 'center';
-            ctx.fillText(label, x, y);
+            const label = formatCompactNumber(value);
+            ctx.fillText(label, bar.x, (bar.y || 0) - 6);
           });
           ctx.restore();
         }
@@ -3758,8 +3791,9 @@
     STATE.pendingSimulationChanges = new Set();
     STATE.appliedSimulationData = null;
     showBreakdown = false;
-    renderDrilldown();
     document.getElementById('drilldownDrawer').classList.add('show');
+    renderDrilldown();
+    refreshDrilldownChartsAfterOpen();
     scrollDrilldownChartsIntoView();
   }
 
@@ -3778,10 +3812,28 @@
     chartsContainer.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
+  function refreshDrilldownChartsAfterOpen() {
+    const chartIds = ['drilldownTopChart', 'drilldownTrendChart', 'drilldownSecondaryChart', 'drilldownOpsChart'];
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        chartIds.forEach(id => {
+          const chart = CHARTS.get(id);
+          if (!chart) return;
+          try {
+            chart.resize();
+            chart.update('none');
+          } catch (error) {
+            console.warn('[drilldown-chart-refresh-failed]', { id, error });
+          }
+        });
+      });
+    });
+  }
+
   function renderDrilldownContext(metricName, currentValue, profile) {
     const scope = currentFilterValues();
     const scopeTxt = Object.entries(scope || {}).filter(([,v]) => String(v||'all') !== 'all' && String(v||'').trim() !== '').map(([k,v]) => `${k}: ${v}`).join(' • ') || 'All active dashboard data';
-    document.getElementById('drilldownContext').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Metric context</h4><span class="risk-pill risk-medium">Traceable calculation</span></div><div class="summary-grid" style="margin-top:8px;"><div class="summary-stat span-3"><div class="label">Metric</div><div class="value">${esc(metricName)}</div></div><div class="summary-stat span-3"><div class="label">Current value</div><div class="value">${esc(currentValue)}</div></div><div class="summary-stat span-3"><div class="label">Source used</div><div class="value">${esc(getSourceLabel(profile.source))}</div></div><div class="summary-stat span-3"><div class="label">Formula</div><div class="value" style="font-size:.87rem;line-height:1.35;">${esc(profile.formula)}</div></div></div><div class="micro" style="margin-top:8px;">Current scope / filters: ${esc(scopeTxt)}.</div>`;
+    document.getElementById('drilldownExplanation').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Metric context</h4><span class="risk-pill risk-medium">Traceable calculation</span></div><div class="summary-grid" style="margin-top:8px;"><div class="summary-stat span-3"><div class="label">Metric</div><div class="value">${esc(metricName)}</div></div><div class="summary-stat span-3"><div class="label">Current value</div><div class="value">${esc(currentValue)}</div></div><div class="summary-stat span-3"><div class="label">Source used</div><div class="value">${esc(getSourceLabel(profile.source))}</div></div><div class="summary-stat span-3"><div class="label">Formula</div><div class="value" style="font-size:.87rem;line-height:1.35;">${esc(profile.formula)}</div></div></div><div class="micro" style="margin-top:8px;">Current scope / filters: ${esc(scopeTxt)}.</div>`;
   }
 
   function computeKpiComponents(metricKey, rows) {
@@ -3857,8 +3909,9 @@
       simulation: { pendingExcluded: new Set(existingSimulation.pendingExcluded || []), appliedExcluded: new Set(existingSimulation.appliedExcluded || []) }
     };
     showBreakdown = false;
-    renderDrilldown();
     document.getElementById('drilldownDrawer').classList.add('show');
+    renderDrilldown();
+    refreshDrilldownChartsAfterOpen();
     scrollDrilldownChartsIntoView();
   }
 
@@ -3952,10 +4005,10 @@
       host.innerHTML = '';
       return;
     }
-    host.innerHTML = path.map((node, idx) => {
+    host.innerHTML = ['All Events'].concat(path.map((node, idx) => {
       const isLast = idx === path.length - 1;
       return `${isLast ? '' : `<button class="btn secondary" data-dd-crumb="${idx}" style="padding:3px 8px;">`}${esc(node.displayLabel)}${isLast ? '' : '</button>'}`;
-    }).join(' <span style="color:var(--muted)">›</span> ');
+    })).join(' <span style="color:var(--muted)">→</span> ');
     host.querySelectorAll('[data-dd-crumb]').forEach(btn => btn.addEventListener('click', () => {
       const idx = Number(btn.dataset.ddCrumb);
       const crumb = path[idx];
@@ -4073,19 +4126,20 @@
     });
     renderDrilldownBreadcrumbs();
     renderSimulationControls(0);
-    setDrilldownHeading('drilldownTrendHeading', 'Trend');
-    setDrilldownHeading('drilldownOpsHeading', 'Operational split');
-    const drillContext = document.getElementById('drilldownContext');
-    const drillFilters = document.getElementById('drilldownFilters');
-    if (drillContext) { drillContext.innerHTML = ''; drillContext.classList.remove('hidden'); }
-    if (drillFilters) { drillFilters.innerHTML = ''; drillFilters.classList.remove('hidden'); }
+    setDrilldownHeading('drilldownTopHeading', 'Top breakdown');
+    setDrilldownHeading('drilldownTrendHeading', 'Trend over time');
+    setDrilldownHeading('drilldownSecondaryHeading', 'Secondary split');
+    setDrilldownHeading('drilldownOpsHeading', 'Composition');
+    const drillExplanation = document.getElementById('drilldownExplanation');
+    const drillCalcBody = document.getElementById('drilldownCalcBody');
+    if (drillExplanation) { drillExplanation.innerHTML = ''; drillExplanation.classList.remove('hidden'); }
+    if (drillCalcBody) drillCalcBody.innerHTML = '';
     if (isKpiDrilldown) {
       const drilldownPanel = document.querySelector('#drilldownDrawer .drawer-panel');
       const chartsContainer = document.getElementById('drilldownChartsContainer');
-      const transparencyCard = document.getElementById('drilldownTransparency');
       const simulationStrip = document.getElementById('simulationStateStrip');
-      if (drilldownPanel && chartsContainer && transparencyCard && simulationStrip) {
-        drilldownPanel.insertBefore(transparencyCard, simulationStrip);
+      if (drilldownPanel && chartsContainer && simulationStrip) {
+        drilldownPanel.insertBefore(document.getElementById('drilldownCalcDetails'), simulationStrip);
       }
       const metricKey = STATE.drilldown.metricKey || STATE.drilldown.metric;
       const metricName = STATE.drilldown.value;
@@ -4113,7 +4167,7 @@
       if (metricKey !== 'outputEfficiency') {
         document.getElementById('drilldownSummaryGrid').innerHTML = `<div class="summary-stat span-3"><div class="label">Baseline rows</div><div class="value">${baselineRows.length.toLocaleString()}</div></div><div class="summary-stat span-3"><div class="label">Components</div><div class="value">${components.length.toLocaleString()}</div></div><div class="summary-stat span-3"><div class="label">Included</div><div class="value">${included.length.toLocaleString()}</div></div><div class="summary-stat span-3"><div class="label">Simulated total</div><div class="value">${Number(simTotal).toLocaleString(undefined,{maximumFractionDigits:2})}</div></div>`;
       }
-      document.getElementById('drilldownFilters').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Interactive filtering</h4><span class="impact-chip">Staged simulation workflow</span></div><div class="micro">Use dashboard filters for time, press, subsystem, alert, and version. KPI simulation changes are staged until Apply is selected.</div>`;
+      document.getElementById('drilldownCalcBody').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Scope and interactions</h4><span class="impact-chip">Staged simulation workflow</span></div><div class="micro">Use dashboard filters for time, press, subsystem, alert, and version. KPI simulation changes are staged until Apply is selected.</div>`;
       const topBaseline = components.slice().sort((a, b) => b.metricValue - a.metricValue).slice(0, 10);
       const topCurrentMap = new Map(included.map(x => [x.name, x.metricValue]));
       const topLabels = topBaseline.map(x => x.name);
@@ -4143,9 +4197,9 @@
       const alertBaseMap = new Map(); baselineRows.forEach(r => { const a = r.alert || (r.name !== 'Unspecified' ? r.name : r.alertTitle); alertBaseMap.set(a, (alertBaseMap.get(a) || 0) + rowMetricValue(r)); });
       const alerts = [...alertBaseMap.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);
       replaceChart('drilldownOpsChart', { type: 'bar', data: { labels: alerts.map(x => x[0]), datasets: simulationActive ? [{ label: 'Baseline', simRole: 'baseline', data: alerts.map(x => x[1]), backgroundColor: 'rgba(151,167,194,.24)', borderColor: 'rgba(151,167,194,.48)', borderWidth: 1, borderRadius: 6 }, { label: 'Current', simRole: 'current', data: alerts.map(x => alertMap.get(x[0]) || 0), backgroundColor: COLORS, borderRadius: 6 }] : [{ simRole: 'current', data: alerts.map(x => alertMap.get(x[0]) || 0), backgroundColor: COLORS, borderRadius: 6 }] }, options: { ...baseOptions('alert', alerts.map(x => x[0]), alerts.map(x => ({ entityKey: x[0], displayLabel: x[0], sourceType: 'errorEvents', metric: 'events', parentContext: { path: [] } }))), plugins: { legend: { display: simulationActive, labels: { color: '#c6d3ea' } }, tooltip: simulationActive ? { callbacks: { label: simulationTooltipLabel } } : { callbacks: { label: ctx => `${ctx.parsed.y.toLocaleString()}` } } } } });
-      document.getElementById('drilldownInsight').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Explanation & calculation logic</h4><span class="risk-pill risk-medium">Metric-specific narrative</span></div><div class="micro">${esc(profile.formula)} Contributions are aggregated by press and can be recursively explored through subsystem, alert, version, and trend views.</div>`;
+      document.getElementById('drilldownCalcBody').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Explanation & calculation logic</h4><span class="risk-pill risk-medium">Metric-specific narrative</span></div><div class="micro">${esc(profile.formula)} Contributions are aggregated by press and can be recursively explored through subsystem, alert, version, and trend views.</div>`;
       const tableToggleLabel = showBreakdown ? 'Hide Breakdown' : 'Show Breakdown';
-      document.getElementById('drilldownTransparency').innerHTML = `<div class="chart-head"><h4 style="margin:0;">KPI Calculation Breakdown</h4><span class="impact-chip">Staged include/exclude simulation</span></div><div class="micro" style="margin-top:6px;">Shows how this KPI is built from underlying scoped operational data.</div><div style="margin-top:10px;"><button id="toggleBreakdownBtn" class="btn secondary">${tableToggleLabel}</button></div><div class="table-wrap" style="max-height:260px;margin-top:8px;"><table><thead><tr><th>Include</th><th>Component</th><th>Source contribution</th><th>Amount</th><th>Contribution %</th></tr></thead><tbody>${components.slice(0,200).map(c=>`<tr><td><input type="checkbox" data-kpi-inc="${esc(c.name)}" ${pendingExcluded.has(c.name)?'':'checked'} /></td><td>${esc(c.name)}</td><td>${esc(getSourceLabel(c.source))}</td><td>${Number(c.metricValue).toLocaleString(undefined,{maximumFractionDigits:2})}</td><td>${c.contributionPct.toFixed(2)}%</td></tr>`).join('')}</tbody></table></div>`;
+      document.getElementById('drilldownCalcBody').innerHTML = `<div class="chart-head"><h4 style="margin:0;">KPI Calculation Breakdown</h4><span class="impact-chip">Staged include/exclude simulation</span></div><div class="micro" style="margin-top:6px;">Shows how this KPI is built from underlying scoped operational data.</div><div style="margin-top:10px;"><button id="toggleBreakdownBtn" class="btn secondary">${tableToggleLabel}</button></div><div class="table-wrap" style="max-height:260px;margin-top:8px;"><table><thead><tr><th>Include</th><th>Component</th><th>Source contribution</th><th>Amount</th><th>Contribution %</th></tr></thead><tbody>${components.slice(0,200).map(c=>`<tr><td><input type="checkbox" data-kpi-inc="${esc(c.name)}" ${pendingExcluded.has(c.name)?'':'checked'} /></td><td>${esc(c.name)}</td><td>${esc(getSourceLabel(c.source))}</td><td>${Number(c.metricValue).toLocaleString(undefined,{maximumFractionDigits:2})}</td><td>${c.contributionPct.toFixed(2)}%</td></tr>`).join('')}</tbody></table></div>`;
       document.querySelectorAll('[data-kpi-inc]').forEach(el=>el.addEventListener('change',()=>{const key=el.getAttribute('data-kpi-inc'); if(el.checked) pendingExcluded.delete(key); else pendingExcluded.add(key); STATE.drilldown.simulation.pendingExcluded = pendingExcluded; renderSimulationControls(pendingExcluded.size); }));
       renderSimulationControls(appliedExcluded.size);
       const tableRows = appliedRows.slice(0,1000).map(r => ({ ...r, metric_value: r.metric_value !== undefined ? r.metric_value : r.metricValue }));
@@ -4178,15 +4232,15 @@
       const planned = scoped.reduce((a, r) => a + (r.plannedDowntimeSeconds || 0), 0);
       const unplanned = scoped.reduce((a, r) => a + (r.unplannedDowntimeSeconds || 0), 0);
       const nextDimension = getNextAvailabilityDrillDimension(dimension);
-      document.getElementById('drilldownContext').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Context header</h4><span class="risk-pill risk-medium">Availability source</span></div><div class="micro">Source: availabilityAgg. Formula: planned + unplanned downtime. Scope inherits active dashboard filters and breadcrumb path.</div>`;
-      document.getElementById('drilldownFilters').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Interactive filtering</h4><span class="impact-chip">Press/subsystem/category/time</span></div><div class="micro">Use global filters plus recursive breadcrumb clicks to refine press → subsystem → downtime category views.</div>`;
+      document.getElementById('drilldownExplanation').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Scope overview</h4><span class="risk-pill risk-medium">Availability source</span></div><div class="micro">Source: availabilityAgg. Formula: planned + unplanned downtime. Scope inherits active dashboard filters and breadcrumb path.</div>`;
+      document.getElementById('drilldownCalcBody').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Scope and interactions</h4><span class="impact-chip">Press/subsystem/category/time</span></div><div class="micro">Use global filters plus recursive breadcrumb clicks to refine press → subsystem → downtime category views.</div>`;
       document.getElementById('drilldownTitle').textContent = `Availability Drilldown • ${dimension} = ${value}`;
       document.getElementById('drilldownSummary').textContent = `Rows ${scoped.length.toLocaleString()} • Planned ${formatDuration(planned)} • Unplanned ${formatDuration(unplanned)} • Total ${formatDuration(total)}`;
       document.getElementById('drilldownSummaryGrid').innerHTML = `
         <div class="summary-stat span-4"><div class="label">Planned</div><div class="value">${formatDuration(planned)}</div></div>
         <div class="summary-stat span-4"><div class="label">Unplanned</div><div class="value">${formatDuration(unplanned)}</div></div>
         <div class="summary-stat span-4"><div class="label">Total</div><div class="value">${formatDuration(total)}</div></div>`;
-      document.getElementById('drilldownInsight').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Availability-only source</h4><span class="risk-pill risk-medium">Stable key drilldown</span></div><div class="micro">Rows come directly from scoped availabilityAgg using canonical press key.</div>`;
+      document.getElementById('drilldownCalcBody').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Availability-only source</h4><span class="risk-pill risk-medium">Stable key drilldown</span></div><div class="micro">Rows come directly from scoped availabilityAgg using canonical press key.</div>`;
       replaceChart('drilldownTopChart', { type: 'doughnut', data: { labels: ['Planned', 'Unplanned'], datasets: [{ data: [planned, unplanned], backgroundColor: ['#51c285', '#f36b63'] }] }, options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: '#c6d3ea' } } } } });
       const subs = aggregateDurationRows(scoped.map(r => ({ subsystem: r.subsystem, durationSeconds: totalDowntimeFromAvailabilityRow(r) })), r => r.subsystem).slice(0, 10);
       const subPayloads = nextDimension ? subs.map(x => ({ entityKey: x.name, displayLabel: x.name, sourceType: 'availabilityNative', metric: 'downtime', parentContext: { path: STATE.drilldown.path || [] } })) : null;
@@ -4218,22 +4272,22 @@
         showNoDataChart('drilldownOpsChart');
       }
       const groupedSubs = compactContributionRows(subs.map(x => [x.name, x.downtime]), total);
-      document.getElementById('drilldownTransparency').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Calculation transparency table</h4><span class="impact-chip">Availability components</span></div><div class="table-wrap" style="max-height:220px;margin-top:8px;"><table><thead><tr><th>Component</th><th>Total</th><th>Contribution</th></tr></thead><tbody>${groupedSubs.map(([name,val])=>`<tr><td>${esc(name)}</td><td>${esc(formatDuration(val))}</td><td>${renderContributionBar(total?((val/total)*100):0)}</td></tr>`).join('')}</tbody></table></div>`;
+      document.getElementById('drilldownCalcBody').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Calculation transparency table</h4><span class="impact-chip">Availability components</span></div><div class="table-wrap" style="max-height:220px;margin-top:8px;"><table><thead><tr><th>Component</th><th>Total</th><th>Contribution</th></tr></thead><tbody>${groupedSubs.map(([name,val])=>`<tr><td>${esc(name)}</td><td>${esc(formatDuration(val))}</td><td>${renderContributionBar(total?((val/total)*100):0)}</td></tr>`).join('')}</tbody></table></div>`;
       document.getElementById('drilldownTable').innerHTML = `<thead><tr><th>press</th><th>day</th><th>subsystem</th><th>category</th><th>planned</th><th>unplanned</th><th>total</th></tr></thead><tbody>${scoped.slice(0, 1000).map(r => `<tr><td>${esc(r.canonicalPress || '')}</td><td>${esc(r.day)}</td><td>${esc(r.subsystem)}</td><td>${esc(r.downtimeCategory || 'Unspecified')}</td><td>${esc(formatDuration(r.plannedDowntimeSeconds || 0))}</td><td>${esc(formatDuration(r.unplannedDowntimeSeconds || 0))}</td><td>${esc(formatDuration(totalDowntimeFromAvailabilityRow(r)))}</td></tr>`).join('')}</tbody>`;
       return;
     }
     if (isVolume) {
       const measure = STATE.customerVolumeMetric;
-      setDrilldownHeading('drilldownTrendHeading', 'Waste Ratio by Day');
-      setDrilldownHeading('drilldownOpsHeading', 'Breakdown by Job/Type');
+      setDrilldownHeading('drilldownTrendHeading', 'Daily printed sheets and waste ratio');
+      setDrilldownHeading('drilldownOpsHeading', 'Top customers/jobs/presses in selection');
       const totalSheets = scoped.reduce((a, r) => a + (sanitizeVolumeComponents(r.printedSheets || ((r.productionPrintedSheets || 0) + (r.wastePrintedSheets || 0)), r.productionPrintedSheets, r.wastePrintedSheets).totalSheets || 0), 0);
       const totalFlats = scoped.reduce((a, r) => a + (r.printedFlats || 0), 0);
       const totalJobs = scoped.length;
       const avgSheetsPerJob = totalJobs ? totalSheets / totalJobs : 0;
       const avgDurationPerJob = totalJobs ? scoped.reduce((a, r) => a + (r.durationSeconds || 0), 0) / totalJobs : 0;
-      document.getElementById('drilldownContext').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Context header</h4><span class="risk-pill risk-medium">Volume source</span></div><div class="micro">Source: volume jobs and volumeAgg. Formula follows selected volume unit (${esc(measure)}), including production-only treatment when selected.</div>`;
-      document.getElementById('drilldownFilters').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Interactive filtering</h4><span class="impact-chip">Press/customer/site/job/time</span></div><div class="micro">Use dashboard filters and recursive drill clicks to analyze customer, site, job type, and trend context.</div>`;
-      document.getElementById('drilldownTitle').textContent = `Volume Drilldown • Press = ${value}`;
+      document.getElementById('drilldownExplanation').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Scope overview</h4><span class="risk-pill risk-medium">Volume source</span></div><div class="micro">Source: volume jobs and volumeAgg. Formula follows selected volume unit (${esc(measure)}), including production-only treatment when selected.</div>`;
+      document.getElementById('drilldownCalcBody').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Scope and interactions</h4><span class="impact-chip">Press/customer/site/job/time</span></div><div class="micro">Use dashboard filters and recursive drill clicks to analyze customer, site, job type, and trend context.</div>`;
+      document.getElementById('drilldownTitle').textContent = `${dimension === 'customerVolume' ? 'Press' : dimension}: ${value}`;
       document.getElementById('drilldownSummary').textContent = `${totalJobs.toLocaleString()} jobs • Sheets ${totalSheets.toLocaleString()} • Flats ${totalFlats.toLocaleString()}`;
       document.getElementById('drilldownSummaryGrid').innerHTML = `
         <div class="summary-stat span-3"><div class="label">Total Sheets</div><div class="value">${totalSheets.toLocaleString()}</div></div>
@@ -4268,7 +4322,7 @@
         }
       });
       const nextDimension = getNextVolumeDrillDimension(dimension);
-      document.getElementById('drilldownInsight').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Volume split overview</h4><span class="risk-pill risk-medium">Sheets/Flats mode</span></div><div class="micro">Production split, maintenance split, waste split, and trend are calculated directly from volume jobs. Current metric: ${esc(measure)}.</div>`;
+      document.getElementById('drilldownCalcBody').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Volume split overview</h4><span class="risk-pill risk-medium">Sheets/Flats mode</span></div><div class="micro">Production split, maintenance split, waste split, and trend are calculated directly from volume jobs. Current metric: ${esc(measure)}.</div>`;
       const jobTypeRows = [...jobTypeMap.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10);
       const payloads = nextDimension ? jobTypeRows.map(([name]) => ({ entityKey: name, displayLabel: name, sourceType: 'volumeJobs', metric: measure, parentContext: { path: STATE.drilldown.path || [] } })) : null;
       replaceChart('drilldownTopChart', { type: 'bar', data: { labels: ['Good Sheets', 'Waste Sheets'], datasets: [{ label: 'Sheets', data: [scoped.reduce((a,r)=>a+sanitizeVolumeComponents(r.printedSheets || ((r.productionPrintedSheets || 0) + (r.wastePrintedSheets || 0)), r.productionPrintedSheets, r.wastePrintedSheets).goodSheets,0), scoped.reduce((a,r)=>a+sanitizeVolumeComponents(r.printedSheets || ((r.productionPrintedSheets || 0) + (r.wastePrintedSheets || 0)), r.productionPrintedSheets, r.wastePrintedSheets).wasteSheets,0)], backgroundColor: ['#5f8f76', '#f36b63'], borderRadius: 6 }] }, options: baseOptions('drilldown', ['Good Sheets','Waste Sheets']) });
@@ -4295,20 +4349,20 @@
         showNoDataChart('drilldownOpsChart');
       }
       const groupedJobs = compactContributionRows(topJobs, totalSheets);
-      document.getElementById('drilldownTransparency').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Calculation transparency table</h4><span class="impact-chip">Source-native job contributions</span></div><div class="table-wrap" style="max-height:220px;margin-top:8px;"><table><thead><tr><th>Component</th><th>Amount</th><th>Contribution</th></tr></thead><tbody>${groupedJobs.map(([name,val])=>`<tr><td>${esc(name)}</td><td>${Number(val).toLocaleString()}</td><td>${renderContributionBar(totalSheets?((val/totalSheets)*100):0)}</td></tr>`).join('')}</tbody></table></div>`;
+      document.getElementById('drilldownCalcBody').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Calculation transparency table</h4><span class="impact-chip">Source-native job contributions</span></div><div class="table-wrap" style="max-height:220px;margin-top:8px;"><table><thead><tr><th>Component</th><th>Amount</th><th>Contribution</th></tr></thead><tbody>${groupedJobs.map(([name,val])=>`<tr><td>${esc(name)}</td><td>${Number(val).toLocaleString()}</td><td>${renderContributionBar(totalSheets?((val/totalSheets)*100):0)}</td></tr>`).join('')}</tbody></table></div>`;
       const columns = ['jobName', 'jobType', 'simplexDuplex', 'substrate', 'printedSheets', 'printedFlats', 'durationSeconds'];
       document.getElementById('drilldownTable').innerHTML = `<thead><tr>${columns.map(col => `<th>${esc(col)}</th>`).join('')}</tr></thead><tbody>${scoped.slice(0, 1000).map(r => `<tr><td>${esc(r.jobName)}</td><td>${esc(r.jobType)}</td><td>${esc(r.simplexDuplex)}</td><td>${esc(r.substrate)}</td><td>${(r.printedSheets || 0).toLocaleString()}</td><td>${(r.printedFlats || 0).toLocaleString()}</td><td>${esc(formatDuration(r.durationSeconds || 0))}</td></tr>`).join('')}</tbody>`;
       return;
     }
-    setDrilldownHeading('drilldownTrendHeading', 'Events + Duration over Time');
-    setDrilldownHeading('drilldownOpsHeading', 'Error Composition');
+    setDrilldownHeading('drilldownTrendHeading', 'Daily events and downtime');
+    setDrilldownHeading('drilldownOpsHeading', 'Share of selected events by subsystem');
     const count = scoped.length;
     const downtime = scoped.reduce((a, r) => a + (r.durationSeconds || 0), 0);
     const totalVolume = scoped.reduce((a, r) => a + (isVolume ? (r.totalVolume || r.volume || 0) : (r.volume?.productionVolume || 0)), 0);
     const avg = count ? (isVolume ? totalVolume / count : downtime / count) : 0;
-    document.getElementById('drilldownContext').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Context header</h4><span class="risk-pill risk-medium">Event source</span></div><div class="micro">Source: normalized errors events in active scope. Formula: direct event count and duration rollups for the selected breadcrumb.</div>`;
-    document.getElementById('drilldownFilters').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Interactive filtering</h4><span class="impact-chip">Press/subsystem/error/version/time</span></div><div class="micro">Click charts recursively to preserve breadcrumb context and move deeper into subsystem, error, and version slices.</div>`;
-    document.getElementById('drilldownTitle').textContent = `Drilldown • ${dimension} = ${value}`;
+    document.getElementById('drilldownExplanation').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Scope overview</h4><span class="risk-pill risk-medium">Event source</span></div><div class="micro">Source: normalized errors events in active scope. Formula: direct event count and duration rollups for the selected breadcrumb.</div>`;
+    document.getElementById('drilldownCalcBody').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Scope and interactions</h4><span class="impact-chip">Press/subsystem/error/version/time</span></div><div class="micro">Click charts recursively to preserve breadcrumb context and move deeper into subsystem, error, and version slices.</div>`;
+    document.getElementById('drilldownTitle').textContent = `${dimension.charAt(0).toUpperCase() + dimension.slice(1)}: ${value}`;
     document.getElementById('drilldownSummary').textContent = isVolume
       ? `${count} matching jobs • Total volume ${totalVolume.toLocaleString()} • Avg job size ${avg.toFixed(1)}`
       : `${count} matching events • Total downtime ${formatDuration(downtime)} • Avg duration ${formatDuration(avg)}`;
@@ -4325,7 +4379,7 @@
       ? (summary.pressTopError?.name || 'N/A')
       : null;
     const globalDriver = summary.globalDriver?.name || null;
-    document.getElementById('drilldownInsight').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Subset insight</h4><span class="risk-pill risk-medium">Analytical summary</span></div><div class="micro">${esc(analytics.insight)}${scopedDriver ? ` Press-scoped duration driver: ${scopedDriver}.` : ''}${globalDriver ? ` Global duration driver: ${globalDriver}.` : ''}</div>`;
+    document.getElementById('drilldownCalcBody').innerHTML = `<div class="chart-head"><h4 style="margin:0;">What this selection means</h4><span class="risk-pill risk-medium">Analytical summary</span></div><div class="micro">${esc(analytics.insight)}${scopedDriver ? ` Press-scoped duration driver: ${scopedDriver}.` : ''}${globalDriver ? ` Global duration driver: ${globalDriver}.` : ''}</div>`;
     const nextDimension = getNextErrorDrillDimension(dimension);
     const topRows = (dimension === 'subsystem' ? analytics.topAlerts : analytics.topSubsystems);
     const topLabels = topRows.map(x => x[0]);
@@ -4348,9 +4402,9 @@
         type: 'line',
         data: { labels: trendPoints.map(x => x[0]), datasets: [
           { label: 'Events', data: trendPoints.map(x => x[1].events), borderColor: '#7b8dff', backgroundColor: 'rgba(123,141,255,.25)', tension: 0.25, fill: true, yAxisID: 'y' },
-          { label: 'Duration', data: trendPoints.map(x => x[1].downtime), borderColor: '#f97316', backgroundColor: 'rgba(249,115,22,.12)', tension: 0.25, fill: false, yAxisID: 'y1' }
+          { label: 'Downtime duration', data: trendPoints.map(x => x[1].downtime), borderColor: '#f97316', backgroundColor: 'rgba(249,115,22,.12)', tension: 0.25, fill: false, yAxisID: 'y1' }
         ] },
-        options: { ...baseOptions('drilldown', trendPoints.map(x => x[0])), plugins: { legend: { display: true, labels: { color: '#c6d3ea' } } }, scales: { x: { ticks: { color: '#c6d3ea' }, grid: { color: 'rgba(255,255,255,.04)' } }, y: { beginAtZero: true, ticks: { color: '#c6d3ea' }, grid: { color: 'rgba(255,255,255,.04)' } }, y1: { beginAtZero: true, position: 'right', ticks: { color: '#fbbf24', callback: v => formatDurationCompact(v) }, grid: { drawOnChartArea: false } } } }
+        options: { ...baseOptions('drilldown', trendPoints.map(x => x[0])), plugins: { legend: { display: true, labels: { color: '#c6d3ea' } }, tooltip: { callbacks: { label: ctx => ctx.dataset.yAxisID === 'y1' ? `${ctx.dataset.label}: ${formatDurationCompact(Number(ctx.parsed.y || 0))}` : `${ctx.dataset.label}: ${Number(ctx.parsed.y || 0).toLocaleString()}` } } }, scales: { x: { ticks: { color: '#c6d3ea' }, grid: { color: 'rgba(255,255,255,.04)' } }, y: { beginAtZero: true, ticks: { color: '#c6d3ea' }, grid: { color: 'rgba(255,255,255,.04)' } }, y1: { beginAtZero: true, position: 'right', title: { display: true, text: 'Downtime duration', color: '#fbbf24' }, ticks: { color: '#fbbf24', callback: v => formatDurationCompact(v) }, grid: { drawOnChartArea: false } } } }
       });
     } else if (topRows.length) {
       setDrilldownHeading('drilldownTrendHeading', 'Events by Top Group (fallback)');
@@ -4381,7 +4435,7 @@
       showNoDataChart('drilldownOpsChart');
     }
     const groupedTopRows = compactContributionRows(topRows, count);
-    document.getElementById('drilldownTransparency').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Calculation transparency table</h4><span class="impact-chip">Top component contributions</span></div><div class="table-wrap" style="max-height:220px;margin-top:8px;"><table><thead><tr><th>Component</th><th>Events</th><th>Contribution</th></tr></thead><tbody>${groupedTopRows.map(([name,val])=>`<tr><td>${esc(name)}</td><td>${Number(val).toLocaleString()}</td><td>${renderContributionBar(count?((val/count)*100):0)}</td></tr>`).join('')}</tbody></table></div>`;
+    document.getElementById('drilldownCalcBody').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Calculation transparency table</h4><span class="impact-chip">Top component contributions</span></div><div class="table-wrap" style="max-height:220px;margin-top:8px;"><table><thead><tr><th>Component</th><th>Events</th><th>Contribution</th></tr></thead><tbody>${groupedTopRows.map(([name,val])=>`<tr><td>${esc(name)}</td><td>${Number(val).toLocaleString()}</td><td>${renderContributionBar(count?((val/count)*100):0)}</td></tr>`).join('')}</tbody></table></div>`;
     const columns = isVolume
       ? ['press', 'day', 'jobType', 'jobStatus', 'pressMode', 'totalVolume']
       : ['press', 'subsystem', 'alert', 'version', 'start', 'duration'];
