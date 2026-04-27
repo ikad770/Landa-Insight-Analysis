@@ -343,7 +343,7 @@
       </article>
 
       <article class="card span-6">
-        <div class="chart-head"><h3>Print Volume By Press</h3><div class="chart-tools"><select id="customerVolumeMetric" class="select"><option value="totalSheets">Total</option><option value="productionPrintedSheets">Good</option><option value="wasteSheets">Waste only</option><option value="wasteRatio">Waste ratio</option></select><select id="customerVolumeSort" class="select"><option value="desc">Highest first</option><option value="asc">Lowest first</option></select><button id="customerVolumeExpand" class="btn secondary">Show all</button></div></div>
+        <div class="chart-head"><h3>Print Volume By Press</h3><div class="chart-tools"><select id="customerVolumeMetric" class="select"><option value="totalPrintedSheets">Total</option><option value="goodPrintedSheets">Good</option><option value="wastePrintedSheets">Waste only</option><option value="wasteRatio">Waste ratio</option></select><select id="customerVolumeSort" class="select"><option value="desc">Highest first</option><option value="asc">Lowest first</option></select><button id="customerVolumeExpand" class="btn secondary">Show all</button></div></div>
         <div class="micro" id="customerVolumeNote">Stacked bars: muted dollar green = Good Volume, top segment = Waste. Waste color is based on per-press waste ratio.</div><div class="chart-area"><canvas id="customerVolumeChart"></canvas></div>
       </article>
 
@@ -425,7 +425,7 @@
     lastRunSnapshot: null,
     expand: { press: false, subsystem: false, alert: false, version: false },
     metricByChart: { press: 'events', subsystem: 'events', alert: 'events', version: 'events' },
-    customerVolumeMetric: 'totalSheets',
+    customerVolumeMetric: 'totalPrintedSheets',
     customerVolumeMode: 'total',
     customerVolumeSort: 'desc',
     customerVolumeExpanded: false,
@@ -433,7 +433,7 @@
     customerVolumeRows: [],
     customerVolumeAllRows: [],
     drilldown: { dimension: '', value: '', entityKey: '', rows: [], search: '', sort: null, sourceType: '', metric: '', path: [], mode: 'chart', metricKey: '', simulation: { pendingExcluded: new Set(), appliedExcluded: new Set() }, filters: {} },
-    drilldownHistory: [],
+    drilldownStack: [],
     baselineData: null,
     simulationData: null,
     pendingSimulationChanges: new Set(),
@@ -1600,7 +1600,7 @@
     }
     if (state.volumeMetric) {
       STATE.customerVolumeMetric = state.volumeMetric;
-      STATE.customerVolumeMode = state.volumeMetric === 'wasteSheets' ? 'waste' : (state.volumeMetric === 'productionPrintedSheets' ? 'good' : (state.volumeMetric === 'wasteRatio' ? 'wasteRatio' : 'total'));
+      STATE.customerVolumeMode = state.volumeMetric === 'wastePrintedSheets' ? 'waste' : (state.volumeMetric === 'goodPrintedSheets' ? 'good' : (state.volumeMetric === 'wasteRatio' ? 'wasteRatio' : 'total'));
       if (customerVolumeMetric) customerVolumeMetric.value = state.volumeMetric;
     }
     if (state.volumeSort) {
@@ -1839,15 +1839,15 @@
     };
     const availabilityDefinitions = computeAvailabilityDefinitions(availabilityAgg);
     const weightedAvailability = availabilityDefinitions.selected.value;
-    const selectedVolumeMetric = STATE.customerVolumeMetric || 'totalSheets';
+    const selectedVolumeMetric = STATE.customerVolumeMetric || 'totalPrintedSheets';
     const customerWaste = (customerVolumeRows || []).reduce((a, r) => a + Number(r.wastePrintedSheets || r.wasteSheets || 0), 0);
     const customerTotal = (customerVolumeRows || []).reduce((a, r) => a + Number(r.totalPrintedSheets || r.totalSheets || r.totalVolume || ((r.goodPrintedSheets || r.productionPrintedSheets || 0) + (r.wastePrintedSheets || r.wasteSheets || 0))), 0);
     const customerVolumeTotal = selectedVolumeMetric === 'wasteRatio'
       ? computeWasteRatio(customerWaste, customerTotal)
       : (customerVolumeRows || []).reduce((a, r) => a + Number(
-        selectedVolumeMetric === 'wasteSheets'
+        selectedVolumeMetric === 'wastePrintedSheets'
           ? (r.wastePrintedSheets || r.wasteSheets || 0)
-          : selectedVolumeMetric === 'productionPrintedSheets'
+          : selectedVolumeMetric === 'goodPrintedSheets'
             ? (r.goodPrintedSheets || r.productionPrintedSheets || r.goodSheets || 0)
             : (r.totalPrintedSheets || r.totalSheets || r.totalVolume || ((r.goodPrintedSheets || r.productionPrintedSheets || 0) + (r.wastePrintedSheets || r.wasteSheets || 0)))
       ), 0);
@@ -1856,9 +1856,9 @@
     const filteredVolumeAggForUnit = selectedVolumeMetric === 'wasteRatio'
       ? computeWasteRatio(volumeWaste, volumeTotal)
       : volumeAgg.reduce((a, r) => a + Number(
-        selectedVolumeMetric === 'wasteSheets'
+        selectedVolumeMetric === 'wastePrintedSheets'
           ? (r.wastePrintedSheets || 0)
-          : selectedVolumeMetric === 'productionPrintedSheets'
+          : selectedVolumeMetric === 'goodPrintedSheets'
             ? (r.goodPrintedSheets || r.productionPrintedSheets || 0)
             : (r.totalPrintedSheets || r.totalVolume || ((r.goodPrintedSheets || r.productionPrintedSheets || 0) + (r.wastePrintedSheets || 0)))
       ), 0);
@@ -1887,7 +1887,7 @@
       { label: 'kpi.totalMaintenanceVolume', lhs: kpis.totalMaintenanceVolume, rhs: sourceTotals.maintenanceVolume, source: 'volumeAgg.maintenanceVolume', level: 'error' },
       { label: 'kpi.totalVolume', lhs: kpis.totalVolume, rhs: sourceTotals.totalVolume, source: 'volumeAgg.totalVolume', level: 'error' },
       { label: 'summary.topPressByEvents.events', lhs: summary?.topPressByEvents?.events || 0, rhs: topPressEvents, source: 'summary vs errorsAgg', level: 'error' },
-      { label: 'chart.customerVolume.total', lhs: customerVolumeTotal, rhs: filteredVolumeAggForUnit, source: `customerVolumeRows.${selectedVolumeMetric} vs volumeAgg.${selectedVolumeMetric === 'wasteSheets' ? 'wastePrintedSheets' : selectedVolumeMetric === 'productionPrintedSheets' ? 'productionPrintedSheets' : selectedVolumeMetric === 'wasteRatio' ? 'waste/total ratio' : 'totalVolume'}`, level: 'warning' },
+      { label: 'chart.customerVolume.total', lhs: customerVolumeTotal, rhs: filteredVolumeAggForUnit, source: `customerVolumeRows.${selectedVolumeMetric} vs volumeAgg.${selectedVolumeMetric === 'wastePrintedSheets' ? 'wastePrintedSheets' : selectedVolumeMetric === 'goodPrintedSheets' ? 'productionPrintedSheets' : selectedVolumeMetric === 'wasteRatio' ? 'waste/total ratio' : 'totalVolume'}`, level: 'warning' },
     ];
     checks.forEach(({ label, lhs, rhs, source, level }) => {
       if (Math.abs((lhs || 0) - (rhs || 0)) > 1e-6) logs.push({ level, label, lhs, rhs, source, message: `Mismatch ${label}: ${lhs} !== ${rhs}` });
@@ -1964,7 +1964,7 @@
             volumeAgg.reduce((a, r) => a + Number(r.totalPrintedSheets || r.totalVolume || ((r.goodPrintedSheets || r.productionPrintedSheets || 0) + (r.wastePrintedSheets || 0))), 0)
           )
           : volumeAgg.reduce((a, r) => a + volumeMetricValue({ totalSheets: (r.totalPrintedSheets || r.totalVolume || ((r.goodPrintedSheets || r.productionPrintedSheets || 0) + (r.wastePrintedSheets || 0))), goodSheets: (r.goodPrintedSheets || r.productionPrintedSheets), wasteSheets: r.wastePrintedSheets }, STATE.customerVolumeMetric), 0),
-        `groupBy(press) ${STATE.customerVolumeMetric === 'wasteRatio' ? 'sum(wastePrintedSheets)/sum(totalPrintedSheets)' : `sum(${STATE.customerVolumeMetric === 'wasteSheets' ? 'wastePrintedSheets' : STATE.customerVolumeMetric})`}`],
+        `groupBy(press) ${STATE.customerVolumeMetric === 'wasteRatio' ? 'sum(wastePrintedSheets)/sum(totalPrintedSheets)' : `sum(${STATE.customerVolumeMetric === 'wastePrintedSheets' ? 'wastePrintedSheets' : STATE.customerVolumeMetric})`}`],
       ['Table • Merged Event Explorer', 'Errors', filteredMergedRows.length, filteredErrorEventsNative.length, 'row_count(filtered errors events)'],
       ['Export • Filtered CSV', 'Errors', filteredMergedRows.length, filteredErrorEventsNative.length, 'export uses filtered merged explorer scope'],
     ].map(([component, source, dashboardValue, sourceValue, formula]) => {
@@ -2032,11 +2032,17 @@
 
     return {
       totalEvents,
+      totalErrorDurationSeconds: errorDowntime,
       totalDowntime,
       totalUnplanned: totals.unplanned,
       totalPlanned: totals.planned,
       totalService: totals.service,
       totalOperating: totals.runtime,
+      runtimeSeconds: totals.runtime,
+      downtimeSeconds: totals.planned + totals.unplanned,
+      goodPrintedSheets: totals.goodPrintedSheets,
+      wastePrintedSheets: totals.wastePrintedSheets,
+      totalPrintedSheets: totals.totalPrintedSheets,
       totalProdVolume: totals.goodPrintedSheets,
       totalMaintenanceVolume: totals.maintenanceVolume,
       totalVolume: totals.totalPrintedSheets,
@@ -2045,10 +2051,12 @@
       productionOnlyPrintedSheets: totals.goodPrintedSheets,
       volumeBasis: VOLUME_BASIS.label,
       avgDuration,
+      avgDurationSeconds: avgDuration,
       mttr,
       mtbf,
       mtbr,
       availabilityPct,
+      availabilityPercent: availabilityPct,
       availabilityLabel: availabilityDefinitions.selected.label,
       availabilityFormula: availabilityDefinitions.selected.formula,
       downtimeHours: totalDowntime > 0 ? (totalDowntime / 3600) : 0,
@@ -2206,7 +2214,8 @@
   }
 
   function volumeMetricLabel(metric) {
-    if (metric === 'productionPrintedSheets') return 'Production-only Printed Sheets';
+    if (metric === 'goodPrintedSheets') return 'Good Printed Sheets';
+    if (metric === 'wastePrintedSheets') return 'Waste Printed Sheets';
     if (metric === 'printedFlats') return 'Printed Flats';
     return 'Total Printed Sheets';
   }
@@ -2566,23 +2575,20 @@
     const scope = STATE.lastSourceScope || {};
     const volumeAgg = scope.volumeAgg || [];
     const totalWasteSheets = volumeAgg.reduce((sum, row) => sum + Number(row?.wastePrintedSheets || 0), 0);
-    const totalPrintedSheets = volumeAgg.reduce((sum, row) => sum + Number(row?.totalVolume || ((row?.productionPrintedSheets || 0) + (row?.wastePrintedSheets || 0))), 0);
+    const totalPrintedSheets = volumeAgg.reduce((sum, row) => sum + Number(row?.totalPrintedSheets || ((row?.goodPrintedSheets || 0) + (row?.wastePrintedSheets || 0))), 0);
     const wasteRatioPct = totalPrintedSheets > 0 ? (totalWasteSheets / totalPrintedSheets) * 100 : 0;
-    const dataRangeLabel = document.getElementById('dataRangeIndicator')?.textContent?.replace('Data range: ', '') || 'N/A';
     const mainRisk = String(STATE.merged?.summary?.mainRiskSentence || '').trim();
     const cards = [
-      ['Date Range', 'totalEvents', dataRangeLabel, 'Current filter scope.'],
       ['Events', 'totalEvents', Number(k.totalEvents || 0).toLocaleString(), 'Total error events in selected range.'],
-      ['Downtime', 'totalDowntime', formatDuration(k.totalDowntime || 0), 'Planned + unplanned downtime.'],
-      ['Avg Duration', 'mttr', k.avgDuration == null ? na : formatDuration(k.avgDuration), 'Average event duration.'],
-      ['MTTR', 'mttr', k.mttr == null ? na : formatDuration(k.mttr), 'Average time to resolve an event'],
-      ['MTBF', 'mtbf', k.mtbf == null ? na : formatDuration(k.mtbf), 'Average time between failures'],
-      ['Production Volume', 'totalProdVolume', Number(k.totalProdVolume || 0).toLocaleString(), `Total printed sheets: ${Number(totalPrintedSheets || 0).toLocaleString()}`],
-      ['Waste', 'totalProdVolume', Number(totalWasteSheets || 0).toLocaleString(), `Waste ratio: ${wasteRatioPct.toFixed(2)}%`],
-      ['Availability', 'availabilityPct', k.availabilityPct == null ? na : `${k.availabilityPct.toFixed(1)}%`, 'Weighted availability across selected scope.']
+      ['Downtime', 'totalErrorDurationSeconds', formatDuration(k.totalErrorDurationSeconds || 0), 'Total error duration from normalized errors source.'],
+      ['Avg Duration / MTTR', 'avgDurationSeconds', k.avgDurationSeconds == null ? na : formatDuration(k.avgDurationSeconds), 'totalErrorDurationSeconds / totalEvents.'],
+      ['MTBF', 'mtbf', k.mtbf == null ? na : formatDuration(k.mtbf), 'runtimeSeconds / totalEvents.'],
+      ['Volume (Good / Waste)', 'totalPrintedSheets', formatCompactNumber(totalPrintedSheets), `Good: ${formatCompactNumber(k.goodPrintedSheets || 0)} • Waste: ${formatCompactNumber(k.wastePrintedSheets || 0)}`],
+      ['Availability', 'availabilityPercent', k.availabilityPercent == null ? na : `${k.availabilityPercent.toFixed(1)}%`, 'runtimeSeconds / (runtimeSeconds + downtimeSeconds).'],
+      ['Waste Ratio', 'wasteRatio', `${(Number(k.wasteRatio || 0) * 100).toFixed(2)}%`, 'sum(wastePrintedSheets) / sum(totalPrintedSheets).']
     ];
     if (mainRisk && !/^n\/a$/i.test(mainRisk) && !/\bN\/A\b/i.test(mainRisk)) {
-      cards.push(['Main Risk / Insight', 'totalDowntime', mainRisk, 'Strongest issue detected in current scope.']);
+      cards.push(['Main Risk / Insight', 'totalErrorDurationSeconds', mainRisk, 'Strongest issue detected in current scope.']);
     }
     const toCard = ([label, metricKey, value, subtitle]) => `<article class="kpi clickable" role="button" tabindex="0" data-kpi-metric="${metricKey}" title="${esc(subtitle)}"><div class="k">${label}</div><div class="v">${esc(value)}</div><div class="kpi-sub">${esc(subtitle)}</div></article>`;
     document.getElementById('kpiStrip').innerHTML = `<div class="kpi-row core" style="grid-template-columns:repeat(${Math.max(4, cards.length)},minmax(140px,1fr));">${cards.map(toCard).join('')}</div>`;
@@ -2655,13 +2661,13 @@
     const expectedMetricTotal = STATE.customerVolumeMetric === 'wasteRatio'
       ? computeWasteRatio(expectedWaste, expectedTotalSheets)
       : volumeAgg.reduce((sum, row) => sum + Number(
-        STATE.customerVolumeMetric === 'wasteSheets'
+        STATE.customerVolumeMetric === 'wastePrintedSheets'
           ? (row?.wastePrintedSheets || 0)
           : STATE.customerVolumeMetric === 'printedFlats'
             ? (row?.printedFlats || 0)
-            : STATE.customerVolumeMetric === 'productionPrintedSheets'
+            : STATE.customerVolumeMetric === 'goodPrintedSheets'
               ? (row?.goodPrintedSheets || row?.productionPrintedSheets || 0)
-              : STATE.customerVolumeMetric === 'totalSheets'
+              : STATE.customerVolumeMetric === 'totalPrintedSheets'
                 ? (row?.totalPrintedSheets || row?.totalVolume || ((row?.goodPrintedSheets || row?.productionPrintedSheets || 0) + (row?.wastePrintedSheets || 0)))
                 : (row?.printedSheets || 0)
       ), 0);
@@ -2670,11 +2676,11 @@
     const actualMetricTotal = STATE.customerVolumeMetric === 'wasteRatio'
       ? computeWasteRatio(actualWaste, actualTotalSheets)
       : (allCustomerVolumeRows || []).reduce((sum, row) => sum + Number(
-        STATE.customerVolumeMetric === 'wasteSheets'
+        STATE.customerVolumeMetric === 'wastePrintedSheets'
           ? (row?.wasteSheets || row?.wastePrintedSheets || 0)
           : STATE.customerVolumeMetric === 'printedFlats'
             ? (row?.printedFlats || 0)
-            : STATE.customerVolumeMetric === 'productionPrintedSheets'
+            : STATE.customerVolumeMetric === 'goodPrintedSheets'
               ? (row?.goodSheets || row?.goodPrintedSheets || row?.productionPrintedSheets || 0)
               : (row?.totalSheets || row?.totalPrintedSheets || row?.printedSheets || row?.totalVolume || 0)
       ), 0);
@@ -2682,7 +2688,7 @@
       `volume.chart_basis.${STATE.customerVolumeMetric}`,
       expectedMetricTotal,
       actualMetricTotal,
-      `volumeAgg.${STATE.customerVolumeMetric === 'wasteSheets' ? 'wastePrintedSheets' : STATE.customerVolumeMetric === 'totalSheets' ? 'totalVolume' : STATE.customerVolumeMetric} vs customerVolumeAllRows.${STATE.customerVolumeMetric}`,
+      `volumeAgg.${STATE.customerVolumeMetric === 'wastePrintedSheets' ? 'wastePrintedSheets' : STATE.customerVolumeMetric === 'totalPrintedSheets' ? 'totalVolume' : STATE.customerVolumeMetric} vs customerVolumeAllRows.${STATE.customerVolumeMetric}`,
       'warning',
       'basis-difference-allowed'
     );
@@ -2926,12 +2932,12 @@
 
   function volumeMetricValue(row, metric) {
     const safe = sanitizeVolumeComponents(
-      row?.totalPrintedSheets ?? row?.totalSheets ?? row?.totalVolume ?? row?.printedSheets,
-      row?.goodSheets ?? row?.goodPrintedSheets ?? row?.productionPrintedSheets,
+      row?.totalPrintedSheets ?? row?.printedSheets,
+      row?.goodSheets ?? row?.goodPrintedSheets,
       row?.wasteSheets ?? row?.wastePrintedSheets
     );
-    if (metric === 'wasteSheets') return safe.wasteSheets;
-    if (metric === 'productionPrintedSheets') return safe.goodSheets;
+    if (metric === 'wastePrintedSheets') return safe.wasteSheets;
+    if (metric === 'goodPrintedSheets') return safe.goodSheets;
     if (metric === 'wasteRatio') return computeWasteRatio(safe.wasteSheets, safe.totalSheets);
     return safe.totalSheets;
   }
@@ -3695,15 +3701,15 @@
     return { filters, scopedMergedRows, scopedErrorRows, scopedSource, scopedKpis, executiveSummary, hasScopedData };
   }
 
-  function buildCustomerVolumeChart(volumeAggRows, metric = 'totalSheets', sort = 'desc', expanded = false) {
+  function buildCustomerVolumeChart(volumeAggRows, metric = 'totalPrintedSheets', sort = 'desc', expanded = false) {
     const byPress = new Map();
     STATE.customerVolumeLookup = new Map();
     (volumeAggRows || []).forEach(r => {
       const entityKey = r.canonicalPress || 'Unspecified';
-      const slot = byPress.get(entityKey) || { entityKey, displayLabel: entityKey, canonicalPress: entityKey, totalVolume: 0, productionPrintedSheets: 0, printedSheets: 0, printedFlats: 0, maintenanceVolume: 0, wasteVolume: 0, wastePrintedSheets: 0, customers: new Set(), models: new Set(), sourceRows: 0 };
-      const safe = sanitizeVolumeComponents(r.totalVolume ?? ((r.productionPrintedSheets || 0) + (r.wastePrintedSheets || 0)), r.productionPrintedSheets, r.wastePrintedSheets);
-      slot.totalVolume += safe.totalSheets;
-      slot.productionPrintedSheets += safe.goodSheets;
+      const slot = byPress.get(entityKey) || { entityKey, displayLabel: entityKey, canonicalPress: entityKey, totalPrintedSheets: 0, goodPrintedSheets: 0, printedSheets: 0, printedFlats: 0, maintenanceVolume: 0, wasteVolume: 0, wastePrintedSheets: 0, customers: new Set(), models: new Set(), sourceRows: 0 };
+      const safe = sanitizeVolumeComponents(r.totalPrintedSheets, r.goodPrintedSheets, r.wastePrintedSheets);
+      slot.totalPrintedSheets += safe.totalSheets;
+      slot.goodPrintedSheets += safe.goodSheets;
       slot.wastePrintedSheets += safe.wasteSheets;
       slot.printedSheets += Number(r.printedSheets || 0);
       slot.printedFlats += Number(r.printedFlats || 0);
@@ -3719,7 +3725,7 @@
     });
     const dir = sort === 'asc' ? 1 : -1;
     const rows = [...byPress.values()].map(row => {
-      const safe = sanitizeVolumeComponents(row.totalVolume, row.productionPrintedSheets, row.wastePrintedSheets);
+      const safe = sanitizeVolumeComponents(row.totalPrintedSheets, row.goodPrintedSheets, row.wastePrintedSheets);
       const wasteRatio = safe.totalSheets > 0 ? (safe.wasteSheets / safe.totalSheets) : 0;
       return {
         ...row,
@@ -3728,7 +3734,6 @@
         wasteSheets: safe.wasteSheets,
         goodSheets: safe.goodSheets,
         totalPrintedSheets: safe.totalSheets,
-        totalSheets: safe.totalSheets,
         wasteRatio,
         metricValue: metric === 'wasteRatio' ? wasteRatio : volumeMetricValue({ ...row, ...safe }, metric),
         parentContext: { path: [], parentValue: metric === 'wasteRatio' ? wasteRatio : volumeMetricValue({ ...row, ...safe }, metric) }
@@ -3740,7 +3745,7 @@
   function renderVolumeByPressChart(customerVolumeRows = []) {
     const labels = customerVolumeRows.map(r => r.displayLabel || r.entityKey || r.canonicalPress || 'Unspecified');
     const enriched = customerVolumeRows.map(row => {
-      const safe = sanitizeVolumeComponents(row.totalPrintedSheets || row.totalSheets || row.totalVolume, row.goodSheets || row.productionPrintedSheets, row.wasteSheets || row.wastePrintedSheets);
+      const safe = sanitizeVolumeComponents(row.totalPrintedSheets, row.goodSheets || row.goodPrintedSheets, row.wasteSheets || row.wastePrintedSheets);
       const ratio = safe.totalSheets > 0 ? (safe.wasteSheets / safe.totalSheets) : 0;
       return { ...row, ...safe, wasteRatio: ratio };
     });
@@ -3898,24 +3903,21 @@
   function kpiMetricProfile(metricKey, metricName) {
     const map = {
       totalEvents: { source: 'errorsAgg', formula: 'Sum of all error events in current scope.', primary: 'events', unit: 'events' },
-      totalDowntime: { source: 'availabilityAgg', formula: 'Planned downtime + Unplanned downtime.', primary: 'downtime', unit: 'seconds' },
-      totalUnplanned: { source: 'availabilityAgg', formula: 'Recovery + Jams duration.', primary: 'unplannedDowntimeSeconds', unit: 'seconds' },
-      totalPlanned: { source: 'availabilityAgg', formula: 'Preventive Maintenance + On Job Maintenance.', primary: 'plannedDowntimeSeconds', unit: 'seconds' },
-      mttr: { source: 'errorsAgg', formula: 'Total error duration / total events.', primary: 'durationSeconds', unit: 'seconds' },
-      mtbf: { source: 'errorsAgg + availabilityAgg', formula: 'Runtime / total events.', primary: 'mtbf', unit: 'seconds' },
-      availabilityPct: { source: 'availabilityAgg', formula: 'Runtime / (Runtime + Planned + Unplanned) × 100.', primary: 'availability', unit: '%' },
-      totalProdVolume: { source: 'volumeAgg', formula: 'Sum of productionPrintedSheets.', primary: 'productionPrintedSheets', unit: 'units' },
-      outputEfficiency: { source: 'availabilityAgg + volumeAgg', formula: 'ProductionVolume / (TotalDowntimeSeconds / 3600).', primary: 'outputEfficiency', unit: 'sheets per downtime hour' },
-      volumePerDowntime: { source: 'availabilityAgg + volumeAgg', formula: 'Production volume / total downtime seconds.', primary: 'ratio', unit: 'ratio' },
-      volumePerEvents: { source: 'errorsAgg + volumeAgg', formula: 'Production volume / total events.', primary: 'ratio', unit: 'ratio' },
+      totalErrorDurationSeconds: { source: 'errorsAgg', formula: 'Sum of error duration seconds.', primary: 'totalErrorDurationSeconds', unit: 'seconds' },
+      avgDurationSeconds: { source: 'errorsAgg', formula: 'totalErrorDurationSeconds / totalEvents.', primary: 'avgDurationSeconds', unit: 'seconds' },
+      mtbf: { source: 'errorsAgg + availabilityAgg', formula: 'runtimeSeconds / totalEvents.', primary: 'mtbf', unit: 'seconds' },
+      availabilityPercent: { source: 'availabilityAgg', formula: 'runtimeSeconds / (runtimeSeconds + downtimeSeconds) × 100.', primary: 'availabilityPercent', unit: '%' },
+      totalPrintedSheets: { source: 'volumeAgg', formula: 'Sum of totalPrintedSheets.', primary: 'totalPrintedSheets', unit: 'units' },
+      goodPrintedSheets: { source: 'volumeAgg', formula: 'Sum of goodPrintedSheets.', primary: 'goodPrintedSheets', unit: 'units' },
+      wastePrintedSheets: { source: 'volumeAgg', formula: 'Sum of wastePrintedSheets.', primary: 'wastePrintedSheets', unit: 'units' },
+      wasteRatio: { source: 'volumeAgg', formula: 'sum(wastePrintedSheets) / sum(totalPrintedSheets).', primary: 'wasteRatio', unit: '%' },
     };
     return map[metricKey] || { source: 'mixed', formula: `${metricName} is computed from current scoped source rows.`, primary: 'value', unit: 'value' };
   }
 
   function kpiDimensionForMetric(metricKey) {
-    if (['totalDowntime', 'totalUnplanned', 'totalPlanned', 'availabilityPct'].includes(metricKey)) return 'availability';
-    if (['totalProdVolume'].includes(metricKey)) return 'volume';
-    if (['outputEfficiency','volumePerEvents','volumePerDowntime'].includes(metricKey)) return 'mixed';
+    if (['totalErrorDurationSeconds','availabilityPercent','mtbf'].includes(metricKey)) return 'availability';
+    if (['totalPrintedSheets','goodPrintedSheets','wastePrintedSheets','wasteRatio'].includes(metricKey)) return 'volume';
     return 'errors';
   }
 
@@ -3927,7 +3929,7 @@
         press: r.canonicalPress || 'Unspecified',
         day: r.day || '',
         subsystem: r.subsystem || 'Unspecified',
-        metricValue: metricKey === 'totalPlanned' ? (r.plannedDowntimeSeconds || 0) : metricKey === 'totalUnplanned' ? (r.unplannedDowntimeSeconds || 0) : totalDowntimeFromAvailabilityRow(r),
+        metricValue: metricKey === 'availabilityPercent' ? Number(r.availabilityPercent || 0) : (metricKey === 'mtbf' ? Number(r.runtimeSeconds || 0) : Number(r.downtimeSeconds || totalDowntimeFromAvailabilityRow(r) || 0)),
         source: 'availabilityAgg',
         raw: r
       }));
@@ -3937,7 +3939,7 @@
         component: r.canonicalPress || 'Unspecified',
         press: r.canonicalPress || 'Unspecified',
         day: r.day || '',
-        metricValue: r.productionPrintedSheets || 0,
+        metricValue: metricKey === 'goodPrintedSheets' ? Number(r.goodPrintedSheets || 0) : (metricKey === 'wastePrintedSheets' ? Number(r.wastePrintedSheets || 0) : Number(r.totalPrintedSheets || 0)),
         source: 'volumeAgg',
         raw: r
       }));
@@ -3953,7 +3955,7 @@
       site: r.site || 'Unspecified',
       startTime: r.startTime,
       durationSeconds: r.durationSeconds || 0,
-      metricValue: metricKey === 'mttr' ? (r.durationSeconds || 0) : 1,
+      metricValue: metricKey === 'avgDurationSeconds' ? Number(r.durationSeconds || 0) : 1,
       source: 'errorsAgg',
       raw: r
     }));
@@ -3986,7 +3988,7 @@
     STATE.simulationData = null;
     STATE.pendingSimulationChanges = new Set();
     STATE.appliedSimulationData = null;
-    STATE.drilldownHistory = [];
+    STATE.drilldownStack = [];
     showBreakdown = false;
     document.getElementById('drilldownDrawer').classList.add('show');
     requestAnimationFrame(() => { renderDrilldown(); refreshDrilldownChartsAfterOpen(); scrollDrilldownChartsIntoView(); });
@@ -4104,9 +4106,9 @@
       simulation: { pendingExcluded: new Set(existingSimulation.pendingExcluded || []), appliedExcluded: new Set(existingSimulation.appliedExcluded || []) }
     };
     const currentPathLength = (STATE.drilldown.path || []).length;
-    if (nextPath.length === 1) STATE.drilldownHistory = [];
+    if (nextPath.length === 1) STATE.drilldownStack = [];
     if (currentPathLength && nextPath.length > currentPathLength) {
-      STATE.drilldownHistory.push(structuredClone({
+      STATE.drilldownStack.push(structuredClone({
         ...STATE.drilldown,
         simulation: {
           pendingExcluded: [...(STATE.drilldown.simulation?.pendingExcluded || [])],
@@ -4379,18 +4381,19 @@
       const metricName = STATE.drilldown.value;
       const profile = kpiMetricProfile(metricKey, metricName);
       const k = STATE.kpis || {};
-      const currentValue = metricKey === 'totalEvents' ? (k.totalEvents || 0).toLocaleString() : metricKey === 'totalDowntime' ? formatDuration(k.totalDowntime || 0) : metricKey === 'totalUnplanned' ? formatDuration(k.totalUnplanned || 0) : metricKey === 'totalPlanned' ? formatDuration(k.totalPlanned || 0) : metricKey === 'mttr' ? (k.mttr == null ? 'N/A' : formatDuration(k.mttr)) : metricKey === 'mtbf' ? (k.mtbf == null ? 'N/A' : formatDuration(k.mtbf)) : metricKey === 'availabilityPct' ? (k.availabilityPct == null ? 'N/A' : `${k.availabilityPct.toFixed(1)}%`) : metricKey === 'totalProdVolume' ? (k.totalProdVolume || 0).toLocaleString() : metricKey === 'outputEfficiency' ? (k.outputEfficiency == null ? 'N/A' : `${Math.round(k.outputEfficiency).toLocaleString()} sheets per downtime hour`) : metricKey === 'volumePerDowntime' ? (k.volumePerDowntime == null ? 'N/A' : k.volumePerDowntime.toFixed(4)) : metricKey === 'volumePerEvents' ? (k.volumePerEvents == null ? 'N/A' : k.volumePerEvents.toFixed(4)) : 'N/A';
+      const currentValue = metricKey === 'totalEvents' ? (k.totalEvents || 0).toLocaleString()
+        : metricKey === 'totalErrorDurationSeconds' ? formatDuration(k.totalErrorDurationSeconds || 0)
+        : metricKey === 'avgDurationSeconds' ? (k.avgDurationSeconds == null ? 'N/A' : formatDuration(k.avgDurationSeconds))
+        : metricKey === 'mtbf' ? (k.mtbf == null ? 'N/A' : formatDuration(k.mtbf))
+        : metricKey === 'availabilityPercent' ? (k.availabilityPercent == null ? 'N/A' : `${k.availabilityPercent.toFixed(1)}%`)
+        : metricKey === 'wasteRatio' ? `${(Number(k.wasteRatio || 0) * 100).toFixed(2)}%`
+        : metricKey === 'totalPrintedSheets' ? formatCompactNumber(k.totalPrintedSheets || 0)
+        : metricKey === 'goodPrintedSheets' ? formatCompactNumber(k.goodPrintedSheets || 0)
+        : metricKey === 'wastePrintedSheets' ? formatCompactNumber(k.wastePrintedSheets || 0)
+        : 'N/A';
       document.getElementById('drilldownTitle').textContent = `${metricName} Drilldown`;
       document.getElementById('drilldownSummary').textContent = `Validated KPI breakdown from scoped source aggregates.`;
       renderDrilldownContext(metricName, currentValue, profile);
-      if (metricKey === 'outputEfficiency') {
-        const drillRows = [
-          ['Output per downtime hour', k.outputEfficiency == null ? 'N/A' : `${Math.round(k.outputEfficiency).toLocaleString()} sheets per downtime hour`],
-          ['Downtime per event', k.downtimePerEventMinutes == null ? 'N/A' : `${k.downtimePerEventMinutes.toFixed(2)} min/event`],
-          ['Downtime per 1M sheets', k.downtimePerMillionSheetsMinutes == null ? 'N/A' : `${k.downtimePerMillionSheetsMinutes.toFixed(2)} min / 1M sheets`]
-        ];
-        document.getElementById('drilldownSummaryGrid').innerHTML = drillRows.map(([label,val]) => `<div class="summary-stat span-3"><div class="label">${esc(label)}</div><div class="value">${esc(val)}</div></div>`).join('');
-      }
       const baselineRows = STATE.baselineData || scoped;
       const simulatedRows = STATE.simulationData || baselineRows;
       const components = computeKpiComponents(metricKey, baselineRows);
@@ -4398,9 +4401,7 @@
       const included = components.filter(c => !appliedExcluded.has(c.name));
       const appliedRows = simulationActive ? simulatedRows : baselineRows;
       const simTotal = included.reduce((a,c)=>a+c.metricValue,0);
-      if (metricKey !== 'outputEfficiency') {
-        document.getElementById('drilldownSummaryGrid').innerHTML = `<div class="summary-stat span-3"><div class="label">Baseline rows</div><div class="value">${baselineRows.length.toLocaleString()}</div></div><div class="summary-stat span-3"><div class="label">Components</div><div class="value">${components.length.toLocaleString()}</div></div><div class="summary-stat span-3"><div class="label">Included</div><div class="value">${included.length.toLocaleString()}</div></div><div class="summary-stat span-3"><div class="label">Simulated total</div><div class="value">${Number(simTotal).toLocaleString(undefined,{maximumFractionDigits:2})}</div></div>`;
-      }
+      document.getElementById('drilldownSummaryGrid').innerHTML = `<div class="summary-stat span-3"><div class="label">Baseline rows</div><div class="value">${baselineRows.length.toLocaleString()}</div></div><div class="summary-stat span-3"><div class="label">Components</div><div class="value">${components.length.toLocaleString()}</div></div><div class="summary-stat span-3"><div class="label">Included</div><div class="value">${included.length.toLocaleString()}</div></div><div class="summary-stat span-3"><div class="label">Simulated total</div><div class="value">${Number(simTotal).toLocaleString(undefined,{maximumFractionDigits:2})}</div></div>`;
       document.getElementById('drilldownCalcBody').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Scope and interactions</h4><span class="impact-chip">Staged simulation workflow</span></div><div class="micro">Use dashboard filters for time, press, subsystem, alert, and version. KPI simulation changes are staged until Apply is selected.</div>`;
       const topBaseline = components.slice().sort((a, b) => b.metricValue - a.metricValue).slice(0, 10);
       const topCurrentMap = new Map(included.map(x => [x.name, x.metricValue]));
@@ -4408,13 +4409,13 @@
       const topCurrent = topLabels.map(name => topCurrentMap.get(name) || 0);
       const topBaselineVals = topLabels.map(name => topBaseline.find(x => x.name === name)?.metricValue || 0);
       const topSource = kpiDimensionForMetric(metricKey) === 'availability' ? 'availabilityNative' : (kpiDimensionForMetric(metricKey) === 'volume' ? 'volumeJobs' : 'errorEvents');
-      const topMetric = kpiDimensionForMetric(metricKey) === 'availability' ? 'downtime' : (kpiDimensionForMetric(metricKey) === 'volume' ? 'productionPrintedSheets' : 'events');
+      const topMetric = kpiDimensionForMetric(metricKey) === 'availability' ? 'downtime' : (kpiDimensionForMetric(metricKey) === 'volume' ? (metricKey === 'wastePrintedSheets' ? 'wastePrintedSheets' : metricKey === 'goodPrintedSheets' ? 'goodPrintedSheets' : 'totalPrintedSheets') : 'events');
       const topPayloads = topLabels.map(name => ({ entityKey: name, displayLabel: name, sourceType: topSource, metric: topMetric, parentContext: { path: [] } }));
       replaceChart('drilldownTopChart', { type: 'bar', data: { labels: topLabels, datasets: simulationActive ? [{ label: 'Baseline', simRole: 'baseline', data: topBaselineVals, backgroundColor: 'rgba(151,167,194,.24)', borderColor: 'rgba(151,167,194,.48)', borderWidth: 1, borderRadius: 6 }, { label: 'Current', simRole: 'current', data: topCurrent, backgroundColor: topLabels.map((_, i) => COLORS[i % COLORS.length]), borderRadius: 6 }] : [{ simRole: 'current', data: topCurrent, backgroundColor: topLabels.map((_, i) => COLORS[i % COLORS.length]), borderRadius: 6 }] }, options: { ...baseOptions('press', topLabels, topPayloads), plugins: { legend: { display: simulationActive, labels: { color: '#c6d3ea' } }, tooltip: simulationActive ? { callbacks: { label: simulationTooltipLabel } } : { callbacks: { label: ctx => `${ctx.parsed.y.toLocaleString(undefined, { maximumFractionDigits: 3 })}` } } } } });
 
       const rowMetricValue = (row) => {
         if (metricKey === 'totalEvents') return 1;
-        if (metricKey === 'mttr') return row.durationSeconds || 0;
+        if (metricKey === 'avgDurationSeconds') return row.durationSeconds || 0;
         return row.metricValue || 0;
       };
       const byDayCurrent = new Map(); appliedRows.forEach(r => { if (!r.day) return; byDayCurrent.set(r.day, (byDayCurrent.get(r.day) || 0) + rowMetricValue(r)); });
@@ -4896,7 +4897,7 @@
     const subsystemRankings = safeRankingRender('subsystem');
     const alertRankings = safeRankingRender('alert');
     const versionRankings = safeRankingRender('version');
-    STATE.customerVolumeMode = STATE.customerVolumeMetric === 'wasteSheets' ? 'waste' : (STATE.customerVolumeMetric === 'productionPrintedSheets' ? 'good' : (STATE.customerVolumeMetric === 'wasteRatio' ? 'wasteRatio' : 'total'));
+    STATE.customerVolumeMode = STATE.customerVolumeMetric === 'wastePrintedSheets' ? 'waste' : (STATE.customerVolumeMetric === 'goodPrintedSheets' ? 'good' : (STATE.customerVolumeMetric === 'wasteRatio' ? 'wasteRatio' : 'total'));
     const { chartRows: visibleCustomerVolumeRows, fullRows: allCustomerVolumeRows } = buildCustomerVolumeChart(sourceScope.volumeAgg, STATE.customerVolumeMetric, STATE.customerVolumeSort, STATE.customerVolumeExpanded);
     STATE.customerVolumeRows = visibleCustomerVolumeRows;
     const aggByPress = (sourceScope.volumeAgg || []).reduce((map, row) => {
@@ -4981,9 +4982,9 @@
     if (!customerVolumeRendered) setCanvasState('customerVolumeChart', 'Chart library failed to load. Charts cannot render.', 'error');
     document.getElementById('customerVolumeNote').textContent = STATE.customerVolumeMetric === 'wasteRatio'
       ? `${STATE.customerVolumeExpanded ? 'Full press ranking' : 'Top 12'} waste-ratio bars (${STATE.customerVolumeSort === 'asc' ? 'lowest first' : 'highest first'}). Colors reflect per-press waste ratio thresholds.`
-      : STATE.customerVolumeMetric === 'wasteSheets'
+      : STATE.customerVolumeMetric === 'wastePrintedSheets'
       ? `${STATE.customerVolumeExpanded ? 'Full press ranking' : 'Top 12'} waste bars (${STATE.customerVolumeSort === 'asc' ? 'lowest first' : 'highest first'}). Colors reflect waste ratio: green <5%, amber 5–10%, red >10%.`
-      : STATE.customerVolumeMetric === 'productionPrintedSheets'
+      : STATE.customerVolumeMetric === 'goodPrintedSheets'
         ? `${STATE.customerVolumeExpanded ? 'Full press ranking' : 'Top 12'} good-volume bars (${STATE.customerVolumeSort === 'asc' ? 'lowest first' : 'highest first'}). Colors reflect waste ratio: green <5%, amber 5–10%, red >10%.`
         : `${STATE.customerVolumeExpanded ? 'Full press ranking' : 'Top 12'} total-volume bars (${STATE.customerVolumeSort === 'asc' ? 'lowest first' : 'highest first'}). Colors reflect waste ratio: green <5%, amber 5–10%, red >10%.`;
     document.getElementById('customerVolumeExpand').textContent = STATE.customerVolumeExpanded ? 'Collapse' : 'Show all';
@@ -5694,15 +5695,15 @@
     ['pressFilter', 'subsystemFilter', 'versionFilter', 'startDateFilter', 'endDateFilter'].forEach(id => document.getElementById(id).addEventListener('change', scheduleRender));
     searchFilter.addEventListener('input', scheduleRender);
     customerVolumeMetric.addEventListener('change', e => {
-      STATE.customerVolumeMetric = e.target.value || 'totalSheets';
-      STATE.customerVolumeMode = STATE.customerVolumeMetric === 'wasteSheets' ? 'waste' : (STATE.customerVolumeMetric === 'productionPrintedSheets' ? 'good' : (STATE.customerVolumeMetric === 'wasteRatio' ? 'wasteRatio' : 'total'));
+      STATE.customerVolumeMetric = e.target.value || 'totalPrintedSheets';
+      STATE.customerVolumeMode = STATE.customerVolumeMetric === 'wastePrintedSheets' ? 'waste' : (STATE.customerVolumeMetric === 'goodPrintedSheets' ? 'good' : (STATE.customerVolumeMetric === 'wasteRatio' ? 'wasteRatio' : 'total'));
       scheduleRender();
     });
     customerVolumeSort.addEventListener('change', e => { STATE.customerVolumeSort = e.target.value; scheduleRender(); });
     customerVolumeExpand.addEventListener('click', () => { STATE.customerVolumeExpanded = !STATE.customerVolumeExpanded; scheduleRender(); });
     closeDrilldown.addEventListener('click', () => drilldownDrawer.classList.remove('show'));
     document.getElementById('drilldownBack')?.addEventListener('click', () => {
-      const history = STATE.drilldownHistory || [];
+      const history = STATE.drilldownStack || [];
       if (!history.length) {
         const path = STATE.drilldown.path || [];
         if (path.length <= 1) {
