@@ -1937,7 +1937,8 @@
 
     const totalDowntime = totals.availabilityCount ? totals.totalAvailDowntime : errorDowntime;
     const totalFailures = totalEvents;
-    const mttr = totalEvents ? (errorDowntime / totalEvents) : null;
+    const avgDuration = totalEvents ? (errorDowntime / totalEvents) : null;
+    const mttr = avgDuration;
     const mtbf = totalFailures > 0 && totals.runtime > 0 ? (totals.runtime / totalFailures) : null;
     const mtbr = null;
     const availabilityDefinitions = computeAvailabilityDefinitions(availabilityAgg);
@@ -1962,6 +1963,7 @@
       rawPrintedSheets: totals.rawPrintedSheets,
       productionOnlyPrintedSheets: totals.productionPrintedSheets,
       volumeBasis: VOLUME_BASIS.label,
+      avgDuration,
       mttr,
       mtbf,
       mtbr,
@@ -2561,8 +2563,10 @@
     };
     check('events', rawErrors.length, errorsAgg.reduce((sum, row) => sum + Number(row?.totalEvents || 0), 0), 'errors.rawRows vs errorsAgg.totalEvents');
     check('duration', rawErrors.reduce((sum, row) => sum + Number(row?.durationSeconds || 0), 0), errorsAgg.reduce((sum, row) => sum + Number(row?.totalErrorDurationSeconds || 0), 0), 'errors.rawRows.durationSeconds vs errorsAgg.totalErrorDurationSeconds');
-    const expectedAvgDuration = rawErrors.length ? (rawErrors.reduce((sum, row) => sum + Number(row?.durationSeconds || 0), 0) / rawErrors.length) : 0;
-    check('errors.avg_duration', expectedAvgDuration, Number(STATE.kpis?.avgDuration || 0), 'errors.totalDuration / totalEvents');
+    const sourceTotalEvents = errorsAgg.reduce((sum, row) => sum + Number(row?.totalEvents || 0), 0);
+    const sourceTotalErrorDurationSeconds = errorsAgg.reduce((sum, row) => sum + Number(row?.totalErrorDurationSeconds || 0), 0);
+    const expectedAvgDuration = sourceTotalEvents > 0 ? (sourceTotalErrorDurationSeconds / sourceTotalEvents) : 0;
+    check('errors.avg_duration', expectedAvgDuration, Number(STATE.kpis?.avgDuration || 0), 'errorsAgg.totalErrorDurationSeconds / errorsAgg.totalEvents');
     check('volume.raw_to_agg', rawVolumeRows.reduce((sum, row) => sum + Number(row?.printedSheets || 0), 0), volumeAgg.reduce((sum, row) => sum + Number(row?.printedSheets || 0), 0), 'volume.rawRows.printedSheets vs volumeAgg.printedSheets');
     const expectedMetricTotal = volumeAgg.reduce((sum, row) => sum + Number(
       STATE.customerVolumeMetric === 'wasteSheets'
@@ -2746,7 +2750,7 @@
       if (!canvas) throw new Error(`Canvas not found: ${id}`);
       if (CHARTS.has(id)) CHARTS.get(id).destroy();
       const normalizedConfig = { ...config };
-      if (normalizedConfig.type === 'bar') {
+      if (normalizedConfig.type === 'bar' && normalizedConfig.disableAutoValueLabels !== true) {
         normalizedConfig.plugins = [...(normalizedConfig.plugins || []), buildBarValueLabelPlugin(normalizedConfig.valueLabels || {})];
       }
       const instance = new Chart(canvas.getContext('2d'), normalizedConfig);
@@ -3652,6 +3656,7 @@
 
     return replaceChart('customerVolumeChart', {
       type: 'bar',
+      disableAutoValueLabels: true,
       data: {
         labels,
         datasets: [
@@ -3684,15 +3689,36 @@
                 const row = enriched?.[ctx.dataIndex] || {};
                 const ratioPct = (row.wasteRatio || 0) * 100;
                 const status = ratioPct > 10 ? 'High waste' : ratioPct >= 5 ? 'Medium waste' : 'Low waste';
-                if (ctx.datasetIndex === 0) {
-                  return [`Good sheets: ${(row.goodSheets || 0).toLocaleString()}`, `Total sheets: ${(row.totalSheets || 0).toLocaleString()}`];
+                const chart = ctx.chart;
+                const goodVisible = chart.isDatasetVisible(0);
+                const wasteVisible = chart.isDatasetVisible(1);
+                if (ctx.datasetIndex === 0 && goodVisible) {
+                  return wasteVisible
+                    ? [`Good sheets: ${(row.goodSheets || 0).toLocaleString()}`, `Total sheets: ${(row.totalSheets || 0).toLocaleString()}`]
+                    : [`Good sheets: ${(row.goodSheets || 0).toLocaleString()}`];
                 }
-                return [`Waste sheets: ${(row.wasteSheets || 0).toLocaleString()}`, `Waste ratio: ${ratioPct.toFixed(2)}%`, `Status: ${status}`];
+                if (ctx.datasetIndex === 1 && wasteVisible) {
+                  return [`Waste sheets: ${(row.wasteSheets || 0).toLocaleString()}`, `Waste ratio: ${ratioPct.toFixed(2)}%`, `Status: ${status}`];
+                }
+                return [];
               },
               afterBody: items => {
                 const row = enriched?.[items?.[0]?.dataIndex || 0] || {};
                 const ratioPct = (row.wasteRatio || 0) * 100;
                 const status = ratioPct > 10 ? 'High waste' : ratioPct >= 5 ? 'Medium waste' : 'Low waste';
+                const chart = items?.[0]?.chart;
+                const goodVisible = chart?.isDatasetVisible?.(0);
+                const wasteVisible = chart?.isDatasetVisible?.(1);
+                if (!goodVisible && wasteVisible) {
+                  return [
+                    `Waste sheets: ${(row.wasteSheets || 0).toLocaleString()}`,
+                    `Waste ratio: ${ratioPct.toFixed(2)}%`,
+                    `Status: ${status}`,
+                  ];
+                }
+                if (goodVisible && !wasteVisible) {
+                  return [`Good sheets: ${(row.goodSheets || 0).toLocaleString()}`];
+                }
                 return [
                   `Good sheets: ${(row.goodSheets || 0).toLocaleString()}`,
                   `Waste sheets: ${(row.wasteSheets || 0).toLocaleString()}`,
@@ -3711,6 +3737,7 @@
           const { ctx } = chart;
           const goodVisible = chart.isDatasetVisible(0);
           const wasteVisible = chart.isDatasetVisible(1);
+          if (!goodVisible && !wasteVisible) return;
           const metaGood = chart.getDatasetMeta(0);
           const metaWaste = chart.getDatasetMeta(1);
           ctx.save();
@@ -3721,11 +3748,25 @@
             const bar = wasteVisible ? metaWaste?.data?.[i] : metaGood?.data?.[i];
             if (!bar) return;
             let value = 0;
-            if (goodVisible && wasteVisible) value = row.totalSheets || 0;
-            else if (wasteVisible) value = row.wasteSheets || 0;
-            else if (goodVisible) value = row.goodSheets || 0;
-            if (!(value > 0)) return;
-            const label = formatCompactNumber(value);
+            let label = '';
+            if (STATE.customerVolumeMetric === 'wasteRatio') {
+              value = (row.wasteRatio || 0) * 100;
+              if (value < 0) return;
+              label = `${value.toFixed(1)}%`;
+            } else if (goodVisible && wasteVisible) {
+              value = row.totalSheets || 0;
+              if (!(value > 0)) return;
+              label = formatCompactNumber(value);
+            } else if (wasteVisible) {
+              value = row.wasteSheets || 0;
+              if (!(value > 0)) return;
+              label = formatCompactNumber(value);
+            } else if (goodVisible) {
+              value = row.goodSheets || 0;
+              if (!(value > 0)) return;
+              label = formatCompactNumber(value);
+            }
+            if (!label) return;
             ctx.fillText(label, bar.x, (bar.y || 0) - 6);
           });
           ctx.restore();
