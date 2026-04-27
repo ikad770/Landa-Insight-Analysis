@@ -1840,27 +1840,28 @@
     const availabilityDefinitions = computeAvailabilityDefinitions(availabilityAgg);
     const weightedAvailability = availabilityDefinitions.selected.value;
     const selectedVolumeMetric = STATE.customerVolumeMetric || 'totalPrintedSheets';
+    const hasChartRows = Array.isArray(customerVolumeRows) && customerVolumeRows.length > 0;
     const customerWaste = (customerVolumeRows || []).reduce((a, r) => a + Number(r.wastePrintedSheets || r.wasteSheets || 0), 0);
-    const customerTotal = (customerVolumeRows || []).reduce((a, r) => a + Number(r.totalPrintedSheets || r.totalSheets || r.totalVolume || ((r.goodPrintedSheets || r.productionPrintedSheets || 0) + (r.wastePrintedSheets || r.wasteSheets || 0))), 0);
+    const customerTotal = (customerVolumeRows || []).reduce((a, r) => a + Number(r.totalPrintedSheets || ((r.goodPrintedSheets || r.goodSheets || 0) + (r.wastePrintedSheets || r.wasteSheets || 0))), 0);
     const customerVolumeTotal = selectedVolumeMetric === 'wasteRatio'
       ? computeWasteRatio(customerWaste, customerTotal)
       : (customerVolumeRows || []).reduce((a, r) => a + Number(
         selectedVolumeMetric === 'wastePrintedSheets'
           ? (r.wastePrintedSheets || r.wasteSheets || 0)
           : selectedVolumeMetric === 'goodPrintedSheets'
-            ? (r.goodPrintedSheets || r.productionPrintedSheets || r.goodSheets || 0)
-            : (r.totalPrintedSheets || r.totalSheets || r.totalVolume || ((r.goodPrintedSheets || r.productionPrintedSheets || 0) + (r.wastePrintedSheets || r.wasteSheets || 0)))
+            ? (r.goodPrintedSheets || r.goodSheets || 0)
+            : (r.totalPrintedSheets || ((r.goodPrintedSheets || r.goodSheets || 0) + (r.wastePrintedSheets || r.wasteSheets || 0)))
       ), 0);
     const volumeWaste = volumeAgg.reduce((a, r) => a + Number(r.wastePrintedSheets || 0), 0);
-    const volumeTotal = volumeAgg.reduce((a, r) => a + Number(r.totalPrintedSheets || r.totalVolume || ((r.goodPrintedSheets || r.productionPrintedSheets || 0) + (r.wastePrintedSheets || 0))), 0);
+    const volumeTotal = volumeAgg.reduce((a, r) => a + Number(r.totalPrintedSheets || ((r.goodPrintedSheets || 0) + (r.wastePrintedSheets || 0))), 0);
     const filteredVolumeAggForUnit = selectedVolumeMetric === 'wasteRatio'
       ? computeWasteRatio(volumeWaste, volumeTotal)
       : volumeAgg.reduce((a, r) => a + Number(
         selectedVolumeMetric === 'wastePrintedSheets'
           ? (r.wastePrintedSheets || 0)
           : selectedVolumeMetric === 'goodPrintedSheets'
-            ? (r.goodPrintedSheets || r.productionPrintedSheets || 0)
-            : (r.totalPrintedSheets || r.totalVolume || ((r.goodPrintedSheets || r.productionPrintedSheets || 0) + (r.wastePrintedSheets || 0)))
+            ? (r.goodPrintedSheets || 0)
+            : (r.totalPrintedSheets || ((r.goodPrintedSheets || 0) + (r.wastePrintedSheets || 0)))
       ), 0);
     const topPressDowntime = (() => {
       const m = new Map();
@@ -1883,22 +1884,24 @@
       { label: 'kpi.totalDowntime', lhs: kpis.totalDowntime, rhs: sourceTotals.totalDowntime, source: 'availabilityAgg.totalDowntime', level: 'error' },
       { label: 'kpi.totalPlanned', lhs: kpis.totalPlanned, rhs: sourceTotals.planned, source: 'availabilityAgg.plannedDowntimeSeconds', level: 'error' },
       { label: 'kpi.totalUnplanned', lhs: kpis.totalUnplanned, rhs: sourceTotals.unplanned, source: 'availabilityAgg.unplannedDowntimeSeconds', level: 'error' },
-      { label: 'kpi.totalProdVolume', lhs: kpis.totalProdVolume, rhs: sourceTotals.productionPrintedSheets, source: 'volumeAgg.productionPrintedSheets', level: 'error' },
+      { label: 'kpi.totalProdVolume', lhs: kpis.totalProdVolume, rhs: volumeAgg.reduce((a, r) => a + (r.goodPrintedSheets || 0), 0), source: 'volumeAgg.goodPrintedSheets', level: 'error' },
       { label: 'kpi.totalMaintenanceVolume', lhs: kpis.totalMaintenanceVolume, rhs: sourceTotals.maintenanceVolume, source: 'volumeAgg.maintenanceVolume', level: 'error' },
-      { label: 'kpi.totalVolume', lhs: kpis.totalVolume, rhs: sourceTotals.totalVolume, source: 'volumeAgg.totalVolume', level: 'error' },
+      { label: 'kpi.totalVolume', lhs: kpis.totalVolume, rhs: volumeAgg.reduce((a, r) => a + (r.totalPrintedSheets || ((r.goodPrintedSheets || 0) + (r.wastePrintedSheets || 0))), 0), source: 'volumeAgg.totalPrintedSheets', level: 'error' },
       { label: 'summary.topPressByEvents.events', lhs: summary?.topPressByEvents?.events || 0, rhs: topPressEvents, source: 'summary vs errorsAgg', level: 'error' },
-      { label: 'chart.customerVolume.total', lhs: customerVolumeTotal, rhs: filteredVolumeAggForUnit, source: `customerVolumeRows.${selectedVolumeMetric} vs volumeAgg.${selectedVolumeMetric === 'wastePrintedSheets' ? 'wastePrintedSheets' : selectedVolumeMetric === 'goodPrintedSheets' ? 'productionPrintedSheets' : selectedVolumeMetric === 'wasteRatio' ? 'waste/total ratio' : 'totalVolume'}`, level: 'warning' },
     ];
+    if (hasChartRows) {
+      checks.push({ label: 'chart.customerVolume.total', lhs: customerVolumeTotal, rhs: filteredVolumeAggForUnit, source: `customerVolumeRows.${selectedVolumeMetric} vs volumeAgg.${selectedVolumeMetric === 'wastePrintedSheets' ? 'wastePrintedSheets' : selectedVolumeMetric === 'goodPrintedSheets' ? 'goodPrintedSheets' : selectedVolumeMetric === 'wasteRatio' ? 'waste/total ratio' : 'totalPrintedSheets'}`, level: 'warning' });
+    }
     checks.forEach(({ label, lhs, rhs, source, level }) => {
       if (Math.abs((lhs || 0) - (rhs || 0)) > 1e-6) logs.push({ level, label, lhs, rhs, source, message: `Mismatch ${label}: ${lhs} !== ${rhs}` });
     });
-    if (weightedAvailability != null && kpis.availabilityPct != null && Math.abs(weightedAvailability - kpis.availabilityPct) > 1e-6) {
+    if (weightedAvailability != null && kpis.availabilityPercent != null && Math.abs(weightedAvailability - kpis.availabilityPercent) > 1e-6) {
       logs.push({
         level: 'error',
-        label: 'kpi.availabilityPct',
-        lhs: Number(kpis.availabilityPct.toFixed(6)),
+        label: 'kpi.availabilityPercent',
+        lhs: Number(kpis.availabilityPercent.toFixed(6)),
         rhs: Number(weightedAvailability.toFixed(6)),
-        message: `Mismatch kpi.availabilityPct: ${kpis.availabilityPct} !== ${weightedAvailability}`,
+        message: `Mismatch kpi.availabilityPercent: ${kpis.availabilityPercent} !== ${weightedAvailability}`,
       });
     }
     console.info('[source-validation]', { sourceTotals, weightedAvailability, kpis, definition: DOWNTIME_DEFINITION, volumeBasis: VOLUME_BASIS });
@@ -1921,7 +1924,7 @@
       prodSheets: volumeAgg.reduce((a, r) => a + (r.productionPrintedSheets || 0), 0),
     };
     const availabilityDefinitions = computeAvailabilityDefinitions(availabilityAgg);
-    const availabilityPct = availabilityDefinitions.selected.value;
+    const availabilityPercent = availabilityDefinitions.selected.value;
     const rankingSources = {
       press: (() => {
         if (STATE.metricByChart.press === 'events') return sourceTotals.events;
@@ -1943,7 +1946,7 @@
       ['KPI • Total Downtime', 'Availability', kpis.totalDowntime, sourceTotals.downtime, 'sum(planned + unplanned)'],
       ['KPI • Planned Downtime', 'Availability', kpis.totalPlanned, sourceTotals.planned, 'sum(preventive + on-job-maintenance)'],
       ['KPI • Unplanned Downtime', 'Availability', kpis.totalUnplanned, sourceTotals.unplanned, 'sum(recovery + jams)'],
-      ['KPI • Availability', 'Availability', kpis.availabilityPct ?? null, availabilityPct, availabilityDefinitions.selected.formula],
+      ['KPI • Availability', 'Availability', kpis.availabilityPercent ?? null, availabilityPercent, availabilityDefinitions.selected.formula],
       ['KPI • Production Volume', 'Volume', kpis.totalProdVolume, sourceTotals.prodSheets, 'sum(productionPrintedSheets)'],
       ['KPI • MTTR', 'Errors', kpis.mttr ?? null, sourceTotals.events ? sourceTotals.errorDuration / sourceTotals.events : null, 'sum(errorDuration) / events'],
       ['KPI • MTBF', 'Errors+Availability', kpis.mtbf ?? null, sourceTotals.events ? sourceTotals.runtime / sourceTotals.events : null, 'runtime / failures (failure proxy = events)'],
@@ -2005,9 +2008,9 @@
       runtime: availabilityAgg.reduce((a, r) => a + (r.runtimeSeconds || 0), 0),
       totalAvailDowntime: availabilityAgg.reduce((a, r) => a + totalDowntimeFromAvailabilityRow(r), 0),
       productionVolume: volumeAgg.reduce((a, r) => a + (r.productionVolume || 0), 0),
-      goodPrintedSheets: volumeAgg.reduce((a, r) => a + (r.goodPrintedSheets || r.productionPrintedSheets || 0), 0),
+      goodPrintedSheets: volumeAgg.reduce((a, r) => a + (r.goodPrintedSheets || 0), 0),
       wastePrintedSheets: volumeAgg.reduce((a, r) => a + (r.wastePrintedSheets || 0), 0),
-      totalPrintedSheets: volumeAgg.reduce((a, r) => a + (r.totalPrintedSheets || r.totalVolume || ((r.goodPrintedSheets || r.productionPrintedSheets || 0) + (r.wastePrintedSheets || 0))), 0),
+      totalPrintedSheets: volumeAgg.reduce((a, r) => a + (r.totalPrintedSheets || ((r.goodPrintedSheets || 0) + (r.wastePrintedSheets || 0))), 0),
       rawPrintedSheets: volumeAgg.reduce((a, r) => a + (r.printedSheets || 0), 0),
       maintenanceVolume: volumeAgg.reduce((a, r) => a + (r.maintenanceVolume || 0), 0),
       totalVolume: volumeAgg.reduce((a, r) => a + (r.totalPrintedSheets || r.totalVolume || 0), 0),
@@ -2015,15 +2018,14 @@
       volumeCount: volumeAgg.length,
     };
 
-    const totalDowntime = totals.availabilityCount ? totals.totalAvailDowntime : errorDowntime;
-    const totalFailures = totalEvents;
+    const totalDowntime = totals.availabilityCount ? totals.totalAvailDowntime : 0;
     const avgDuration = totalEvents ? (errorDowntime / totalEvents) : null;
     const mttr = avgDuration;
-    const mtbf = totalFailures > 0 && totals.runtime > 0 ? (totals.runtime / totalFailures) : null;
+    const mtbf = totalEvents > 0 && totals.runtime > 0 ? (totals.runtime / totalEvents) : null;
     const mtbr = null;
     const availabilityDefinitions = computeAvailabilityDefinitions(availabilityAgg);
     STATE.availabilityDefinitions = availabilityDefinitions;
-    const availabilityPct = availabilityDefinitions.selected.value;
+    const availabilityPercent = availabilityDefinitions.selected.value;
 
     const reasons = [];
     if (!totals.availabilityCount) reasons.push('Availability aggregated dataset unavailable for current filters.');
@@ -2055,8 +2057,7 @@
       mttr,
       mtbf,
       mtbr,
-      availabilityPct,
-      availabilityPercent: availabilityPct,
+      availabilityPercent,
       availabilityLabel: availabilityDefinitions.selected.label,
       availabilityFormula: availabilityDefinitions.selected.formula,
       downtimeHours: totalDowntime > 0 ? (totalDowntime / 3600) : 0,
@@ -2221,7 +2222,7 @@
   }
 
   function deriveOperationalStatus(kpis, downtimeConcentrationPct, unplannedPct) {
-    const availability = Number(kpis?.availabilityPct || 0);
+    const availability = Number(kpis?.availabilityPercent || 0);
     if (availability < 85 || unplannedPct >= 70 || downtimeConcentrationPct >= 75) {
       return {
         label: 'Critical',
@@ -2253,7 +2254,6 @@
   }
 
   function buildExecutiveSummary(errorEvents, sourceScope, kpis) {
-    const { availabilityAgg = [] } = sourceScope || {};
     const selectedPress = (currentFilterValues()?.press && currentFilterValues().press !== 'all') ? currentFilterValues().press : null;
     const topPressByEvents = aggregateErrorEvents(errorEvents, r => r.press).sort((a, b) => b.events - a.events)[0] || null;
     const topPressByDowntime = aggregateErrorEvents(errorEvents, r => r.press).sort((a, b) => b.downtime - a.downtime)[0] || null;
@@ -2262,13 +2262,13 @@
     const topSubsystemByDowntime = aggregateErrorEvents(errorEvents, r => r.subsystem).sort((a, b) => b.downtime - a.downtime)[0] || null;
     const topAlertByDowntime = aggregateErrorEvents(errorEvents, r => (r.name !== 'Unspecified' ? r.name : r.alertTitle)).sort((a, b) => b.downtime - a.downtime)[0] || null;
     const downtimeByPress = new Map();
-    availabilityAgg.forEach(r => {
-      const press = r.canonicalPress || 'Unspecified';
-      downtimeByPress.set(press, (downtimeByPress.get(press) || 0) + totalDowntimeFromAvailabilityRow(r));
+    (errorEvents || []).forEach(r => {
+      const press = r.press || 'Unspecified';
+      downtimeByPress.set(press, (downtimeByPress.get(press) || 0) + Number(r.durationSeconds || 0));
     });
     const topDowntimePresses = [...downtimeByPress.entries()].map(([entity, downtime]) => ({ entity, downtime })).sort((a, b) => b.downtime - a.downtime);
     const topErrorDowntimePress = topDowntimePresses[0] || null;
-    const totalDowntime = Math.max(0, Number(kpis.totalPlanned || 0) + Number(kpis.totalUnplanned || 0));
+    const totalDowntime = Math.max(0, Number(kpis.totalErrorDurationSeconds || 0));
     const top3Downtime = topDowntimePresses.slice(0, 3).reduce((sum, row) => sum + Number(row.downtime || 0), 0);
     const downtimeConcentrationPct = totalDowntime > 0 ? (top3Downtime / totalDowntime) * 100 : 0;
     const unplannedPct = totalDowntime > 0 ? ((Number(kpis.totalUnplanned || 0) / totalDowntime) * 100) : 0;
@@ -2279,12 +2279,12 @@
       topSubsystemByEvents: topSubsystem ? { subsystem: topSubsystem.name, events: topSubsystem.events } : null,
       topAlertByEvents: topAlert ? { alert: topAlert.name, events: topAlert.events } : null,
       highestErrorDowntimePress: topErrorDowntimePress ? { press: topErrorDowntimePress.entity, downtimeSeconds: topErrorDowntimePress.downtime } : null,
-      sourceOfTruth: { events: 'errorsAgg / normalized errors events', downtime: 'availabilityAgg' }
+      sourceOfTruth: { events: 'errorsAgg / normalized errors events', downtime: 'errorsAgg.totalErrorDurationSeconds' }
     });
 
     const overallStatus = deriveOperationalStatus(kpis, downtimeConcentrationPct, unplannedPct);
 
-    const focusPress = selectedPress || topPressByDowntime?.name || topPressByEvents?.name || 'N/A';
+    const focusPress = selectedPress || topErrorDowntimePress?.entity || topPressByEvents?.name || 'N/A';
     const pressRows = (errorEvents || []).filter(row => (row?.press || 'Unspecified') === focusPress);
     const pressTopError = aggregateErrorEvents(pressRows, r => (r.name !== 'Unspecified' ? r.name : r.alertTitle)).sort((a, b) => b.downtime - a.downtime)[0] || null;
     const pressTopSubsystem = aggregateErrorEvents(pressRows, r => r.subsystem).sort((a, b) => b.downtime - a.downtime)[0] || null;
@@ -2464,7 +2464,7 @@
       reportingPeriodLabel,
       sourceCounts: { errors: (scope.errorsAgg || []).length, availability: availabilityAgg.length, volume: volumeAgg.length },
       executiveSnapshot: {
-        availability: kpis.availabilityPct == null ? 'N/A' : `${kpis.availabilityPct.toFixed(1)}%`,
+        availability: kpis.availabilityPercent == null ? 'N/A' : `${kpis.availabilityPercent.toFixed(1)}%`,
         productionVolume: kpis.totalProdVolume.toLocaleString(),
         downtimePerVolume: kpis.volumePerDowntime == null ? 'N/A' : kpis.volumePerDowntime.toFixed(4),
         eventsPerVolume: kpis.volumePerEvents == null ? 'N/A' : kpis.volumePerEvents.toFixed(4),
@@ -2654,10 +2654,10 @@
     const sourceTotalEvents = errorsAgg.reduce((sum, row) => sum + Number(row?.totalEvents || 0), 0);
     const sourceTotalErrorDurationSeconds = errorsAgg.reduce((sum, row) => sum + Number(row?.totalErrorDurationSeconds || 0), 0);
     const expectedAvgDuration = sourceTotalEvents > 0 ? (sourceTotalErrorDurationSeconds / sourceTotalEvents) : 0;
-    check('errors.avg_duration', expectedAvgDuration, Number(STATE.kpis?.avgDuration || 0), 'errorsAgg.totalErrorDurationSeconds / errorsAgg.totalEvents');
+    check('errors.avg_duration', expectedAvgDuration, Number(STATE.kpis?.avgDurationSeconds || 0), 'errorsAgg.totalErrorDurationSeconds / errorsAgg.totalEvents');
     check('volume.raw_to_agg', rawVolumeRows.reduce((sum, row) => sum + Number(row?.printedSheets || 0), 0), volumeAgg.reduce((sum, row) => sum + Number(row?.printedSheets || 0), 0), 'volume.rawRows.printedSheets vs volumeAgg.printedSheets');
     const expectedWaste = volumeAgg.reduce((sum, row) => sum + Number(row?.wastePrintedSheets || 0), 0);
-    const expectedTotalSheets = volumeAgg.reduce((sum, row) => sum + Number(row?.totalPrintedSheets || row?.totalVolume || ((row?.goodPrintedSheets || row?.productionPrintedSheets || 0) + (row?.wastePrintedSheets || 0))), 0);
+    const expectedTotalSheets = volumeAgg.reduce((sum, row) => sum + Number(row?.totalPrintedSheets || ((row?.goodPrintedSheets || 0) + (row?.wastePrintedSheets || 0))), 0);
     const expectedMetricTotal = STATE.customerVolumeMetric === 'wasteRatio'
       ? computeWasteRatio(expectedWaste, expectedTotalSheets)
       : volumeAgg.reduce((sum, row) => sum + Number(
@@ -2666,13 +2666,14 @@
           : STATE.customerVolumeMetric === 'printedFlats'
             ? (row?.printedFlats || 0)
             : STATE.customerVolumeMetric === 'goodPrintedSheets'
-              ? (row?.goodPrintedSheets || row?.productionPrintedSheets || 0)
+              ? (row?.goodPrintedSheets || 0)
               : STATE.customerVolumeMetric === 'totalPrintedSheets'
-                ? (row?.totalPrintedSheets || row?.totalVolume || ((row?.goodPrintedSheets || row?.productionPrintedSheets || 0) + (row?.wastePrintedSheets || 0)))
+                ? (row?.totalPrintedSheets || ((row?.goodPrintedSheets || 0) + (row?.wastePrintedSheets || 0)))
                 : (row?.printedSheets || 0)
       ), 0);
+    const hasChartRows = Array.isArray(allCustomerVolumeRows) && allCustomerVolumeRows.length > 0;
     const actualWaste = (allCustomerVolumeRows || []).reduce((sum, row) => sum + Number(row?.wasteSheets || row?.wastePrintedSheets || 0), 0);
-    const actualTotalSheets = (allCustomerVolumeRows || []).reduce((sum, row) => sum + Number(row?.totalSheets || row?.totalPrintedSheets || row?.totalVolume || ((row?.goodSheets || row?.goodPrintedSheets || row?.productionPrintedSheets || 0) + (row?.wasteSheets || row?.wastePrintedSheets || 0))), 0);
+    const actualTotalSheets = (allCustomerVolumeRows || []).reduce((sum, row) => sum + Number(row?.totalPrintedSheets || ((row?.goodSheets || row?.goodPrintedSheets || 0) + (row?.wasteSheets || row?.wastePrintedSheets || 0))), 0);
     const actualMetricTotal = STATE.customerVolumeMetric === 'wasteRatio'
       ? computeWasteRatio(actualWaste, actualTotalSheets)
       : (allCustomerVolumeRows || []).reduce((sum, row) => sum + Number(
@@ -2681,17 +2682,19 @@
           : STATE.customerVolumeMetric === 'printedFlats'
             ? (row?.printedFlats || 0)
             : STATE.customerVolumeMetric === 'goodPrintedSheets'
-              ? (row?.goodSheets || row?.goodPrintedSheets || row?.productionPrintedSheets || 0)
-              : (row?.totalSheets || row?.totalPrintedSheets || row?.printedSheets || row?.totalVolume || 0)
+              ? (row?.goodSheets || row?.goodPrintedSheets || 0)
+              : (row?.totalPrintedSheets || row?.printedSheets || 0)
       ), 0);
-    check(
-      `volume.chart_basis.${STATE.customerVolumeMetric}`,
-      expectedMetricTotal,
-      actualMetricTotal,
-      `volumeAgg.${STATE.customerVolumeMetric === 'wastePrintedSheets' ? 'wastePrintedSheets' : STATE.customerVolumeMetric === 'totalPrintedSheets' ? 'totalVolume' : STATE.customerVolumeMetric} vs customerVolumeAllRows.${STATE.customerVolumeMetric}`,
-      'warning',
-      'basis-difference-allowed'
-    );
+    if (hasChartRows) {
+      check(
+        `volume.chart_basis.${STATE.customerVolumeMetric}`,
+        expectedMetricTotal,
+        actualMetricTotal,
+        `volumeAgg.${STATE.customerVolumeMetric === 'wastePrintedSheets' ? 'wastePrintedSheets' : STATE.customerVolumeMetric === 'totalPrintedSheets' ? 'totalPrintedSheets' : STATE.customerVolumeMetric} vs customerVolumeAllRows.${STATE.customerVolumeMetric}`,
+        'warning',
+        'basis-difference-allowed'
+      );
+    }
     const availabilityRows = sourceScope?.filteredAvailabilityRowsNative || [];
     const availabilityTotals = availabilityRows.reduce((acc, row) => {
       acc.runtime += Number(row?.runtimeSeconds || 0);
@@ -2708,19 +2711,21 @@
       }
     });
     const weightedAvailabilityExpected = computeAvailabilityDefinitions(sourceScope?.availabilityAgg || []).selected?.value;
-    if (weightedAvailabilityExpected != null && Number.isFinite(Number(STATE.kpis?.availabilityPct))) {
-      check('availability.weighted', weightedAvailabilityExpected, Number(STATE.kpis.availabilityPct), 'availabilityAgg weighted availability', 'error', 'weighted-method-consistency');
+    if (weightedAvailabilityExpected != null && Number.isFinite(Number(STATE.kpis?.availabilityPercent))) {
+      check('availability.weighted', weightedAvailabilityExpected, Number(STATE.kpis.availabilityPercent), 'availabilityAgg weighted availability', 'error', 'weighted-method-consistency');
     }
     (sourceScope?.volumeAgg || []).forEach((row, idx) => {
-      const good = Number(row?.productionPrintedSheets || 0);
+      const good = Number(row?.goodPrintedSheets || 0);
       const waste = Number(row?.wastePrintedSheets || 0);
-      const total = Number(row?.totalVolume || (good + waste));
+      const total = Number(row?.totalPrintedSheets || (good + waste));
       if (good < 0 || waste < 0 || total < 0) issues.push({ metric: `volume.non_negative.row_${idx+1}`, expected: '>=0', actual: `${good},${waste},${total}`, diff: 0, source: 'volumeAgg', level: 'error', reason: 'negative-volume' });
       if (Math.abs((good + waste) - total) > 1e-6) issues.push({ metric: `volume.good_plus_waste.row_${idx+1}`, expected: total, actual: good + waste, diff: (good+waste)-total, source: 'volumeAgg', level: 'error', reason: 'volume-component-mismatch' });
     });
-    const pressTotal = (sourceScope?.volumeAgg || []).reduce((sum, row) => sum + Number(row?.totalVolume || 0), 0);
-    const chartTotal = (allCustomerVolumeRows || []).reduce((sum, row) => sum + Number(row?.totalSheets || row?.totalVolume || 0), 0);
-    check('volume.press_reconcile_global', pressTotal, chartTotal, 'volumeAgg press totals vs chart global total', 'error', 'press-global-reconciliation');
+    if (hasChartRows) {
+      const pressTotal = (sourceScope?.volumeAgg || []).reduce((sum, row) => sum + Number(row?.totalPrintedSheets || 0), 0);
+      const chartTotal = (allCustomerVolumeRows || []).reduce((sum, row) => sum + Number(row?.totalPrintedSheets || 0), 0);
+      check('volume.press_reconcile_global', pressTotal, chartTotal, 'volumeAgg press totals vs chart global total', 'warning', 'press-global-reconciliation');
+    }
     const hardIssues = issues.filter(issue => issue.level === 'error');
     return { isValid: hardIssues.length === 0, issues, hardIssues, warningIssues: issues.filter(issue => issue.level === 'warning') };
   }
@@ -3988,7 +3993,10 @@
     STATE.simulationData = null;
     STATE.pendingSimulationChanges = new Set();
     STATE.appliedSimulationData = null;
-    STATE.drilldownStack = [];
+    STATE.drilldownStack = [structuredClone({
+      ...STATE.drilldown,
+      simulation: { pendingExcluded: [], appliedExcluded: [] }
+    })];
     showBreakdown = false;
     document.getElementById('drilldownDrawer').classList.add('show');
     requestAnimationFrame(() => { renderDrilldown(); refreshDrilldownChartsAfterOpen(); scrollDrilldownChartsIntoView(); });
@@ -4105,17 +4113,22 @@
       sort: null,
       simulation: { pendingExcluded: new Set(existingSimulation.pendingExcluded || []), appliedExcluded: new Set(existingSimulation.appliedExcluded || []) }
     };
-    const currentPathLength = (STATE.drilldown.path || []).length;
-    if (nextPath.length === 1) STATE.drilldownStack = [];
-    if (currentPathLength && nextPath.length > currentPathLength) {
-      STATE.drilldownStack.push(structuredClone({
+    if (!Array.isArray(STATE.drilldownStack) || !STATE.drilldownStack.length) {
+      STATE.drilldownStack = [structuredClone({
         ...STATE.drilldown,
         simulation: {
           pendingExcluded: [...(STATE.drilldown.simulation?.pendingExcluded || [])],
           appliedExcluded: [...(STATE.drilldown.simulation?.appliedExcluded || [])]
         }
-      }));
+      })];
     }
+    STATE.drilldownStack.push(structuredClone({
+      ...nextDrilldownState,
+      simulation: {
+        pendingExcluded: [...(nextDrilldownState.simulation?.pendingExcluded || [])],
+        appliedExcluded: [...(nextDrilldownState.simulation?.appliedExcluded || [])]
+      }
+    }));
     STATE.drilldown = nextDrilldownState;
     showBreakdown = false;
     document.getElementById('drilldownDrawer').classList.add('show');
@@ -5704,24 +5717,12 @@
     closeDrilldown.addEventListener('click', () => drilldownDrawer.classList.remove('show'));
     document.getElementById('drilldownBack')?.addEventListener('click', () => {
       const history = STATE.drilldownStack || [];
-      if (!history.length) {
-        const path = STATE.drilldown.path || [];
-        if (path.length <= 1) {
-          drilldownDrawer.classList.remove('show');
-          return;
-        }
-        const parent = path[path.length - 2];
-        const parentPath = path.slice(0, -2);
-        openDrilldown(parent.dimension, parent.entityKey, {
-          entityKey: parent.entityKey,
-          displayLabel: parent.displayLabel,
-          sourceType: STATE.drilldown.sourceType,
-          metric: STATE.drilldown.metric,
-          parentContext: { path: parentPath }
-        });
+      if (history.length <= 1) {
+        drilldownDrawer.classList.remove('show');
         return;
       }
-      const previous = history.pop();
+      history.pop();
+      const previous = history[history.length - 1];
       STATE.drilldown = {
         ...previous,
         simulation: {
