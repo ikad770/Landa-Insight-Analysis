@@ -473,6 +473,12 @@
     const total = Number(totalPrintedSheets || 0);
     return total > 0 ? (waste / total) : 0;
   }
+  function detectWasteData(rows = []) {
+    return (rows || []).some(r => {
+      const str = JSON.stringify(r || {}).toLowerCase();
+      return str.includes('waste') || str.includes('reject') || str.includes('special');
+    });
+  }
 
   function nearlyEqual(a, b, tolerance = 0.001) {
     const left = Number(a || 0);
@@ -487,7 +493,7 @@
     mttr: { id: 'mttr', label: 'MTTR (Avg Duration)', type: 'average', unit: 'seconds', dataset: 'errors', numeratorField: 'totalErrorDurationSeconds', denominatorField: 'totalEvents', aggregate: scope => { const num = (scope.errorsAgg || []).reduce((acc, row) => acc + Number(row?.totalErrorDurationSeconds || 0), 0); const den = (scope.errorsAgg || []).reduce((acc, row) => acc + Number(row?.totalEvents || 0), 0); return den > 0 ? num / den : null; }, format: value => value == null ? 'N/A' : formatDuration(Number(value || 0)), validate: value => value == null || Number(value) >= 0 },
     mtbf: { id: 'mtbf', label: 'MTBF', type: 'average', unit: 'seconds', dataset: 'availability', numeratorField: 'runtimeSeconds', denominatorField: 'totalEvents', aggregate: scope => { const num = (scope.availabilityAgg || []).reduce((acc, row) => acc + Number(row?.runtimeSeconds || 0), 0); const den = (scope.errorsAgg || []).reduce((acc, row) => acc + Number(row?.totalEvents || 0), 0); return den > 0 ? num / den : null; }, format: value => value == null ? 'N/A' : formatDuration(Number(value || 0)), validate: value => value == null || Number(value) >= 0 },
     volume: { id: 'volume', label: 'Volume', type: 'sum', unit: 'sheets', dataset: 'volume', numeratorField: 'totalPrintedSheets', denominatorField: null, aggregate: scope => (scope.volumeAgg || []).reduce((acc, row) => acc + Number(row?.totalPrintedSheets || ((row?.goodPrintedSheets || 0) + (row?.wastePrintedSheets || 0))), 0), format: value => `${formatCompactNumber(value)} sheets`, validate: value => Number.isFinite(Number(value)) && Number(value) >= 0 },
-    wasteRatio: { id: 'wasteRatio', label: 'Waste Ratio', type: 'ratio', unit: 'percent', dataset: 'volume', numeratorField: 'wastePrintedSheets', denominatorField: 'totalPrintedSheets', aggregate: scope => { const num = (scope.volumeAgg || []).reduce((acc, row) => acc + Number(row?.wastePrintedSheets || 0), 0); const den = (scope.volumeAgg || []).reduce((acc, row) => acc + Number(row?.totalPrintedSheets || ((row?.goodPrintedSheets || 0) + (row?.wastePrintedSheets || 0))), 0); return den > 0 ? num / den : 0; }, format: value => `${(Number(value || 0) * 100).toFixed(2)}%`, validate: value => Number.isFinite(Number(value)) && Number(value) >= 0 && Number(value) <= 1 },
+    wasteRatio: { id: 'wasteRatio', label: 'Waste Ratio', type: 'ratio', unit: 'percent', dataset: 'volume', numeratorField: 'wastePrintedSheets', denominatorField: 'totalPrintedSheets', aggregate: scope => { if (scope?.hasWasteData === false) return null; const num = (scope.volumeAgg || []).reduce((acc, row) => acc + Number(row?.wastePrintedSheets || 0), 0); const den = (scope.volumeAgg || []).reduce((acc, row) => acc + Number(row?.totalPrintedSheets || ((row?.goodPrintedSheets || 0) + (row?.wastePrintedSheets || 0))), 0); return den > 0 ? num / den : 0; }, format: value => value == null ? 'N/A' : `${(Number(value || 0) * 100).toFixed(2)}%`, validate: value => value == null || (Number.isFinite(Number(value)) && Number(value) >= 0 && Number(value) <= 1) },
     availability: { id: 'availability', label: 'Availability', type: 'percentage', unit: 'percent', dataset: 'availability', numeratorField: 'runtimeSeconds', denominatorField: 'runtimePlusDowntime', aggregate: scope => { const runtime = (scope.availabilityAgg || []).reduce((acc, row) => acc + Number(row?.runtimeSeconds || 0), 0); const downtime = (scope.availabilityAgg || []).reduce((acc, row) => acc + Number(totalDowntimeFromAvailabilityRow(row) || 0), 0); const den = runtime + downtime; return den > 0 ? runtime / den : null; }, format: value => value == null ? 'N/A' : `${(Number(value || 0) * 100).toFixed(1)}%`, validate: value => value == null || (Number(value) >= 0 && Number(value) <= 1) },
   });
 
@@ -2093,8 +2099,9 @@
     const totalUnplanned = (scope.availabilityAgg || []).reduce((acc, row) => acc + Number(row?.unplannedDowntimeSeconds || 0), 0);
     const totalService = (scope.availabilityAgg || []).reduce((acc, row) => acc + Number(row?.serviceDowntimeSeconds || 0), 0);
     const runtimeSeconds = (scope.availabilityAgg || []).reduce((acc, row) => acc + Number(row?.runtimeSeconds || 0), 0);
+    const hasWasteData = scope?.hasWasteData !== false;
     const goodPrintedSheets = (scope.volumeAgg || []).reduce((acc, row) => acc + Number(row?.goodPrintedSheets || 0), 0);
-    const wastePrintedSheets = (scope.volumeAgg || []).reduce((acc, row) => acc + Number(row?.wastePrintedSheets || 0), 0);
+    const wastePrintedSheets = hasWasteData ? (scope.volumeAgg || []).reduce((acc, row) => acc + Number(row?.wastePrintedSheets || 0), 0) : 0;
     const totalPrintedSheets = aggregateMetricFromScope('volume', scope) || 0;
     const mttr = aggregateMetricFromScope('mttr', scope);
     const mtbf = aggregateMetricFromScope('mtbf', scope);
@@ -2105,7 +2112,7 @@
       avgDuration: mttr, avgDurationSeconds: mttr, mttr, mtbf, mtbr: null, availabilityPercent: availabilityRatio == null ? null : availabilityRatio * 100,
       downtimeHours: totalDowntime > 0 ? (totalDowntime / 3600) : 0, outputEfficiency: totalDowntime > 0 ? (goodPrintedSheets / (totalDowntime / 3600)) : null,
       volumePerDowntime: totalDowntime > 0 ? (goodPrintedSheets / totalDowntime) : null, volumePerEvents: totalEvents > 0 ? (goodPrintedSheets / totalEvents) : null,
-      wasteRatio: aggregateMetricFromScope('wasteRatio', scope), reasons: []
+      wasteRatio: aggregateMetricFromScope('wasteRatio', scope), hasWasteData, reasons: []
     };
   }
 
@@ -2483,8 +2490,9 @@
       ['Waste Ratio', 'wasteRatio', metricRegistry.wasteRatio.format(k.wasteRatio), 'sum(wastePrintedSheets) / sum(totalPrintedSheets)'],
       ['Availability', 'availability', metricRegistry.availability.format((k.availabilityPercent == null ? null : k.availabilityPercent / 100)), 'sum(runtimeSeconds) / (sum(runtimeSeconds)+sum(downtimeSeconds))'],
     ];
+    const visibleCards = cards.filter(([_, metricKey]) => !(metricKey === 'wasteRatio' && k.wasteRatio == null));
     const toCard = ([label, metricKey, value, subtitle]) => `<article class="kpi clickable" role="button" tabindex="0" data-kpi-metric="${metricKey}" title="${esc(subtitle)}"><div class="k">${label}</div><div class="v">${esc(value)}</div><div class="kpi-sub">${esc(subtitle)}</div></article>`;
-    document.getElementById('kpiStrip').innerHTML = `<div class="kpi-row core" style="grid-template-columns:repeat(${Math.max(4, cards.length)},minmax(140px,1fr));">${cards.map(toCard).join('')}</div>`;
+    document.getElementById('kpiStrip').innerHTML = `<div class="kpi-row core" style="grid-template-columns:repeat(${Math.max(4, visibleCards.length)},minmax(140px,1fr));">${visibleCards.map(toCard).join('')}</div>`;
   }
 
   function renderExecutiveSummaryCard(summary) {
@@ -3685,6 +3693,7 @@
     const scopedMergedRows = filteredRows();
     const scopedErrorRows = filteredErrorEvents();
     const scopedSource = buildSourceScope(filters, scopedMergedRows, scopedErrorRows);
+    scopedSource.hasWasteData = detectWasteData(scopedSource.filteredVolumeRowsNative || []);
     const scopedKpis = computeOperationalMetrics(scopedSource);
     const executiveSummary = buildExecutiveSummary(scopedErrorRows, scopedSource, scopedKpis);
     const hasScopedData =
@@ -3735,7 +3744,7 @@
     return { chartRows: rows.slice(0, expanded ? rows.length : 12), fullRows: rows };
   }
 
-  function renderVolumeByPressChart(customerVolumeRows = []) {
+  function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) {
     const labels = customerVolumeRows.map(r => r.displayLabel || r.entityKey || r.canonicalPress || 'Unspecified');
     const enriched = customerVolumeRows.map(row => {
       const safe = sanitizeVolumeComponents(row.totalPrintedSheets, row.goodSheets || row.goodPrintedSheets, row.wasteSheets || row.wastePrintedSheets);
@@ -3754,7 +3763,7 @@
         labels,
         datasets: [
           { label: 'Good Volume', data: goodValues, backgroundColor: goodFill, borderColor: goodFill, borderWidth: 1, borderRadius: 6, minBarLength: 3, stack: 'volume' },
-          { label: 'Waste', data: wasteValues, backgroundColor: wasteColors, borderColor: wasteColors, borderWidth: 1, borderRadius: 6, minBarLength: 2, stack: 'volume' }
+          ...(hasWasteData ? [{ label: 'Waste', data: wasteValues, backgroundColor: wasteColors, borderColor: wasteColors, borderWidth: 1, borderRadius: 6, minBarLength: 2, stack: 'volume' }] : [])
         ]
       },
       options: {
@@ -4783,8 +4792,10 @@
       acc.total += Number(row?.goodPrintedSheets || row?.productionPrintedSheets || 0) + Number(row?.wastePrintedSheets || 0);
       return acc;
     }, { good: 0, waste: 0, total: 0 });
-    checks.push({ id: 'volume-waste-lte-total', pass: volumeTotals.waste <= volumeTotals.total + 1e-6, explainable: false, metric: 'waste<=total', expected: volumeTotals.total, actual: volumeTotals.waste, source: 'volumeAgg internal' });
-    checks.push({ id: 'volume-good-plus-waste-equals-total', pass: Math.abs((volumeTotals.good + volumeTotals.waste) - volumeTotals.total) < 1e-6, explainable: false, metric: 'good+waste=total', expected: volumeTotals.total, actual: volumeTotals.good + volumeTotals.waste, source: 'volumeAgg internal' });
+    if (sourceScope?.hasWasteData !== false) {
+      checks.push({ id: 'volume-waste-lte-total', pass: volumeTotals.waste <= volumeTotals.total + 1e-6, explainable: false, metric: 'waste<=total', expected: volumeTotals.total, actual: volumeTotals.waste, source: 'volumeAgg internal' });
+      checks.push({ id: 'volume-good-plus-waste-equals-total', pass: Math.abs((volumeTotals.good + volumeTotals.waste) - volumeTotals.total) < 1e-6, explainable: false, metric: 'good+waste=total', expected: volumeTotals.total, actual: volumeTotals.good + volumeTotals.waste, source: 'volumeAgg internal' });
+    }
     const failed = checks.filter(c => !c.pass).map(check => ({ ...check, classification: classify(check) }));
     const warnings = failed.filter(c => c.classification !== 'corruption');
     const errors = failed.filter(c => c.classification === 'corruption');
@@ -4830,6 +4841,18 @@
       STATE.metricByChart.subsystem = 'events';
       STATE.metricByChart.alert = 'events';
       STATE.metricByChart.version = 'events';
+    }
+    sourceScope.hasWasteData = detectWasteData(sourceScope.filteredVolumeRowsNative || []);
+    if (sourceScope.hasWasteData === false && (STATE.customerVolumeMetric === 'wastePrintedSheets' || STATE.customerVolumeMetric === 'wasteRatio')) {
+      STATE.customerVolumeMetric = 'totalPrintedSheets';
+    }
+    const customerVolumeMetricSelect = document.getElementById('customerVolumeMetric');
+    if (customerVolumeMetricSelect) {
+      [...customerVolumeMetricSelect.options].forEach(opt => {
+        const isWasteOption = opt.value === 'wastePrintedSheets' || opt.value === 'wasteRatio';
+        opt.hidden = isWasteOption && sourceScope.hasWasteData === false;
+      });
+      customerVolumeMetricSelect.value = STATE.customerVolumeMetric;
     }
     const renderValidation = validateRenderConsistency(sourceScope, STATE.kpis);
     STATE.renderValidation = renderValidation;
@@ -4880,7 +4903,7 @@
       }
     });
     STATE.customerVolumeAllRows = allCustomerVolumeRows;
-    const customerVolumeRendered = renderVolumeByPressChart(visibleCustomerVolumeRows);
+    const customerVolumeRendered = renderVolumeByPressChart(visibleCustomerVolumeRows, sourceScope.hasWasteData !== false);
     if (!visibleCustomerVolumeRows.length) setCanvasState('customerVolumeChart', 'No print volume rows after source-native scope (volume owns press/day and native job metadata).');
     const totalWasteInScope = allCustomerVolumeRows.reduce((sum, row) => sum + Number(row.wasteSheets || row.wastePrintedSheets || 0), 0);
     const normalizedJobTypes = [...new Set((sourceScope.filteredVolumeRowsNative || []).map(row => normalizeJobType(row?.jobType)).filter(Boolean))].sort();
@@ -4941,7 +4964,9 @@
       console.info('[waste-debug] no waste detected after normalization and mapping verification', { reason });
     }
     if (!customerVolumeRendered) setCanvasState('customerVolumeChart', 'Chart library failed to load. Charts cannot render.', 'error');
-    document.getElementById('customerVolumeNote').textContent = STATE.customerVolumeMetric === 'wasteRatio'
+    document.getElementById('customerVolumeNote').textContent = sourceScope.hasWasteData === false
+      ? 'No waste data in dataset'
+      : STATE.customerVolumeMetric === 'wasteRatio'
       ? `${STATE.customerVolumeExpanded ? 'Full press ranking' : 'Top 12'} waste-ratio bars (${STATE.customerVolumeSort === 'asc' ? 'lowest first' : 'highest first'}). Colors reflect per-press waste ratio thresholds.`
       : STATE.customerVolumeMetric === 'wastePrintedSheets'
       ? `${STATE.customerVolumeExpanded ? 'Full press ranking' : 'Top 12'} waste bars (${STATE.customerVolumeSort === 'asc' ? 'lowest first' : 'highest first'}). Colors reflect waste ratio: green <5%, amber 5–10%, red >10%.`
