@@ -442,6 +442,7 @@
     reconciliation: { logs: [], report: [] },
     dashboardScopeModel: null,
     availabilityDefinitions: null,
+    dataContract: null,
     renderQueued: false,
   };
 
@@ -472,16 +473,32 @@
     volume: ['goodPrintedSheets', 'wastePrintedSheets', 'totalPrintedSheets'],
     availability: ['availabilityPercent', 'runtimeSeconds', 'downtimeSeconds'],
   });
+  const EXPLICIT_WASTE_FIELD_CANDIDATES = ['waste sheets', 'waste printed sheets', 'wasteprintedsheets', 'reject sheets', 'rejected sheets', 'scrap sheets'];
+  function detectDatasetContract(rows = [], dataset = 'unknown') {
+    const sample = rows[0] || {};
+    const availableFields = Object.keys(sample);
+    const normalized = availableFields.map(f => canonical(f));
+    const hasExplicitWaste = normalized.some(name => EXPLICIT_WASTE_FIELD_CANDIDATES.includes(name));
+    const wasteField = hasExplicitWaste ? availableFields.find(f => EXPLICIT_WASTE_FIELD_CANDIDATES.includes(canonical(f))) : null;
+    const required = CANONICAL_SCHEMA[dataset] || [];
+    const validMetrics = required.filter(metric => availableFields.some(field => canonical(field).includes(canonical(metric).replace('seconds', '').trim())));
+    const missingMetrics = required.filter(metric => !validMetrics.includes(metric));
+    return { dataset, availableFields, validMetrics, missingMetrics, hasWaste: hasExplicitWaste, wasteField };
+  }
+  function buildDataContract(raw = {}) {
+    const errors = detectDatasetContract(raw.errors || [], 'errors');
+    const availability = detectDatasetContract(raw.availability || [], 'availability');
+    const volume = detectDatasetContract(raw.volume || [], 'volume');
+    return { errors, availability, volume };
+  }
   function computeWasteRatio(wastePrintedSheets = 0, totalPrintedSheets = 0) {
     const waste = Number(wastePrintedSheets || 0);
     const total = Number(totalPrintedSheets || 0);
     return total > 0 ? (waste / total) : 0;
   }
-  function detectWasteData(rows = []) {
-    return (rows || []).some(r => {
-      const str = JSON.stringify(r || {}).toLowerCase();
-      return str.includes('waste') || str.includes('reject') || str.includes('special');
-    });
+  function detectWasteData(rows = [], dataContract = null) {
+    if (dataContract?.volume) return dataContract.volume.hasWaste === true;
+    return false;
   }
 
   function nearlyEqual(a, b, tolerance = 0.001) {
@@ -1117,7 +1134,7 @@
   }
 
   async function normalizeVolumeRows(rows, options = {}) {
-    const { controller = null, onProgress = null } = options;
+    const { controller = null, onProgress = null, dataContract = null } = options;
     const jobs = [];
     const seenVolumeRowKeys = new Set();
     const duplicateVolumeJobKeys = new Map();
@@ -1147,10 +1164,9 @@
     }
 
     const isWaste = (row) => {
-      const jobType = String(row?.jobType || row?.['Job Type'] || row?.type || '').toLowerCase();
-      const jobStatus = String(row?.jobStatus || row?.['Job Status'] || '').toLowerCase();
-      const explicitWasteSheets = Number(row?.wasteSheets || row?.['Waste Sheets'] || row?.wastePrintedSheets || 0);
-      return /waste|reject|special/.test(jobType) || /waste|reject/.test(jobStatus) || (Number.isFinite(explicitWasteSheets) && explicitWasteSheets > 0);
+      if (!dataContract?.volume?.hasWaste) return false;
+      const explicitWasteSheets = Number(row?.[dataContract.volume.wasteField] || row?.wasteSheets || row?.['Waste Sheets'] || row?.wastePrintedSheets || 0);
+      return Number.isFinite(explicitWasteSheets) && explicitWasteSheets > 0;
     };
     for (let i = 0; i < rows.length; i++) {
       if (controller) assertAnalysisActive(controller);
@@ -3701,7 +3717,7 @@
     const scopedMergedRows = filteredRows();
     const scopedErrorRows = filteredErrorEvents();
     const scopedSource = buildSourceScope(filters, scopedMergedRows, scopedErrorRows);
-    scopedSource.hasWasteData = detectWasteData(scopedSource.filteredVolumeRowsNative || []);
+    scopedSource.hasWasteData = detectWasteData(scopedSource.filteredVolumeRowsNative || [], STATE.dataContract);
     const scopedKpis = computeOperationalMetrics(scopedSource);
     const executiveSummary = buildExecutiveSummary(scopedErrorRows, scopedSource, scopedKpis);
     const hasScopedData =
@@ -4850,7 +4866,7 @@
       STATE.metricByChart.alert = 'events';
       STATE.metricByChart.version = 'events';
     }
-    sourceScope.hasWasteData = detectWasteData(sourceScope.filteredVolumeRowsNative || []);
+    sourceScope.hasWasteData = detectWasteData(sourceScope.filteredVolumeRowsNative || [], STATE.dataContract);
     if (sourceScope.hasWasteData === false && (STATE.customerVolumeMetric === 'wastePrintedSheets' || STATE.customerVolumeMetric === 'wasteRatio')) {
       STATE.customerVolumeMetric = 'totalPrintedSheets';
     }
@@ -5139,6 +5155,8 @@
       setProcessingState({ stage: 'reading', status: 'running', percent: 1, detail: 'Loading Print Volume dataset…' });
       await yieldAnalysisFrame(controller);
       const volumeRaw = STATE.files.volume ? (STATE.cachedRaw.volume || await parsePrintVolumeFile(STATE.files.volume)) : [];
+      const dataContract = buildDataContract({ errors: errorsRaw, availability: availabilityRaw, volume: volumeRaw });
+      STATE.dataContract = dataContract;
 
       setProcessingState({ stage: 'detecting', status: 'running', percent: 1, detail: `Detected rows — Errors: ${errorsRaw.length.toLocaleString()}, Availability: ${availabilityRaw.length.toLocaleString()}, Volume: ${volumeRaw.length.toLocaleString()}.` });
       await yieldAnalysisFrame(controller);
@@ -5147,7 +5165,7 @@
       await yieldAnalysisFrame(controller);
       await normalizeErrorsRows(errorsRaw.slice(0, Math.min(errorsRaw.length, 120)), { controller });
       if (availabilityRaw.length) await normalizeAvailabilityRows(availabilityRaw.slice(0, Math.min(availabilityRaw.length, 120)), new Map(), { controller });
-      if (volumeRaw.length) await normalizeVolumeRows(volumeRaw.slice(0, Math.min(volumeRaw.length, 120)), { controller });
+      if (volumeRaw.length) await normalizeVolumeRows(volumeRaw.slice(0, Math.min(volumeRaw.length, 120)), { controller, dataContract });
       setProcessingState({ stage: 'validating', status: 'running', percent: 1, detail: 'Schema validation complete.' });
       await yieldAnalysisFrame(controller);
 
@@ -5159,6 +5177,7 @@
       setProcessingState({ stage: 'normalizing', status: 'running', percent: 0.34, detail: 'Normalizing Print Volume rows…' });
       const volumeResult = await normalizeVolumeRows(volumeRaw, {
         controller,
+        dataContract,
         onProgress: ({ completed, total, detail }) => setProcessingState({ stage: 'normalizing', status: 'running', percent: 0.34 + ((completed / Math.max(1, total)) * 0.33), detail })
       });
       const pressLookup = buildPressNameLookup(errors, volumeResult.jobs || []);
@@ -5419,7 +5438,7 @@
       STATE.cachedRaw[key] = rows;
       if (key === 'errors') await normalizeErrorsRows(rows.slice(0, Math.min(rows.length, 120)));
       if (key === 'availability') await normalizeAvailabilityRows(rows.slice(0, Math.min(rows.length, 120)));
-      if (key === 'volume') await normalizeVolumeRows(rows.slice(0, Math.min(rows.length, 120)));
+      if (key === 'volume') await normalizeVolumeRows(rows.slice(0, Math.min(rows.length, 120)), { dataContract: buildDataContract({ volume: rows }) });
       STATE.validation[key] = true;
       await finishFileProgress(key, true);
     } catch {
