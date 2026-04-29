@@ -1103,6 +1103,7 @@
     const { controller = null, onProgress = null } = options;
     const jobs = [];
     const seenVolumeRowKeys = new Set();
+    const duplicateVolumeJobKeys = new Map();
     let sourceRowsUsed = 0;
     const rawJobTypes = new Set();
     const normalizedJobTypes = new Map();
@@ -1137,7 +1138,11 @@
       rawJobTypes.add(jobType);
       const normalizedJobType = normalizeJobType(jobType) || 'unspecified';
       normalizedJobTypes.set(normalizedJobType, (normalizedJobTypes.get(normalizedJobType) || 0) + 1);
-      const specialJob = normalizedRawType === 'special';
+      const isWaste = row => {
+        const type = String(row?.jobType || '').toLowerCase();
+        return type.includes('special');
+      };
+      const specialJob = isWaste({ jobType: jobType });
       const maintenance = !specialJob && classifyMaintenance(r);
       const jobStatus = String(getField(r, ['Job Status'])).trim() || 'Unspecified';
       const pressMode = String(getField(r, ['Press Mode', 'Mode'])).trim() || 'Unspecified';
@@ -1150,16 +1155,13 @@
       const key = buildKey({ canonicalPress, canonicalModel, day });
       const uniqueRowKey = [
         canonicalPress,
-        canonicalModel,
-        day,
+        String(getField(r, ['Job ID', 'JobId', 'ID', 'Job Number'])).trim() || 'no-job-id',
         printStart ? printStart.toISOString() : '',
-        printEnd ? printEnd.toISOString() : '',
-        jobName,
-        normalizedRawType,
-        printedSheetsValue,
-        productionPrintedSheetsValue,
       ].join('|');
-      if (seenVolumeRowKeys.has(uniqueRowKey)) continue;
+      if (seenVolumeRowKeys.has(uniqueRowKey)) {
+        duplicateVolumeJobKeys.set(uniqueRowKey, (duplicateVolumeJobKeys.get(uniqueRowKey) || 1) + 1);
+        continue;
+      }
       seenVolumeRowKeys.add(uniqueRowKey);
       const wastePrintedSheets = specialJob ? (printedSheetsValue || productionPrintedSheetsValue || 0) : 0;
       const goodPrintedSheets = (!specialJob) ? (productionPrintedSheetsValue || printedSheetsValue || 0) : 0;
@@ -1181,7 +1183,6 @@
         totalPrintedSheets,
         goodPrintedSheets,
         wastePrintedSheets,
-        totalVolume: totalPrintedSheets,
         productionPrintedSheets: goodPrintedSheets,
         printedSheets: printedSheetsValue,
         printedFlats: Number.isFinite(printedFlats) ? printedFlats : 0,
@@ -1232,7 +1233,6 @@
           totalPrintedSheets: 0,
           goodPrintedSheets: 0,
           wastePrintedSheets: 0,
-          totalVolume: 0,
           wasteVolume: 0,
           productionPrintedSheets: 0,
           printedSheets: 0,
@@ -1246,8 +1246,7 @@
       slot.wasteVolume += job.wasteVolume || 0;
       slot.goodPrintedSheets += job.goodPrintedSheets || 0;
       slot.wastePrintedSheets += job.wastePrintedSheets || 0;
-      slot.totalPrintedSheets += (job.totalPrintedSheets || ((job.goodPrintedSheets || 0) + (job.wastePrintedSheets || 0)));
-      slot.totalVolume += (job.totalPrintedSheets || ((job.goodPrintedSheets || 0) + (job.wastePrintedSheets || 0)));
+      slot.totalPrintedSheets += (job.goodPrintedSheets || 0) + (job.wastePrintedSheets || 0);
       slot.productionPrintedSheets += job.goodPrintedSheets || 0;
       if (slot.customer === 'Unspecified' && job.customer) slot.customer = job.customer;
       if (slot.site === 'Unspecified' && job.site) slot.site = job.site;
@@ -1291,13 +1290,18 @@
         totalVolume: 0,
         productionPrintedSheets: 0,
       };
-      existing.totalPrintedSheets += Number(row.totalPrintedSheets || row.totalVolume || 0);
+      existing.totalPrintedSheets += Number(row.goodPrintedSheets || 0) + Number(row.wastePrintedSheets || 0);
       existing.goodPrintedSheets += Number(row.goodPrintedSheets || row.productionPrintedSheets || 0);
       existing.wastePrintedSheets += Number(row.wastePrintedSheets || 0);
-      existing.totalVolume = existing.totalPrintedSheets;
       existing.productionPrintedSheets = existing.goodPrintedSheets;
       dedupedByPressCustomerDay.set(dedupeKey, existing);
     });
+    if (duplicateVolumeJobKeys.size > 0) {
+      console.warn('[volume-duplicate-jobs-deduped]', {
+        key: 'press+jobId+printStart',
+        duplicates: [...duplicateVolumeJobKeys.entries()].slice(0, 25).map(([dupKey, count]) => ({ key: dupKey, count })),
+      });
+    }
     if (duplicateDailyKeys.size > 0) {
       console.warn('[volume-duplicate-aggregation-keys]', {
         level: 'press-customer-day',
@@ -1309,7 +1313,7 @@
     return {
       rows: dedupedRows,
       jobs,
-      diagnostics: { parsedRows: rows.length, sourceRowsUsed, normalizedRowsCreated: jobs.length, aggregatedRowsCreated: dedupedRows.length, deduplicatedRowsSkipped: Math.max(0, sourceRowsUsed - jobs.length), duplicateAggregationKeys: duplicateDailyKeys.size },
+      diagnostics: { parsedRows: rows.length, sourceRowsUsed, normalizedRowsCreated: jobs.length, aggregatedRowsCreated: dedupedRows.length, deduplicatedRowsSkipped: Math.max(0, sourceRowsUsed - jobs.length), duplicateAggregationKeys: duplicateDailyKeys.size, duplicateVolumeJobs: duplicateVolumeJobKeys.size },
     };
   }
 
@@ -2660,7 +2664,13 @@
       const good = Number(row?.goodPrintedSheets || 0);
       const waste = Number(row?.wastePrintedSheets || 0);
       const total = Number(row?.totalPrintedSheets || (good + waste));
-      if (Math.abs(total - (good + waste)) > 1e-6) pushHardError('volume.total_mismatch', { row: idx + 1, total, recomputed: good + waste });
+      if (Math.abs(total - (good + waste)) > 1e-6) {
+        pushHardError('waste-consistency-error', {
+          type: 'waste-consistency-error',
+          message: 'Total does not equal good + waste',
+          values: { row: idx + 1, total, good, waste }
+        });
+      }
     });
 
     (sourceScope?.filteredAvailabilityRowsNative || []).forEach((row, idx) => {
@@ -2670,7 +2680,7 @@
 
     (mismatches || []).forEach(m => {
       if ((m?.level || '').toLowerCase() === 'error' && Number(m?.diff || 0) !== 0) {
-        pushHardError('kpi.display_vs_recomputed_mismatch', { metric: m.metric, expected: m.expected, actual: m.actual, diff: m.diff });
+        pushHardError('cross-layer-validation', { type: 'cross-layer-validation', metric: m.metric, expected: m.expected, actual: m.actual, diff: m.diff });
       }
     });
 
@@ -2714,9 +2724,12 @@
         ? validationState.hardErrors.map(issue => `${issue.id}: ${JSON.stringify(issue)}`).join(' | ')
         : (status === 'warning' ? 'Warnings detected in chart-limited reconciliation scope.' : 'No data inconsistencies detected.');
     }
-    const gv = genericValidation || { summary: null, validations: [], warnings: [], errors: [] };
+    const hardErrorsList = validationState.hardErrors.length
+      ? `<ul class="list-compact">${validationState.hardErrors.map(err => `<li><strong>${esc(err.type || err.id || 'error')}</strong>: ${esc(err.message || '')}${err.values ? `<br/><small>${esc(JSON.stringify(err.values))}</small>` : ''}</li>`).join('')}</ul>`
+      : '<div class="micro">No hard errors.</div>';
     panel.innerHTML = `<div class="status-head"><span>${headline}</span></div><div class="status-note">${esc(note)}</div>
-      <div class="micro">Generic validation: ${gv.validations.filter(v => v.pass).length}/${gv.validations.length} checks passed • warnings ${gv.warnings.length} • errors ${gv.errors.length}</div>`;
+      <div class="micro">Validation status: warnings ${validationState.warnings.length} • errors ${validationState.hardErrors.length}</div>
+      <div class="micro"><strong>Hard errors</strong></div>${hardErrorsList}`;
   }
 
   function setCanvasState(canvasId, message = '', kind = 'empty') {
@@ -4714,9 +4727,9 @@
     checks.push({ id: 'output-efficiency', pass: efficiencyPass, explainable: true, metric: 'outputEfficiency', expected: expectedEfficiency, actual: Number(kpis?.outputEfficiency || 0), source: 'kpis.totalProdVolume / kpis.downtimeHours' });
     const volumeAgg = sourceScope?.volumeAgg || [];
     const volumeTotals = volumeAgg.reduce((acc, row) => {
-      acc.good += Number(row?.productionPrintedSheets || 0);
+      acc.good += Number(row?.goodPrintedSheets || row?.productionPrintedSheets || 0);
       acc.waste += Number(row?.wastePrintedSheets || 0);
-      acc.total = acc.total + Number(row?.totalVolume || 0);
+      acc.total += Number(row?.goodPrintedSheets || row?.productionPrintedSheets || 0) + Number(row?.wastePrintedSheets || 0);
       return acc;
     }, { good: 0, waste: 0, total: 0 });
     checks.push({ id: 'volume-waste-lte-total', pass: volumeTotals.waste <= volumeTotals.total + 1e-6, explainable: false, metric: 'waste<=total', expected: volumeTotals.total, actual: volumeTotals.waste, source: 'volumeAgg internal' });
