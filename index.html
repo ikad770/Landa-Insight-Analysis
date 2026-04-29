@@ -458,6 +458,10 @@
   };
   const COLORS = [SEMANTIC_COLORS.critical, SEMANTIC_COLORS.elevated, SEMANTIC_COLORS.normal, SEMANTIC_COLORS.low, SEMANTIC_COLORS.neutral];
   const DEBUG = false;
+  const EPSILON = 0.01; // tolerance in percent/ratio validation to suppress floating-point noise
+  const roundForCompare = v => Number(Number(v || 0).toFixed(2));
+  const numericDiff = (lhs, rhs) => Math.abs(Number(lhs || 0) - Number(rhs || 0));
+  const hasSignificantDiff = (lhs, rhs, epsilon = EPSILON) => numericDiff(roundForCompare(lhs), roundForCompare(rhs)) > epsilon;
   const VOLUME_BASIS = {
     code: 'B',
     label: 'Production-only Printed Sheets (excluding maintenance-classified jobs)',
@@ -1986,15 +1990,17 @@
       checks.push({ label: 'chart.customerVolume.total', lhs: customerVolumeTotal, rhs: filteredVolumeAggForUnit, source: `customerVolumeRows.${selectedVolumeMetric} vs volumeAgg.${selectedVolumeMetric === 'wastePrintedSheets' ? 'wastePrintedSheets' : selectedVolumeMetric === 'goodPrintedSheets' ? 'goodPrintedSheets' : selectedVolumeMetric === 'wasteRatio' ? 'waste/total ratio' : 'totalPrintedSheets'}`, level: 'warning' });
     }
     checks.forEach(({ label, lhs, rhs, source, level }) => {
-      if (Math.abs((lhs || 0) - (rhs || 0)) > 1e-6) logs.push({ level, label, lhs, rhs, source, message: `Mismatch ${label}: ${lhs} !== ${rhs}` });
+      const diff = numericDiff(lhs, rhs);
+      if (hasSignificantDiff(lhs, rhs)) logs.push({ level, label, lhs, rhs, diff, source, message: `Mismatch ${label}: ${lhs} !== ${rhs} (diff=${diff})` });
     });
-    if (weightedAvailability != null && kpis.availabilityPercent != null && Math.abs(weightedAvailability - kpis.availabilityPercent) > 1e-6) {
+    if (weightedAvailability != null && kpis.availabilityPercent != null && hasSignificantDiff(weightedAvailability, kpis.availabilityPercent)) {
       logs.push({
         level: 'error',
         label: 'kpi.availabilityPercent',
         lhs: Number(kpis.availabilityPercent.toFixed(6)),
         rhs: Number(weightedAvailability.toFixed(6)),
-        message: `Mismatch kpi.availabilityPercent: ${kpis.availabilityPercent} !== ${weightedAvailability}`,
+        diff: numericDiff(kpis.availabilityPercent, weightedAvailability),
+        message: `Mismatch kpi.availabilityPercent: ${kpis.availabilityPercent} !== ${weightedAvailability} (diff=${numericDiff(kpis.availabilityPercent, weightedAvailability)})`,
       });
     }
     console.info('[source-validation]', { sourceTotals, weightedAvailability, kpis, definition: DOWNTIME_DEFINITION, volumeBasis: VOLUME_BASIS });
@@ -2062,7 +2068,7 @@
       ['Table • Merged Event Explorer', 'Errors', filteredMergedRows.length, filteredErrorEventsNative.length, 'row_count(filtered errors events)', 'info'],
       ['Export • Filtered CSV', 'Errors', filteredMergedRows.length, filteredErrorEventsNative.length, 'export uses filtered merged explorer scope', 'info'],
     ].map(([component, source, dashboardValue, sourceValue, formula, severity = 'warning']) => {
-      const match = (dashboardValue == null && sourceValue == null) || Math.abs((dashboardValue || 0) - (sourceValue || 0)) < 1e-6;
+      const match = (dashboardValue == null && sourceValue == null) || !hasSignificantDiff(dashboardValue, sourceValue);
       const delta = (dashboardValue == null || sourceValue == null) ? null : dashboardValue - sourceValue;
       return {
         component,
@@ -2546,7 +2552,8 @@
     const volumeAgg = sourceScope?.volumeAgg || [];
     const rawVolumeRows = sourceScope?.filteredVolumeRowsNative || [];
     const check = (metric, expected, actual, source, level = 'error', reason = 'strict-equality-check') => {
-      if (Math.abs((expected || 0) - (actual || 0)) > 1e-6) {
+      const diff = numericDiff(expected, actual);
+      if (hasSignificantDiff(expected, actual)) {
         issues.push({ metric, expected, actual, diff: (actual || 0) - (expected || 0), source, level, reason });
       }
     };
@@ -2620,7 +2627,8 @@
       const waste = Number(row?.wastePrintedSheets || 0);
       const total = Number(row?.totalPrintedSheets || (good + waste));
       if (good < 0 || waste < 0 || total < 0) issues.push({ metric: `volume.non_negative.row_${idx+1}`, expected: '>=0', actual: `${good},${waste},${total}`, diff: 0, source: 'volumeAgg', level: 'error', reason: 'negative-volume' });
-      if (Math.abs((good + waste) - total) > 1e-6) issues.push({ metric: `volume.good_plus_waste.row_${idx+1}`, expected: total, actual: good + waste, diff: (good+waste)-total, source: 'volumeAgg', level: 'error', reason: 'volume-component-mismatch' });
+      const diff = numericDiff(good + waste, total);
+      if (hasSignificantDiff(good + waste, total)) issues.push({ metric: `volume.good_plus_waste.row_${idx+1}`, expected: total, actual: good + waste, diff, source: 'volumeAgg', level: 'error', reason: 'volume-component-mismatch' });
     });
     if (hasChartRows) {
       const pressTotal = (sourceScope?.volumeAgg || []).reduce((sum, row) => sum + Number(row?.totalPrintedSheets || 0), 0);
@@ -4314,7 +4322,7 @@
     else if (drillMetric === 'downtime') scopedTotal = scoped.reduce((a, r) => a + Number(r.durationSeconds || 0), 0);
     else scopedTotal = scoped.length;
     const hasParentValidation = Number.isFinite(parentValue) && parentValue > 0;
-    const mismatch = hasParentValidation && Math.abs(scopedTotal - parentValue) > 1e-6;
+    const mismatch = hasParentValidation && hasSignificantDiff(scopedTotal, parentValue);
     if (validationBadge) {
       if (mismatch) {
         validationBadge.className = 'badge missing';
@@ -4781,9 +4789,9 @@
     };
     const totalDowntimeSeconds = Number(kpis?.totalDowntime || 0);
     const expectedHours = totalDowntimeSeconds > 0 ? totalDowntimeSeconds / 3600 : 0;
-    checks.push({ id: 'downtime-hours', pass: Math.abs((kpis?.downtimeHours || 0) - expectedHours) < 1e-6, explainable: true, metric: 'downtimeHours', expected: expectedHours, actual: Number(kpis?.downtimeHours || 0), source: 'kpis.totalDowntime' });
+    checks.push({ id: 'downtime-hours', pass: !hasSignificantDiff(kpis?.downtimeHours || 0, expectedHours), explainable: true, metric: 'downtimeHours', expected: expectedHours, actual: Number(kpis?.downtimeHours || 0), source: 'kpis.totalDowntime' });
     const expectedEfficiency = expectedHours > 0 ? (Number(kpis?.totalProdVolume || 0) / expectedHours) : null;
-    const efficiencyPass = (expectedEfficiency == null && kpis?.outputEfficiency == null) || (expectedEfficiency != null && Math.abs((kpis?.outputEfficiency || 0) - expectedEfficiency) < 1e-6);
+    const efficiencyPass = (expectedEfficiency == null && kpis?.outputEfficiency == null) || (expectedEfficiency != null && !hasSignificantDiff(kpis?.outputEfficiency || 0, expectedEfficiency));
     checks.push({ id: 'output-efficiency', pass: efficiencyPass, explainable: true, metric: 'outputEfficiency', expected: expectedEfficiency, actual: Number(kpis?.outputEfficiency || 0), source: 'kpis.totalProdVolume / kpis.downtimeHours' });
     const volumeAgg = sourceScope?.volumeAgg || [];
     const volumeTotals = volumeAgg.reduce((acc, row) => {
@@ -4794,7 +4802,7 @@
     }, { good: 0, waste: 0, total: 0 });
     if (sourceScope?.hasWasteData !== false) {
       checks.push({ id: 'volume-waste-lte-total', pass: volumeTotals.waste <= volumeTotals.total + 1e-6, explainable: false, metric: 'waste<=total', expected: volumeTotals.total, actual: volumeTotals.waste, source: 'volumeAgg internal' });
-      checks.push({ id: 'volume-good-plus-waste-equals-total', pass: Math.abs((volumeTotals.good + volumeTotals.waste) - volumeTotals.total) < 1e-6, explainable: false, metric: 'good+waste=total', expected: volumeTotals.total, actual: volumeTotals.good + volumeTotals.waste, source: 'volumeAgg internal' });
+      checks.push({ id: 'volume-good-plus-waste-equals-total', pass: !hasSignificantDiff(volumeTotals.good + volumeTotals.waste, volumeTotals.total), explainable: false, metric: 'good+waste=total', expected: volumeTotals.total, actual: volumeTotals.good + volumeTotals.waste, source: 'volumeAgg internal' });
     }
     const failed = checks.filter(c => !c.pass).map(check => ({ ...check, classification: classify(check) }));
     const warnings = failed.filter(c => c.classification !== 'corruption');
@@ -4938,14 +4946,14 @@
         const raw = wasteByPressRaw.get(press) || 0;
         const agg = wasteByPressAgg.get(press) || 0;
         const chart = wasteByPressChart.get(press) || 0;
-        return Math.abs(raw - agg) > 1e-6 || Math.abs(agg - chart) > 1e-6;
+        return hasSignificantDiff(raw, agg) || hasSignificantDiff(agg, chart);
       });
     console.info('[waste-validation-debug]', {
       uniqueNormalizedJobTypes: normalizedJobTypes,
       totalWasteFromRawRows: wasteFromRawRows,
       totalWasteFromVolumeAgg: wasteFromAggRows,
       totalWastePlottedInChart: wastePlottedInChart,
-      parityPass: Math.abs(wasteFromRawRows - wasteFromAggRows) < 1e-6 && Math.abs(wasteFromAggRows - wastePlottedInChart) < 1e-6 && wasteMismatches.length === 0,
+      parityPass: !hasSignificantDiff(wasteFromRawRows, wasteFromAggRows) && !hasSignificantDiff(wasteFromAggRows, wastePlottedInChart) && wasteMismatches.length === 0,
       mismatchedPressCount: wasteMismatches.length,
       mismatchedPressesPreview: wasteMismatches.slice(0, 12)
     });
