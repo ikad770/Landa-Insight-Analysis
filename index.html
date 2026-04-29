@@ -1145,11 +1145,17 @@
       rawJobTypes.add(jobType);
       const normalizedJobType = normalizeJobType(jobType) || 'unspecified';
       normalizedJobTypes.set(normalizedJobType, (normalizedJobTypes.get(normalizedJobType) || 0) + 1);
-      const isWaste = row => {
-        const type = String(row?.jobType || '').toLowerCase();
-        return type.includes('special');
+      const isWaste = (row) => {
+        const jobType = String(row.jobType || "").toLowerCase();
+        const jobStatus = String(row.jobStatus || "").toLowerCase();
+
+        return (
+          jobType.includes("special") ||
+          jobType.includes("waste") ||
+          jobStatus.includes("waste")
+        );
       };
-      const specialJob = isWaste({ jobType: jobType });
+      const specialJob = isWaste({ jobType, jobStatus: String(getField(r, ['Job Status'])).trim() || 'Unspecified' });
       const maintenance = !specialJob && classifyMaintenance(r);
       const jobStatus = String(getField(r, ['Job Status'])).trim() || 'Unspecified';
       const pressMode = String(getField(r, ['Press Mode', 'Mode'])).trim() || 'Unspecified';
@@ -1221,8 +1227,15 @@
       normalizedJobTypes: [...normalizedJobTypes.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([jobType, count]) => ({ jobType, count })),
       normalizationMismatchDetected: mismatchJobTypes.length > 0,
       mismatchSamples: mismatchJobTypes.slice(0, 20),
-      wasteDefinition: 'waste = SUM(printed_sheets WHERE normalized job_type == "special")',
+      wasteDefinition: 'waste = SUM(printed_sheets WHERE job_type includes special|waste OR job_status includes waste)',
     });
+
+
+    console.log("WASTE SAMPLE", jobs.slice(0,50).map(r => ({
+      jobType: r.jobType,
+      jobStatus: r.jobStatus,
+      printedSheets: r.printedSheets
+    })));
 
     const byKey = new Map();
     jobs.forEach(job => {
@@ -2686,6 +2699,13 @@
         });
       }
     });
+    const wastePrintedSheets = (sourceScope?.volumeAgg || []).reduce((sum, row) => sum + Number(row?.wastePrintedSheets || 0), 0);
+    if (wastePrintedSheets === 0) {
+      validationState.warnings.push({
+        type: "waste-detection-suspicious",
+        message: "No waste detected — likely classification issue"
+      });
+    }
 
     (sourceScope?.filteredAvailabilityRowsNative || []).forEach((row, idx) => {
       const pct = Number(row?.availabilityPercent);
