@@ -1122,6 +1122,26 @@
     };
 
     const total = Math.max(1, rows.length);
+    const volumeRows = rows || [];
+    if (volumeRows.length > 0) {
+      console.log("VOLUME ROW SAMPLE", Object.keys(volumeRows[0] || {}));
+      const uniqueJobTypes = [...new Set(volumeRows.map(r => r.jobType || r["Job Type"] || r.type).filter(v => String(v || '').trim() !== ''))];
+      console.log("UNIQUE JOB TYPES", uniqueJobTypes);
+      const uniqueStatuses = [...new Set(volumeRows.map(r => r.jobStatus || r["Job Status"]).filter(v => String(v || '').trim() !== ''))];
+      console.log("UNIQUE JOB STATUS", uniqueStatuses);
+      const suspectedWaste = volumeRows.filter(r => {
+        const str = JSON.stringify(r || {}).toLowerCase();
+        return str.includes("waste") || str.includes("special") || str.includes("reject");
+      });
+      console.log("SUSPECTED WASTE ROWS", suspectedWaste.slice(0, 50));
+    }
+
+    const isWaste = (row) => {
+      const jobType = String(row?.jobType || row?.['Job Type'] || row?.type || '').toLowerCase();
+      const jobStatus = String(row?.jobStatus || row?.['Job Status'] || '').toLowerCase();
+      const explicitWasteSheets = Number(row?.wasteSheets || row?.['Waste Sheets'] || row?.wastePrintedSheets || 0);
+      return /waste|reject|special/.test(jobType) || /waste|reject/.test(jobStatus) || (Number.isFinite(explicitWasteSheets) && explicitWasteSheets > 0);
+    };
     for (let i = 0; i < rows.length; i++) {
       if (controller) assertAnalysisActive(controller);
       const r = rows[i];
@@ -1145,17 +1165,7 @@
       rawJobTypes.add(jobType);
       const normalizedJobType = normalizeJobType(jobType) || 'unspecified';
       normalizedJobTypes.set(normalizedJobType, (normalizedJobTypes.get(normalizedJobType) || 0) + 1);
-      const isWaste = (row) => {
-        const jobType = String(row.jobType || "").toLowerCase();
-        const jobStatus = String(row.jobStatus || "").toLowerCase();
-
-        return (
-          jobType.includes("special") ||
-          jobType.includes("waste") ||
-          jobStatus.includes("waste")
-        );
-      };
-      const specialJob = isWaste({ jobType, jobStatus: String(getField(r, ['Job Status'])).trim() || 'Unspecified' });
+      const specialJob = isWaste(r);
       const maintenance = !specialJob && classifyMaintenance(r);
       const jobStatus = String(getField(r, ['Job Status'])).trim() || 'Unspecified';
       const pressMode = String(getField(r, ['Press Mode', 'Mode'])).trim() || 'Unspecified';
@@ -1227,7 +1237,7 @@
       normalizedJobTypes: [...normalizedJobTypes.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([jobType, count]) => ({ jobType, count })),
       normalizationMismatchDetected: mismatchJobTypes.length > 0,
       mismatchSamples: mismatchJobTypes.slice(0, 20),
-      wasteDefinition: 'waste = SUM(printed_sheets WHERE job_type includes special|waste OR job_status includes waste)',
+      wasteDefinition: 'waste = SUM(printed_sheets WHERE job_type includes waste|reject|special OR job_status includes waste|reject OR explicit waste sheets > 0)',
     });
 
 
@@ -1288,6 +1298,16 @@
     const rawProduction = jobs.reduce((sum, row) => sum + ((row.normalizedRawType !== 'special') ? Number(row.productionPrintedSheets || row.printedSheets || 0) : 0), 0);
     const aggWaste = [...byKey.values()].reduce((sum, row) => sum + Number(row.wastePrintedSheets || 0), 0);
     const aggProduction = [...byKey.values()].reduce((sum, row) => sum + Number(row.productionPrintedSheets || 0), 0);
+    const totalPrintedSheets = aggProduction + aggWaste;
+    const goodPrintedSheets = aggProduction;
+    const wastePrintedSheets = aggWaste;
+    const wasteRatio = totalPrintedSheets > 0 ? (wastePrintedSheets / totalPrintedSheets) : 0;
+    console.log({
+      totalPrintedSheets,
+      goodPrintedSheets,
+      wastePrintedSheets,
+      wasteRatio
+    });
     console.log('[volume-validation]', {
       rawWaste,
       aggWaste,
