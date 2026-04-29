@@ -474,6 +474,23 @@
     return total > 0 ? (waste / total) : 0;
   }
 
+  const metricRegistry = Object.freeze({
+    events: { id: 'events', label: 'Events', type: 'count', unit: 'events', dataset: 'errors', numeratorField: 'totalEvents', denominatorField: null, aggregate: scope => (scope.errorsAgg || []).reduce((acc, row) => acc + Number(row?.totalEvents || 0), 0), format: value => Math.round(Number(value || 0)).toLocaleString(), validate: value => Number.isFinite(Number(value)) && Number(value) >= 0 },
+    downtime: { id: 'downtime', label: 'Downtime', type: 'duration_sum', unit: 'seconds', dataset: 'availability', numeratorField: 'totalErrorDurationSeconds', denominatorField: null, aggregate: scope => (scope.availabilityAgg || []).reduce((acc, row) => acc + Number(totalDowntimeFromAvailabilityRow(row) || 0), 0), format: value => formatDuration(Number(value || 0)), validate: value => Number.isFinite(Number(value)) && Number(value) >= 0 },
+    mttr: { id: 'mttr', label: 'MTTR (Avg Duration)', type: 'average', unit: 'seconds', dataset: 'errors', numeratorField: 'totalErrorDurationSeconds', denominatorField: 'totalEvents', aggregate: scope => { const num = (scope.errorsAgg || []).reduce((acc, row) => acc + Number(row?.totalErrorDurationSeconds || 0), 0); const den = (scope.errorsAgg || []).reduce((acc, row) => acc + Number(row?.totalEvents || 0), 0); return den > 0 ? num / den : null; }, format: value => value == null ? 'N/A' : formatDuration(Number(value || 0)), validate: value => value == null || Number(value) >= 0 },
+    mtbf: { id: 'mtbf', label: 'MTBF', type: 'average', unit: 'seconds', dataset: 'availability', numeratorField: 'runtimeSeconds', denominatorField: 'totalEvents', aggregate: scope => { const num = (scope.availabilityAgg || []).reduce((acc, row) => acc + Number(row?.runtimeSeconds || 0), 0); const den = (scope.errorsAgg || []).reduce((acc, row) => acc + Number(row?.totalEvents || 0), 0); return den > 0 ? num / den : null; }, format: value => value == null ? 'N/A' : formatDuration(Number(value || 0)), validate: value => value == null || Number(value) >= 0 },
+    volume: { id: 'volume', label: 'Volume', type: 'sum', unit: 'sheets', dataset: 'volume', numeratorField: 'totalPrintedSheets', denominatorField: null, aggregate: scope => (scope.volumeAgg || []).reduce((acc, row) => acc + Number(row?.totalPrintedSheets || ((row?.goodPrintedSheets || 0) + (row?.wastePrintedSheets || 0))), 0), format: value => `${formatCompactNumber(value)} sheets`, validate: value => Number.isFinite(Number(value)) && Number(value) >= 0 },
+    wasteRatio: { id: 'wasteRatio', label: 'Waste Ratio', type: 'ratio', unit: 'percent', dataset: 'volume', numeratorField: 'wastePrintedSheets', denominatorField: 'totalPrintedSheets', aggregate: scope => { const num = (scope.volumeAgg || []).reduce((acc, row) => acc + Number(row?.wastePrintedSheets || 0), 0); const den = (scope.volumeAgg || []).reduce((acc, row) => acc + Number(row?.totalPrintedSheets || ((row?.goodPrintedSheets || 0) + (row?.wastePrintedSheets || 0))), 0); return den > 0 ? num / den : 0; }, format: value => `${(Number(value || 0) * 100).toFixed(2)}%`, validate: value => Number.isFinite(Number(value)) && Number(value) >= 0 && Number(value) <= 1 },
+    availability: { id: 'availability', label: 'Availability', type: 'percentage', unit: 'percent', dataset: 'availability', numeratorField: 'runtimeSeconds', denominatorField: 'runtimePlusDowntime', aggregate: scope => { const runtime = (scope.availabilityAgg || []).reduce((acc, row) => acc + Number(row?.runtimeSeconds || 0), 0); const downtime = (scope.availabilityAgg || []).reduce((acc, row) => acc + Number(totalDowntimeFromAvailabilityRow(row) || 0), 0); const den = runtime + downtime; return den > 0 ? runtime / den : null; }, format: value => value == null ? 'N/A' : `${(Number(value || 0) * 100).toFixed(1)}%`, validate: value => value == null || (Number(value) >= 0 && Number(value) <= 1) },
+  });
+
+  const getMetricDefinition = metricId => metricRegistry[metricId] || null;
+  const aggregateMetricFromScope = (metricId, scope = STATE.lastSourceScope || {}) => {
+    const def = getMetricDefinition(metricId);
+    if (!def) return null;
+    return def.aggregate(scope);
+  };
+
   const esc = v => String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const canonical = v => String(v ?? '').trim().toLowerCase().replace(/[_.]/g, ' ').replace(/[\-–—]+/g, ' ').replace(/\s+/g, ' ');
   function normalizePress(press) {
@@ -1998,77 +2015,27 @@
   }
 
   function computeOperationalMetrics(sourceScope) {
-    const { errorsAgg, availabilityAgg, volumeAgg } = sourceScope;
-    const totalEvents = errorsAgg.reduce((a, r) => a + (r.totalEvents || 0), 0);
-    const errorDowntime = errorsAgg.reduce((a, r) => a + (r.totalErrorDurationSeconds || 0), 0);
-    const totals = {
-      planned: availabilityAgg.reduce((a, r) => a + (r.plannedDowntimeSeconds || 0), 0),
-      unplanned: availabilityAgg.reduce((a, r) => a + (r.unplannedDowntimeSeconds || 0), 0),
-      service: availabilityAgg.reduce((a, r) => a + (r.serviceDowntimeSeconds || 0), 0),
-      runtime: availabilityAgg.reduce((a, r) => a + (r.runtimeSeconds || 0), 0),
-      totalAvailDowntime: availabilityAgg.reduce((a, r) => a + totalDowntimeFromAvailabilityRow(r), 0),
-      productionVolume: volumeAgg.reduce((a, r) => a + (r.productionVolume || 0), 0),
-      goodPrintedSheets: volumeAgg.reduce((a, r) => a + (r.goodPrintedSheets || 0), 0),
-      wastePrintedSheets: volumeAgg.reduce((a, r) => a + (r.wastePrintedSheets || 0), 0),
-      totalPrintedSheets: volumeAgg.reduce((a, r) => a + (r.totalPrintedSheets || ((r.goodPrintedSheets || 0) + (r.wastePrintedSheets || 0))), 0),
-      rawPrintedSheets: volumeAgg.reduce((a, r) => a + (r.printedSheets || 0), 0),
-      maintenanceVolume: volumeAgg.reduce((a, r) => a + (r.maintenanceVolume || 0), 0),
-      totalVolume: volumeAgg.reduce((a, r) => a + (r.totalPrintedSheets || r.totalVolume || 0), 0),
-      availabilityCount: availabilityAgg.length,
-      volumeCount: volumeAgg.length,
-    };
-
-    const totalDowntime = totals.availabilityCount ? totals.totalAvailDowntime : 0;
-    const avgDuration = totalEvents ? (errorDowntime / totalEvents) : null;
-    const mttr = avgDuration;
-    const mtbf = totalEvents > 0 && totals.runtime > 0 ? (totals.runtime / totalEvents) : null;
-    const mtbr = null;
-    const availabilityDefinitions = computeAvailabilityDefinitions(availabilityAgg);
-    STATE.availabilityDefinitions = availabilityDefinitions;
-    const availabilityPercent = availabilityDefinitions.selected.value;
-
-    const reasons = [];
-    if (!totals.availabilityCount) reasons.push('Availability aggregated dataset unavailable for current filters.');
-    if (!totals.volumeCount) reasons.push('Print volume aggregated dataset unavailable for current filters.');
-    if (totals.volumeCount && totals.goodPrintedSheets <= 0) reasons.push('No production rows detected; only maintenance workload present in filtered scope.');
-
+    const scope = sourceScope || {};
+    const totalEvents = aggregateMetricFromScope('events', scope) || 0;
+    const totalErrorDurationSeconds = (scope.errorsAgg || []).reduce((acc, row) => acc + Number(row?.totalErrorDurationSeconds || 0), 0);
+    const totalDowntime = aggregateMetricFromScope('downtime', scope) || 0;
+    const totalPlanned = (scope.availabilityAgg || []).reduce((acc, row) => acc + Number(row?.plannedDowntimeSeconds || 0), 0);
+    const totalUnplanned = (scope.availabilityAgg || []).reduce((acc, row) => acc + Number(row?.unplannedDowntimeSeconds || 0), 0);
+    const totalService = (scope.availabilityAgg || []).reduce((acc, row) => acc + Number(row?.serviceDowntimeSeconds || 0), 0);
+    const runtimeSeconds = (scope.availabilityAgg || []).reduce((acc, row) => acc + Number(row?.runtimeSeconds || 0), 0);
+    const goodPrintedSheets = (scope.volumeAgg || []).reduce((acc, row) => acc + Number(row?.goodPrintedSheets || 0), 0);
+    const wastePrintedSheets = (scope.volumeAgg || []).reduce((acc, row) => acc + Number(row?.wastePrintedSheets || 0), 0);
+    const totalPrintedSheets = aggregateMetricFromScope('volume', scope) || 0;
+    const mttr = aggregateMetricFromScope('mttr', scope);
+    const mtbf = aggregateMetricFromScope('mtbf', scope);
+    const availabilityRatio = aggregateMetricFromScope('availability', scope);
     return {
-      totalEvents,
-      totalErrorDurationSeconds: errorDowntime,
-      totalDowntime,
-      totalUnplanned: totals.unplanned,
-      totalPlanned: totals.planned,
-      totalService: totals.service,
-      totalOperating: totals.runtime,
-      runtimeSeconds: totals.runtime,
-      downtimeSeconds: totals.planned + totals.unplanned,
-      goodPrintedSheets: totals.goodPrintedSheets,
-      wastePrintedSheets: totals.wastePrintedSheets,
-      totalPrintedSheets: totals.totalPrintedSheets,
-      totalProdVolume: totals.goodPrintedSheets,
-      totalMaintenanceVolume: totals.maintenanceVolume,
-      totalVolume: totals.totalPrintedSheets,
-      totalWasteVolume: totals.wastePrintedSheets,
-      rawPrintedSheets: totals.rawPrintedSheets,
-      productionOnlyPrintedSheets: totals.goodPrintedSheets,
-      volumeBasis: VOLUME_BASIS.label,
-      avgDuration,
-      avgDurationSeconds: avgDuration,
-      mttr,
-      mtbf,
-      mtbr,
-      availabilityPercent,
-      availabilityLabel: availabilityDefinitions.selected.label,
-      availabilityFormula: availabilityDefinitions.selected.formula,
-      downtimeHours: totalDowntime > 0 ? (totalDowntime / 3600) : 0,
-      outputEfficiency: totalDowntime > 0 ? (totals.goodPrintedSheets / (totalDowntime / 3600)) : null,
-      volumePerDowntime: totalDowntime > 0 ? (totals.goodPrintedSheets / totalDowntime) : null,
-      volumePerEvents: totalEvents > 0 ? (totals.goodPrintedSheets / totalEvents) : null,
-      outputPerEvent: totalEvents > 0 ? (totals.goodPrintedSheets / totalEvents) : null,
-      downtimePerEventMinutes: totalEvents > 0 ? ((totalDowntime / 60) / totalEvents) : null,
-      downtimePerMillionSheetsMinutes: totals.goodPrintedSheets > 0 ? ((totalDowntime / 60) / (totals.goodPrintedSheets / 1000000)) : null,
-      wasteRatio: computeWasteRatio(totals.wastePrintedSheets, totals.totalPrintedSheets),
-      reasons,
+      totalEvents, totalErrorDurationSeconds, totalDowntime, totalUnplanned, totalPlanned, totalService, totalOperating: runtimeSeconds, runtimeSeconds,
+      downtimeSeconds: totalPlanned + totalUnplanned, goodPrintedSheets, wastePrintedSheets, totalPrintedSheets, totalProdVolume: goodPrintedSheets, totalMaintenanceVolume: 0, totalVolume: totalPrintedSheets, totalWasteVolume: wastePrintedSheets,
+      avgDuration: mttr, avgDurationSeconds: mttr, mttr, mtbf, mtbr: null, availabilityPercent: availabilityRatio == null ? null : availabilityRatio * 100,
+      downtimeHours: totalDowntime > 0 ? (totalDowntime / 3600) : 0, outputEfficiency: totalDowntime > 0 ? (goodPrintedSheets / (totalDowntime / 3600)) : null,
+      volumePerDowntime: totalDowntime > 0 ? (goodPrintedSheets / totalDowntime) : null, volumePerEvents: totalEvents > 0 ? (goodPrintedSheets / totalEvents) : null,
+      wasteRatio: aggregateMetricFromScope('wasteRatio', scope), reasons: []
     };
   }
 
@@ -2365,15 +2332,9 @@
 
   function defineExecutiveSummarySections() {
     return [
-      { id: 'executiveStatus', title: 'Executive Status', accent: model => model.overallStatus.styles.color, type: 'status' },
-      { id: 'situationSnapshot', title: 'Situation Snapshot', accent: () => '#1f8bff', type: 'snapshot' },
-      { id: 'operationalInsights', title: 'Operational Insights', accent: () => '#365f9f', type: 'insights' },
-      { id: 'topActionCards', title: 'Top Action Cards', accent: () => '#116e45', type: 'actions' },
-      { id: 'topPressDowntime', title: 'Top Presses Downtime (Top 5)', accent: () => '#e56739', type: 'table' },
-      { id: 'printVolume', title: 'Print Volume (Top 5)', accent: () => '#25a65b', type: 'table' },
-      { id: 'topSubsystems', title: 'Top Subsystems (Top 5)', accent: () => '#7c4dff', type: 'table' },
-      { id: 'topErrors', title: 'Top Errors (Top 5)', accent: () => '#d39a1f', type: 'table' },
-      { id: 'confidenceFooter', title: 'Confidence Footer', accent: () => '#36455f', type: 'footer' },
+      { id: 'statusStrip', title: 'Status Strip', accent: () => '#1f8bff' },
+      { id: 'topSignals', title: 'Top Signals', accent: () => '#365f9f' },
+      { id: 'actions', title: 'Action Cards', accent: () => '#116e45' }
     ];
   }
 
@@ -2387,103 +2348,40 @@
     };
   }
 
-  function renderSummaryPlainText(model, structure = defineExecutiveSummarySections()) {
-    const lines = [
-      'Landa InsightPro+ Summary',
-      `Reporting period: ${model.reportingPeriodLabel}`,
-      `Generated on: ${model.generatedAtLabel}`,
-      `Scope: ${model.scopeLabel}`,
-      '',
-    ];
-    structure.forEach((section, idx) => {
-      lines.push(`${idx + 1}) ${section.title}`);
-      if (section.id === 'executiveStatus') {
-        lines.push(`- Status: ${model.overallStatus.label}`);
-        lines.push(`- Verdict: ${model.overallStatus.verdict}`);
-        (model.contextTags || []).forEach(tag => lines.push(`- ${tag}`));
-      } else if (section.id === 'situationSnapshot') {
-        (model.situationSnapshot || []).forEach(item => lines.push(`- ${item.title}: ${item.value} (${item.note})`));
-      } else if (section.id === 'operationalInsights') {
-        (model.operationalInsights || []).forEach(item => lines.push(`- ${item.title}: ${item.detail}`));
-      } else if (section.id === 'topActionCards') {
-        (model.topActionCards || []).forEach(item => lines.push(`- ${item.title}: ${item.reason} ${item.impact}`));
-      } else if (section.id === 'topPressDowntime') {
-        lines.push(`- ${model.sectionSummaries.topPressDowntime}`);
-        model.topPressDowntime.forEach(x => lines.push(`- ${x.name}: ${formatDuration(x.downtime)}`));
-      } else if (section.id === 'printVolume') {
-        lines.push(`- ${model.sectionSummaries.printVolume}`);
-        model.topPrintVolume.forEach(x => lines.push(`- ${x.name}: ${Number(x.value || 0).toLocaleString()} production sheets`));
-      } else if (section.id === 'topSubsystems') {
-        lines.push(`- ${model.sectionSummaries.topSubsystems}`);
-        model.topSubsystems.forEach(x => lines.push(`- ${x.name}: ${x.events.toLocaleString()} events (${formatDuration(x.downtime)})`));
-      } else if (section.id === 'topErrors') {
-        lines.push(`- ${model.sectionSummaries.topErrors}`);
-        model.topErrors.forEach(x => lines.push(`- ${x.name}: ${x.events.toLocaleString()} events`));
-      } else if (section.id === 'confidenceFooter') {
-        lines.push('- This executive brief uses the same validated dashboard scope and source-of-truth logic as Summary, Preview, Copy, and Export.');
-        lines.push('- Validation status remains GREEN.');
-      }
-      lines.push('');
-    });
-    lines.push(`Source rows (errors/availability/volume): ${model.sourceCounts.errors}/${model.sourceCounts.availability}/${model.sourceCounts.volume}`);
+  function renderSummaryPlainText(model) {
+    const lines = ['Command Center Summary', model.statusStrip, '', 'Top Signals'];
+    (model.topSignals || []).forEach(card => lines.push(`- ${card.title}: ${card.detail}`));
+    lines.push('', 'Action Cards');
+    (model.actionCards || []).forEach(card => lines.push(`- ${card.what} | ${card.where} | ${card.why} | ${card.impact}`));
     return lines.join('\n');
   }
 
   function buildExecutiveSummaryModel(summary, kpis, rows, sourceScope) {
-    const safeRows = rows || [];
     const scope = sourceScope || {};
-    const availabilityAgg = scope.availabilityAgg || [];
-    const volumeAgg = scope.volumeAgg || [];
-    const allDays = [...safeRows.map(r => r.day || toDayBucket(r.date)).filter(Boolean), ...availabilityAgg.map(r => r.day).filter(Boolean), ...volumeAgg.map(r => r.day).filter(Boolean)];
-    const sortedDays = allDays.sort();
-    const reportStart = formatExecutiveDate(sortedDays[0]);
-    const reportEnd = formatExecutiveDate(sortedDays[sortedDays.length - 1]);
-    const reportingPeriodLabel = reportStart && reportEnd ? `${reportStart} – ${reportEnd}` : 'Current dashboard scope';
-    const generatedAtDate = new Date();
-    const generatedAtIso = generatedAtDate.toISOString();
-    const generatedAtLabel = generatedAtDate.toLocaleString(undefined, { year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-    const topPressDowntime = aggregateDurationRows(availabilityAgg.map(r => ({ subsystem: r.canonicalPress, durationSeconds: totalDowntimeFromAvailabilityRow(r) })), r => r.subsystem).sort((a, b) => b.downtime - a.downtime).slice(0, 5);
-    const topErrors = aggregateErrorEvents(safeRows, r => (r.name !== 'Unspecified' ? r.name : r.alertTitle)).sort((a, b) => b.events - a.events).slice(0, 5);
-    const topSubsystems = aggregateErrorEvents(safeRows, r => r.subsystem).sort((a, b) => b.events - a.events).slice(0, 5);
-    const topPrintVolume = aggregateMetricRows(volumeAgg, r => r.canonicalPress, r => r.productionPrintedSheets || 0).sort((a, b) => b.value - a.value).slice(0, 5);
-    const sectionSummaries = buildSectionSummaries({ topPressDowntime, topPrintVolume, topSubsystems, topErrors });
-    const status = summary || {};
-    const situationSnapshot = [
-      { title: 'Top disruption source', value: status.topPressByEvents?.name || 'N/A', note: status.topPressByEvents ? `${status.topPressByEvents.events.toLocaleString()} events in current scope.` : 'No dominant press signal available.' },
-      { title: 'Dominant subsystem', value: status.topSubsystem?.name || 'N/A', note: status.topSubsystem ? `${status.topSubsystem.events.toLocaleString()} recurring events.` : 'No dominant subsystem signal available.' },
-      { title: 'Most repeated error', value: status.topAlert?.name || 'N/A', note: status.topAlert ? `${status.topAlert.events.toLocaleString()} repetitions recorded.` : 'No repeated error leader available.' },
-      { title: 'Highest downtime contributor', value: status.topErrorDowntimePress?.entity || 'N/A', note: status.topErrorDowntimePress ? `${formatDuration(status.topErrorDowntimePress.downtime)} downtime impact.` : 'No downtime concentration signal available.' },
-    ];
+    const byPressDowntime = aggregateDurationRows((scope.availabilityAgg || []).map(r => ({ subsystem: r.canonicalPress || 'Unspecified', durationSeconds: totalDowntimeFromAvailabilityRow(r) })), r => r.subsystem).sort((a,b)=>b.downtime-a.downtime);
+    const topPress = byPressDowntime[0] || { name: 'Unspecified', downtime: 0 };
+    const totalDowntime = byPressDowntime.reduce((acc, row) => acc + Number(row.downtime || 0), 0);
+    const topShare = totalDowntime > 0 ? (topPress.downtime / totalDowntime) : 0;
+    const wasteRatio = Number(kpis?.wasteRatio || 0);
+    const availabilityRatio = Number(kpis?.availabilityPercent || 0) / 100;
+    const status = topShare > 0.2 ? 'Critical' : wasteRatio > 0.05 ? 'Warning' : 'Stable';
+    const drivingPresses = byPressDowntime.filter(r => totalDowntime > 0 && (r.downtime / totalDowntime) >= 0.1).length || (topPress.name === 'Unspecified' ? 0 : 1);
+    const worstWaste = aggregateMetricRows(scope.volumeAgg || [], r => r.canonicalPress || 'Unspecified', r => { const total = Number(r.totalPrintedSheets || ((r.goodPrintedSheets || 0) + (r.wastePrintedSheets || 0))); return total > 0 ? Number(r.wastePrintedSheets || 0) / total : 0; }).sort((a,b)=>b.value-a.value)[0] || { name: 'Unspecified', value: 0 };
+    const reliabilityInterpretation = (kpis?.mttr || 0) < 900 && (kpis?.mtbf || 0) < 4*3600 ? 'Frequent short stops' : 'Rare but long failures';
     return {
-      summary,
-      kpis,
-      rows: safeRows,
-      scopeLabel: document.getElementById('datasetMeta')?.textContent || 'Current dashboard filters',
-      generatedAtIso,
-      generatedAtLabel,
-      reportingPeriodLabel,
-      sourceCounts: { errors: (scope.errorsAgg || []).length, availability: availabilityAgg.length, volume: volumeAgg.length },
-      executiveSnapshot: {
-        availability: kpis.availabilityPercent == null ? 'N/A' : `${kpis.availabilityPercent.toFixed(1)}%`,
-        productionVolume: kpis.totalProdVolume.toLocaleString(),
-        downtimePerVolume: kpis.volumePerDowntime == null ? 'N/A' : kpis.volumePerDowntime.toFixed(4),
-        eventsPerVolume: kpis.volumePerEvents == null ? 'N/A' : kpis.volumePerEvents.toFixed(4),
-      },
-      overallStatus: {
-        label: status.status || 'Watch',
-        verdict: status.statusVerdict || 'Operational performance should be monitored closely.',
-        styles: status.statusStyles || { color: '#8d5d12', bg: '#fff5e8', border: '#f0d6ad' },
-      },
-      contextTags: [`Top risk: ${status.topPressByEvents?.name || 'N/A'}`, `Bottleneck: ${status.topSubsystem?.name || 'N/A'}`, `Error: ${status.topAlert?.name || 'N/A'}`],
-      situationSnapshot,
-      operationalInsights: status.insightCards || [],
-      topActionCards: (status.actionCards || []).slice(0, 2),
-      topErrors,
-      topSubsystems,
-      topPressDowntime,
-      topPrintVolume,
-      sectionSummaries,
-      chartInsights: {},
+      generatedAtLabel: new Date().toLocaleString(),
+      sourceCounts: { errors: (scope.errorsAgg || []).length, availability: (scope.availabilityAgg || []).length, volume: (scope.volumeAgg || []).length },
+      statusStrip: `[${status}] • ${drivingPresses} presses driving ${(topShare * 100).toFixed(1)}% of downtime • Waste ${(wasteRatio * 100).toFixed(2)}% • Availability ${(availabilityRatio * 100).toFixed(1)}%`,
+      topSignals: [
+        { title: 'Downtime Driver', detail: `${topPress.name} drives ${(topShare * 100).toFixed(1)}% of downtime (${formatDuration(topPress.downtime)}).` },
+        { title: 'Efficiency (Waste)', detail: `Waste ratio ${(wasteRatio * 100).toFixed(2)}%; worst press ${worstWaste.name} at ${(Number(worstWaste.value || 0) * 100).toFixed(2)}%.` },
+        { title: 'Reliability', detail: `MTTR ${metricRegistry.mttr.format(kpis?.mttr)} • MTBF ${metricRegistry.mtbf.format(kpis?.mtbf)} • ${reliabilityInterpretation}.` }
+      ],
+      actionCards: [
+        { what: `Reduce recurring stops in ${topPress.name}`, where: topPress.name, why: `${(topShare * 100).toFixed(1)}% of total downtime originates here.`, impact: 'Expected impact: reduce total downtime by ~10–15%.' },
+        { what: `Cut waste on ${worstWaste.name}`, where: worstWaste.name, why: `Waste intensity ${(Number(worstWaste.value || 0) * 100).toFixed(2)}% exceeds fleet average ${(wasteRatio * 100).toFixed(2)}%.`, impact: 'Expected impact: lower waste cost and improve throughput.' },
+        { what: 'Improve reliability pattern', where: 'Fleet', why: reliabilityInterpretation, impact: 'Expected impact: increase availability and reduce incident load.' }
+      ]
     };
   }
 
@@ -2500,96 +2398,21 @@
   }
 
   function renderSummaryHtmlByStructure(model, structure, channel) {
-    const tableRows = (rows, cellsFn, emptyColumns = 3) => rows.length ? rows.map(cellsFn).join('') : `<tr><td colspan="${emptyColumns}" style="padding:8px;color:${channel === 'email' ? '#5f6f85' : '#9fb0ca'};line-height:1.6;">No records in current scope.</td></tr>`;
-    const isEmail = channel === 'email';
-    const buildInsightBlock = (insightText, accent) => isEmail
-      ? `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;margin:0 0 14px 0;"><tr><td style="padding:10px 12px;border-left:4px solid ${accent};background:#f5f8ff;color:#2a3c54;font-size:13px;line-height:1.6;"><strong style="font-weight:700;color:#1d2c42;">Executive Insight:</strong> ${esc(insightText || 'No key insight available for the current scope.')}</td></tr></table>`
-      : `<div class="micro" style="margin-top:0;color:#42546c;"><strong>Executive Insight:</strong> ${esc(insightText || 'No key insight available for the current scope.')}</div>`;
-    const wrapSection = (title, accent, body, idx = 0) => isEmail
-      ? `<tr><td style="padding:${idx === 0 ? '0' : '22px'} 0 0 0;"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;border:1px solid ${accent};background:#ffffff;"><tr><td style="padding:10px 12px;background:${accent};color:#ffffff;font-size:14px;font-weight:700;line-height:1.6;">${esc(title)}</td></tr><tr><td style="padding:12px;">${body}</td></tr></table></td></tr>`
-      : `<section class="summary-section"><div class="summary-section-head" style="background:${accent};">${esc(title)}</div><div class="summary-section-body">${body}</div></section>`;
-
-    const tableWrapperStart = isEmail ? '<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;max-width:860px;margin:0 auto;background:#f4f7fb;">' : '';
-    const tableWrapperEnd = isEmail ? '</table>' : '';
-    const headerBlock = isEmail
-      ? `<tr><td style="padding:0 0 14px;"><div style="font-size:26px;font-weight:700;color:#1d2430;line-height:1.2;">Landa Insight<span style="color:#1f8bff;">Pro+</span> Summary</div><div style="font-size:13px;color:#334560;margin-top:6px;line-height:1.6;font-weight:600;">Reporting period: ${esc(model.reportingPeriodLabel)}</div><div style="font-size:12px;color:#5a6980;margin-top:4px;line-height:1.6;">Generated on: ${esc(model.generatedAtLabel)}</div><div style="font-size:12px;color:#5a6980;margin-top:4px;line-height:1.6;">${esc(model.scopeLabel)} • Source rows (errors/availability/volume): ${model.sourceCounts.errors}/${model.sourceCounts.availability}/${model.sourceCounts.volume}</div></td></tr>`
-      : '';
-
-    const sections = structure.map((section, sectionIdx) => {
-      const accent = section.accent(model);
-      if (section.id === 'executiveStatus') {
-        const body = `<div style="display:inline-block;padding:4px 10px;border-radius:999px;border:1px solid ${model.overallStatus.styles.border};font-size:.74rem;font-weight:700;color:${model.overallStatus.styles.color};text-transform:uppercase;line-height:1.6;">${esc(model.overallStatus.label)}</div><div style="margin-top:10px;margin-bottom:12px;font-size:.9rem;line-height:1.6;color:${isEmail ? '#263448' : '#233249'};">${esc(model.overallStatus.verdict)}</div><div class="exec-tag-row" style="margin-top:8px;">${(model.contextTags || []).map(tag => `<span class="exec-tag" style="background:rgba(0,0,0,.1);">${esc(tag)}</span>`).join('')}</div>`;
-        return wrapSection(section.title, accent, body, sectionIdx);
-      }
-      if (section.id === 'situationSnapshot') {
-        const body = isEmail
-          ? `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:separate;border-spacing:0 8px;"><tr>${(model.situationSnapshot || []).map(signal => `<td style="padding:0 6px 0 0;"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;border:1px solid #d7deea;background:#f9fbff;"><tr><td style="padding:7px 9px;font-size:10px;color:#5a6980;text-transform:uppercase;font-weight:700;opacity:.78;line-height:1.6;">${esc(signal.title)}</td></tr><tr><td style="padding:0 9px 4px;font-size:13px;font-weight:700;color:#1f2a3a;line-height:1.6;">${esc(signal.value)}</td></tr><tr><td style="padding:0 9px 8px;font-size:11px;color:#5f6f85;line-height:1.6;">${esc(signal.note)}</td></tr></table></td>`).join('')}</tr></table>`
-          : `<div class="summary-kpi-grid">${(model.situationSnapshot || []).map(signal => `<div class="summary-kpi-card"><div class="label">${esc(signal.title)}</div><div class="value">${esc(signal.value)}</div><div style="margin-top:4px;color:#a8bee3;font-size:.73rem;">${esc(signal.note)}</div></div>`).join('')}</div>`;
-        return wrapSection(section.title, accent, body, sectionIdx);
-      }
-      if (section.id === 'operationalInsights') {
-        const cards = (model.operationalInsights || []).map(card => isEmail
-          ? `<tr><td style="padding:8px 10px;border-bottom:1px solid #d8e3f6;"><div style="font-size:11px;font-weight:700;color:#365f9f;text-transform:uppercase;line-height:1.6;">${esc(card.title)}</div><div style="margin-top:4px;font-size:13px;color:#1f2a3a;line-height:1.6;">${esc(card.detail)}</div></td></tr>`
-          : `<article class="exec-insight-card"><div class="exec-mini-title">${esc(card.title)}</div><div class="exec-mini-note">${esc(card.detail)}</div></article>`).join('');
-        const body = isEmail ? `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;border:1px solid #d8e3f6;background:#f9fbff;">${cards}</table>` : `<div class="exec-card-grid">${cards}</div>`;
-        return wrapSection(section.title, accent, body, sectionIdx);
-      }
-      if (section.id === 'topActionCards') {
-        const cards = (model.topActionCards || []).map(card => isEmail
-          ? `<tr><td style="padding:8px 10px;border-bottom:1px solid #cfead8;"><div style="font-size:11px;font-weight:700;color:#116e45;text-transform:uppercase;line-height:1.6;">${esc(card.title)}</div><div style="margin-top:4px;font-size:13px;color:#1f2a3a;line-height:1.6;">${esc(card.reason)}</div><div style="margin-top:5px;font-size:12px;color:#2d7a56;line-height:1.6;">${esc(card.impact)}</div></td></tr>`
-          : `<article class="exec-action-card"><div class="exec-mini-title">${esc(card.title)}</div><div class="exec-mini-note">${esc(card.reason)}</div><div class="exec-action-impact">${esc(card.impact)}</div></article>`).join('');
-        const body = isEmail ? `<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:collapse;border:1px solid #cfead8;background:#f7fdf9;">${cards}</table>` : `<div class="exec-card-grid">${cards}</div>`;
-        return wrapSection(section.title, accent, body, sectionIdx);
-      }
-      if (section.id === 'topPressDowntime') {
-        const body = isEmail
-          ? `${buildInsightBlock(model.sectionSummaries.topPressDowntime, accent)}<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:separate;border-spacing:0 6px;"><thead><tr><th style="padding:7px 9px;text-align:left;font-size:11px;color:#4f6078;opacity:.82;border-bottom:1px solid #d5deec;">Press</th><th style="padding:7px 9px;text-align:right;font-size:11px;color:#4f6078;opacity:.82;border-bottom:1px solid #d5deec;">Downtime</th><th style="padding:7px 9px;text-align:right;font-size:11px;color:#4f6078;opacity:.82;border-bottom:1px solid #d5deec;">Downtime (h)</th></tr></thead><tbody>${tableRows(model.topPressDowntime, i => `<tr><td style="padding:7px 9px;background:#ffffff;border-top:1px solid #e2e9f3;border-bottom:1px solid #e2e9f3;line-height:1.6;">${esc(i.name)}</td><td style="padding:7px 9px;background:#ffffff;border-top:1px solid #e2e9f3;border-bottom:1px solid #e2e9f3;text-align:right;line-height:1.6;">${formatDuration(i.downtime)}</td><td style="padding:7px 9px;background:#ffffff;border-top:1px solid #e2e9f3;border-bottom:1px solid #e2e9f3;text-align:right;line-height:1.6;">${(i.downtime / 3600).toFixed(2)}</td></tr>`, 3)}</tbody></table>`
-          : `<div class="micro" style="margin-top:0;color:${isEmail ? '#42546c' : ''};">${esc(model.sectionSummaries.topPressDowntime)}</div><table><thead><tr><th>Press</th><th>Downtime</th><th>Downtime (h)</th></tr></thead><tbody>${tableRows(model.topPressDowntime, i => `<tr><td>${esc(i.name)}</td><td>${formatDuration(i.downtime)}</td><td>${(i.downtime / 3600).toFixed(2)}</td></tr>`, 3)}</tbody></table>`;
-        return wrapSection(section.title, accent, body, sectionIdx);
-      }
-      if (section.id === 'printVolume') {
-        const body = isEmail
-          ? `${buildInsightBlock(model.sectionSummaries.printVolume, accent)}<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:separate;border-spacing:0 6px;"><thead><tr><th style="padding:7px 9px;text-align:left;font-size:11px;color:#4f6078;opacity:.82;border-bottom:1px solid #d5deec;">Press</th><th style="padding:7px 9px;text-align:right;font-size:11px;color:#4f6078;opacity:.82;border-bottom:1px solid #d5deec;">Production Printed Sheets</th></tr></thead><tbody>${tableRows(model.topPrintVolume, i => `<tr><td style="padding:7px 9px;background:#ffffff;border-top:1px solid #e2e9f3;border-bottom:1px solid #e2e9f3;line-height:1.6;">${esc(i.name)}</td><td style="padding:7px 9px;background:#ffffff;border-top:1px solid #e2e9f3;border-bottom:1px solid #e2e9f3;text-align:right;line-height:1.6;">${Number(i.value || 0).toLocaleString()}</td></tr>`, 2)}</tbody></table>`
-          : `<div class="micro" style="margin-top:0;color:${isEmail ? '#42546c' : ''};">${esc(model.sectionSummaries.printVolume)}</div><table><thead><tr><th>Press</th><th>Production Printed Sheets</th></tr></thead><tbody>${tableRows(model.topPrintVolume, i => `<tr><td>${esc(i.name)}</td><td>${Number(i.value || 0).toLocaleString()}</td></tr>`, 2)}</tbody></table>`;
-        return wrapSection(section.title, accent, body, sectionIdx);
-      }
-      if (section.id === 'topSubsystems') {
-        const body = isEmail
-          ? `${buildInsightBlock(model.sectionSummaries.topSubsystems, accent)}<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:separate;border-spacing:0 6px;"><thead><tr><th style="padding:7px 9px;text-align:left;font-size:11px;color:#4f6078;opacity:.82;border-bottom:1px solid #d5deec;">Subsystem</th><th style="padding:7px 9px;text-align:right;font-size:11px;color:#4f6078;opacity:.82;border-bottom:1px solid #d5deec;">Events</th><th style="padding:7px 9px;text-align:right;font-size:11px;color:#4f6078;opacity:.82;border-bottom:1px solid #d5deec;">Downtime</th></tr></thead><tbody>${tableRows(model.topSubsystems, i => `<tr><td style="padding:7px 9px;background:#ffffff;border-top:1px solid #e2e9f3;border-bottom:1px solid #e2e9f3;line-height:1.6;">${esc(i.name)}</td><td style="padding:7px 9px;background:#ffffff;border-top:1px solid #e2e9f3;border-bottom:1px solid #e2e9f3;text-align:right;line-height:1.6;">${i.events.toLocaleString()}</td><td style="padding:7px 9px;background:#ffffff;border-top:1px solid #e2e9f3;border-bottom:1px solid #e2e9f3;text-align:right;line-height:1.6;">${formatDuration(i.downtime)}</td></tr>`, 3)}</tbody></table>`
-          : `<div class="micro" style="margin-top:0;color:${isEmail ? '#42546c' : ''};">${esc(model.sectionSummaries.topSubsystems)}</div><table><thead><tr><th>Subsystem</th><th>Events</th><th>Downtime</th></tr></thead><tbody>${tableRows(model.topSubsystems, i => `<tr><td>${esc(i.name)}</td><td>${i.events.toLocaleString()}</td><td>${formatDuration(i.downtime)}</td></tr>`, 3)}</tbody></table>`;
-        return wrapSection(section.title, accent, body, sectionIdx);
-      }
-      if (section.id === 'topErrors') {
-        const body = isEmail
-          ? `${buildInsightBlock(model.sectionSummaries.topErrors, accent)}<table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="border-collapse:separate;border-spacing:0 6px;"><thead><tr><th style="padding:7px 9px;text-align:left;font-size:11px;color:#4f6078;opacity:.82;border-bottom:1px solid #d5deec;">Error</th><th style="padding:7px 9px;text-align:right;font-size:11px;color:#4f6078;opacity:.82;border-bottom:1px solid #d5deec;">Events</th><th style="padding:7px 9px;text-align:right;font-size:11px;color:#4f6078;opacity:.82;border-bottom:1px solid #d5deec;">Downtime</th></tr></thead><tbody>${tableRows(model.topErrors, i => `<tr><td style="padding:7px 9px;background:#ffffff;border-top:1px solid #e2e9f3;border-bottom:1px solid #e2e9f3;line-height:1.6;">${esc(i.name)}</td><td style="padding:7px 9px;background:#ffffff;border-top:1px solid #e2e9f3;border-bottom:1px solid #e2e9f3;text-align:right;line-height:1.6;">${i.events.toLocaleString()}</td><td style="padding:7px 9px;background:#ffffff;border-top:1px solid #e2e9f3;border-bottom:1px solid #e2e9f3;text-align:right;line-height:1.6;">${formatDuration(i.downtime)}</td></tr>`, 3)}</tbody></table>`
-          : `<div class="micro" style="margin-top:0;color:${isEmail ? '#42546c' : ''};">${esc(model.sectionSummaries.topErrors)}</div><table><thead><tr><th>Error</th><th>Events</th><th>Downtime</th></tr></thead><tbody>${tableRows(model.topErrors, i => `<tr><td>${esc(i.name)}</td><td>${i.events.toLocaleString()}</td><td>${formatDuration(i.downtime)}</td></tr>`, 3)}</tbody></table>`;
-        return wrapSection(section.title, accent, body, sectionIdx);
-      }
-      return wrapSection(section.title, accent, `<div class="micro" style="margin:0;color:${isEmail ? '#2f3f55' : '#d3def2'};line-height:1.6;">This executive brief is generated from the same validated dashboard scope and source-of-truth logic as Summary, Preview, Copy, and Export. Validation status remains GREEN for this reporting period.</div>`, sectionIdx);
-    }).join('');
-    return `${tableWrapperStart}${headerBlock}${sections}${tableWrapperEnd}`;
+    const cards = (model.topSignals || []).slice(0, 3).map(card => `<article class="summary-stat span-4"><div class="label">${esc(card.title)}</div><div class="value" style="font-size:.9rem;line-height:1.35;">${esc(card.detail)}</div></article>`).join('');
+    const actions = (model.actionCards || []).slice(0,3).map(card => `<article class="summary-stat"><div class="label">WHAT</div><div class="value" style="font-size:.88rem;">${esc(card.what)}</div><div class="micro">WHERE: ${esc(card.where)}<br>WHY: ${esc(card.why)}<br>EXPECTED IMPACT: ${esc(card.impact)}</div></article>`).join('');
+    return `<section class="summary-section"><div class="summary-section-head" style="background:#1f8bff;">Command Center Summary</div><div class="summary-section-body"><div class="summary-stat"><div class="value">${esc(model.statusStrip)}</div></div><div class="summary-grid" style="margin-top:10px;">${cards}</div><div style="margin-top:10px;display:grid;gap:8px;">${actions}</div></div></section>`;
   }
 
   function renderKpis(k) {
-    const na = 'N/A';
-    const scope = STATE.lastSourceScope || {};
-    const volumeAgg = scope.volumeAgg || [];
-    const totalWasteSheets = volumeAgg.reduce((sum, row) => sum + Number(row?.wastePrintedSheets || 0), 0);
-    const totalPrintedSheets = volumeAgg.reduce((sum, row) => sum + Number(row?.totalPrintedSheets || ((row?.goodPrintedSheets || 0) + (row?.wastePrintedSheets || 0))), 0);
-    const wasteRatioPct = totalPrintedSheets > 0 ? (totalWasteSheets / totalPrintedSheets) * 100 : 0;
-    const mainRisk = String(STATE.merged?.summary?.mainRiskSentence || '').trim();
     const cards = [
-      ['Events', 'totalEvents', Number(k.totalEvents || 0).toLocaleString(), 'Total error events in selected range.'],
-      ['Downtime', 'totalErrorDurationSeconds', formatDuration(k.totalErrorDurationSeconds || 0), 'Total error duration from normalized errors source.'],
-      ['Avg Duration / MTTR', 'avgDurationSeconds', k.avgDurationSeconds == null ? na : formatDuration(k.avgDurationSeconds), 'totalErrorDurationSeconds / totalEvents.'],
-      ['MTBF', 'mtbf', k.mtbf == null ? na : formatDuration(k.mtbf), 'runtimeSeconds / totalEvents.'],
-      ['Volume (Good / Waste)', 'totalPrintedSheets', formatCompactNumber(totalPrintedSheets), `Good: ${formatCompactNumber(k.goodPrintedSheets || 0)} • Waste: ${formatCompactNumber(k.wastePrintedSheets || 0)}`],
-      ['Availability', 'availabilityPercent', k.availabilityPercent == null ? na : `${k.availabilityPercent.toFixed(1)}%`, 'runtimeSeconds / (runtimeSeconds + downtimeSeconds).'],
-      ['Waste Ratio', 'wasteRatio', `${(Number(k.wasteRatio || 0) * 100).toFixed(2)}%`, 'sum(wastePrintedSheets) / sum(totalPrintedSheets).']
+      ['Events', 'events', metricRegistry.events.format(k.totalEvents), metricRegistry.events.label],
+      ['Downtime', 'downtime', metricRegistry.downtime.format(k.totalDowntime), metricRegistry.downtime.label],
+      ['MTTR (Avg Duration)', 'mttr', metricRegistry.mttr.format(k.mttr), 'sum(totalErrorDurationSeconds) / sum(totalEvents)'],
+      ['MTBF', 'mtbf', metricRegistry.mtbf.format(k.mtbf), 'sum(runtimeSeconds) / sum(totalEvents)'],
+      ['Volume', 'volume', metricRegistry.volume.format(k.totalPrintedSheets), metricRegistry.volume.label],
+      ['Waste Ratio', 'wasteRatio', metricRegistry.wasteRatio.format(k.wasteRatio), 'sum(wastePrintedSheets) / sum(totalPrintedSheets)'],
+      ['Availability', 'availability', metricRegistry.availability.format((k.availabilityPercent == null ? null : k.availabilityPercent / 100)), 'sum(runtimeSeconds) / (sum(runtimeSeconds)+sum(downtimeSeconds))'],
     ];
-    if (mainRisk && !/^n\/a$/i.test(mainRisk) && !/\bN\/A\b/i.test(mainRisk)) {
-      cards.push(['Main Risk / Insight', 'totalErrorDurationSeconds', mainRisk, 'Strongest issue detected in current scope.']);
-    }
     const toCard = ([label, metricKey, value, subtitle]) => `<article class="kpi clickable" role="button" tabindex="0" data-kpi-metric="${metricKey}" title="${esc(subtitle)}"><div class="k">${label}</div><div class="v">${esc(value)}</div><div class="kpi-sub">${esc(subtitle)}</div></article>`;
     document.getElementById('kpiStrip').innerHTML = `<div class="kpi-row core" style="grid-template-columns:repeat(${Math.max(4, cards.length)},minmax(140px,1fr));">${cards.map(toCard).join('')}</div>`;
   }
@@ -2734,54 +2557,18 @@
     const panel = document.getElementById('dashboardStatusPanel');
     const headerStatus = document.getElementById('headerDataStatus');
     if (!panel) return;
-    const totals = {
-      errors: sourceScope?.filteredErrorEventsNative?.length || 0,
-      availability: sourceScope?.filteredAvailabilityRowsNative?.length || 0,
-      volume: sourceScope?.filteredVolumeRowsNative?.length || 0,
-    };
-    const warnings = [];
-    if (!totals.errors) warnings.push('Errors source has no rows in current filter scope.');
-    if (!totals.availability) warnings.push(STATE.normalized.availability?.length ? 'Availability source filtered to zero rows.' : 'Availability source missing.');
-    if (!totals.volume) warnings.push(STATE.normalized.volume?.length ? 'Volume source filtered to zero rows.' : 'Volume source missing.');
-    const mismatchErrors = (mismatches || []).filter(item => item.level !== 'warning');
-    const mismatchWarnings = (mismatches || []).filter(item => item.level === 'warning');
-    if (mismatchErrors.length) warnings.push(`${mismatchErrors.length} reconciliation error mismatch(es) detected.`);
-    if (mismatchWarnings.length) warnings.push(`${mismatchWarnings.length} reconciliation warning mismatch(es) detected.`);
-    [...mismatchErrors, ...mismatchWarnings].forEach(item => {
-      const diff = Number((item.lhs || 0) - (item.rhs || 0));
-      warnings.push(`${item.level === 'warning' ? 'Warning' : 'Error'} • metric=${item.label}; expected=${Number(item.rhs || 0).toLocaleString()}; actual=${Number(item.lhs || 0).toLocaleString()}; diff=${diff.toLocaleString()}; source=${item.source || 'n/a'}`);
-    });
-    if (renderValidation && renderValidation.warningCount) warnings.push(`Render validation warning: ${renderValidation.warningCount} check(s).`);
-    if (renderValidation && renderValidation.errorCount) warnings.push(`Render validation corruption: ${renderValidation.errorCount} check(s).`);
-    (renderValidation?.exactWarnings || []).forEach(item => {
-      warnings.push(`Warning • metric=${item.metric}; expected=${Number(item.expected || 0).toLocaleString()}; actual=${Number(item.actual || 0).toLocaleString()}; diff=${Number((item.actual || 0) - (item.expected || 0)).toLocaleString()}; source=${item.source || 'n/a'}`);
-    });
-    (renderValidation?.exactErrors || []).forEach(item => {
-      warnings.push(`Error • metric=${item.metric}; expected=${Number(item.expected || 0).toLocaleString()}; actual=${Number(item.actual || 0).toLocaleString()}; diff=${Number((item.actual || 0) - (item.expected || 0)).toLocaleString()}; source=${item.source || 'n/a'}`);
-    });
-    (globalValidation?.issues || []).forEach(issue => {
-      const prefix = issue.level === 'warning' ? 'Warning' : 'Error';
-      warnings.push(`${prefix} • metric=${issue.metric}; expected=${Number(issue.expected || 0).toLocaleString()}; actual=${Number(issue.actual || 0).toLocaleString()}; diff=${Number(issue.diff || 0).toLocaleString()}; source=${issue.source || 'n/a'}`);
-    });
-    const hasCorruption = (renderValidation?.errorCount || 0) > 0;
-    const hasWarningsOnly = (!totals.errors || mismatchErrors.length > 0 || hasCorruption || (globalValidation && !globalValidation.isValid))
-      ? false
-      : (globalValidation?.warningIssues?.length || 0) > 0 || mismatchWarnings.length > 0 || warnings.length > 0;
-    const level = !totals.errors || mismatchErrors.length > 0 || hasCorruption || (globalValidation && !globalValidation.isValid) ? 'red' : (hasWarningsOnly ? 'warning' : 'green');
-    panel.className = `dashboard-status ${level === 'red' ? 'red' : (hasWarningsOnly ? 'warning' : 'green')}${(level === 'red' || hasWarningsOnly) ? '' : ' hidden'}`;
+    const strictIssues = (globalValidation?.issues || []).filter(issue => String(issue.reason || '').includes('volume-component-mismatch') || String(issue.reason || '').includes('availability-out-of-range') || String(issue.reason || '').includes('missing-canonical'));
+    const hasError = strictIssues.some(issue => issue.level !== 'warning');
+    const level = hasError ? 'red' : 'green';
+    const headline = hasError ? '🔴 Data Error' : '🟢 Data Valid';
+    const note = hasError ? strictIssues[0]?.metric || 'Canonical data inconsistency detected.' : 'Canonical field checks passed (volume balance and availability range).';
+    panel.className = `dashboard-status ${level === 'red' ? 'red' : 'green'}${hasError ? '' : ' hidden'}`;
     if (headerStatus) {
-      headerStatus.className = `meta-pill ${level === 'red' ? 'bad' : 'ok'}`;
-      headerStatus.textContent = level === 'red' ? '🔴 Data Error' : (hasWarningsOnly ? '🟡 Data Warning' : '🟢 Data Valid');
-      headerStatus.title = warnings.length
-        ? warnings.join(' ')
-        : 'Files loaded, schema mapping succeeded, and calculations reconcile.';
+      headerStatus.className = `meta-pill ${hasError ? 'bad' : 'ok'}`;
+      headerStatus.textContent = headline;
+      headerStatus.title = hasError ? strictIssues.map(issue => `${issue.metric}: expected ${issue.expected}, actual ${issue.actual}`).join(' | ') : 'No canonical data inconsistencies detected.';
     }
-    panel.innerHTML = `
-      <div class="status-head">
-        <span>${level === 'red' ? '🔴 Data Error' : (hasWarningsOnly ? '🟡 Data Warning' : '🟢 Data Valid')}</span>
-      </div>
-      <div class="status-note">${esc(level === 'red' || hasWarningsOnly ? (warnings[0] || 'Validation warning.') : 'Data validated and reconciled.')}</div>
-    `;
+    panel.innerHTML = `<div class="status-head"><span>${headline}</span></div><div class="status-note">${esc(note)}</div>`;
   }
 
   function setCanvasState(canvasId, message = '', kind = 'empty') {
@@ -3906,69 +3693,35 @@
 
 
   function kpiMetricProfile(metricKey, metricName) {
-    const map = {
-      totalEvents: { source: 'errorsAgg', formula: 'Sum of all error events in current scope.', primary: 'events', unit: 'events' },
-      totalErrorDurationSeconds: { source: 'errorsAgg', formula: 'Sum of error duration seconds.', primary: 'totalErrorDurationSeconds', unit: 'seconds' },
-      avgDurationSeconds: { source: 'errorsAgg', formula: 'totalErrorDurationSeconds / totalEvents.', primary: 'avgDurationSeconds', unit: 'seconds' },
-      mtbf: { source: 'errorsAgg + availabilityAgg', formula: 'runtimeSeconds / totalEvents.', primary: 'mtbf', unit: 'seconds' },
-      availabilityPercent: { source: 'availabilityAgg', formula: 'runtimeSeconds / (runtimeSeconds + downtimeSeconds) × 100.', primary: 'availabilityPercent', unit: '%' },
-      totalPrintedSheets: { source: 'volumeAgg', formula: 'Sum of totalPrintedSheets.', primary: 'totalPrintedSheets', unit: 'units' },
-      goodPrintedSheets: { source: 'volumeAgg', formula: 'Sum of goodPrintedSheets.', primary: 'goodPrintedSheets', unit: 'units' },
-      wastePrintedSheets: { source: 'volumeAgg', formula: 'Sum of wastePrintedSheets.', primary: 'wastePrintedSheets', unit: 'units' },
-      wasteRatio: { source: 'volumeAgg', formula: 'sum(wastePrintedSheets) / sum(totalPrintedSheets).', primary: 'wasteRatio', unit: '%' },
-    };
-    return map[metricKey] || { source: 'mixed', formula: `${metricName} is computed from current scoped source rows.`, primary: 'value', unit: 'value' };
+    const def = getMetricDefinition(metricKey);
+    if (!def) return { source: 'mixed', formula: `${metricName} is computed from current scoped source rows.`, primary: 'value', unit: 'value' };
+    const formula = def.type === 'average' || def.type === 'ratio' || def.type === 'percentage'
+      ? `recomputed as sum(${def.numeratorField}) / sum(${def.denominatorField})`
+      : `sum(${def.numeratorField})`;
+    return { source: `${def.dataset}Agg`, formula, primary: def.id, unit: def.unit };
   }
 
   function kpiDimensionForMetric(metricKey) {
-    if (['totalErrorDurationSeconds','availabilityPercent','mtbf'].includes(metricKey)) return 'availability';
-    if (['totalPrintedSheets','goodPrintedSheets','wastePrintedSheets','wasteRatio'].includes(metricKey)) return 'volume';
-    return 'errors';
+    const def = getMetricDefinition(metricKey);
+    return def?.dataset || 'errors';
   }
 
   function buildKpiBaselineData(metricKey) {
     const scope = STATE.lastSourceScope || {};
-    if (kpiDimensionForMetric(metricKey) === 'availability') {
-      return (scope.availabilityAgg || []).map(r => ({
-        component: r.canonicalPress || 'Unspecified',
-        press: r.canonicalPress || 'Unspecified',
-        day: r.day || '',
-        subsystem: r.subsystem || 'Unspecified',
-        metricValue: metricKey === 'availabilityPercent' ? Number(r.availabilityPercent || 0) : (metricKey === 'mtbf' ? Number(r.runtimeSeconds || 0) : Number(r.downtimeSeconds || totalDowntimeFromAvailabilityRow(r) || 0)),
-        source: 'availabilityAgg',
-        raw: r
-      }));
+    const def = getMetricDefinition(metricKey);
+    if (!def) return [];
+    if (def.dataset === 'availability') {
+      return (scope.availabilityAgg || []).map(r => ({ component: r.canonicalPress || 'Unspecified', press: r.canonicalPress || 'Unspecified', day: r.day || '', subsystem: r.subsystem || 'Unspecified', numerator: Number(r.runtimeSeconds || 0), denominator: Number((r.runtimeSeconds || 0) + (totalDowntimeFromAvailabilityRow(r) || 0)), metricValue: Number(totalDowntimeFromAvailabilityRow(r) || 0), source: 'availabilityAgg', raw: r }));
     }
-    if (kpiDimensionForMetric(metricKey) === 'volume') {
-      return (scope.volumeAgg || []).map(r => ({
-        component: r.canonicalPress || 'Unspecified',
-        press: r.canonicalPress || 'Unspecified',
-        day: r.day || '',
-        metricValue: metricKey === 'goodPrintedSheets' ? Number(r.goodPrintedSheets || 0) : (metricKey === 'wastePrintedSheets' ? Number(r.wastePrintedSheets || 0) : Number(r.totalPrintedSheets || 0)),
-        source: 'volumeAgg',
-        raw: r
-      }));
+    if (def.dataset === 'volume') {
+      return (scope.volumeAgg || []).map(r => ({ component: r.canonicalPress || 'Unspecified', press: r.canonicalPress || 'Unspecified', day: r.day || '', numerator: Number(r.wastePrintedSheets || 0), denominator: Number(r.totalPrintedSheets || ((r.goodPrintedSheets || 0) + (r.wastePrintedSheets || 0))), metricValue: Number(r.totalPrintedSheets || ((r.goodPrintedSheets || 0) + (r.wastePrintedSheets || 0))), source: 'volumeAgg', raw: r }));
     }
-    return (scope.filteredErrorEventsNative || []).map(r => ({
-      component: r.press || 'Unspecified',
-      press: r.press || 'Unspecified',
-      day: r.day || '',
-      subsystem: r.subsystem || 'Unspecified',
-      alert: r.name !== 'Unspecified' ? r.name : r.alertTitle,
-      version: r.version || 'Unspecified',
-      customer: r.customer || 'Unspecified',
-      site: r.site || 'Unspecified',
-      startTime: r.startTime,
-      durationSeconds: r.durationSeconds || 0,
-      metricValue: metricKey === 'avgDurationSeconds' ? Number(r.durationSeconds || 0) : 1,
-      source: 'errorsAgg',
-      raw: r
-    }));
+    return (scope.filteredErrorEventsNative || []).map(r => ({ component: r.press || 'Unspecified', press: r.press || 'Unspecified', day: r.day || '', subsystem: r.subsystem || 'Unspecified', alert: r.name !== 'Unspecified' ? r.name : r.alertTitle, durationSeconds: r.durationSeconds || 0, numerator: Number(r.durationSeconds || 0), denominator: 1, metricValue: 1, source: 'errorsAgg', raw: r }));
   }
 
   function openKpiDrilldown(metricKey, metricName) {
     const baselineData = buildKpiBaselineData(metricKey);
-    if (!baselineData.length && metricKey !== 'outputEfficiency') {
+    if (!baselineData.length) {
       setStatus('No KPI drilldown data for this metric in current scope.', 'warning');
       return;
     }
@@ -4042,25 +3795,24 @@
   }
 
   function computeKpiComponents(metricKey, rows) {
+    const def = getMetricDefinition(metricKey);
     const components = new Map();
-    const rowValue = row => {
-      if (metricKey === 'totalEvents') return 1;
-      if (metricKey === 'mttr') return row.durationSeconds || 0;
-      return row.metricValue || 0;
-    };
-    rows.forEach(r => {
-      const press = r.component || r.press || 'Unspecified';
-      if (!components.has(press)) components.set(press, { name: press, source: r.source || 'scoped-kpi-source', events: 0, durationSeconds: 0, productionVolume: 0, total: 0 });
-      const item = components.get(press);
+    (rows || []).forEach(r => {
+      const name = r.component || r.press || 'Unspecified';
+      if (!components.has(name)) components.set(name, { name, source: r.source || 'scoped-kpi-source', numerator: 0, denominator: 0, additive: 0, events: 0 });
+      const item = components.get(name);
       item.events += 1;
-      item.durationSeconds += r.durationSeconds || 0;
-      item.productionVolume += r.productionPrintedSheets || 0;
-      item.total += rowValue(r);
+      item.numerator += Number(r.numerator || 0);
+      item.denominator += Number(r.denominator || 0);
+      item.additive += Number(r.metricValue || 0);
     });
-    const arr = [...components.values()];
-    const valueOf = c => (c.total || 0);
-    const total = arr.reduce((a,c)=>a+valueOf(c),0) || 0;
-    return arr.map(c => ({ ...c, metricValue: valueOf(c), contributionPct: total ? (valueOf(c)/total)*100 : 0 }));
+    const arr = [...components.values()].map(item => {
+      const ratioLike = def && ['average','ratio','percentage'].includes(def.type);
+      const metricValue = ratioLike ? (item.denominator > 0 ? item.numerator / item.denominator : 0) : item.additive;
+      return { ...item, metricValue };
+    });
+    const total = arr.reduce((acc, c) => acc + Number(c.metricValue || 0), 0) || 0;
+    return arr.map(c => ({ ...c, contributionPct: total ? (Number(c.metricValue || 0) / total) * 100 : 0 }));
   }
 
   function openDrilldown(dimension, value, payload = null) {
@@ -4394,15 +4146,13 @@
       const metricName = STATE.drilldown.value;
       const profile = kpiMetricProfile(metricKey, metricName);
       const k = STATE.kpis || {};
-      const currentValue = metricKey === 'totalEvents' ? (k.totalEvents || 0).toLocaleString()
-        : metricKey === 'totalErrorDurationSeconds' ? formatDuration(k.totalErrorDurationSeconds || 0)
-        : metricKey === 'avgDurationSeconds' ? (k.avgDurationSeconds == null ? 'N/A' : formatDuration(k.avgDurationSeconds))
-        : metricKey === 'mtbf' ? (k.mtbf == null ? 'N/A' : formatDuration(k.mtbf))
-        : metricKey === 'availabilityPercent' ? (k.availabilityPercent == null ? 'N/A' : `${k.availabilityPercent.toFixed(1)}%`)
-        : metricKey === 'wasteRatio' ? `${(Number(k.wasteRatio || 0) * 100).toFixed(2)}%`
-        : metricKey === 'totalPrintedSheets' ? formatCompactNumber(k.totalPrintedSheets || 0)
-        : metricKey === 'goodPrintedSheets' ? formatCompactNumber(k.goodPrintedSheets || 0)
-        : metricKey === 'wastePrintedSheets' ? formatCompactNumber(k.wastePrintedSheets || 0)
+      const currentValue = metricKey === 'events' ? metricRegistry.events.format(k.totalEvents)
+        : metricKey === 'downtime' ? metricRegistry.downtime.format(k.totalDowntime)
+        : metricKey === 'mttr' ? metricRegistry.mttr.format(k.mttr)
+        : metricKey === 'mtbf' ? metricRegistry.mtbf.format(k.mtbf)
+        : metricKey === 'availability' ? metricRegistry.availability.format(k.availabilityPercent == null ? null : (k.availabilityPercent / 100))
+        : metricKey === 'wasteRatio' ? metricRegistry.wasteRatio.format(k.wasteRatio)
+        : metricKey === 'volume' ? metricRegistry.volume.format(k.totalPrintedSheets)
         : 'N/A';
       document.getElementById('drilldownTitle').textContent = `${metricName} Drilldown`;
       document.getElementById('drilldownSummary').textContent = `Validated KPI breakdown from scoped source aggregates.`;
@@ -4413,8 +4163,8 @@
       const { pendingExcluded, appliedExcluded, simulationActive } = getSimulationStateSnapshot();
       const included = components.filter(c => !appliedExcluded.has(c.name));
       const appliedRows = simulationActive ? simulatedRows : baselineRows;
-      const simTotal = included.reduce((a,c)=>a+c.metricValue,0);
-      document.getElementById('drilldownSummaryGrid').innerHTML = `<div class="summary-stat span-3"><div class="label">Baseline rows</div><div class="value">${baselineRows.length.toLocaleString()}</div></div><div class="summary-stat span-3"><div class="label">Components</div><div class="value">${components.length.toLocaleString()}</div></div><div class="summary-stat span-3"><div class="label">Included</div><div class="value">${included.length.toLocaleString()}</div></div><div class="summary-stat span-3"><div class="label">Simulated total</div><div class="value">${Number(simTotal).toLocaleString(undefined,{maximumFractionDigits:2})}</div></div>`;
+      const simTotal = (getMetricDefinition(metricKey) && ['average','ratio','percentage'].includes(getMetricDefinition(metricKey).type)) ? (included.reduce((a,c)=>a+Number(c.numerator||0),0) / Math.max(1, included.reduce((a,c)=>a+Number(c.denominator||0),0))) : included.reduce((a,c)=>a+Number(c.metricValue||0),0);
+      document.getElementById('drilldownSummaryGrid').innerHTML = `<div class="summary-stat span-3"><div class="label">Baseline rows</div><div class="value">${baselineRows.length.toLocaleString()}</div></div><div class="summary-stat span-3"><div class="label">Components</div><div class="value">${components.length.toLocaleString()}</div></div><div class="summary-stat span-3"><div class="label">Included</div><div class="value">${included.length.toLocaleString()}</div></div><div class="summary-stat span-3"><div class="label">Recomputed value</div><div class="value">${Number(simTotal).toLocaleString(undefined,{maximumFractionDigits:2})}</div></div>`;
       document.getElementById('drilldownCalcBody').innerHTML = `<div class="chart-head"><h4 style="margin:0;">Scope and interactions</h4><span class="impact-chip">Staged simulation workflow</span></div><div class="micro">Use dashboard filters for time, press, subsystem, alert, and version. KPI simulation changes are staged until Apply is selected.</div>`;
       const topBaseline = components.slice().sort((a, b) => b.metricValue - a.metricValue).slice(0, 10);
       const topCurrentMap = new Map(included.map(x => [x.name, x.metricValue]));
@@ -4422,14 +4172,12 @@
       const topCurrent = topLabels.map(name => topCurrentMap.get(name) || 0);
       const topBaselineVals = topLabels.map(name => topBaseline.find(x => x.name === name)?.metricValue || 0);
       const topSource = kpiDimensionForMetric(metricKey) === 'availability' ? 'availabilityNative' : (kpiDimensionForMetric(metricKey) === 'volume' ? 'volumeJobs' : 'errorEvents');
-      const topMetric = kpiDimensionForMetric(metricKey) === 'availability' ? 'downtime' : (kpiDimensionForMetric(metricKey) === 'volume' ? (metricKey === 'wastePrintedSheets' ? 'wastePrintedSheets' : metricKey === 'goodPrintedSheets' ? 'goodPrintedSheets' : 'totalPrintedSheets') : 'events');
+      const topMetric = metricKey;
       const topPayloads = topLabels.map(name => ({ entityKey: name, displayLabel: name, sourceType: topSource, metric: topMetric, parentContext: { path: [] } }));
       replaceChart('drilldownTopChart', { type: 'bar', data: { labels: topLabels, datasets: simulationActive ? [{ label: 'Baseline', simRole: 'baseline', data: topBaselineVals, backgroundColor: 'rgba(151,167,194,.24)', borderColor: 'rgba(151,167,194,.48)', borderWidth: 1, borderRadius: 6 }, { label: 'Current', simRole: 'current', data: topCurrent, backgroundColor: topLabels.map((_, i) => COLORS[i % COLORS.length]), borderRadius: 6 }] : [{ simRole: 'current', data: topCurrent, backgroundColor: topLabels.map((_, i) => COLORS[i % COLORS.length]), borderRadius: 6 }] }, options: { ...baseOptions('press', topLabels, topPayloads), plugins: { legend: { display: simulationActive, labels: { color: '#c6d3ea' } }, tooltip: simulationActive ? { callbacks: { label: simulationTooltipLabel } } : { callbacks: { label: ctx => `${ctx.parsed.y.toLocaleString(undefined, { maximumFractionDigits: 3 })}` } } } } });
 
       const rowMetricValue = (row) => {
-        if (metricKey === 'totalEvents') return 1;
-        if (metricKey === 'avgDurationSeconds') return row.durationSeconds || 0;
-        return row.metricValue || 0;
+        return Number(row.metricValue || 0);
       };
       const byDayCurrent = new Map(); appliedRows.forEach(r => { if (!r.day) return; byDayCurrent.set(r.day, (byDayCurrent.get(r.day) || 0) + rowMetricValue(r)); });
       const byDayBaseline = new Map(); baselineRows.forEach(r => { if (!r.day) return; byDayBaseline.set(r.day, (byDayBaseline.get(r.day) || 0) + rowMetricValue(r)); });
@@ -4831,7 +4579,7 @@
     const volumeTotals = volumeAgg.reduce((acc, row) => {
       acc.good += Number(row?.productionPrintedSheets || 0);
       acc.waste += Number(row?.wastePrintedSheets || 0);
-      acc.total += Number(row?.totalVolume || 0);
+      acc.total = acc.total + Number(row?.totalVolume || 0);
       return acc;
     }, { good: 0, waste: 0, total: 0 });
     checks.push({ id: 'volume-waste-lte-total', pass: volumeTotals.waste <= volumeTotals.total + 1e-6, explainable: false, metric: 'waste<=total', expected: volumeTotals.total, actual: volumeTotals.waste, source: 'volumeAgg internal' });
