@@ -2570,7 +2570,71 @@
     return { isValid: hardIssues.length === 0, issues, hardIssues, warningIssues: issues.filter(issue => issue.level === 'warning') };
   }
 
-  function renderDashboardStatusPanel(sourceScope, mismatches = [], reconciliationReport = [], renderValidation = null, globalValidation = null) {
+  function detectDatasetRange(rows = [], dateAccessor) {
+    const dates = (rows || []).map(dateAccessor).filter(d => d instanceof Date && !Number.isNaN(d.getTime())).sort((a, b) => a - b);
+    if (!dates.length) return null;
+    return { start: dates[0], end: dates[dates.length - 1] };
+  }
+
+  function buildGenericValidationEngine(sourceScope = {}, kpis = {}) {
+    const errors = sourceScope.filteredErrorEventsNative || [];
+    const availability = sourceScope.filteredAvailabilityRowsNative || [];
+    const volume = sourceScope.filteredVolumeRowsNative || [];
+    const summary = {
+      rows: { errors: errors.length, availability: availability.length, volume: volume.length },
+      sources: ['errors', availability.length ? 'availability' : null, volume.length ? 'volume' : null].filter(Boolean),
+      ranges: {
+        errors: detectDatasetRange(errors, r => r?.startTime),
+        availability: detectDatasetRange(availability, r => parseUsDateTime(r?.day || r?.raw?.Date)),
+        volume: detectDatasetRange(volume, r => parseUsDateTime(r?.day || r?.raw?.['Print Start'])),
+      },
+    };
+    const out = { summary, validations: [], warnings: [], errors: [] };
+    const push = (id, pass, expected, actual, severity = 'ERROR', reason = '') => {
+      const row = { id, pass, expected, actual, severity, reason };
+      out.validations.push(row);
+      if (!pass) {
+        if (severity === 'ERROR') out.errors.push(row);
+        else out.warnings.push(row);
+      }
+    };
+    const dedupedEvents = errors.length;
+    const eventCount = (sourceScope.errorsAgg || []).reduce((a, r) => a + Number(r?.totalEvents || 0), 0);
+    push('events.equal_deduped_rows', Math.abs(eventCount - dedupedEvents) < 1e-6, dedupedEvents, eventCount);
+    const hasInvalidDurations = errors.some(r => Number(r?.durationSeconds || 0) <= 0);
+    push('duration.all_positive', !hasInvalidDurations, '> 0', 'contains <= 0 values');
+    const totalDurRaw = errors.reduce((a, r) => a + Number(r?.durationSeconds || 0), 0);
+    const totalDurAgg = (sourceScope.errorsAgg || []).reduce((a, r) => a + Number(r?.totalErrorDurationSeconds || 0), 0);
+    push('duration.sum_matches_aggregation', Math.abs(totalDurRaw - totalDurAgg) < 1e-6, totalDurRaw, totalDurAgg);
+    const mttrComputed = eventCount > 0 ? totalDurAgg / eventCount : null;
+    push('mttr.recomputed_matches_kpi', Math.abs((mttrComputed || 0) - Number(kpis?.mttr || 0)) < 1e-6, mttrComputed, kpis?.mttr);
+    const good = (sourceScope.volumeAgg || []).reduce((a, r) => a + Number(r?.goodPrintedSheets || 0), 0);
+    const waste = (sourceScope.volumeAgg || []).reduce((a, r) => a + Number(r?.wastePrintedSheets || 0), 0);
+    const total = (sourceScope.volumeAgg || []).reduce((a, r) => a + Number(r?.totalPrintedSheets || ((r?.goodPrintedSheets || 0) + (r?.wastePrintedSheets || 0))), 0);
+    push('volume.total_equals_good_plus_waste', Math.abs((good + waste) - total) < 1e-6, total, good + waste);
+    const availabilityDefs = computeAvailabilityDefinitions(sourceScope.availabilityAgg || []);
+    const selectedAvail = availabilityDefs.selected?.value;
+    if (selectedAvail != null) push('availability.range_0_100', selectedAvail >= 0 && selectedAvail <= 100, '0..100', selectedAvail);
+    const runtime = (sourceScope.availabilityAgg || []).reduce((a, r) => a + Number(r?.runtimeSeconds || 0), 0);
+    const mtbf = eventCount > 0 ? runtime / eventCount : null;
+    push('mtbf.runtime_div_events', Math.abs((mtbf || 0) - Number(kpis?.mtbf || 0)) < 1e-6, mtbf, kpis?.mtbf);
+    const avDowntime = (sourceScope.availabilityAgg || []).reduce((a, r) => a + Number(totalDowntimeFromAvailabilityRow(r) || 0), 0);
+    const base = Math.max(totalDurAgg, avDowntime, 1);
+    const diffPct = Math.abs(totalDurAgg - avDowntime) / base;
+    const level = diffPct > 0.35 ? 'ERROR' : diffPct > 0.15 ? 'WARNING' : 'INFO';
+    if (level !== 'INFO') out.warnings.push({ id: 'cross_dataset.errors_vs_availability', severity: level, expected: totalDurAgg, actual: avDowntime, reason: `Deviation ${(diffPct * 100).toFixed(1)}%` });
+    const ranges = Object.entries(summary.ranges).filter(([, v]) => !!v);
+    if (ranges.length >= 2) {
+      const minStart = Math.min(...ranges.map(([, v]) => v.start.getTime()));
+      const maxStart = Math.max(...ranges.map(([, v]) => v.start.getTime()));
+      const minEnd = Math.min(...ranges.map(([, v]) => v.end.getTime()));
+      const maxEnd = Math.max(...ranges.map(([, v]) => v.end.getTime()));
+      if (maxStart !== minStart || maxEnd !== minEnd) out.warnings.push({ id: 'range.mismatch', severity: 'WARNING', reason: 'Dataset date ranges differ; totals compared with caution.' });
+    }
+    return out;
+  }
+
+  function renderDashboardStatusPanel(sourceScope, mismatches = [], reconciliationReport = [], renderValidation = null, globalValidation = null, genericValidation = null) {
     const panel = document.getElementById('dashboardStatusPanel');
     const headerStatus = document.getElementById('headerDataStatus');
     if (!panel) return;
@@ -2591,7 +2655,9 @@
       headerStatus.textContent = headline;
       headerStatus.title = hasError ? strictIssues.map(issue => `${issue.metric}: expected ${issue.expected}, actual ${issue.actual}`).join(' | ') : 'No canonical data inconsistencies detected.';
     }
-    panel.innerHTML = `<div class="status-head"><span>${headline}</span></div><div class="status-note">${esc(note)}</div>`;
+    const gv = genericValidation || { summary: null, validations: [], warnings: [], errors: [] };
+    panel.innerHTML = `<div class="status-head"><span>${headline}</span></div><div class="status-note">${esc(note)}</div>
+      <div class="micro">Generic validation: ${gv.validations.filter(v => v.pass).length}/${gv.validations.length} checks passed • warnings ${gv.warnings.length} • errors ${gv.errors.length}</div>`;
   }
 
   function setCanvasState(canvasId, message = '', kind = 'empty') {
@@ -4815,8 +4881,11 @@
       },
     });
       const globalValidation = buildGlobalDataValidation(sourceScope, allCustomerVolumeRows);
+      const genericValidation = buildGenericValidationEngine(sourceScope, STATE.kpis);
+      STATE.genericValidation = genericValidation;
+      console.info('[generic-validation-engine]', genericValidation);
       if (!globalValidation.isValid) console.warn('[global-data-validation]', globalValidation);
-      renderDashboardStatusPanel(sourceScope, mismatches, STATE.reconciliation.report, renderValidation, globalValidation);
+      renderDashboardStatusPanel(sourceScope, mismatches, STATE.reconciliation.report, renderValidation, globalValidation, genericValidation);
       renderTable(STATE.filtered);
     } catch (error) {
       console.error('[dashboard-render-failure]', error);
