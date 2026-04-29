@@ -476,7 +476,7 @@
 
   const metricRegistry = Object.freeze({
     events: { id: 'events', label: 'Events', type: 'count', unit: 'events', dataset: 'errors', numeratorField: 'totalEvents', denominatorField: null, aggregate: scope => (scope.errorsAgg || []).reduce((acc, row) => acc + Number(row?.totalEvents || 0), 0), format: value => Math.round(Number(value || 0)).toLocaleString(), validate: value => Number.isFinite(Number(value)) && Number(value) >= 0 },
-    downtime: { id: 'downtime', label: 'Downtime', type: 'duration_sum', unit: 'seconds', dataset: 'availability', numeratorField: 'totalErrorDurationSeconds', denominatorField: null, aggregate: scope => (scope.availabilityAgg || []).reduce((acc, row) => acc + Number(totalDowntimeFromAvailabilityRow(row) || 0), 0), format: value => formatDuration(Number(value || 0)), validate: value => Number.isFinite(Number(value)) && Number(value) >= 0 },
+    downtime: { id: 'downtime', label: 'Downtime', type: 'duration_sum', unit: 'seconds', dataset: 'errors', numeratorField: 'totalErrorDurationSeconds', denominatorField: null, aggregate: scope => (scope.errorsAgg || []).reduce((acc, row) => acc + Number(row?.totalErrorDurationSeconds || 0), 0), format: value => formatDuration(Number(value || 0)), validate: value => Number.isFinite(Number(value)) && Number(value) >= 0 },
     mttr: { id: 'mttr', label: 'MTTR (Avg Duration)', type: 'average', unit: 'seconds', dataset: 'errors', numeratorField: 'totalErrorDurationSeconds', denominatorField: 'totalEvents', aggregate: scope => { const num = (scope.errorsAgg || []).reduce((acc, row) => acc + Number(row?.totalErrorDurationSeconds || 0), 0); const den = (scope.errorsAgg || []).reduce((acc, row) => acc + Number(row?.totalEvents || 0), 0); return den > 0 ? num / den : null; }, format: value => value == null ? 'N/A' : formatDuration(Number(value || 0)), validate: value => value == null || Number(value) >= 0 },
     mtbf: { id: 'mtbf', label: 'MTBF', type: 'average', unit: 'seconds', dataset: 'availability', numeratorField: 'runtimeSeconds', denominatorField: 'totalEvents', aggregate: scope => { const num = (scope.availabilityAgg || []).reduce((acc, row) => acc + Number(row?.runtimeSeconds || 0), 0); const den = (scope.errorsAgg || []).reduce((acc, row) => acc + Number(row?.totalEvents || 0), 0); return den > 0 ? num / den : null; }, format: value => value == null ? 'N/A' : formatDuration(Number(value || 0)), validate: value => value == null || Number(value) >= 0 },
     volume: { id: 'volume', label: 'Volume', type: 'sum', unit: 'sheets', dataset: 'volume', numeratorField: 'totalPrintedSheets', denominatorField: null, aggregate: scope => (scope.volumeAgg || []).reduce((acc, row) => acc + Number(row?.totalPrintedSheets || ((row?.goodPrintedSheets || 0) + (row?.wastePrintedSheets || 0))), 0), format: value => `${formatCompactNumber(value)} sheets`, validate: value => Number.isFinite(Number(value)) && Number(value) >= 0 },
@@ -523,7 +523,7 @@
   }
   const metricMeta = metric => ({
     events: { unit: 'events', axisLabel: 'Events', source: 'errorsAgg.totalEvents', tooltip: 'events', subtitle: 'Errors aggregated events.' },
-    downtime: { unit: 'hours', axisLabel: 'Downtime (hours)', source: 'availabilityAgg.planned+unplanned', tooltip: 'hours', subtitle: 'Availability aggregated downtime (Planned + Unplanned).' },
+    downtime: { unit: 'hours', axisLabel: 'Downtime (hours)', source: 'errorsAgg.totalErrorDurationSeconds', tooltip: 'hours', subtitle: 'Error-duration aggregated downtime (single source of truth).' },
     avgDuration: { unit: 'duration', axisLabel: 'Avg Duration (hh:mm:ss)', source: 'errorsAgg.totalErrorDurationSeconds / totalEvents', tooltip: 'duration', subtitle: 'Average error duration per event from error records.' },
     normalized: { unit: 'events per volume', axisLabel: 'Events per volume unit', source: 'errorsAgg + volumeAgg', tooltip: 'events/volume', subtitle: 'Normalized events using errorsAgg totals divided by production volume.' },
   }[metric] || { unit: 'value', axisLabel: 'Value', source: 'unknown', tooltip: 'value', subtitle: 'Ranking.' });
@@ -915,6 +915,8 @@
   async function normalizeErrorsRows(rows, options = {}) {
     const { controller = null, onProgress = null } = options;
     const out = [];
+    const seenErrorKeys = new Set();
+    const duplicateErrorRows = [];
     const total = Math.max(1, rows.length);
     for (let i = 0; i < rows.length; i++) {
       if (controller) assertAnalysisActive(controller);
@@ -922,9 +924,19 @@
       const startTime = parseUsDateTime(getField(r, ['Start Time', 'Start', 'Event Time', 'Timestamp', 'Date']));
       const { canonicalPress, pressCode } = canonicalizePressName(getField(r, ['Press', 'Machine', 'Printer']));
       const model = String(getField(r, ['Model'])).trim() || 'Unspecified';
+      const customer = String(getField(r, ['Customer', 'Account', 'Client'])).trim() || 'Unspecified';
+      const job = String(getField(r, ['Job', 'Job ID', 'JobId', 'Order'])).trim() || 'Unspecified';
+      const timestamp = startTime ? new Date(startTime).toISOString() : '';
+      const dedupeKey = `${canonicalPress || 'Unspecified'}|${customer}|${job}|${timestamp}`;
+      if (seenErrorKeys.has(dedupeKey)) {
+        duplicateErrorRows.push({ dedupeKey, rowIndex: i + 1 });
+        continue;
+      }
+      seenErrorKeys.add(dedupeKey);
       out.push({
         id: i,
-        customer: String(getField(r, ['Customer', 'Account', 'Client'])).trim() || 'Unspecified',
+        customer,
+        job,
         site: String(getField(r, ['Site', 'Location', 'Plant'])).trim() || 'Unspecified',
         press: canonicalPress,
         canonicalPress,
@@ -961,6 +973,13 @@
       }
     }
     if (onProgress) onProgress({ completed: rows.length, total, detail: `Errors rows: ${rows.length.toLocaleString()} / ${total.toLocaleString()}` });
+    if (duplicateErrorRows.length) {
+      console.warn('[errors-duplicate-rows]', {
+        duplicateCount: duplicateErrorRows.length,
+        uniqueKey: 'press+customer+job+timestamp',
+        samples: duplicateErrorRows.slice(0, 25)
+      });
+    }
     const hasMinimum = out.some(r => r.press !== 'Unspecified' && (r.name !== 'Unspecified' || r.alertTitle !== 'Unspecified') && r.startTime);
     if (!hasMinimum) throw new Error('Errors schema invalid: expected columns for press, alert/name and start time.');
     return out;
@@ -1852,7 +1871,7 @@
       printedSheetsRaw: volumeAgg.reduce((a, r) => a + (r.printedSheets || 0), 0),
       maintenanceVolume: volumeAgg.reduce((a, r) => a + (r.maintenanceVolume || 0), 0),
       totalVolume: volumeAgg.reduce((a, r) => a + (r.totalVolume || 0), 0),
-      totalDowntime: availabilityAgg.reduce((a, r) => a + totalDowntimeFromAvailabilityRow(r), 0),
+      totalDowntime: errorsAgg.reduce((a, r) => a + (r.totalErrorDurationSeconds || 0), 0),
     };
     const availabilityDefinitions = computeAvailabilityDefinitions(availabilityAgg);
     const weightedAvailability = availabilityDefinitions.selected.value;
@@ -1898,7 +1917,7 @@
     })();
     const checks = [
       { label: 'kpi.totalEvents', lhs: kpis.totalEvents, rhs: sourceTotals.events, source: 'errorsAgg.totalEvents', level: 'error' },
-      { label: 'kpi.totalDowntime', lhs: kpis.totalDowntime, rhs: sourceTotals.totalDowntime, source: 'availabilityAgg.totalDowntime', level: 'error' },
+      { label: 'kpi.totalDowntime', lhs: kpis.totalDowntime, rhs: sourceTotals.totalDowntime, source: 'errorsAgg.totalErrorDurationSeconds', level: 'error' },
       { label: 'kpi.totalPlanned', lhs: kpis.totalPlanned, rhs: sourceTotals.planned, source: 'availabilityAgg.plannedDowntimeSeconds', level: 'error' },
       { label: 'kpi.totalUnplanned', lhs: kpis.totalUnplanned, rhs: sourceTotals.unplanned, source: 'availabilityAgg.unplannedDowntimeSeconds', level: 'error' },
       { label: 'kpi.totalProdVolume', lhs: kpis.totalProdVolume, rhs: volumeAgg.reduce((a, r) => a + (r.goodPrintedSheets || 0), 0), source: 'volumeAgg.goodPrintedSheets', level: 'error' },
@@ -1936,7 +1955,7 @@
       errorDuration: errorsAgg.reduce((a, r) => a + (r.totalErrorDurationSeconds || 0), 0),
       planned: availabilityAgg.reduce((a, r) => a + (r.plannedDowntimeSeconds || 0), 0),
       unplanned: availabilityAgg.reduce((a, r) => a + (r.unplannedDowntimeSeconds || 0), 0),
-      downtime: availabilityAgg.reduce((a, r) => a + totalDowntimeFromAvailabilityRow(r), 0),
+      downtime: errorsAgg.reduce((a, r) => a + (r.totalErrorDurationSeconds || 0), 0),
       runtime: availabilityAgg.reduce((a, r) => a + (r.runtimeSeconds || 0), 0),
       prodSheets: volumeAgg.reduce((a, r) => a + (r.productionPrintedSheets || 0), 0),
     };
@@ -1950,9 +1969,7 @@
         return rankings.press?.reduce((a, r) => a + (r.normalized || 0), 0) || 0;
       })(),
       subsystem: (() => {
-        if (STATE.metricByChart.subsystem === 'downtime') {
-          return (sourceScope?.filteredAvailabilityRowsNative || []).reduce((a, r) => a + totalDowntimeFromAvailabilityRow(r), 0);
-        }
+        if (STATE.metricByChart.subsystem === 'downtime') return sourceTotals.errorDuration;
         return sourceTotals.events;
       })(),
       alert: sourceTotals.events,
@@ -2557,11 +2574,17 @@
     const panel = document.getElementById('dashboardStatusPanel');
     const headerStatus = document.getElementById('headerDataStatus');
     if (!panel) return;
-    const strictIssues = (globalValidation?.issues || []).filter(issue => String(issue.reason || '').includes('volume-component-mismatch') || String(issue.reason || '').includes('availability-out-of-range') || String(issue.reason || '').includes('missing-canonical'));
-    const hasError = strictIssues.some(issue => issue.level !== 'warning');
+    const strictIssues = (globalValidation?.issues || []).filter(issue => issue.level !== 'warning');
+    const hasMetricMismatch = (mismatches || []).some(m => Number(m?.diff || 0) !== 0);
+    const hasReconciliationMismatch = (reconciliationReport || []).some(entry => {
+      const lhs = Number(entry?.lhs);
+      const rhs = Number(entry?.rhs);
+      return Number.isFinite(lhs) && Number.isFinite(rhs) && Math.abs(lhs - rhs) > 1e-6;
+    });
+    const hasError = hasMetricMismatch || hasReconciliationMismatch || strictIssues.length > 0;
     const level = hasError ? 'red' : 'green';
     const headline = hasError ? '🔴 Data Error' : '🟢 Data Valid';
-    const note = hasError ? strictIssues[0]?.metric || 'Canonical data inconsistency detected.' : 'Canonical field checks passed (volume balance and availability range).';
+    const note = hasError ? 'Recomputed metric differs from displayed metric.' : 'All displayed metrics match recomputed values.';
     panel.className = `dashboard-status ${level === 'red' ? 'red' : 'green'}${hasError ? '' : ' hidden'}`;
     if (headerStatus) {
       headerStatus.className = `meta-pill ${hasError ? 'bad' : 'ok'}`;
@@ -2962,19 +2985,8 @@
         noDurationData: (r.events || 0) > 0 && (r.downtime || 0) === 0
       }));
       if (metric === 'downtime') {
-        if (key === 'subsystem') {
-          const bySubsystem = new Map();
-          (sourceScope?.filteredAvailabilityRowsNative || [])
-            .forEach(r => {
-              const n = r.subsystem || 'Unspecified';
-              const dt = totalDowntimeFromAvailabilityRow(r);
-              bySubsystem.set(n, (bySubsystem.get(n) || 0) + dt);
-            });
-          [...bySubsystem.entries()].forEach(([name, downtime]) => add(name, { downtime, totalDurationSeconds: downtime }));
-        } else {
-          const downtimeAggregate = aggregateErrorEvents(errorEvents, r => nameOf(r));
-          downtimeAggregate.forEach(r => add(r.name, { downtime: r.downtime || 0, totalDurationSeconds: r.downtime || 0 }));
-        }
+        const downtimeAggregate = aggregateErrorEvents(errorEvents, r => nameOf(r));
+        downtimeAggregate.forEach(r => add(r.name, { downtime: r.downtime || 0, totalDurationSeconds: r.downtime || 0 }));
       }
     }
     return [...baseMap.values()]
