@@ -2636,25 +2636,83 @@
     return out;
   }
 
+  function buildUnifiedValidationState(sourceScope = {}, mismatches = [], reconciliationReport = [], renderValidation = null, globalValidation = null, genericValidation = null) {
+    const validationState = { hardErrors: [], warnings: [], info: [] };
+    const pushHardError = (id, detail = {}) => validationState.hardErrors.push({ id, ...detail });
+    const pushWarning = (id, detail = {}) => validationState.warnings.push({ id, ...detail });
+    const pushInfo = (id, detail = {}) => validationState.info.push({ id, ...detail });
+
+    const requiredColumns = sourceScope?.requiredColumnValidation || {};
+    Object.entries(requiredColumns).forEach(([source, result]) => {
+      const missing = result?.missing || [];
+      if (missing.length) pushHardError('missing.required_column', { source, missing });
+    });
+
+    const invalidNumericValues = (genericValidation?.validations || []).filter(v => String(v?.id || '').includes('nan') || String(v?.reason || '').includes('invalid-numeric'));
+    invalidNumericValues.forEach(v => pushHardError('invalid.numeric_value', { validationId: v.id, actual: v.actual }));
+
+    const hasNegativeDurations = (sourceScope.filteredErrorEventsNative || []).some(r => Number(r?.durationSeconds) < 0)
+      || (sourceScope.errorsAgg || []).some(r => Number(r?.totalErrorDurationSeconds) < 0)
+      || (sourceScope.filteredAvailabilityRowsNative || []).some(r => Number(r?.runtimeSeconds) < 0 || Number(totalDowntimeFromAvailabilityRow(r) || 0) < 0);
+    if (hasNegativeDurations) pushHardError('duration.negative', { reason: 'negative-duration' });
+
+    (sourceScope?.volumeAgg || []).forEach((row, idx) => {
+      const good = Number(row?.goodPrintedSheets || 0);
+      const waste = Number(row?.wastePrintedSheets || 0);
+      const total = Number(row?.totalPrintedSheets || (good + waste));
+      if (Math.abs(total - (good + waste)) > 1e-6) pushHardError('volume.total_mismatch', { row: idx + 1, total, recomputed: good + waste });
+    });
+
+    (sourceScope?.filteredAvailabilityRowsNative || []).forEach((row, idx) => {
+      const pct = Number(row?.availabilityPercent);
+      if (!Number.isFinite(pct) || pct < 0 || pct > 100) pushHardError('availability.out_of_range', { row: idx + 1, value: row?.availabilityPercent });
+    });
+
+    (mismatches || []).forEach(m => {
+      if ((m?.level || '').toLowerCase() === 'error' && Number(m?.diff || 0) !== 0) {
+        pushHardError('kpi.display_vs_recomputed_mismatch', { metric: m.metric, expected: m.expected, actual: m.actual, diff: m.diff });
+      }
+    });
+
+    (genericValidation?.warnings || []).forEach(w => pushWarning('generic.warning', w));
+    (globalValidation?.warningIssues || []).forEach(w => pushWarning('global.warning', w));
+    (reconciliationReport || []).forEach(entry => {
+      const severity = (entry?.severity || '').toLowerCase();
+      const status = (entry?.status || '').toLowerCase();
+      if ((severity === 'warning' || severity === 'info') && status !== 'match') pushWarning('reconciliation.warning', entry);
+    });
+    if (!validationState.hardErrors.length && !validationState.warnings.length) pushInfo('validation.clean', { reason: 'No hard errors or warnings' });
+
+    console.log('VALIDATION STATE', {
+      hardErrors: validationState.hardErrors,
+      warnings: validationState.warnings,
+      info: validationState.info,
+      rawSources: { genericValidation, reconciliationReport, renderValidation, canonicalValidation: globalValidation, strictIssues: globalValidation?.hardIssues || [] }
+    });
+    return validationState;
+  }
+
   function renderDashboardStatusPanel(sourceScope, mismatches = [], reconciliationReport = [], renderValidation = null, globalValidation = null, genericValidation = null) {
     const panel = document.getElementById('dashboardStatusPanel');
     const headerStatus = document.getElementById('headerDataStatus');
     if (!panel) return;
-    const strictIssues = globalValidation?.hardIssues || [];
-    const hardReconciliationIssues = (reconciliationReport || []).filter(entry => (entry?.severity || '').toLowerCase() === 'error');
-    const renderErrors = renderValidation?.errors || [];
-    const hardKpiMismatch = (mismatches || []).some(m => (m?.level || '').toLowerCase() === 'error' && Number(m?.diff || 0) !== 0);
-    const warningCount = Number(genericValidation?.warnings?.length || 0) + Number(globalValidation?.warningIssues?.length || 0) + Number((reconciliationReport || []).filter(entry => ['warning', 'info'].includes((entry?.severity || '').toLowerCase()) && (entry?.status || '').toLowerCase() !== 'match').length || 0);
-    const hasError = strictIssues.length > 0 || renderErrors.length > 0 || hardKpiMismatch || hardReconciliationIssues.length > 0;
-    const hasWarnings = warningCount > 0;
-    const level = hasError ? 'red' : (hasWarnings ? 'amber' : 'green');
-    const headline = hasError ? '🔴 Data Error' : (hasWarnings ? '🟡 Data Warning' : '🟢 Data Valid');
-    const note = hasError ? 'Hard validation failures detected in canonical checks.' : (hasWarnings ? 'Validation passed with non-blocking scope/reconciliation warnings.' : 'All displayed metrics match recomputed values.');
-    panel.className = `dashboard-status ${level === 'red' ? 'red' : level === 'amber' ? 'amber' : 'green'}${hasError || hasWarnings ? '' : ' hidden'}`;
+    const validationState = buildUnifiedValidationState(sourceScope, mismatches, reconciliationReport, renderValidation, globalValidation, genericValidation);
+    const hasHardError = validationState.hardErrors.length > 0;
+    const hasWarnings = validationState.warnings.length > 0;
+    const status = hasHardError ? 'error' : (hasWarnings ? 'warning' : 'ok');
+    if (validationState.hardErrors.length === 0 && status === 'error') {
+      console.error('INVALID STATE: UI shows error but no hard errors exist');
+    }
+    const level = status === 'error' ? 'red' : (status === 'warning' ? 'amber' : 'green');
+    const headline = status === 'error' ? '🔴 Data Error' : (status === 'warning' ? '🟡 Data Warning' : '🟢 Data Valid');
+    const note = status === 'error' ? 'Hard validation failures detected.' : (status === 'warning' ? 'Validation passed with non-blocking scope/reconciliation warnings.' : 'All displayed metrics match recomputed values.');
+    panel.className = `dashboard-status ${level === 'red' ? 'red' : level === 'amber' ? 'amber' : 'green'}${status === 'ok' ? ' hidden' : ''}`;
     if (headerStatus) {
-      headerStatus.className = `meta-pill ${hasError ? 'bad' : (hasWarnings ? 'warn' : 'ok')}`;
+      headerStatus.className = `meta-pill ${status === 'error' ? 'bad' : (status === 'warning' ? 'warn' : 'ok')}`;
       headerStatus.textContent = headline;
-      headerStatus.title = hasError ? strictIssues.map(issue => `${issue.metric}: expected ${issue.expected}, actual ${issue.actual}`).join(' | ') : (hasWarnings ? 'Warnings detected in chart-limited reconciliation scope.' : 'No canonical data inconsistencies detected.');
+      headerStatus.title = status === 'error'
+        ? validationState.hardErrors.map(issue => `${issue.id}: ${JSON.stringify(issue)}`).join(' | ')
+        : (status === 'warning' ? 'Warnings detected in chart-limited reconciliation scope.' : 'No data inconsistencies detected.');
     }
     const gv = genericValidation || { summary: null, validations: [], warnings: [], errors: [] };
     panel.innerHTML = `<div class="status-head"><span>${headline}</span></div><div class="status-note">${esc(note)}</div>
