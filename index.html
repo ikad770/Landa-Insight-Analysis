@@ -1976,18 +1976,18 @@
       version: sourceTotals.events,
     };
     const report = [
-      ['KPI • Total Events', 'Errors', kpis.totalEvents, sourceTotals.events, 'sum(errors.totalEvents)'],
-      ['KPI • Total Downtime', 'Availability', kpis.totalDowntime, sourceTotals.downtime, 'sum(planned + unplanned)'],
-      ['KPI • Planned Downtime', 'Availability', kpis.totalPlanned, sourceTotals.planned, 'sum(preventive + on-job-maintenance)'],
-      ['KPI • Unplanned Downtime', 'Availability', kpis.totalUnplanned, sourceTotals.unplanned, 'sum(recovery + jams)'],
-      ['KPI • Availability', 'Availability', kpis.availabilityPercent ?? null, availabilityPercent, availabilityDefinitions.selected.formula],
-      ['KPI • Production Volume', 'Volume', kpis.totalProdVolume, sourceTotals.prodSheets, 'sum(productionPrintedSheets)'],
-      ['KPI • MTTR', 'Errors', kpis.mttr ?? null, sourceTotals.events ? sourceTotals.errorDuration / sourceTotals.events : null, 'sum(errorDuration) / events'],
-      ['KPI • MTBF', 'Errors+Availability', kpis.mtbf ?? null, sourceTotals.events ? sourceTotals.runtime / sourceTotals.events : null, 'runtime / failures (failure proxy = events)'],
-      ['Chart • Top Presses by Impact', 'Errors by selected metric', rankings.press?.reduce((a, r) => a + (r[STATE.metricByChart.press] || 0), 0) || 0, rankingSources.press, `groupBy(press) on ${STATE.metricByChart.press}`],
-      ['Chart • Top Subsystems', 'Errors or Availability-by-subsystem for downtime', rankings.subsystem?.reduce((a, r) => a + (r[STATE.metricByChart.subsystem] || 0), 0) || 0, rankingSources.subsystem, `groupBy(subsystem) on ${STATE.metricByChart.subsystem}`],
-      ['Chart • Top Alerts', 'Errors', rankings.alert?.reduce((a, r) => a + (r[STATE.metricByChart.alert] || 0), 0) || 0, rankingSources.alert, `groupBy(alert) on ${STATE.metricByChart.alert}`],
-      ['Chart • Top Versions', 'Errors', rankings.version?.reduce((a, r) => a + (r[STATE.metricByChart.version] || 0), 0) || 0, rankingSources.version, `groupBy(version) on ${STATE.metricByChart.version}`],
+      ['KPI • Total Events', 'Errors', kpis.totalEvents, sourceTotals.events, 'sum(errors.totalEvents)', 'error'],
+      ['KPI • Total Downtime', 'Errors', kpis.totalDowntime, sourceTotals.downtime, 'sum(errorsAgg.totalErrorDurationSeconds)', 'error'],
+      ['KPI • Planned Downtime', 'Availability', kpis.totalPlanned, sourceTotals.planned, 'sum(preventive + on-job-maintenance)', 'error'],
+      ['KPI • Unplanned Downtime', 'Availability', kpis.totalUnplanned, sourceTotals.unplanned, 'sum(recovery + jams)', 'error'],
+      ['KPI • Availability', 'Availability', kpis.availabilityPercent ?? null, availabilityPercent, availabilityDefinitions.selected.formula, 'error'],
+      ['KPI • Production Volume', 'Volume', kpis.totalProdVolume, sourceTotals.prodSheets, 'sum(productionPrintedSheets)', 'error'],
+      ['KPI • MTTR', 'Errors', kpis.mttr ?? null, sourceTotals.events ? sourceTotals.errorDuration / sourceTotals.events : null, 'sum(errorDuration) / events', 'error'],
+      ['KPI • MTBF', 'Errors+Availability', kpis.mtbf ?? null, sourceTotals.events ? sourceTotals.runtime / sourceTotals.events : null, 'runtime / failures (failure proxy = events)', 'error'],
+      ['Chart • Top Presses by Impact', 'Errors by selected metric', rankings.press?.reduce((a, r) => a + (r[STATE.metricByChart.press] || 0), 0) || 0, rankingSources.press, `groupBy(press) on ${STATE.metricByChart.press}`, 'info'],
+      ['Chart • Top Subsystems', 'Errors or Availability-by-subsystem for downtime', rankings.subsystem?.reduce((a, r) => a + (r[STATE.metricByChart.subsystem] || 0), 0) || 0, rankingSources.subsystem, `groupBy(subsystem) on ${STATE.metricByChart.subsystem}`, 'info'],
+      ['Chart • Top Alerts', 'Errors', rankings.alert?.reduce((a, r) => a + (r[STATE.metricByChart.alert] || 0), 0) || 0, rankingSources.alert, `groupBy(alert) on ${STATE.metricByChart.alert}`, 'info'],
+      ['Chart • Top Versions', 'Errors', rankings.version?.reduce((a, r) => a + (r[STATE.metricByChart.version] || 0), 0) || 0, rankingSources.version, `groupBy(version) on ${STATE.metricByChart.version}`, 'info'],
       ['Chart • Print Volume By Press', 'Volume',
         STATE.customerVolumeMetric === 'wasteRatio'
           ? computeWasteRatio(
@@ -2001,10 +2001,10 @@
             volumeAgg.reduce((a, r) => a + Number(r.totalPrintedSheets || r.totalVolume || ((r.goodPrintedSheets || r.productionPrintedSheets || 0) + (r.wastePrintedSheets || 0))), 0)
           )
           : volumeAgg.reduce((a, r) => a + volumeMetricValue({ totalSheets: (r.totalPrintedSheets || r.totalVolume || ((r.goodPrintedSheets || r.productionPrintedSheets || 0) + (r.wastePrintedSheets || 0))), goodSheets: (r.goodPrintedSheets || r.productionPrintedSheets), wasteSheets: r.wastePrintedSheets }, STATE.customerVolumeMetric), 0),
-        `groupBy(press) ${STATE.customerVolumeMetric === 'wasteRatio' ? 'sum(wastePrintedSheets)/sum(totalPrintedSheets)' : `sum(${STATE.customerVolumeMetric === 'wastePrintedSheets' ? 'wastePrintedSheets' : STATE.customerVolumeMetric})`}`],
-      ['Table • Merged Event Explorer', 'Errors', filteredMergedRows.length, filteredErrorEventsNative.length, 'row_count(filtered errors events)'],
-      ['Export • Filtered CSV', 'Errors', filteredMergedRows.length, filteredErrorEventsNative.length, 'export uses filtered merged explorer scope'],
-    ].map(([component, source, dashboardValue, sourceValue, formula]) => {
+        `groupBy(press) ${STATE.customerVolumeMetric === 'wasteRatio' ? 'sum(wastePrintedSheets)/sum(totalPrintedSheets)' : `sum(${STATE.customerVolumeMetric === 'wastePrintedSheets' ? 'wastePrintedSheets' : STATE.customerVolumeMetric})`}`, 'warning'],
+      ['Table • Merged Event Explorer', 'Errors', filteredMergedRows.length, filteredErrorEventsNative.length, 'row_count(filtered errors events)', 'info'],
+      ['Export • Filtered CSV', 'Errors', filteredMergedRows.length, filteredErrorEventsNative.length, 'export uses filtered merged explorer scope', 'info'],
+    ].map(([component, source, dashboardValue, sourceValue, formula, severity = 'warning']) => {
       const match = (dashboardValue == null && sourceValue == null) || Math.abs((dashboardValue || 0) - (sourceValue || 0)) < 1e-6;
       const delta = (dashboardValue == null || sourceValue == null) ? null : dashboardValue - sourceValue;
       return {
@@ -2014,7 +2014,8 @@
         sourceValue,
         delta,
         formula,
-        status: match ? 'match' : 'warning',
+        severity: match ? 'info' : severity,
+        status: match ? 'match' : severity,
         mismatchReason: match ? '' : `Dashboard aggregation diverges from source recalculation for ${component}.`,
       };
     });
@@ -2025,6 +2026,7 @@
       sourceValue: availabilityDefinitions.selected.value,
       delta: 0,
       formula: `Selected=${availabilityDefinitions.selected.formula}; avg(source Availability)=${availabilityDefinitions.sourceAverage?.toFixed(4) ?? 'N/A'}; weighted(source Availability)=${availabilityDefinitions.sourceWeighted?.toFixed(4) ?? 'N/A'}; runtime/(runtime+unplanned)=${availabilityDefinitions.runtimeOverRuntimePlusUnplanned?.toFixed(4) ?? 'N/A'}; runtime/(runtime+planned+unplanned)=${availabilityDefinitions.runtimeOverTotal?.toFixed(4) ?? 'N/A'}`,
+      severity: 'info',
       status: 'match',
       mismatchReason: availabilityDefinitions.selected.reason,
     });
@@ -2638,22 +2640,21 @@
     const panel = document.getElementById('dashboardStatusPanel');
     const headerStatus = document.getElementById('headerDataStatus');
     if (!panel) return;
-    const strictIssues = (globalValidation?.issues || []).filter(issue => issue.level !== 'warning');
-    const hasMetricMismatch = (mismatches || []).some(m => Number(m?.diff || 0) !== 0);
-    const hasReconciliationMismatch = (reconciliationReport || []).some(entry => {
-      const lhs = Number(entry?.lhs);
-      const rhs = Number(entry?.rhs);
-      return Number.isFinite(lhs) && Number.isFinite(rhs) && Math.abs(lhs - rhs) > 1e-6;
-    });
-    const hasError = hasMetricMismatch || hasReconciliationMismatch || strictIssues.length > 0;
-    const level = hasError ? 'red' : 'green';
-    const headline = hasError ? '🔴 Data Error' : '🟢 Data Valid';
-    const note = hasError ? 'Recomputed metric differs from displayed metric.' : 'All displayed metrics match recomputed values.';
-    panel.className = `dashboard-status ${level === 'red' ? 'red' : 'green'}${hasError ? '' : ' hidden'}`;
+    const strictIssues = globalValidation?.hardIssues || [];
+    const hardReconciliationIssues = (reconciliationReport || []).filter(entry => (entry?.severity || '').toLowerCase() === 'error');
+    const renderErrors = renderValidation?.errors || [];
+    const hardKpiMismatch = (mismatches || []).some(m => (m?.level || '').toLowerCase() === 'error' && Number(m?.diff || 0) !== 0);
+    const warningCount = Number(genericValidation?.warnings?.length || 0) + Number(globalValidation?.warningIssues?.length || 0) + Number((reconciliationReport || []).filter(entry => ['warning', 'info'].includes((entry?.severity || '').toLowerCase()) && (entry?.status || '').toLowerCase() !== 'match').length || 0);
+    const hasError = strictIssues.length > 0 || renderErrors.length > 0 || hardKpiMismatch || hardReconciliationIssues.length > 0;
+    const hasWarnings = warningCount > 0;
+    const level = hasError ? 'red' : (hasWarnings ? 'amber' : 'green');
+    const headline = hasError ? '🔴 Data Error' : (hasWarnings ? '🟡 Data Warning' : '🟢 Data Valid');
+    const note = hasError ? 'Hard validation failures detected in canonical checks.' : (hasWarnings ? 'Validation passed with non-blocking scope/reconciliation warnings.' : 'All displayed metrics match recomputed values.');
+    panel.className = `dashboard-status ${level === 'red' ? 'red' : level === 'amber' ? 'amber' : 'green'}${hasError || hasWarnings ? '' : ' hidden'}`;
     if (headerStatus) {
-      headerStatus.className = `meta-pill ${hasError ? 'bad' : 'ok'}`;
+      headerStatus.className = `meta-pill ${hasError ? 'bad' : (hasWarnings ? 'warn' : 'ok')}`;
       headerStatus.textContent = headline;
-      headerStatus.title = hasError ? strictIssues.map(issue => `${issue.metric}: expected ${issue.expected}, actual ${issue.actual}`).join(' | ') : 'No canonical data inconsistencies detected.';
+      headerStatus.title = hasError ? strictIssues.map(issue => `${issue.metric}: expected ${issue.expected}, actual ${issue.actual}`).join(' | ') : (hasWarnings ? 'Warnings detected in chart-limited reconciliation scope.' : 'No canonical data inconsistencies detected.');
     }
     const gv = genericValidation || { summary: null, validations: [], warnings: [], errors: [] };
     panel.innerHTML = `<div class="status-head"><span>${headline}</span></div><div class="status-note">${esc(note)}</div>
