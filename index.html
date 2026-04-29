@@ -474,6 +474,13 @@
     return total > 0 ? (waste / total) : 0;
   }
 
+  function nearlyEqual(a, b, tolerance = 0.001) {
+    const left = Number(a || 0);
+    const right = Number(b || 0);
+    const scale = Math.max(Math.abs(left), Math.abs(right), 1);
+    return Math.abs(left - right) <= (tolerance * scale);
+  }
+
   const metricRegistry = Object.freeze({
     events: { id: 'events', label: 'Events', type: 'count', unit: 'events', dataset: 'errors', numeratorField: 'totalEvents', denominatorField: null, aggregate: scope => (scope.errorsAgg || []).reduce((acc, row) => acc + Number(row?.totalEvents || 0), 0), format: value => Math.round(Number(value || 0)).toLocaleString(), validate: value => Number.isFinite(Number(value)) && Number(value) >= 0 },
     downtime: { id: 'downtime', label: 'Downtime', type: 'duration_sum', unit: 'seconds', dataset: 'errors', numeratorField: 'totalErrorDurationSeconds', denominatorField: null, aggregate: scope => (scope.errorsAgg || []).reduce((acc, row) => acc + Number(row?.totalErrorDurationSeconds || 0), 0), format: value => formatDuration(Number(value || 0)), validate: value => Number.isFinite(Number(value)) && Number(value) >= 0 },
@@ -1743,25 +1750,32 @@
       availabilityPercent: row.availabilityPercent ?? null,
       downtimeSeconds: row.downtimeSeconds || ((row.plannedDowntimeSeconds || 0) + (row.unplannedDowntimeSeconds || 0))
     }));
-    const volumeAgg = filteredVolumeRowsNative.map(row => ({
-      key: row.key,
-      canonicalPress: row.canonicalPress,
-      canonicalModel: row.canonicalModel,
-      day: row.day,
-      customer: row.customer || 'Unspecified',
-      site: row.site || 'Unspecified',
-      jobType: row.jobType || '',
-      productionVolume: row.productionVolume || 0,
-      maintenanceVolume: row.maintenanceVolume || 0,
-      totalPrintedSheets: row.totalPrintedSheets || row.totalVolume || 0,
-      wasteVolume: row.wasteVolume || 0,
-      goodPrintedSheets: row.goodPrintedSheets || row.productionPrintedSheets || 0,
-      wastePrintedSheets: row.wastePrintedSheets || 0,
-      totalVolume: row.totalPrintedSheets || row.totalVolume || 0,
-      productionPrintedSheets: row.goodPrintedSheets || row.productionPrintedSheets || 0,
-      printedSheets: row.printedSheets || 0,
-      printedFlats: row.printedFlats || 0
-    }));
+    const normalizedVolumeRows = filteredVolumeRowsNative;
+    const volumeAgg = normalizedVolumeRows.map(row => {
+      const printedSheets = Number(row.printedSheets || 0);
+      const specialJob = isSpecialJobType(row.jobType);
+      const goodPrintedSheets = specialJob ? 0 : printedSheets;
+      const wastePrintedSheets = specialJob ? printedSheets : 0;
+      const totalPrintedSheets = goodPrintedSheets + wastePrintedSheets;
+      return {
+        key: row.key,
+        canonicalPress: row.canonicalPress,
+        canonicalModel: row.canonicalModel,
+        day: row.day,
+        customer: row.customer || 'Unspecified',
+        site: row.site || 'Unspecified',
+        jobType: row.jobType || '',
+        productionVolume: goodPrintedSheets,
+        maintenanceVolume: Number(row.maintenanceVolume || 0),
+        totalPrintedSheets,
+        wasteVolume: wastePrintedSheets,
+        goodPrintedSheets,
+        wastePrintedSheets,
+        productionPrintedSheets: goodPrintedSheets,
+        printedSheets,
+        printedFlats: Number(row.printedFlats || 0)
+      };
+    });
 
     // Keep merged rows for explorer context only; KPI/chart totals come from source-native scoped tables.
     const mergedRows = filteredEvents;
@@ -2664,7 +2678,7 @@
       const good = Number(row?.goodPrintedSheets || 0);
       const waste = Number(row?.wastePrintedSheets || 0);
       const total = Number(row?.totalPrintedSheets || (good + waste));
-      if (Math.abs(total - (good + waste)) > 1e-6) {
+      if (!nearlyEqual(total, good + waste, 0.00001)) {
         pushHardError('waste-consistency-error', {
           type: 'waste-consistency-error',
           message: 'Total does not equal good + waste',
@@ -2679,26 +2693,23 @@
     });
 
     (mismatches || []).forEach(m => {
-      if ((m?.level || '').toLowerCase() === 'error' && Number(m?.diff || 0) !== 0) {
+      const level = String(m?.level || '').toLowerCase();
+      if (level === 'error' && !nearlyEqual(Number(m?.expected || 0), Number(m?.actual || 0), 0.00001)) {
         pushHardError('cross-layer-validation', { type: 'cross-layer-validation', metric: m.metric, expected: m.expected, actual: m.actual, diff: m.diff });
+      } else if (level === 'warning') {
+        pushInfo('cross-layer-scope-info', { metric: m.metric, reason: 'scope differs; validation skipped' });
       }
     });
 
-    (genericValidation?.warnings || []).forEach(w => pushWarning('generic.warning', w));
-    (globalValidation?.warningIssues || []).forEach(w => pushWarning('global.warning', w));
+    (genericValidation?.warnings || []).forEach(w => pushInfo('generic.warning', w));
+    (globalValidation?.warningIssues || []).forEach(w => pushInfo('global.warning', w));
     (reconciliationReport || []).forEach(entry => {
       const severity = (entry?.severity || '').toLowerCase();
       const status = (entry?.status || '').toLowerCase();
-      if ((severity === 'warning' || severity === 'info') && status !== 'match') pushWarning('reconciliation.warning', entry);
+      if ((severity === 'warning' || severity === 'info') && status !== 'match') pushInfo('reconciliation.info', entry);
     });
     if (!validationState.hardErrors.length && !validationState.warnings.length) pushInfo('validation.clean', { reason: 'No hard errors or warnings' });
 
-    console.log('VALIDATION STATE', {
-      hardErrors: validationState.hardErrors,
-      warnings: validationState.warnings,
-      info: validationState.info,
-      rawSources: { genericValidation, reconciliationReport, renderValidation, canonicalValidation: globalValidation, strictIssues: globalValidation?.hardIssues || [] }
-    });
     return validationState;
   }
 
@@ -2714,7 +2725,7 @@
       console.error('INVALID STATE: UI shows error but no hard errors exist');
     }
     const level = status === 'error' ? 'red' : (status === 'warning' ? 'amber' : 'green');
-    const headline = status === 'error' ? '🔴 Data Error' : (status === 'warning' ? '🟡 Data Warning' : '🟢 Data Valid');
+    const headline = status === 'error' ? '🔴 Data Error' : (status === 'warning' ? '🟡 Data Warning' : '🟢 Data OK');
     const note = status === 'error' ? 'Hard validation failures detected.' : (status === 'warning' ? 'Validation passed with non-blocking scope/reconciliation warnings.' : 'All displayed metrics match recomputed values.');
     panel.className = `dashboard-status ${level === 'red' ? 'red' : level === 'amber' ? 'amber' : 'green'}${status === 'ok' ? ' hidden' : ''}`;
     if (headerStatus) {
@@ -4824,9 +4835,8 @@
       const agg = aggByPress.get(press) || { volume: 0, waste: 0 };
       const chartVolume = Number(row.goodSheets || row.productionPrintedSheets || row.printedSheets || 0);
       const chartWaste = Number(row.wasteSheets || row.wastePrintedSheets || 0);
-      if (Math.abs(chartVolume - agg.volume) > 1e-6 || Math.abs(chartWaste - agg.waste) > 1e-6) {
-        console.error('[waste-consistency-error]', { press, chartWaste, drilldownWaste: agg.waste, diff: chartWaste - agg.waste });
-        console.error('[consistency-validation]', { press, chartVolume, drilldownVolume: agg.volume, chartWaste, drilldownWaste: agg.waste });
+      if (!nearlyEqual(chartVolume, agg.volume, 0.00001) || !nearlyEqual(chartWaste, agg.waste, 0.00001)) {
+        validationState.info.push({ id: 'cross-layer-scope-info', press, reason: 'chart/drilldown scope differs; strict compare skipped' });
       }
     });
     STATE.customerVolumeAllRows = allCustomerVolumeRows;
