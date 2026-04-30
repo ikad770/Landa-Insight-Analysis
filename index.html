@@ -476,29 +476,26 @@
   const EXPLICIT_WASTE_FIELD_CANDIDATES = ['waste sheets', 'waste printed sheets', 'wasteprintedsheets', 'reject sheets', 'rejected sheets', 'scrap sheets'];
   const JOB_TYPE_FIELD_PRIORITY = ['Job Type', 'jobType', 'Type', 'job_type', 'type'];
   const PRINTED_SHEETS_FIELD_PRIORITY = ['Printed Sheets', 'printed_sheets', 'Sheets', 'Total Sheets', 'Printed Flats'];
-  function resolveJobTypeFieldNameFromRow(row = {}) {
+  function detectField(row = {}, candidates = []) {
     const availableFields = Object.keys(row || {});
-    if (!availableFields.length) return null;
-    const normalizedMap = new Map(availableFields.map(field => [canonical(field), field]));
-    for (const candidate of JOB_TYPE_FIELD_PRIORITY) {
-      const matchedField = normalizedMap.get(canonical(candidate));
+    if (!availableFields.length || !Array.isArray(candidates) || !candidates.length) return null;
+    const normalizeFieldKey = (value) => String(value || '').toLowerCase().replace(/[\s_]+/g, '');
+    const normalizedMap = new Map(availableFields.map(field => [normalizeFieldKey(field), field]));
+    for (const candidate of candidates) {
+      const matchedField = normalizedMap.get(normalizeFieldKey(candidate));
       if (matchedField) return matchedField;
     }
     return null;
+  }
+  function resolveJobTypeFieldNameFromRow(row = {}) {
+    return detectField(row, JOB_TYPE_FIELD_PRIORITY);
   }
   function resolveJobTypeFromRow(row = {}, preferredField = null) {
     const fieldName = preferredField || resolveJobTypeFieldNameFromRow(row);
     return { fieldName, value: fieldName ? row?.[fieldName] : null };
   }
   function resolvePrintedSheetsFieldNameFromRow(row = {}) {
-    const availableFields = Object.keys(row || {});
-    if (!availableFields.length) return null;
-    const normalizedMap = new Map(availableFields.map(field => [canonical(field), field]));
-    for (const candidate of PRINTED_SHEETS_FIELD_PRIORITY) {
-      const matchedField = normalizedMap.get(canonical(candidate));
-      if (matchedField) return matchedField;
-    }
-    return null;
+    return detectField(row, PRINTED_SHEETS_FIELD_PRIORITY);
   }
   function resolvePrintedSheetsFromRow(row = {}, preferredField = null) {
     const fieldName = preferredField || resolvePrintedSheetsFieldNameFromRow(row);
@@ -520,7 +517,7 @@
     const hasExplicitWaste = normalized.some(name => EXPLICIT_WASTE_FIELD_CANDIDATES.includes(name));
     const wasteField = hasExplicitWaste ? availableFields.find(f => EXPLICIT_WASTE_FIELD_CANDIDATES.includes(canonical(f))) : null;
     const required = CANONICAL_SCHEMA[dataset] || [];
-    const typeMeta = dataset === 'volume' ? detectTypeFieldMeta(rows) : { hasJobTypeField: false, jobTypeField: null, normalizedJobTypeValues: [], hasSpecialJobType: false, hasTypeField: false, typeField: null, normalizedTypeValues: [], hasSpecialType: false };
+    const typeMeta = dataset === 'volume' ? detectTypeFieldMeta(rows) : { hasJobTypeField: false, jobTypeField: null, normalizedJobTypeValues: [], hasSpecialJobType: false, hasTypeField: false, typeField: null, normalizedTypeValues: [], hasSpecialType: false, hasSpecial: false };
     const validMetrics = required.filter(metric => availableFields.some(field => canonical(field).includes(canonical(metric).replace('seconds', '').trim())));
     const missingMetrics = required.filter(metric => !validMetrics.includes(metric));
     const printedSheetsField = dataset === 'volume' ? resolvePrintedSheetsFieldNameFromRow(sample) : null;
@@ -534,7 +531,14 @@
           detectionConfidence: (printedSheetsField && typeMeta.jobTypeField) ? 'high' : (printedSheetsField || typeMeta.jobTypeField ? 'medium' : 'low'),
         }
       : {};
-    return { dataset, availableFields, validMetrics, missingMetrics, hasWaste: hasExplicitWaste, wasteField, ...typeMeta, typeValues: typeMeta.normalizedJobTypeValues, ...fieldDiagnostics };
+    const volumeContract = dataset === 'volume'
+      ? {
+          sheetsField: printedSheetsField || null,
+          jobTypeField: typeMeta.jobTypeField || null,
+          hasSpecial: Boolean(typeMeta.hasSpecialJobType),
+        }
+      : null;
+    return { dataset, availableFields, validMetrics, missingMetrics, hasWaste: hasExplicitWaste, wasteField, ...typeMeta, typeValues: typeMeta.normalizedJobTypeValues, volumeContract, ...fieldDiagnostics };
   }
   function buildDataContract(raw = {}) {
     const errors = detectDatasetContract(raw.errors || [], 'errors');
@@ -554,7 +558,7 @@
     const jobTypeField = metaFromRows.jobTypeField || contractMeta.jobTypeField || contractMeta.typeField || null;
     const normalizedJobTypeValues = [...new Set([...(contractMeta.normalizedJobTypeValues || contractMeta.normalizedTypeValues || []), ...(metaFromRows.normalizedJobTypeValues || metaFromRows.normalizedTypeValues || [])])].sort();
     const hasSpecialJobType = normalizedJobTypeValues.includes('special');
-    return { hasWasteData: hasJobTypeField && hasSpecialJobType, hasJobTypeField, jobTypeField, normalizedJobTypeValues, hasSpecialJobType, hasTypeField: hasJobTypeField, typeField: jobTypeField, normalizedTypeValues: normalizedJobTypeValues, hasSpecialType: hasSpecialJobType };
+    return { hasWasteData: hasSpecialJobType, hasJobTypeField, jobTypeField, normalizedJobTypeValues, hasSpecialJobType, hasTypeField: hasJobTypeField, typeField: jobTypeField, normalizedTypeValues: normalizedJobTypeValues, hasSpecialType: hasSpecialJobType };
   }
 
   function nearlyEqual(a, b, tolerance = 0.001) {
@@ -1206,6 +1210,9 @@
 
     const total = Math.max(1, rows.length);
     const volumeRows = rows || [];
+    const sampleRow = volumeRows[0] || {};
+    const detectedSheetsField = detectField(sampleRow, ['Printed Sheets', 'Sheets', 'Total Sheets']);
+    const detectedJobTypeField = detectField(sampleRow, ['Job Type', 'jobType', 'Type']);
     if (volumeRows.length > 0) {
       console.log("VOLUME ROW SAMPLE", Object.keys(volumeRows[0] || {}));
       const uniqueJobTypes = [...new Set(volumeRows.map(r => resolveJobTypeFromRow(r).value).filter(v => String(v || '').trim() !== ''))];
@@ -1230,7 +1237,7 @@
       if (canonicalPress === 'Unspecified' || !day) continue;
 
       sourceRowsUsed += 1;
-      const printedSheets = parseNumber(resolvePrintedSheetsFromRow(r).value);
+      const printedSheets = parseNumber(detectedSheetsField ? r?.[detectedSheetsField] : resolvePrintedSheetsFromRow(r).value);
       const printedSheetsValue = Number.isFinite(printedSheets) ? printedSheets : 0;
       const productionPrintedSheetsRaw = parseNumber(getField(r, ['Production Printed Sheets', 'Production Sheets']));
       const productionPrintedSheetsValue = Number.isFinite(productionPrintedSheetsRaw) ? productionPrintedSheetsRaw : 0;
@@ -1238,11 +1245,11 @@
       const preferredVolume = Number.isFinite(printedSheets) ? printedSheets : (Number.isFinite(printedFlats) ? printedFlats : 0);
       const customer = String(getField(r, ['Customer', 'Account', 'Client'])).trim() || 'Unspecified';
       const site = String(getField(r, ['Site', 'Location', 'Plant'])).trim() || 'Unspecified';
-      const jobType = String(resolveJobTypeFromRow(r).value || '').trim() || 'Unspecified';
+      const jobType = String(detectedJobTypeField ? r?.[detectedJobTypeField] : resolveJobTypeFromRow(r).value || '').trim() || 'Unspecified';
       rawJobTypes.add(jobType);
       const normalizedJobType = normalizeJobType(jobType) || 'unspecified';
       normalizedJobTypes.set(normalizedJobType, (normalizedJobTypes.get(normalizedJobType) || 0) + 1);
-      const specialJob = isWaste(r);
+      const specialJob = normalizedJobType === 'special';
       const maintenance = !specialJob && classifyMaintenance(r);
       const jobStatus = String(getField(r, ['Job Status'])).trim() || 'Unspecified';
       const pressMode = String(getField(r, ['Press Mode', 'Mode'])).trim() || 'Unspecified';
@@ -1291,9 +1298,9 @@
         jobName,
         durationSeconds,
         maintenance,
-        normalizedRawType,
+        normalizedRawType: normalizedJobType,
         jobType,
-        type: rowType,
+        type: normalizedJobType,
         jobStatus,
         pressMode,
         raw: r
@@ -1380,6 +1387,14 @@
     const goodPrintedSheets = aggProduction;
     const wastePrintedSheets = aggWaste;
     const wasteRatio = totalPrintedSheets > 0 ? (wastePrintedSheets / totalPrintedSheets) : 0;
+    console.info('[volume-contract-debug]', {
+      sheetsField: detectedSheetsField,
+      jobTypeField: detectedJobTypeField,
+      uniqueJobTypes: [...normalizedJobTypes.keys()].sort(),
+      specialCount: normalizedJobTypes.get('special') || 0,
+      wasteSheets: wastePrintedSheets,
+      totalSheets: totalPrintedSheets,
+    });
     console.log({
       totalPrintedSheets,
       goodPrintedSheets,
@@ -5066,7 +5081,7 @@
     });
     if (!customerVolumeRendered) setCanvasState('customerVolumeChart', 'Chart library failed to load. Charts cannot render.', 'error');
     document.getElementById('customerVolumeNote').textContent = sourceScope.hasWasteData === false
-      ? 'No waste data in dataset'
+      ? `${STATE.customerVolumeExpanded ? 'Full press ranking' : 'Top 12'} total-volume bars (${STATE.customerVolumeSort === 'asc' ? 'lowest first' : 'highest first'}).`
       : STATE.customerVolumeMetric === 'wasteRatio'
       ? `${STATE.customerVolumeExpanded ? 'Full press ranking' : 'Top 12'} waste-ratio bars (${STATE.customerVolumeSort === 'asc' ? 'lowest first' : 'highest first'}). Colors reflect per-press waste ratio thresholds.`
       : STATE.customerVolumeMetric === 'wastePrintedSheets'
