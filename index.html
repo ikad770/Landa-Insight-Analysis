@@ -481,9 +481,15 @@
     const hasExplicitWaste = normalized.some(name => EXPLICIT_WASTE_FIELD_CANDIDATES.includes(name));
     const wasteField = hasExplicitWaste ? availableFields.find(f => EXPLICIT_WASTE_FIELD_CANDIDATES.includes(canonical(f))) : null;
     const required = CANONICAL_SCHEMA[dataset] || [];
+    const typeField = dataset === 'volume'
+      ? (availableFields.find(field => canonical(field) === 'type') || null)
+      : null;
+    const typeValues = typeField
+      ? [...new Set((rows || []).map(row => normalizeJobType(row?.[typeField])).filter(Boolean))]
+      : [];
     const validMetrics = required.filter(metric => availableFields.some(field => canonical(field).includes(canonical(metric).replace('seconds', '').trim())));
     const missingMetrics = required.filter(metric => !validMetrics.includes(metric));
-    return { dataset, availableFields, validMetrics, missingMetrics, hasWaste: hasExplicitWaste, wasteField };
+    return { dataset, availableFields, validMetrics, missingMetrics, hasWaste: hasExplicitWaste, wasteField, hasTypeField: Boolean(typeField), typeField, typeValues };
   }
   function buildDataContract(raw = {}) {
     const errors = detectDatasetContract(raw.errors || [], 'errors');
@@ -497,7 +503,7 @@
     return total > 0 ? (waste / total) : 0;
   }
   function detectWasteData(rows = [], dataContract = null) {
-    if (dataContract?.volume) return dataContract.volume.hasWaste === true;
+    if (dataContract?.volume) return dataContract.volume.hasTypeField && dataContract.volume.typeValues.includes('special');
     return false;
   }
 
@@ -1163,11 +1169,7 @@
       console.log("SUSPECTED WASTE ROWS", suspectedWaste.slice(0, 50));
     }
 
-    const isWaste = (row) => {
-      if (!dataContract?.volume?.hasWaste) return false;
-      const explicitWasteSheets = Number(row?.[dataContract.volume.wasteField] || row?.wasteSheets || row?.['Waste Sheets'] || row?.wastePrintedSheets || 0);
-      return Number.isFinite(explicitWasteSheets) && explicitWasteSheets > 0;
-    };
+    const isWaste = row => normalizeJobType(getField(row, ['Type'])) === 'special';
     for (let i = 0; i < rows.length; i++) {
       if (controller) assertAnalysisActive(controller);
       const r = rows[i];
@@ -1187,7 +1189,8 @@
       const customer = String(getField(r, ['Customer', 'Account', 'Client'])).trim() || 'Unspecified';
       const site = String(getField(r, ['Site', 'Location', 'Plant'])).trim() || 'Unspecified';
       const jobType = String(getField(r, ['Job Type'])).trim() || 'Unspecified';
-      const normalizedRawType = (jobType || '').trim().toLowerCase();
+      const rowType = String(getField(r, ['Type'])).trim() || 'Unspecified';
+      const normalizedRawType = normalizeJobType(rowType) || 'unspecified';
       rawJobTypes.add(jobType);
       const normalizedJobType = normalizeJobType(jobType) || 'unspecified';
       normalizedJobTypes.set(normalizedJobType, (normalizedJobTypes.get(normalizedJobType) || 0) + 1);
@@ -1242,6 +1245,7 @@
         maintenance,
         normalizedRawType,
         jobType,
+        type: rowType,
         jobStatus,
         pressMode,
         raw: r
@@ -1263,7 +1267,7 @@
       normalizedJobTypes: [...normalizedJobTypes.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([jobType, count]) => ({ jobType, count })),
       normalizationMismatchDetected: mismatchJobTypes.length > 0,
       mismatchSamples: mismatchJobTypes.slice(0, 20),
-      wasteDefinition: 'waste = SUM(printed_sheets WHERE job_type includes waste|reject|special OR job_status includes waste|reject OR explicit waste sheets > 0)',
+      wasteDefinition: 'waste = SUM(printed_sheets WHERE trim(lower(type)) === special)',
     });
 
 
