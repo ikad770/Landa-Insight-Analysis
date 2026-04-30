@@ -474,6 +474,16 @@
     availability: ['availabilityPercent', 'runtimeSeconds', 'downtimeSeconds'],
   });
   const EXPLICIT_WASTE_FIELD_CANDIDATES = ['waste sheets', 'waste printed sheets', 'wasteprintedsheets', 'reject sheets', 'rejected sheets', 'scrap sheets'];
+  function detectTypeFieldMeta(rows = []) {
+    const sample = rows[0] || {};
+    const availableFields = Object.keys(sample);
+    const typeField = availableFields.find(field => canonical(field) === 'type') || null;
+    const normalizedTypeValues = typeField
+      ? [...new Set((rows || []).map(row => normalizeJobType(row?.[typeField])).filter(Boolean))].sort()
+      : [];
+    const hasSpecialType = normalizedTypeValues.includes('special');
+    return { hasTypeField: Boolean(typeField), typeField, normalizedTypeValues, hasSpecialType };
+  }
   function detectDatasetContract(rows = [], dataset = 'unknown') {
     const sample = rows[0] || {};
     const availableFields = Object.keys(sample);
@@ -481,15 +491,10 @@
     const hasExplicitWaste = normalized.some(name => EXPLICIT_WASTE_FIELD_CANDIDATES.includes(name));
     const wasteField = hasExplicitWaste ? availableFields.find(f => EXPLICIT_WASTE_FIELD_CANDIDATES.includes(canonical(f))) : null;
     const required = CANONICAL_SCHEMA[dataset] || [];
-    const typeField = dataset === 'volume'
-      ? (availableFields.find(field => canonical(field) === 'type') || null)
-      : null;
-    const typeValues = typeField
-      ? [...new Set((rows || []).map(row => normalizeJobType(row?.[typeField])).filter(Boolean))]
-      : [];
+    const typeMeta = dataset === 'volume' ? detectTypeFieldMeta(rows) : { hasTypeField: false, typeField: null, normalizedTypeValues: [], hasSpecialType: false };
     const validMetrics = required.filter(metric => availableFields.some(field => canonical(field).includes(canonical(metric).replace('seconds', '').trim())));
     const missingMetrics = required.filter(metric => !validMetrics.includes(metric));
-    return { dataset, availableFields, validMetrics, missingMetrics, hasWaste: hasExplicitWaste, wasteField, hasTypeField: Boolean(typeField), typeField, typeValues };
+    return { dataset, availableFields, validMetrics, missingMetrics, hasWaste: hasExplicitWaste, wasteField, ...typeMeta, typeValues: typeMeta.normalizedTypeValues };
   }
   function buildDataContract(raw = {}) {
     const errors = detectDatasetContract(raw.errors || [], 'errors');
@@ -503,8 +508,13 @@
     return total > 0 ? (waste / total) : 0;
   }
   function detectWasteData(rows = [], dataContract = null) {
-    if (dataContract?.volume) return dataContract.volume.hasTypeField && dataContract.volume.typeValues.includes('special');
-    return false;
+    const metaFromRows = detectTypeFieldMeta(rows);
+    const contractMeta = dataContract?.volume || {};
+    const hasTypeField = metaFromRows.hasTypeField || Boolean(contractMeta.hasTypeField);
+    const typeField = metaFromRows.typeField || contractMeta.typeField || null;
+    const normalizedTypeValues = [...new Set([...(contractMeta.normalizedTypeValues || []), ...(metaFromRows.normalizedTypeValues || [])])].sort();
+    const hasSpecialType = normalizedTypeValues.includes('special');
+    return { hasWasteData: hasTypeField && hasSpecialType, hasTypeField, typeField, normalizedTypeValues, hasSpecialType };
   }
 
   function nearlyEqual(a, b, tolerance = 0.001) {
@@ -1169,7 +1179,7 @@
       console.log("SUSPECTED WASTE ROWS", suspectedWaste.slice(0, 50));
     }
 
-    const isWaste = row => normalizeJobType(getField(row, ['Type'])) === 'special';
+    const isWaste = row => normalizeJobType(getField(row, ['Type', 'type'])) === 'special';
     for (let i = 0; i < rows.length; i++) {
       if (controller) assertAnalysisActive(controller);
       const r = rows[i];
@@ -1189,7 +1199,7 @@
       const customer = String(getField(r, ['Customer', 'Account', 'Client'])).trim() || 'Unspecified';
       const site = String(getField(r, ['Site', 'Location', 'Plant'])).trim() || 'Unspecified';
       const jobType = String(getField(r, ['Job Type'])).trim() || 'Unspecified';
-      const rowType = String(getField(r, ['Type'])).trim() || 'Unspecified';
+      const rowType = String(getField(r, ['Type', 'type'])).trim() || 'Unspecified';
       const normalizedRawType = normalizeJobType(rowType) || 'unspecified';
       rawJobTypes.add(jobType);
       const normalizedJobType = normalizeJobType(jobType) || 'unspecified';
@@ -3721,7 +3731,7 @@
     const scopedMergedRows = filteredRows();
     const scopedErrorRows = filteredErrorEvents();
     const scopedSource = buildSourceScope(filters, scopedMergedRows, scopedErrorRows);
-    scopedSource.hasWasteData = detectWasteData(scopedSource.filteredVolumeRowsNative || [], STATE.dataContract);
+    scopedSource.hasWasteData = detectWasteData(scopedSource.filteredVolumeRowsNative || [], STATE.dataContract).hasWasteData;
     const scopedKpis = computeOperationalMetrics(scopedSource);
     const executiveSummary = buildExecutiveSummary(scopedErrorRows, scopedSource, scopedKpis);
     const hasScopedData =
@@ -4870,10 +4880,18 @@
       STATE.metricByChart.alert = 'events';
       STATE.metricByChart.version = 'events';
     }
-    sourceScope.hasWasteData = detectWasteData(sourceScope.filteredVolumeRowsNative || [], STATE.dataContract);
+    const wasteDetection = detectWasteData(sourceScope.filteredVolumeRowsNative || [], STATE.dataContract);
+    sourceScope.wasteDetection = wasteDetection;
+    sourceScope.hasWasteData = wasteDetection.hasWasteData;
     if (sourceScope.hasWasteData === false && (STATE.customerVolumeMetric === 'wastePrintedSheets' || STATE.customerVolumeMetric === 'wasteRatio')) {
       STATE.customerVolumeMetric = 'totalPrintedSheets';
     }
+    console.info('[waste-debug] type-detection', {
+      detectedTypeFieldName: wasteDetection.typeField,
+      normalizedTypeValues: wasteDetection.normalizedTypeValues,
+      hasTypeField: wasteDetection.hasTypeField,
+      hasSpecialType: wasteDetection.hasSpecialType
+    });
     const customerVolumeMetricSelect = document.getElementById('customerVolumeMetric');
     if (customerVolumeMetricSelect) {
       [...customerVolumeMetricSelect.options].forEach(opt => {
@@ -4938,6 +4956,7 @@
     const wasteFromRawRows = (sourceScope.filteredVolumeRowsNative || []).reduce((sum, row) => (
       sum + (isSpecialJobType(row?.jobType) ? Number(row?.printedSheets || 0) : 0)
     ), 0);
+    const specialRowCount = (sourceScope.filteredVolumeRowsNative || []).filter(r => isSpecialJobType(r?.jobType)).length;
     const wasteFromAggRows = (sourceScope.volumeAgg || []).reduce((sum, row) => sum + Number(row?.wastePrintedSheets || 0), 0);
     const wastePlottedInChart = totalWasteInScope;
     const wasteByPressRaw = (sourceScope.filteredVolumeRowsNative || []).reduce((map, row) => {
@@ -4970,6 +4989,7 @@
       });
     console.info('[waste-validation-debug]', {
       uniqueNormalizedJobTypes: normalizedJobTypes,
+      specialRowCount,
       totalWasteFromRawRows: wasteFromRawRows,
       totalWasteFromVolumeAgg: wasteFromAggRows,
       totalWastePlottedInChart: wastePlottedInChart,
@@ -4991,6 +5011,21 @@
           : 'No rows mapped to normalized job_type == "special".';
       console.info('[waste-debug] no waste detected after normalization and mapping verification', { reason });
     }
+    const totalSheetsInScope = (sourceScope.volumeAgg || []).reduce((sum, row) => sum + Number(row?.totalPrintedSheets || ((row?.goodPrintedSheets || 0) + (row?.wastePrintedSheets || 0))), 0);
+    const wasteRatioInScope = totalSheetsInScope > 0 ? (wasteFromAggRows / totalSheetsInScope) : 0;
+    console.info('[waste-debug] computed-waste', {
+      specialRowCount,
+      computedWasteSheets: wasteFromAggRows,
+      totalPrintedSheets: totalSheetsInScope,
+      wasteLessThanTotal: wasteFromAggRows < totalSheetsInScope,
+      wasteRatioPercent: Number((wasteRatioInScope * 100).toFixed(3)),
+      wasteRatioUnderFiftyPercent: wasteRatioInScope < 0.5,
+      goodPlusWasteApproxTotal: nearlyEqual(
+        (sourceScope.volumeAgg || []).reduce((sum, row) => sum + Number(row?.goodPrintedSheets || 0) + Number(row?.wastePrintedSheets || 0), 0),
+        totalSheetsInScope,
+        0.00001
+      )
+    });
     if (!customerVolumeRendered) setCanvasState('customerVolumeChart', 'Chart library failed to load. Charts cannot render.', 'error');
     document.getElementById('customerVolumeNote').textContent = sourceScope.hasWasteData === false
       ? 'No waste data in dataset'
