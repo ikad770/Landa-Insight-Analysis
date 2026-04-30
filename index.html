@@ -474,15 +474,29 @@
     availability: ['availabilityPercent', 'runtimeSeconds', 'downtimeSeconds'],
   });
   const EXPLICIT_WASTE_FIELD_CANDIDATES = ['waste sheets', 'waste printed sheets', 'wasteprintedsheets', 'reject sheets', 'rejected sheets', 'scrap sheets'];
+  const JOB_TYPE_FIELD_PRIORITY = ['Job Type', 'jobType', 'Type', 'job_type', 'type'];
+  function resolveJobTypeFieldNameFromRow(row = {}) {
+    const availableFields = Object.keys(row || {});
+    if (!availableFields.length) return null;
+    const normalizedMap = new Map(availableFields.map(field => [canonical(field), field]));
+    for (const candidate of JOB_TYPE_FIELD_PRIORITY) {
+      const matchedField = normalizedMap.get(canonical(candidate));
+      if (matchedField) return matchedField;
+    }
+    return null;
+  }
+  function resolveJobTypeFromRow(row = {}, preferredField = null) {
+    const fieldName = preferredField || resolveJobTypeFieldNameFromRow(row);
+    return { fieldName, value: fieldName ? row?.[fieldName] : null };
+  }
   function detectTypeFieldMeta(rows = []) {
     const sample = rows[0] || {};
-    const availableFields = Object.keys(sample);
-    const typeField = availableFields.find(field => canonical(field) === 'type') || null;
-    const normalizedTypeValues = typeField
-      ? [...new Set((rows || []).map(row => normalizeJobType(row?.[typeField])).filter(Boolean))].sort()
+    const jobTypeField = resolveJobTypeFieldNameFromRow(sample);
+    const normalizedJobTypeValues = jobTypeField
+      ? [...new Set((rows || []).map(row => normalizeJobType(resolveJobTypeFromRow(row, jobTypeField).value)).filter(Boolean))].sort()
       : [];
-    const hasSpecialType = normalizedTypeValues.includes('special');
-    return { hasTypeField: Boolean(typeField), typeField, normalizedTypeValues, hasSpecialType };
+    const hasSpecialJobType = normalizedJobTypeValues.includes('special');
+    return { hasJobTypeField: Boolean(jobTypeField), jobTypeField, normalizedJobTypeValues, hasSpecialJobType, hasTypeField: Boolean(jobTypeField), typeField: jobTypeField, normalizedTypeValues: normalizedJobTypeValues, hasSpecialType: hasSpecialJobType };
   }
   function detectDatasetContract(rows = [], dataset = 'unknown') {
     const sample = rows[0] || {};
@@ -491,10 +505,10 @@
     const hasExplicitWaste = normalized.some(name => EXPLICIT_WASTE_FIELD_CANDIDATES.includes(name));
     const wasteField = hasExplicitWaste ? availableFields.find(f => EXPLICIT_WASTE_FIELD_CANDIDATES.includes(canonical(f))) : null;
     const required = CANONICAL_SCHEMA[dataset] || [];
-    const typeMeta = dataset === 'volume' ? detectTypeFieldMeta(rows) : { hasTypeField: false, typeField: null, normalizedTypeValues: [], hasSpecialType: false };
+    const typeMeta = dataset === 'volume' ? detectTypeFieldMeta(rows) : { hasJobTypeField: false, jobTypeField: null, normalizedJobTypeValues: [], hasSpecialJobType: false, hasTypeField: false, typeField: null, normalizedTypeValues: [], hasSpecialType: false };
     const validMetrics = required.filter(metric => availableFields.some(field => canonical(field).includes(canonical(metric).replace('seconds', '').trim())));
     const missingMetrics = required.filter(metric => !validMetrics.includes(metric));
-    return { dataset, availableFields, validMetrics, missingMetrics, hasWaste: hasExplicitWaste, wasteField, ...typeMeta, typeValues: typeMeta.normalizedTypeValues };
+    return { dataset, availableFields, validMetrics, missingMetrics, hasWaste: hasExplicitWaste, wasteField, ...typeMeta, typeValues: typeMeta.normalizedJobTypeValues };
   }
   function buildDataContract(raw = {}) {
     const errors = detectDatasetContract(raw.errors || [], 'errors');
@@ -510,11 +524,11 @@
   function detectWasteData(rows = [], dataContract = null) {
     const metaFromRows = detectTypeFieldMeta(rows);
     const contractMeta = dataContract?.volume || {};
-    const hasTypeField = metaFromRows.hasTypeField || Boolean(contractMeta.hasTypeField);
-    const typeField = metaFromRows.typeField || contractMeta.typeField || null;
-    const normalizedTypeValues = [...new Set([...(contractMeta.normalizedTypeValues || []), ...(metaFromRows.normalizedTypeValues || [])])].sort();
-    const hasSpecialType = normalizedTypeValues.includes('special');
-    return { hasWasteData: hasTypeField && hasSpecialType, hasTypeField, typeField, normalizedTypeValues, hasSpecialType };
+    const hasJobTypeField = metaFromRows.hasJobTypeField || Boolean(contractMeta.hasJobTypeField || contractMeta.hasTypeField);
+    const jobTypeField = metaFromRows.jobTypeField || contractMeta.jobTypeField || contractMeta.typeField || null;
+    const normalizedJobTypeValues = [...new Set([...(contractMeta.normalizedJobTypeValues || contractMeta.normalizedTypeValues || []), ...(metaFromRows.normalizedJobTypeValues || metaFromRows.normalizedTypeValues || [])])].sort();
+    const hasSpecialJobType = normalizedJobTypeValues.includes('special');
+    return { hasWasteData: hasJobTypeField && hasSpecialJobType, hasJobTypeField, jobTypeField, normalizedJobTypeValues, hasSpecialJobType, hasTypeField: hasJobTypeField, typeField: jobTypeField, normalizedTypeValues: normalizedJobTypeValues, hasSpecialType: hasSpecialJobType };
   }
 
   function nearlyEqual(a, b, tolerance = 0.001) {
@@ -1159,7 +1173,7 @@
     const normalizedJobTypes = new Map();
 
     const classifyMaintenance = row => {
-      const jobType = normalizeJobType(getField(row, ['Job Type']));
+      const jobType = normalizeJobType(resolveJobTypeFromRow(row).value);
       const pressMode = String(getField(row, ['Press Mode', 'Mode'])).toLowerCase();
       return (!isSpecialJobType(jobType)) && (/maintenance|service|repair|pm/.test(jobType) || /maintenance|service|repair|pm/.test(pressMode));
     };
@@ -1168,7 +1182,7 @@
     const volumeRows = rows || [];
     if (volumeRows.length > 0) {
       console.log("VOLUME ROW SAMPLE", Object.keys(volumeRows[0] || {}));
-      const uniqueJobTypes = [...new Set(volumeRows.map(r => r.jobType || r["Job Type"] || r.type).filter(v => String(v || '').trim() !== ''))];
+      const uniqueJobTypes = [...new Set(volumeRows.map(r => resolveJobTypeFromRow(r).value).filter(v => String(v || '').trim() !== ''))];
       console.log("UNIQUE JOB TYPES", uniqueJobTypes);
       const uniqueStatuses = [...new Set(volumeRows.map(r => r.jobStatus || r["Job Status"]).filter(v => String(v || '').trim() !== ''))];
       console.log("UNIQUE JOB STATUS", uniqueStatuses);
@@ -1179,7 +1193,7 @@
       console.log("SUSPECTED WASTE ROWS", suspectedWaste.slice(0, 50));
     }
 
-    const isWaste = row => normalizeJobType(getField(row, ['Type', 'type'])) === 'special';
+    const isWaste = row => normalizeJobType(resolveJobTypeFromRow(row).value) === 'special';
     for (let i = 0; i < rows.length; i++) {
       if (controller) assertAnalysisActive(controller);
       const r = rows[i];
@@ -1198,9 +1212,7 @@
       const preferredVolume = Number.isFinite(printedSheets) ? printedSheets : (Number.isFinite(printedFlats) ? printedFlats : 0);
       const customer = String(getField(r, ['Customer', 'Account', 'Client'])).trim() || 'Unspecified';
       const site = String(getField(r, ['Site', 'Location', 'Plant'])).trim() || 'Unspecified';
-      const jobType = String(getField(r, ['Job Type'])).trim() || 'Unspecified';
-      const rowType = String(getField(r, ['Type', 'type'])).trim() || 'Unspecified';
-      const normalizedRawType = normalizeJobType(rowType) || 'unspecified';
+      const jobType = String(resolveJobTypeFromRow(r).value || '').trim() || 'Unspecified';
       rawJobTypes.add(jobType);
       const normalizedJobType = normalizeJobType(jobType) || 'unspecified';
       normalizedJobTypes.set(normalizedJobType, (normalizedJobTypes.get(normalizedJobType) || 0) + 1);
@@ -4887,10 +4899,10 @@
       STATE.customerVolumeMetric = 'totalPrintedSheets';
     }
     console.info('[waste-debug] type-detection', {
-      detectedTypeFieldName: wasteDetection.typeField,
-      normalizedTypeValues: wasteDetection.normalizedTypeValues,
-      hasTypeField: wasteDetection.hasTypeField,
-      hasSpecialType: wasteDetection.hasSpecialType
+      detectedJobTypeFieldName: wasteDetection.jobTypeField,
+      normalizedJobTypeValues: wasteDetection.normalizedJobTypeValues,
+      hasJobTypeField: wasteDetection.hasJobTypeField,
+      hasSpecialJobType: wasteDetection.hasSpecialJobType
     });
     const customerVolumeMetricSelect = document.getElementById('customerVolumeMetric');
     if (customerVolumeMetricSelect) {
