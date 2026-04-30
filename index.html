@@ -475,6 +475,7 @@
   });
   const EXPLICIT_WASTE_FIELD_CANDIDATES = ['waste sheets', 'waste printed sheets', 'wasteprintedsheets', 'reject sheets', 'rejected sheets', 'scrap sheets'];
   const JOB_TYPE_FIELD_PRIORITY = ['Job Type', 'jobType', 'Type', 'job_type', 'type'];
+  const PRINTED_SHEETS_FIELD_PRIORITY = ['Printed Sheets', 'printed_sheets', 'Sheets', 'Total Sheets', 'Printed Flats'];
   function resolveJobTypeFieldNameFromRow(row = {}) {
     const availableFields = Object.keys(row || {});
     if (!availableFields.length) return null;
@@ -487,6 +488,20 @@
   }
   function resolveJobTypeFromRow(row = {}, preferredField = null) {
     const fieldName = preferredField || resolveJobTypeFieldNameFromRow(row);
+    return { fieldName, value: fieldName ? row?.[fieldName] : null };
+  }
+  function resolvePrintedSheetsFieldNameFromRow(row = {}) {
+    const availableFields = Object.keys(row || {});
+    if (!availableFields.length) return null;
+    const normalizedMap = new Map(availableFields.map(field => [canonical(field), field]));
+    for (const candidate of PRINTED_SHEETS_FIELD_PRIORITY) {
+      const matchedField = normalizedMap.get(canonical(candidate));
+      if (matchedField) return matchedField;
+    }
+    return null;
+  }
+  function resolvePrintedSheetsFromRow(row = {}, preferredField = null) {
+    const fieldName = preferredField || resolvePrintedSheetsFieldNameFromRow(row);
     return { fieldName, value: fieldName ? row?.[fieldName] : null };
   }
   function detectTypeFieldMeta(rows = []) {
@@ -508,7 +523,18 @@
     const typeMeta = dataset === 'volume' ? detectTypeFieldMeta(rows) : { hasJobTypeField: false, jobTypeField: null, normalizedJobTypeValues: [], hasSpecialJobType: false, hasTypeField: false, typeField: null, normalizedTypeValues: [], hasSpecialType: false };
     const validMetrics = required.filter(metric => availableFields.some(field => canonical(field).includes(canonical(metric).replace('seconds', '').trim())));
     const missingMetrics = required.filter(metric => !validMetrics.includes(metric));
-    return { dataset, availableFields, validMetrics, missingMetrics, hasWaste: hasExplicitWaste, wasteField, ...typeMeta, typeValues: typeMeta.normalizedJobTypeValues };
+    const printedSheetsField = dataset === 'volume' ? resolvePrintedSheetsFieldNameFromRow(sample) : null;
+    const fieldDiagnostics = dataset === 'volume'
+      ? {
+          detectedFields: {
+            printedSheetsField,
+            jobTypeField: typeMeta.jobTypeField || null,
+          },
+          missingFields: [printedSheetsField ? null : 'printedSheetsField', typeMeta.jobTypeField ? null : 'jobTypeField'].filter(Boolean),
+          detectionConfidence: (printedSheetsField && typeMeta.jobTypeField) ? 'high' : (printedSheetsField || typeMeta.jobTypeField ? 'medium' : 'low'),
+        }
+      : {};
+    return { dataset, availableFields, validMetrics, missingMetrics, hasWaste: hasExplicitWaste, wasteField, ...typeMeta, typeValues: typeMeta.normalizedJobTypeValues, ...fieldDiagnostics };
   }
   function buildDataContract(raw = {}) {
     const errors = detectDatasetContract(raw.errors || [], 'errors');
@@ -1204,7 +1230,7 @@
       if (canonicalPress === 'Unspecified' || !day) continue;
 
       sourceRowsUsed += 1;
-      const printedSheets = parseNumber(getField(r, ['Printed Sheets']));
+      const printedSheets = parseNumber(resolvePrintedSheetsFromRow(r).value);
       const printedSheetsValue = Number.isFinite(printedSheets) ? printedSheets : 0;
       const productionPrintedSheetsRaw = parseNumber(getField(r, ['Production Printed Sheets', 'Production Sheets']));
       const productionPrintedSheetsValue = Number.isFinite(productionPrintedSheetsRaw) ? productionPrintedSheetsRaw : 0;
@@ -5171,7 +5197,6 @@
 
   function validateInputFiles() {
     if (!STATE.files.errors) return { ok: false, message: 'Errors dataset is required.' };
-    if (!STATE.validation.errors) return { ok: false, message: 'Errors dataset is loaded but schema validation failed.' };
     return { ok: true };
   }
 
@@ -5208,6 +5233,11 @@
       const volumeRaw = STATE.files.volume ? (STATE.cachedRaw.volume || await parsePrintVolumeFile(STATE.files.volume)) : [];
       const dataContract = buildDataContract({ errors: errorsRaw, availability: availabilityRaw, volume: volumeRaw });
       STATE.dataContract = dataContract;
+      console.info('[volume-validation-fields]', {
+        detectedFields: dataContract?.volume?.detectedFields || {},
+        missingFields: dataContract?.volume?.missingFields || [],
+        detectionConfidence: dataContract?.volume?.detectionConfidence || 'low',
+      });
 
       setProcessingState({ stage: 'detecting', status: 'running', percent: 1, detail: `Detected rows — Errors: ${errorsRaw.length.toLocaleString()}, Availability: ${availabilityRaw.length.toLocaleString()}, Volume: ${volumeRaw.length.toLocaleString()}.` });
       await yieldAnalysisFrame(controller);
@@ -5286,7 +5316,12 @@
         throw new Error('Availability parser produced 0 normalized rows. Check that file uses Press/Model/Date and duration columns.');
       }
       if (volumeRaw.length > 0 && volumeResult.rows.length === 0) {
-        throw new Error('Print Volume parser produced 0 normalized rows. Check that file uses Press/Model/Print Start/Printed Sheets columns.');
+        console.warn('[validation-warning] Print Volume parser produced 0 normalized rows. Continuing analysis with available datasets.', {
+          detectedFields: dataContract?.volume?.detectedFields || {},
+          missingFields: dataContract?.volume?.missingFields || [],
+          detectionConfidence: dataContract?.volume?.detectionConfidence || 'low',
+        });
+        setStatus('Print Volume rows could not be normalized. Analysis continues with warnings and available datasets.', 'warning');
       }
       if (availabilityResult.rows.length && merged.stats.coverage.errorsMatchedToAvailability === 0) {
         const errorOnly = [...errorKeys].filter(k => !availabilityKeys.has(k)).slice(0, 20);
@@ -5492,10 +5527,11 @@
       if (key === 'volume') await normalizeVolumeRows(rows.slice(0, Math.min(rows.length, 120)), { dataContract: buildDataContract({ volume: rows }) });
       STATE.validation[key] = true;
       await finishFileProgress(key, true);
-    } catch {
-      STATE.validation[key] = false;
-      await finishFileProgress(key, false, 'Validation failed');
-      if (key === 'errors') setStatus('Errors schema is invalid. Expected press/name/start-time compatible columns.', 'error');
+    } catch (error) {
+      STATE.validation[key] = true;
+      console.warn(`[validation-warning] ${key} dataset validation warning. Loading dataset for analysis continuity.`, error);
+      await finishFileProgress(key, true, 'Loaded with warnings');
+      if (key === 'errors') setStatus('Errors dataset loaded with warnings. Analysis will still run.', 'warning');
     }
     setFileUI(key);
   }
