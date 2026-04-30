@@ -490,6 +490,14 @@
   function resolveJobTypeFieldNameFromRow(row = {}) {
     return detectField(row, JOB_TYPE_FIELD_PRIORITY);
   }
+  function detectJobTypeFieldName(rows = []) {
+    const sampleRows = (rows || []).slice(0, 200);
+    for (const row of sampleRows) {
+      const detected = resolveJobTypeFieldNameFromRow(row || {});
+      if (detected) return detected;
+    }
+    return null;
+  }
   function resolveJobTypeFromRow(row = {}, preferredField = null) {
     const fieldName = preferredField || resolveJobTypeFieldNameFromRow(row);
     return { fieldName, value: fieldName ? row?.[fieldName] : null };
@@ -1212,11 +1220,25 @@
     const volumeRows = rows || [];
     const sampleRow = volumeRows[0] || {};
     const detectedSheetsField = detectField(sampleRow, ['Printed Sheets', 'Sheets', 'Total Sheets']);
-    const detectedJobTypeField = detectField(sampleRow, ['Job Type', 'jobType', 'Type']);
+    const detectedJobTypeField = detectJobTypeFieldName(volumeRows) || detectField(sampleRow, ['Job Type', 'jobType', 'Type']);
     if (volumeRows.length > 0) {
       console.log("VOLUME ROW SAMPLE", Object.keys(volumeRows[0] || {}));
-      const uniqueJobTypes = [...new Set(volumeRows.map(r => resolveJobTypeFromRow(r).value).filter(v => String(v || '').trim() !== ''))];
-      console.log("UNIQUE JOB TYPES", uniqueJobTypes);
+      const resolvedJobTypeValues = volumeRows.map(r => {
+        const { value } = resolveJobTypeFromRow(r, detectedJobTypeField);
+        return String(value ?? '');
+      });
+      const uniqueJobTypes = [...new Set(resolvedJobTypeValues.filter(v => String(v || '').trim() !== ''))];
+      const normalizedValues = resolvedJobTypeValues.map(v => normalizeJobType(v) || 'unspecified').filter(Boolean);
+      const normalizedUniqueJobTypes = [...new Set(normalizedValues)].sort();
+      const jobTypeCounts = normalizedValues.reduce((acc, v) => {
+        acc[v] = (acc[v] || 0) + 1;
+        return acc;
+      }, {});
+      console.log("DETECTED JOB TYPE FIELD", detectedJobTypeField || '(none)');
+      console.log("JOB TYPE FIELD SAMPLE (first 5)", resolvedJobTypeValues.slice(0, 5));
+      console.log("JOB TYPE RAW VALUES", uniqueJobTypes);
+      console.log("JOB TYPE NORMALIZED VALUES", normalizedUniqueJobTypes);
+      console.log("JOB TYPE NORMALIZED COUNTS", jobTypeCounts);
       const uniqueStatuses = [...new Set(volumeRows.map(r => r.jobStatus || r["Job Status"]).filter(v => String(v || '').trim() !== ''))];
       console.log("UNIQUE JOB STATUS", uniqueStatuses);
       const suspectedWaste = volumeRows.filter(r => {
@@ -5066,6 +5088,11 @@
     }
     const totalSheetsInScope = (sourceScope.volumeAgg || []).reduce((sum, row) => sum + Number(row?.totalPrintedSheets || ((row?.goodPrintedSheets || 0) + (row?.wastePrintedSheets || 0))), 0);
     const wasteRatioInScope = totalSheetsInScope > 0 ? (wasteFromAggRows / totalSheetsInScope) : 0;
+    const detectedSpecialInNormalization = (sourceScope?.wasteDetection?.normalizedJobTypeValues || []).includes('special') || (normalizedJobTypes.get('special') || 0) > 0;
+    if (detectedSpecialInNormalization && wasteFromAggRows === 0) {
+      console.warn('Waste detection failed despite Special values');
+    }
+
     console.info('[waste-debug] computed-waste', {
       specialRowCount,
       computedWasteSheets: wasteFromAggRows,
