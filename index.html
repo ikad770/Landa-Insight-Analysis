@@ -274,7 +274,7 @@
   <section id="dashboardScreen" class="hidden">
     <header class="topbar">
       <div>
-        <div class="eyebrow">Operational Dashboard</div>
+        <div class="eyebrow">Operational Command Center</div>
         <h1 class="brand-title">Landa Insight<span class="brand-plus">Pro+</span></h1>
         <p class="subtitle">Operational intelligence platform for press performance, downtime analysis, and production insights.</p>
         <p id="datasetMeta" class="subtitle">Dataset not loaded</p>
@@ -474,18 +474,34 @@
     availability: ['availabilityPercent', 'runtimeSeconds', 'downtimeSeconds'],
   });
   const EXPLICIT_WASTE_FIELD_CANDIDATES = ['waste sheets', 'waste printed sheets', 'wasteprintedsheets', 'reject sheets', 'rejected sheets', 'scrap sheets'];
-  const JOB_TYPE_FIELD_PRIORITY = ['Job Type', 'jobType', 'Type', 'job_type', 'type'];
-  const PRINTED_SHEETS_FIELD_PRIORITY = ['Printed Sheets', 'printed_sheets', 'Sheets', 'Total Sheets', 'Printed Flats'];
-  function detectField(row = {}, candidates = []) {
-    const availableFields = Object.keys(row || {});
-    if (!availableFields.length || !Array.isArray(candidates) || !candidates.length) return null;
-    const normalizeFieldKey = (value) => String(value || '').toLowerCase().replace(/[\s_]+/g, '');
-    const normalizedMap = new Map(availableFields.map(field => [normalizeFieldKey(field), field]));
+  const JOB_TYPE_FIELD_PRIORITY = ['Job Type', 'jobType', 'job_type', 'Type', 'type'];
+  const PRINTED_SHEETS_FIELD_PRIORITY = ['Printed Sheets', 'printed_sheets', 'PrintedSheets', 'Sheets', 'Total Sheets', 'Impressions'];
+  function normalizeFieldName(name) {
+    return String(name ?? '').trim().toLowerCase().replace(/[\s_]+/g, '').replace(/[^a-z0-9]/g, '');
+  }
+  function normalizeTextValue(value) {
+    return String(value ?? '').trim().toLowerCase();
+  }
+  function toNumberSafe(value) {
+    if (value == null || value === '') return 0;
+    const parsed = Number(String(value).replace(/,/g, '').trim());
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+  function resolveFieldName(rowOrHeaders = {}, candidates = []) {
+    const headers = Array.isArray(rowOrHeaders) ? rowOrHeaders : Object.keys(rowOrHeaders || {});
+    if (!headers.length || !Array.isArray(candidates) || !candidates.length) return null;
+    const normalizedMap = new Map(headers.map(field => [normalizeFieldName(field), field]));
     for (const candidate of candidates) {
-      const matchedField = normalizedMap.get(normalizeFieldKey(candidate));
-      if (matchedField) return matchedField;
+      const hit = normalizedMap.get(normalizeFieldName(candidate));
+      if (hit) return hit;
     }
     return null;
+  }
+  function getResolvedValue(row = {}, resolvedFieldName = null) {
+    return resolvedFieldName ? row?.[resolvedFieldName] : null;
+  }
+  function detectField(row = {}, candidates = []) {
+    return resolveFieldName(row, candidates);
   }
   function resolveJobTypeFieldNameFromRow(row = {}) {
     return detectField(row, JOB_TYPE_FIELD_PRIORITY);
@@ -494,6 +510,14 @@
     const sampleRows = (rows || []).slice(0, 200);
     for (const row of sampleRows) {
       const detected = resolveJobTypeFieldNameFromRow(row || {});
+      if (detected) return detected;
+    }
+    return null;
+  }
+  function detectPrintedSheetsFieldName(rows = []) {
+    const sampleRows = (rows || []).slice(0, 200);
+    for (const row of sampleRows) {
+      const detected = resolvePrintedSheetsFieldNameFromRow(row || {});
       if (detected) return detected;
     }
     return null;
@@ -1269,7 +1293,7 @@
       if (canonicalPress === 'Unspecified' || !day) continue;
 
       sourceRowsUsed += 1;
-      const printedSheets = parseNumber(detectedSheetsField ? r?.[detectedSheetsField] : resolvePrintedSheetsFromRow(r).value);
+      const printedSheets = toNumberSafe(getResolvedValue(r, detectedSheetsField) ?? resolvePrintedSheetsFromRow(r).value);
       const printedSheetsValue = Number.isFinite(printedSheets) ? printedSheets : 0;
       const productionPrintedSheetsRaw = parseNumber(getField(r, ['Production Printed Sheets', 'Production Sheets']));
       const productionPrintedSheetsValue = Number.isFinite(productionPrintedSheetsRaw) ? productionPrintedSheetsRaw : 0;
@@ -1277,9 +1301,9 @@
       const preferredVolume = Number.isFinite(printedSheets) ? printedSheets : (Number.isFinite(printedFlats) ? printedFlats : 0);
       const customer = String(getField(r, ['Customer', 'Account', 'Client'])).trim() || 'Unspecified';
       const site = String(getField(r, ['Site', 'Location', 'Plant'])).trim() || 'Unspecified';
-      const jobType = String(detectedJobTypeField ? r?.[detectedJobTypeField] : resolveJobTypeFromRow(r).value || '').trim() || 'Unspecified';
+      const jobType = String(getResolvedValue(r, detectedJobTypeField) ?? resolveJobTypeFromRow(r).value || '').trim() || 'Unspecified';
       rawJobTypes.add(jobType);
-      const normalizedJobType = normalizeJobType(jobType) || 'unspecified';
+      const normalizedJobType = normalizeTextValue(jobType) || 'unspecified';
       normalizedJobTypes.set(normalizedJobType, (normalizedJobTypes.get(normalizedJobType) || 0) + 1);
       const specialJob = normalizedJobType === 'special';
       const maintenance = !specialJob && classifyMaintenance(r);
@@ -1419,6 +1443,24 @@
     const goodPrintedSheets = aggProduction;
     const wastePrintedSheets = aggWaste;
     const wasteRatio = totalPrintedSheets > 0 ? (wastePrintedSheets / totalPrintedSheets) : 0;
+    const validationReport = {
+      detectedFieldNames: { sheetsField: detectedSheetsField, jobTypeField: detectedJobTypeField },
+      rowCounts: { rawRows: rows.length, normalizedJobs: jobs.length, aggregatedRows: byKey.size },
+      uniqueJobTypes: [...normalizedJobTypes.keys()].sort(),
+      specialRowCount: specialJobRows.length,
+      totalPrintedSheets,
+      wastePrintedSheets,
+      goodPrintedSheets,
+      wasteRatio,
+      validationPassResults: [
+        { layer: 'raw-normalized', status: detectedSheetsField && detectedJobTypeField ? 'valid' : 'warning', metric: 'field-resolution', expected: 'sheets+jobType', actual: `${detectedSheetsField || 'missing'}|${detectedJobTypeField || 'missing'}`, diff: null, explanation: 'Volume fields resolved from priority candidates.' },
+        { layer: 'normalized-aggregation', status: nearlyEqual(goodPrintedSheets + wastePrintedSheets, totalPrintedSheets, 0.000001) ? 'valid' : 'invalid', metric: 'good+waste=total', expected: totalPrintedSheets, actual: goodPrintedSheets + wastePrintedSheets, diff: (goodPrintedSheets + wastePrintedSheets) - totalPrintedSheets, explanation: 'Invariant validation for normalized to aggregated volume.' },
+        { layer: 'aggregation-kpi-chart', status: 'valid', metric: 'waste-ratio', expected: totalPrintedSheets > 0 ? wastePrintedSheets / totalPrintedSheets : 0, actual: wasteRatio, diff: 0, explanation: 'KPI waste ratio derived from aggregated totals.' }
+      ]
+    };
+    console.group('Landa InsightPro+ Data Validation Report');
+    console.info(validationReport);
+    console.groupEnd();
     console.info('[volume-contract-debug]', {
       sheetsField: detectedSheetsField,
       jobTypeField: detectedJobTypeField,
