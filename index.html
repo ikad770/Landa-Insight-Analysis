@@ -352,7 +352,7 @@
       <select id="versionFilter" class="select"><option value="all">All software versions</option></select>
       <input id="startDateFilter" type="date" title="Start date" />
       <input id="endDateFilter" type="date" title="End date" />
-      <input id="searchFilter" placeholder="Search press, alert, subsystem, version" />
+      <input id="searchInput" placeholder="Search press, alert, subsystem, version" />
     </section>
 
     <main class="command-workspace">
@@ -547,7 +547,17 @@
     availabilityDefinitions: null,
     dataContract: null,
     renderQueued: false,
-    ui: { activeView: 'command-center', activeSubView: null, sidebarCollapsed: false, assistantOpen: true, filtersOpen: true, selectedDateRange: 'all', shareMenuOpen: false, settings: {} },
+    ui: {
+      activeView: 'command-center',
+      activeSubView: null,
+      sidebarCollapsed: false,
+      assistantOpen: true,
+      filtersOpen: true,
+      selectedDateRange: 'all',
+      shareMenuOpen: false,
+      settings: {},
+      filters: { press: 'all', subsystem: 'all', version: 'all', startDay: '', endDay: '', query: '' }
+    },
     assistantHistory: []
   };
 
@@ -1999,15 +2009,26 @@
     return { events: mergedEvents, mergedRows, sourceTables: { errorsAgg, availabilityAgg, volumeAgg }, stats };
   }
 
+  function getEl(id) { return document.getElementById(id); }
+  function getSelectValue(id, fallback = 'all') {
+    const el = getEl(id);
+    return el && 'value' in el ? el.value : fallback;
+  }
+  function getInputValue(id, fallback = '') {
+    const el = getEl(id);
+    return el && 'value' in el ? el.value : fallback;
+  }
   function currentFilterValues() {
-    return {
-      press: pressFilter.value,
-      subsystem: subsystemFilter.value,
-      version: versionFilter.value,
-      startDay: startDateFilter.value,
-      endDay: endDateFilter.value,
-      query: searchFilter.value.trim().toLowerCase(),
+    const domFilters = {
+      press: getSelectValue('pressFilter', STATE.ui.filters.press || 'all'),
+      subsystem: getSelectValue('subsystemFilter', STATE.ui.filters.subsystem || 'all'),
+      version: getSelectValue('versionFilter', STATE.ui.filters.version || 'all'),
+      startDay: getInputValue('startDateFilter', STATE.ui.filters.startDay || ''),
+      endDay: getInputValue('endDateFilter', STATE.ui.filters.endDay || ''),
+      query: getInputValue('searchInput', STATE.ui.filters.query || '').trim().toLowerCase(),
     };
+    STATE.ui.filters = { ...STATE.ui.filters, ...domFilters };
+    return { ...STATE.ui.filters };
   }
 
   function buildScopedAnalysisLink() {
@@ -2038,12 +2059,13 @@
     const state = parseAnalysisStateFromHash();
     if (!state) return false;
     const filters = state.filters || {};
-    if (filters.press != null) pressFilter.value = filters.press;
-    if (filters.subsystem != null) subsystemFilter.value = filters.subsystem;
-    if (filters.version != null) versionFilter.value = filters.version;
-    if (filters.startDay != null) startDateFilter.value = filters.startDay;
-    if (filters.endDay != null) endDateFilter.value = filters.endDay;
-    if (filters.query != null) searchFilter.value = filters.query;
+    if (filters.press != null && getEl('pressFilter')) getEl('pressFilter').value = filters.press;
+    if (filters.subsystem != null && getEl('subsystemFilter')) getEl('subsystemFilter').value = filters.subsystem;
+    if (filters.version != null && getEl('versionFilter')) getEl('versionFilter').value = filters.version;
+    if (filters.startDay != null && getEl('startDateFilter')) getEl('startDateFilter').value = filters.startDay;
+    if (filters.endDay != null && getEl('endDateFilter')) getEl('endDateFilter').value = filters.endDay;
+    if (filters.query != null && getEl('searchInput')) getEl('searchInput').value = filters.query;
+    STATE.ui.filters = { ...STATE.ui.filters, ...filters };
     if (state.metrics && typeof state.metrics === 'object') {
       STATE.metricByChart = { ...STATE.metricByChart, ...state.metrics };
       if (STATE.metricByChart.press === 'normalized') STATE.metricByChart.press = 'downtime';
@@ -2051,11 +2073,11 @@
     if (state.volumeMetric) {
       STATE.customerVolumeMetric = state.volumeMetric;
       STATE.customerVolumeMode = state.volumeMetric === 'wastePrintedSheets' ? 'waste' : (state.volumeMetric === 'goodPrintedSheets' ? 'good' : (state.volumeMetric === 'wasteRatio' ? 'wasteRatio' : 'total'));
-      if (customerVolumeMetric) customerVolumeMetric.value = state.volumeMetric;
+      if (getEl('customerVolumeMetric')) getEl('customerVolumeMetric').value = state.volumeMetric;
     }
     if (state.volumeSort) {
       STATE.customerVolumeSort = state.volumeSort;
-      if (customerVolumeSort) customerVolumeSort.value = state.volumeSort;
+      if (getEl('customerVolumeSort')) getEl('customerVolumeSort').value = state.volumeSort;
     }
     if (Array.isArray(state.simExclusions)) {
       STATE.drilldown.simulation.appliedExcluded = new Set(state.simExclusions);
@@ -6092,7 +6114,16 @@ function bind() {
       setProcessingState({ stage: 'reading', status: 'idle', percent: 0, detail: 'Existing files are loaded. Run analysis or upload replacements.' });
     });
 
-    exportBtn.addEventListener('click', () => exportRowsToCsv(STATE.lastSourceScope?.filteredMergedRows || STATE.filtered, 'dashboard-filtered-export.csv'));
+    const exportBtnEl = document.getElementById('exportBtn');
+    const searchInputEl = getEl('searchInput');
+    const customerVolumeMetricEl = getEl('customerVolumeMetric');
+    const customerVolumeSortEl = getEl('customerVolumeSort');
+    const customerVolumeExpandEl = getEl('customerVolumeExpand');
+    const closeDrilldownEl = getEl('closeDrilldown');
+    const drilldownDrawerEl = getEl('drilldownDrawer');
+    const drilldownSearchEl = getEl('drilldownSearch');
+    const drilldownExportEl = getEl('drilldownExport');
+    exportBtnEl?.addEventListener('click', () => exportRowsToCsv(STATE.lastSourceScope?.filteredMergedRows || STATE.filtered, 'dashboard-filtered-export.csv'));
     const summaryBtnEl = document.getElementById('summaryBtn');
     const summaryModal = document.getElementById('summaryModal');
     const closeSummaryBtnEl = document.getElementById('closeSummaryBtn');
@@ -6291,20 +6322,23 @@ function bind() {
       openKpiFromEventTarget(card);
     });
 
-    ['pressFilter', 'subsystemFilter', 'versionFilter', 'startDateFilter', 'endDateFilter'].forEach(id => document.getElementById(id).addEventListener('change', scheduleRender));
-    searchFilter.addEventListener('input', scheduleRender);
-    customerVolumeMetric.addEventListener('change', e => {
+    ['pressFilter', 'subsystemFilter', 'versionFilter', 'startDateFilter', 'endDateFilter'].forEach(id => {
+      const el = getEl(id);
+      el?.addEventListener('change', () => { currentFilterValues(); scheduleRender(); });
+    });
+    searchInputEl?.addEventListener('input', () => { currentFilterValues(); scheduleRender(); });
+    customerVolumeMetricEl?.addEventListener('change', e => {
       STATE.customerVolumeMetric = e.target.value || 'totalPrintedSheets';
       STATE.customerVolumeMode = STATE.customerVolumeMetric === 'wastePrintedSheets' ? 'waste' : (STATE.customerVolumeMetric === 'goodPrintedSheets' ? 'good' : (STATE.customerVolumeMetric === 'wasteRatio' ? 'wasteRatio' : 'total'));
       scheduleRender();
     });
-    customerVolumeSort.addEventListener('change', e => { STATE.customerVolumeSort = e.target.value; scheduleRender(); });
-    customerVolumeExpand.addEventListener('click', () => { STATE.customerVolumeExpanded = !STATE.customerVolumeExpanded; scheduleRender(); });
-    closeDrilldown.addEventListener('click', () => drilldownDrawer.classList.remove('show'));
+    customerVolumeSortEl?.addEventListener('change', e => { STATE.customerVolumeSort = e.target.value; scheduleRender(); });
+    customerVolumeExpandEl?.addEventListener('click', () => { STATE.customerVolumeExpanded = !STATE.customerVolumeExpanded; scheduleRender(); });
+    closeDrilldownEl?.addEventListener('click', () => drilldownDrawerEl?.classList.remove('show'));
     document.getElementById('drilldownBack')?.addEventListener('click', () => {
       const history = STATE.drilldownStack || [];
       if (history.length <= 1) {
-        drilldownDrawer.classList.remove('show');
+        drilldownDrawerEl?.classList.remove('show');
         return;
       }
       history.pop();
@@ -6318,9 +6352,9 @@ function bind() {
       };
       renderDrilldown();
     });
-    drilldownDrawer.addEventListener('click', e => { if (e.target.id === 'drilldownDrawer') drilldownDrawer.classList.remove('show'); });
-    drilldownSearch.addEventListener('input', e => { STATE.drilldown.search = e.target.value || ''; renderDrilldown(); });
-    drilldownExport.addEventListener('click', () => {
+    drilldownDrawerEl?.addEventListener('click', e => { if (e.target.id === 'drilldownDrawer') drilldownDrawerEl.classList.remove('show'); });
+    drilldownSearchEl?.addEventListener('input', e => { STATE.drilldown.search = e.target.value || ''; renderDrilldown(); });
+    drilldownExportEl?.addEventListener('click', () => {
       const scoped = !STATE.drilldown.search ? STATE.drilldown.rows : STATE.drilldown.rows.filter(r => `${r.press} ${r.subsystem} ${r.name} ${r.alertTitle} ${r.version}`.toLowerCase().includes(STATE.drilldown.search.toLowerCase()));
       exportRowsToCsv(scoped, 'drilldown-filtered-export.csv');
     });
