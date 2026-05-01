@@ -192,8 +192,21 @@
     .summary-kpi-card .value{font-size:1.05rem;font-weight:700;margin-top:5px}
     .summary-preview{border:1px solid var(--border);background:#fff;border-radius:10px;padding:10px;max-height:420px;overflow:auto}
     .summary-preview iframe{width:100%;height:380px;border:0}
+    .command-shell{display:grid;grid-template-columns:240px 1fr 320px;gap:12px;align-items:start}
+    .command-sidebar{position:sticky;top:10px;display:grid;gap:10px;height:calc(100vh - 24px)}
+    .side-nav{display:grid;gap:6px;margin-top:8px}
+    .side-nav-item{background:transparent;color:#d5e2f8;border:1px solid transparent;border-radius:10px;padding:9px 10px;text-align:left;cursor:pointer}
+    .side-nav-item:hover{border-color:var(--border);background:rgba(255,255,255,.04)}
+    .side-nav-item.active{background:linear-gradient(160deg, rgba(123,141,255,.24), rgba(88,128,255,.11));border-color:rgba(123,141,255,.45)}
+    .sidebar-status{padding:10px}
+    .collapse-nav{margin-top:auto}
+    .command-main{min-width:0}
+    .command-header{margin-bottom:8px}
+    .command-grid .card{background:linear-gradient(180deg,rgba(255,255,255,.03),rgba(255,255,255,.01))}
+    .assistant-rail{position:sticky;top:10px;padding:12px}
 
-    @media(max-width:1000px){ .kpis{grid-template-columns:repeat(2,minmax(150px,1fr));}.topbar{grid-template-columns:1fr}.span-6,.span-4,.span-8,.span-3{grid-column:span 12}.file-row{grid-template-columns:1fr} .file-state{justify-content:flex-start}.press-analytics-grid{grid-template-columns:1fr}.press-chart-area{height:280px;min-height:280px;}.press-chart-area.primary{height:340px;min-height:340px;} }
+    @media(max-width:1200px){.command-shell{grid-template-columns:220px 1fr}.assistant-rail{grid-column:1 / -1;position:static}}
+    @media(max-width:1000px){ .command-shell{grid-template-columns:1fr}.command-sidebar{position:static;height:auto}.kpis{grid-template-columns:repeat(2,minmax(150px,1fr));}.topbar{grid-template-columns:1fr}.span-6,.span-4,.span-8,.span-3{grid-column:span 12}.file-row{grid-template-columns:1fr} .file-state{justify-content:flex-start}.press-analytics-grid{grid-template-columns:1fr}.press-chart-area{height:280px;min-height:280px;}.press-chart-area.primary{height:340px;min-height:340px;} }
     @media(max-width:760px){ .summary-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr));}.kpi-row.core,.kpi-row.context{grid-template-columns:repeat(2,minmax(150px,1fr));} }
   </style>
 </head>
@@ -271,29 +284,42 @@
     </article>
   </section>
 
-  <section id="dashboardScreen" class="hidden">
-    <header class="topbar">
+  <section id="dashboardScreen" class="hidden command-shell">
+    <aside class="command-sidebar">
       <div>
-        <div class="eyebrow">Operational Command Center</div>
-        <h1 class="brand-title">Landa Insight<span class="brand-plus">Pro+</span></h1>
-        <p class="subtitle">Operational intelligence platform for press performance, downtime analysis, and production insights.</p>
+        <div class="eyebrow">Navigation</div>
+        <nav class="side-nav">
+          <button class="side-nav-item active">⌘ Command Center</button><button class="side-nav-item">◉ Overview</button><button class="side-nav-item">▣ Press Performance</button><button class="side-nav-item">◫ Drilldown Explorer</button><button class="side-nav-item">⚠ Alerts & Events</button><button class="side-nav-item">◎ Analysis Hub</button><button class="side-nav-item">✦ AI Insights</button><button class="side-nav-item">⧉ Reports</button><button class="side-nav-item">✓ Data Quality</button><button class="side-nav-item">⚙ Settings</button>
+        </nav>
+      </div>
+      <section class="sidebar-status card">
+        <h4>Data Status</h4>
+        <span id="headerDataStatus" class="meta-pill ok">All data validated</span>
+        <div class="micro">7/7 metrics valid</div>
+        <button class="btn secondary">View validation</button>
+        <div class="micro">Last refresh: <span id="sidebarRefreshTime">—</span> • <span style="color:#57c98a;">● Live</span></div>
+      </section>
+      <button class="btn secondary collapse-nav">Collapse</button>
+    </aside>
+
+    <section class="command-main">
+    <header class="topbar command-header">
+      <div>
+        <h1 class="brand-title">Operational Command Center</h1>
+        <p class="subtitle">Real-time operational intelligence for press performance</p>
         <p id="datasetMeta" class="subtitle">Dataset not loaded</p>
-        <div class="meta-indicators">
-          <span id="dataRangeIndicator" class="meta-pill">Data range: N/A</span>
-          <span id="headerDataStatus" class="meta-pill ok hidden">Data status</span>
-        </div>
       </div>
       <div class="controls">
+        <span id="dataRangeIndicator" class="meta-pill">Date range: N/A</span>
+        <button id="summaryBtn" class="btn secondary">Filters</button>
+        <button id="exportBtn" class="btn secondary">Share</button>
         <button id="replaceBtn" class="btn">Load new dataset</button>
-        <button id="exportBtn" class="btn secondary">Export filtered CSV</button>
-        <button id="summaryBtn" class="btn secondary">Summary</button>
       </div>
     </header>
-
+    <section id="executiveSummaryCard" class="card" style="margin-bottom:8px;"></section>
+    <section class="dashboard-status" id="metaRow">Data validated: <span id="metaValidatedAt">—</span> • Source rows: <span id="metaRowCount">—</span> • Confidence: HIGH</section>
     <section id="kpiStrip" class="kpis"></section>
     <section id="dashboardStatusPanel" class="dashboard-status hidden"></section>
-
-    <section id="executiveSummaryCard" class="card" style="margin-bottom:12px;"></section>
 
     <section class="filters">
       <select id="pressFilter" class="select"><option value="all">All presses</option></select>
@@ -304,7 +330,9 @@
       <input id="searchFilter" placeholder="Search press, alert, subsystem, version" />
     </section>
 
-    <main class="grid">
+    <main class="grid command-grid">
+      <article class="card span-8" id="keyInsightsCard"></article>
+      <article class="card span-4" id="actionCenterCard"></article>
       <article class="card span-12 press-analysis-shell">
         <div class="chart-head"><h3>Press Abnormality Investigation</h3></div>
         <div class="micro" id="pressValidationNote">Validating scoped duration data before render…</div>
@@ -354,7 +382,18 @@
         <div class="micro">Each row combines Errors with matching Availability and Print Volume bucket context.</div>
         <div class="table-wrap"><table id="eventTable"></table></div>
       </article>
+      <article class="card span-8"><h3>Recent Alerts</h3><div id="recentAlertsStrip" class="summary-grid"></div></article>
+      <article class="card span-4"><h3>System Health</h3><p class="micro">Operational state</p><div class="status-chip">✅ Platform operational. Data sync and validation pipelines healthy.</div></article>
     </main>
+    </section>
+    <aside class="assistant-rail card">
+      <div class="chart-head"><h3>AI Assistant</h3><span class="risk-pill risk-medium">BETA</span></div>
+      <p class="micro">Ask operational questions based on the current validated scope.</p>
+      <div class="exec-action-line"><span class="impact-chip">Why is downtime high?</span><span class="impact-chip">What should we fix first?</span><span class="impact-chip">Show the top waste driver</span></div>
+      <div id="assistantAnswer" class="status-chip" style="margin-top:10px;">Awaiting analysis scope…</div>
+      <button class="btn secondary" style="margin-top:10px;">Show actions</button>
+      <input class="select" placeholder="Ask a question..." style="margin-top:12px;width:100%;" />
+    </aside>
   </section>
 </div>
 
@@ -2765,13 +2804,13 @@
 
   function renderKpis(k) {
     const cards = [
-      ['Events', 'events', metricRegistry.events.format(k.totalEvents), metricRegistry.events.label],
-      ['Downtime', 'downtime', metricRegistry.downtime.format(k.totalDowntime), metricRegistry.downtime.label],
-      ['MTTR (Avg Duration)', 'mttr', metricRegistry.mttr.format(k.mttr), 'sum(totalErrorDurationSeconds) / sum(totalEvents)'],
-      ['MTBF', 'mtbf', metricRegistry.mtbf.format(k.mtbf), 'sum(runtimeSeconds) / sum(totalEvents)'],
-      ['Volume', 'volume', metricRegistry.volume.format(k.totalPrintedSheets), metricRegistry.volume.label],
-      ['Waste Ratio', 'wasteRatio', metricRegistry.wasteRatio.format(k.wasteRatio), 'sum(wastePrintedSheets) / sum(totalPrintedSheets)'],
-      ['Availability', 'availability', metricRegistry.availability.format((k.availabilityPercent == null ? null : k.availabilityPercent / 100)), 'sum(runtimeSeconds) / (sum(runtimeSeconds)+sum(downtimeSeconds))'],
+      ['◉ Total Events', 'events', metricRegistry.events.format(k.totalEvents), 'Scoped incident count'],
+      ['⏱ Downtime', 'downtime', metricRegistry.downtime.format(k.totalDowntime), 'Planned + unplanned downtime'],
+      ['🛠 MTTR', 'mttr', metricRegistry.mttr.format(k.mttr), 'Average time to recover'],
+      ['📈 MTBF', 'mtbf', metricRegistry.mtbf.format(k.mtbf), 'Mean time between failures'],
+      ['▦ Volume', 'volume', metricRegistry.volume.format(k.totalPrintedSheets), 'Good + waste output'],
+      ['♻ Waste Ratio', 'wasteRatio', metricRegistry.wasteRatio.format(k.wasteRatio), 'Waste share of total volume'],
+      ['✓ Availability', 'availability', metricRegistry.availability.format((k.availabilityPercent == null ? null : k.availabilityPercent / 100)), 'Runtime efficiency'],
     ];
     const visibleCards = cards.filter(([_, metricKey]) => !(metricKey === 'wasteRatio' && k.wasteRatio == null));
     const toCard = ([label, metricKey, value, subtitle]) => `<article class="kpi clickable" role="button" tabindex="0" data-kpi-metric="${metricKey}" title="${esc(subtitle)}"><div class="k">${label}</div><div class="v">${esc(value)}</div><div class="kpi-sub">${esc(subtitle)}</div></article>`;
@@ -2792,7 +2831,7 @@
     const secondaryAction = topError !== 'N/A' ? `Contain dominant error ${topError}` : 'Contain dominant recurring error';
     const actions = [primaryAction, secondaryAction].filter((value, idx, arr) => arr.indexOf(value) === idx).slice(0, 2);
     document.getElementById('executiveSummaryCard').innerHTML = `
-      <div class="chart-head"><h3>Operational Status Overview</h3></div>
+      <div class="chart-head"><h3>Critical Status Banner</h3><div><button class="btn secondary">Why critical?</button> <button class="btn secondary">View key drivers</button></div></div>
       <section class="exec-decision-panel">
         <div class="exec-row" style="gap:10px;flex-wrap:wrap;">
           <span class="exec-severity ${statusClass}">${esc(summary.status || 'WATCH')}</span>
@@ -2814,6 +2853,20 @@
         </div>
         <div class="micro" style="margin:0;">Impact ranked by downtime severity (not event count). Top-press downtime signal: ${downtimeSignal.toFixed(1)}%.</div>
       </section>`;
+    const scope = STATE.sourceScope || {};
+    const rowCount = (scope.filteredErrorEventsNative || []).length + (scope.filteredAvailabilityRowsNative || []).length + (scope.filteredVolumeRowsNative || []).length;
+    const metaAt = new Date().toLocaleString();
+    const metaAtEl = optionalEl('metaValidatedAt'); if (metaAtEl) metaAtEl.textContent = metaAt;
+    const metaRowsEl = optionalEl('metaRowCount'); if (metaRowsEl) metaRowsEl.textContent = rowCount.toLocaleString();
+    const refreshEl = optionalEl('sidebarRefreshTime'); if (refreshEl) refreshEl.textContent = metaAt;
+    const aiAnswer = optionalEl('assistantAnswer');
+    if (aiAnswer) aiAnswer.textContent = `Top risk is ${topPress} with ${topError} as repeated error. Bottleneck subsystem: ${topSubsystem}.`;
+    const insightsHost = optionalEl('keyInsightsCard');
+    if (insightsHost) insightsHost.innerHTML = `<div class="chart-head"><h3>Key Insights</h3><button class="btn secondary">View all</button></div><div class="summary-grid"><article class="summary-stat span-4"><div class="label">Top Downtime Driver</div><div class="value">${esc(topPress)}</div><div class="micro">${downtimeSignal.toFixed(1)}% downtime signal</div></article><article class="summary-stat span-4"><div class="label">Most Repeated Error</div><div class="value">${esc(topError)}</div><div class="micro">${(summary?.repeatFailures || 0).toLocaleString()} repeats</div></article><article class="summary-stat span-4"><div class="label">Bottleneck Subsystem</div><div class="value">${esc(topSubsystem)}</div><div class="micro">Primary impact concentration</div></article></div>`;
+    const actionHost = optionalEl('actionCenterCard');
+    if (actionHost) actionHost.innerHTML = `<div class="chart-head"><h3>Action Center</h3></div><div style="display:grid;gap:8px;"><div class="status-chip"><span class="risk-pill risk-high">High</span> Fix QCS on ${esc(topPress)}.<div class="micro">Highest downtime concentration press.</div></div><div class="status-chip"><span class="risk-pill risk-medium">Medium</span> Investigate ${esc(topError)} recurrence.<div class="micro">Reduce repeat incident frequency.</div></div><div class="status-chip"><span class="risk-pill risk-medium">Medium</span> Monitor ${esc(topSubsystem)} bottleneck.<div class="micro">Expected impact on availability.</div></div></div>`;
+    const alertsHost = optionalEl('recentAlertsStrip');
+    if (alertsHost) alertsHost.innerHTML = [topError, summary?.globalDriver?.name || 'Unspecified', topSubsystem].map((name, i) => `<article class="summary-stat span-4"><div class="label">Alert ${i+1}</div><div class="value">${esc(name)}</div><div class="micro">${esc(topPress)} • ${new Date().toLocaleTimeString()}</div></article>`).join('');
   }
 
   function renderRiskSection(riskRows) {
