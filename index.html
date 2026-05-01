@@ -427,6 +427,7 @@
     cachedRaw: { errors: null, availability: null, volume: null },
     normalized: { events: [], availability: [], volume: [] },
     merged: { events: [], mergedRows: [], stats: {}, summary: null, pressRisk: [], sourceTables: { errorsAgg: [], availabilityAgg: [], volumeAgg: [] } },
+    volumeModel: null,
     filtered: [],
     filteredErrors: [],
     kpis: null,
@@ -1574,6 +1575,75 @@
     };
   }
 
+  function buildCanonicalVolumeModel(rawRows = [], normalizedVolumeRows = [], dataContract = null) {
+    const normalizedRows = (normalizedVolumeRows || []).map(row => {
+      const jobTypeRaw = String(row?.jobType || '').trim();
+      const jobTypeNormalized = normalizeTextValue(jobTypeRaw) || 'unspecified';
+      const isWaste = jobTypeNormalized === 'special';
+      const printedSheets = Number(row?.printedSheets || row?.totalPrintedSheets || 0) || 0;
+      const goodPrintedSheets = isWaste ? 0 : printedSheets;
+      const wastePrintedSheets = isWaste ? printedSheets : 0;
+      return {
+        press: row?.canonicalPress || row?.press || 'Unspecified',
+        date: row?.day || null,
+        jobName: row?.jobName || null,
+        jobTypeRaw,
+        jobTypeNormalized,
+        printedSheets,
+        printedFlats: Number(row?.printedFlats || 0) || 0,
+        durationSeconds: Number(row?.durationSeconds || 0) || 0,
+        isWaste,
+        isGood: !isWaste,
+        originalRow: row?.raw || row,
+        canonicalPress: row?.canonicalPress || row?.press || 'Unspecified',
+        day: row?.day || null,
+        goodPrintedSheets,
+        wastePrintedSheets,
+        totalPrintedSheets: goodPrintedSheets + wastePrintedSheets,
+      };
+    });
+    const byPressMap = new Map();
+    normalizedRows.forEach(row => {
+      const key = row.press || 'Unspecified';
+      const slot = byPressMap.get(key) || { press: key, totalPrintedSheets: 0, goodPrintedSheets: 0, wastePrintedSheets: 0, rowCount: 0, specialRowCount: 0, rows: [] };
+      slot.totalPrintedSheets += row.printedSheets;
+      slot.goodPrintedSheets += row.isGood ? row.printedSheets : 0;
+      slot.wastePrintedSheets += row.isWaste ? row.printedSheets : 0;
+      slot.rowCount += 1;
+      slot.specialRowCount += row.isWaste ? 1 : 0;
+      slot.rows.push(row);
+      byPressMap.set(key, slot);
+    });
+    const byPress = [...byPressMap.values()].map(slot => ({ ...slot, wasteRatio: computeWasteRatio(slot.wastePrintedSheets, slot.totalPrintedSheets) }));
+    const globalTotal = normalizedRows.reduce((s, r) => s + r.printedSheets, 0);
+    const globalWaste = normalizedRows.reduce((s, r) => s + (r.isWaste ? r.printedSheets : 0), 0);
+    const globalGood = normalizedRows.reduce((s, r) => s + (r.isGood ? r.printedSheets : 0), 0);
+    return {
+      contract: {
+        printedSheetsField: dataContract?.volume?.printedSheetsField || null,
+        jobTypeField: dataContract?.volume?.jobTypeField || null,
+        pressField: dataContract?.volume?.pressField || null,
+        dateField: dataContract?.volume?.dateField || null,
+        rowCount: rawRows.length,
+        normalizedRowCount: normalizedRows.length,
+        uniqueJobTypes: [...new Set(normalizedRows.map(r => r.jobTypeNormalized))].sort(),
+        specialRowCount: normalizedRows.filter(r => r.isWaste).length,
+      },
+      rows: normalizedRows,
+      global: {
+        totalPrintedSheets: globalTotal,
+        goodPrintedSheets: globalGood,
+        wastePrintedSheets: globalWaste,
+        wasteRatio: computeWasteRatio(globalWaste, globalTotal),
+        rowCount: normalizedRows.length,
+        specialRowCount: normalizedRows.filter(r => r.isWaste).length,
+      },
+      byPress,
+      byDate: [],
+      byPressDate: []
+    };
+  }
+
   async function mergeOperationalData(events, availabilityRows, volumeRows, diagnostics = {}, options = {}) {
     const { controller = null, onProgress = null } = options;
     const availabilityByPressModelDay = new Map();
@@ -2001,29 +2071,29 @@
       downtimeSeconds: row.downtimeSeconds || ((row.plannedDowntimeSeconds || 0) + (row.unplannedDowntimeSeconds || 0))
     }));
     const normalizedVolumeRows = filteredVolumeRowsNative;
-    const volumeAgg = normalizedVolumeRows.map(row => {
-      const printedSheets = Number(row.printedSheets || 0);
-      const specialJob = isSpecialJobType(row.jobType);
-      const goodPrintedSheets = specialJob ? 0 : printedSheets;
-      const wastePrintedSheets = specialJob ? printedSheets : 0;
-      const totalPrintedSheets = goodPrintedSheets + wastePrintedSheets;
+    const groupedByPress = groupBy(normalizedVolumeRows, row => row.canonicalPress || row.press || 'Unspecified');
+    const volumeAgg = [...groupedByPress.entries()].map(([press, rows]) => {
+      const totalPrintedSheets = rows.reduce((sum, row) => sum + Number(row?.totalPrintedSheets || row?.printedSheets || 0), 0);
+      const goodPrintedSheets = rows.reduce((sum, row) => sum + Number(row?.goodPrintedSheets || 0), 0);
+      const wastePrintedSheets = rows.reduce((sum, row) => sum + Number(row?.wastePrintedSheets || 0), 0);
       return {
-        key: row.key,
-        canonicalPress: row.canonicalPress,
-        canonicalModel: row.canonicalModel,
-        day: row.day,
-        customer: row.customer || 'Unspecified',
-        site: row.site || 'Unspecified',
-        jobType: row.jobType || '',
+        key: `press|${press}`,
+        canonicalPress: press,
+        canonicalModel: rows[0]?.canonicalModel || 'Unspecified',
+        day: '',
+        customer: rows[0]?.customer || 'Unspecified',
+        site: rows[0]?.site || 'Unspecified',
+        jobType: '',
         productionVolume: goodPrintedSheets,
-        maintenanceVolume: Number(row.maintenanceVolume || 0),
+        maintenanceVolume: rows.reduce((sum, row) => sum + Number(row?.maintenanceVolume || 0), 0),
         totalPrintedSheets,
         wasteVolume: wastePrintedSheets,
         goodPrintedSheets,
         wastePrintedSheets,
         productionPrintedSheets: goodPrintedSheets,
-        printedSheets,
-        printedFlats: Number(row.printedFlats || 0)
+        printedSheets: totalPrintedSheets,
+        printedFlats: rows.reduce((sum, row) => sum + Number(row?.printedFlats || 0), 0),
+        rows
       };
     });
 
@@ -5021,6 +5091,29 @@
     return { ok: errors.length === 0, checks, failed, warnings, errors, warningCount: warnings.length, errorCount: errors.length, exactErrors, exactWarnings };
   }
 
+  
+  function validateVolumeWasteConsistency(sourceScope, kpis, customerVolumeRows = [], selectedPress = null) {
+    const rows = sourceScope?.filteredVolumeRowsNative || [];
+    const agg = sourceScope?.volumeAgg || [];
+    const globalWasteRaw = rows.reduce((sum, row) => sum + Number(row?.wastePrintedSheets || 0), 0);
+    const globalWasteAgg = agg.reduce((sum, row) => sum + Number(row?.wastePrintedSheets || 0), 0);
+    const globalGoodAgg = agg.reduce((sum, row) => sum + Number(row?.goodPrintedSheets || 0), 0);
+    const globalTotalAgg = agg.reduce((sum, row) => sum + Number(row?.totalPrintedSheets || 0), 0);
+    const chartWaste = (customerVolumeRows || []).reduce((sum, row) => sum + Number(row?.wasteSheets || row?.wastePrintedSheets || 0), 0);
+    const checks = [
+      { id: 'raw_waste_equals_global', pass: nearlyEqual(globalWasteRaw, globalWasteAgg, 0.00001), expected: globalWasteRaw, actual: globalWasteAgg },
+      { id: 'sum_press_waste_equals_global', pass: nearlyEqual(globalWasteAgg, globalWasteAgg, 0.00001), expected: globalWasteAgg, actual: globalWasteAgg },
+      { id: 'sum_press_good_equals_global', pass: nearlyEqual(globalGoodAgg, globalGoodAgg, 0.00001), expected: globalGoodAgg, actual: globalGoodAgg },
+      { id: 'sum_press_total_equals_global', pass: nearlyEqual(globalTotalAgg, globalTotalAgg, 0.00001), expected: globalTotalAgg, actual: globalTotalAgg },
+      { id: 'kpi_waste_equals_global', pass: nearlyEqual(Number(kpis?.totalWasteVolume || 0), globalWasteAgg, 0.00001), expected: globalWasteAgg, actual: Number(kpis?.totalWasteVolume || 0) },
+      { id: 'kpi_waste_ratio_equals_global', pass: nearlyEqual(Number(kpis?.wasteRatio || 0), computeWasteRatio(globalWasteAgg, globalTotalAgg), 0.00001), expected: computeWasteRatio(globalWasteAgg, globalTotalAgg), actual: Number(kpis?.wasteRatio || 0) },
+      { id: 'chart_total_waste_equals_global', pass: nearlyEqual(chartWaste, globalWasteAgg, 0.00001), expected: globalWasteAgg, actual: chartWaste },
+      { id: 'special_rows_imply_waste', pass: rows.filter(r => Number(r?.wastePrintedSheets || 0) > 0).length === 0 || globalWasteAgg > 0, expected: '>0', actual: globalWasteAgg }
+    ];
+    return { ok: checks.every(c=>c.pass), checks, globalWasteRaw, globalWasteAgg, globalGoodAgg, globalTotalAgg, chartWaste };
+  }
+
+
   function renderDashboard() {
     try {
       const { filters, scopedMergedRows, scopedErrorRows, scopedSource, scopedKpis, executiveSummary, hasScopedData } = getCurrentDashboardScopeModel();
@@ -5127,6 +5220,27 @@
     });
     STATE.customerVolumeAllRows = allCustomerVolumeRows;
     const customerVolumeRendered = renderVolumeByPressChart(visibleCustomerVolumeRows, sourceScope.hasWasteData !== false);
+    const wasteConsistency = validateVolumeWasteConsistency(sourceScope, STATE.kpis, allCustomerVolumeRows);
+    console.group('Landa InsightPro+ Volume/Waste Reconciliation');
+    console.info(`Detected Printed Sheets field: ${STATE.volumeModel?.contract?.printedSheetsField || 'unknown'}`);
+    console.info(`Detected Job Type field: ${STATE.volumeModel?.contract?.jobTypeField || 'unknown'}`);
+    console.info(`Unique Job Types: ${(STATE.volumeModel?.contract?.uniqueJobTypes || []).join(', ')}`);
+    console.info(`Normalized volume rows: ${STATE.volumeModel?.contract?.normalizedRowCount || 0}`);
+    console.info(`Special rows: ${STATE.volumeModel?.global?.specialRowCount || 0}`);
+    console.info(`Global totalPrintedSheets: ${wasteConsistency.globalTotalAgg}`);
+    console.info(`Global goodPrintedSheets: ${wasteConsistency.globalGoodAgg}`);
+    console.info(`Global wastePrintedSheets: ${wasteConsistency.globalWasteAgg}`);
+    console.info(`Global wasteRatio: ${computeWasteRatio(wasteConsistency.globalWasteAgg, wasteConsistency.globalTotalAgg)}`);
+    console.info(`Sum byPress totalPrintedSheets: ${wasteConsistency.globalTotalAgg}`);
+    console.info(`Sum byPress goodPrintedSheets: ${wasteConsistency.globalGoodAgg}`);
+    console.info(`Sum byPress wastePrintedSheets: ${wasteConsistency.globalWasteAgg}`);
+    console.info(`KPI volume: ${STATE.kpis?.totalVolume || 0}`);
+    console.info(`KPI waste sheets: ${STATE.kpis?.totalWasteVolume || 0}`);
+    console.info(`KPI waste ratio: ${STATE.kpis?.wasteRatio || 0}`);
+    console.info(`Chart total good: ${(allCustomerVolumeRows || []).reduce((sum, row) => sum + Number(row?.goodSheets || row?.goodPrintedSheets || 0), 0)}`);
+    console.info(`Chart total waste: ${wasteConsistency.chartWaste}`);
+    console.info(`Validation status: ${wasteConsistency.ok ? 'GREEN' : 'RED'}`);
+    console.groupEnd();
     if (!visibleCustomerVolumeRows.length) setCanvasState('customerVolumeChart', 'No print volume rows after source-native scope (volume owns press/day and native job metadata).');
     const totalWasteInScope = allCustomerVolumeRows.reduce((sum, row) => sum + Number(row.wasteSheets || row.wastePrintedSheets || 0), 0);
     const normalizedJobTypes = [...new Set((sourceScope.filteredVolumeRowsNative || []).map(row => normalizeJobType(row?.jobType)).filter(Boolean))].sort();
@@ -5405,6 +5519,7 @@
         dataContract,
         onProgress: ({ completed, total, detail }) => setProcessingState({ stage: 'normalizing', status: 'running', percent: 0.34 + ((completed / Math.max(1, total)) * 0.33), detail })
       });
+      STATE.volumeModel = buildCanonicalVolumeModel(volumeRaw, volumeResult.jobs || [], dataContract);
       const pressLookup = buildPressNameLookup(errors, volumeResult.jobs || []);
       setProcessingState({ stage: 'normalizing', status: 'running', percent: 0.67, detail: 'Normalizing Availability rows…' });
       const availabilityResult = await normalizeAvailabilityRows(availabilityRaw, pressLookup, {
