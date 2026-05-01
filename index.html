@@ -517,7 +517,11 @@
 
   const STATE = {
     files: { errors: null, availability: null, volume: null },
-    validation: { errors: false, availability: false, volume: false },
+    validation: {
+      errors: { status: 'invalid', blocking: true, message: 'Errors dataset is required.', rowCount: null, warnings: [], errors: [] },
+      availability: { status: 'valid', blocking: false, message: 'Optional dataset not selected.', rowCount: null, warnings: [], errors: [] },
+      volume: { status: 'valid', blocking: false, message: 'Optional dataset not selected.', rowCount: null, warnings: [], errors: [] }
+    },
     cachedRaw: { errors: null, availability: null, volume: null },
     normalized: { events: [], availability: [], volume: [] },
     merged: { events: [], mergedRows: [], stats: {}, summary: null, pressRisk: [], sourceTables: { errorsAgg: [], availabilityAgg: [], volumeAgg: [] } },
@@ -962,25 +966,62 @@
     el.textContent = msg;
   }
 
+  function createValidationState({ status = 'invalid', blocking = true, message = '', rowCount = null, warnings = [], errors = [] } = {}) {
+    return { status, blocking, message, rowCount, warnings: [...warnings], errors: [...errors] };
+  }
+
+  function isFileAccepted(key) {
+    const v = STATE.validation?.[key];
+    if (v === true) return true;
+    return Boolean(v && (v.status === 'valid' || v.status === 'warning') && !v.blocking);
+  }
+
   function setFileUI(key) {
     const file = STATE.files[key];
     document.getElementById(`${key}Token`).textContent = file ? file.name : 'No file selected';
     const badge = document.getElementById(`${key}Badge`);
+    const validation = STATE.validation[key];
     if (!file) {
       badge.className = `badge ${key === 'errors' ? 'missing' : 'optional'}`;
       badge.textContent = key === 'errors' ? 'missing' : 'optional';
-    } else if (STATE.validation[key]) {
+    } else if (validation?.status === 'valid') {
       badge.className = 'badge validated';
       badge.textContent = 'validated';
+    } else if (validation?.status === 'warning') {
+      badge.className = 'badge loaded';
+      badge.textContent = 'warning';
+    } else if (validation?.status === 'invalid') {
+      badge.className = 'badge missing';
+      badge.textContent = 'invalid';
     } else {
       badge.className = 'badge loaded';
-      badge.textContent = 'loaded';
+      badge.textContent = 'validating';
     }
     updateRunButtonState();
   }
 
   function updateRunButtonState() {
-    els.runBtn.disabled = !STATE.files.errors || STATE.analysisRunning;
+    const hasRequired = Boolean(STATE.files.errors);
+    const requiredAccepted = isFileAccepted('errors');
+    const hasBlockingOptional = ['availability', 'volume'].some(key => {
+      const fileChosen = Boolean(STATE.files[key]);
+      return fileChosen && !isFileAccepted(key);
+    });
+    els.runBtn.disabled = !hasRequired || !requiredAccepted || STATE.analysisRunning || hasBlockingOptional;
+    if (STATE.analysisRunning) return;
+    if (!hasRequired) {
+      setProcessingState({ stage: 'reading', status: 'idle', percent: 0, detail: 'Upload and validate files to begin processing.' });
+      return;
+    }
+    if (!requiredAccepted) {
+      setProcessingState({ stage: 'validating', status: 'error', percent: 1, detail: 'Errors dataset is not valid yet. Fix file issues before running analysis.' });
+      return;
+    }
+    if (hasBlockingOptional) {
+      setProcessingState({ stage: 'validating', status: 'warning', percent: 1, detail: 'One or more optional datasets are invalid and excluded from run until replaced or cleared.' });
+      return;
+    }
+    setProcessingState({ stage: 'validating', status: 'success', percent: 1, detail: 'Ready to run analysis.' });
   }
 
   function setFileProgressUI(key, { state = 'idle', progress = 0, label = '' } = {}) {
@@ -5628,6 +5669,13 @@
 
   function validateInputFiles() {
     if (!STATE.files.errors) return { ok: false, message: 'Errors dataset is required.' };
+    if (!isFileAccepted('errors')) {
+      return { ok: false, message: STATE.validation?.errors?.message || 'Errors dataset is invalid. Replace or clear and re-upload.' };
+    }
+    const blockingOptional = ['availability', 'volume'].filter(key => STATE.files[key] && !isFileAccepted(key));
+    if (blockingOptional.length) {
+      return { ok: false, message: `Optional dataset invalid: ${blockingOptional.join(', ')}. Replace or clear invalid files before running analysis.` };
+    }
     return { ok: true };
   }
 
@@ -5826,7 +5874,7 @@
     } finally {
       STATE.analysisRunning = false;
       STATE.analysisController = null;
-      document.getElementById('runBtn').disabled = !STATE.validation.errors;
+      document.getElementById('runBtn').disabled = !isFileAccepted('errors');
     }
   }
 
@@ -5857,10 +5905,12 @@
     try {
       const rows = await loadRowsFromFile(file);
       const detected = detectDatasetType(rows);
-      const key = detected === 'availability' || detected === 'volume' ? detected : 'errors';
+      const inferred = inferDatasetFromFileName(file?.name || '');
+      const isRecognized = detected === 'errors' || detected === 'availability' || detected === 'volume';
+      const key = isRecognized ? detected : (inferred === 'unknown' ? null : inferred);
       return { key, file, rows };
     } catch {
-      return { key: 'errors', file, rows: null };
+      return { key: null, file, rows: null, error: 'Failed to parse file during classification.' };
     }
   }
 
@@ -5872,19 +5922,38 @@
     await shortYield();
 
     const assignments = await Promise.all(files.map(classifyIncomingFile));
-    assignments.forEach(({ key, file, rows }) => {
+    const byKey = new Map();
+    assignments.forEach((entry) => {
+      const { key, file, rows, error } = entry;
+      if (!key) {
+        console.warn('[intake-unassigned-file]', file?.name || 'unnamed file', error || 'unknown dataset');
+        setStatus(`Skipped unrecognized file: ${file?.name || 'Unnamed file'}. Rename or use a supported dataset schema.`, 'warning');
+        return;
+      }
+      if (byKey.has(key)) {
+        console.warn('[intake-duplicate-dataset]', { key, replaced: byKey.get(key)?.file?.name, incoming: file?.name });
+      }
+      byKey.set(key, { key, file, rows });
+    });
+    byKey.forEach(({ key, file, rows }) => {
       STATE.files[key] = file;
       STATE.cachedRaw[key] = rows;
+      STATE.validation[key] = createValidationState({ status: 'warning', blocking: false, message: 'Validation in progress…', rowCount: null });
       setFileUI(key);
     });
-    await Promise.all(likelyKeys.map(key => validateSingleFile(key, { progressStarted: true })));
+    await Promise.all([...byKey.keys()].map(key => validateSingleFile(key, { progressStarted: true })));
+    updateRunButtonState();
   }
 
   function clearFiles() {
     markAnalysisCanceled('Canceled due to file reset.');
     STATE.files = { errors: null, availability: null, volume: null };
     STATE.cachedRaw = { errors: null, availability: null, volume: null };
-    STATE.validation = { errors: false, availability: false, volume: false };
+    STATE.validation = {
+      errors: createValidationState({ status: 'invalid', blocking: true, message: 'Errors dataset is required.', rowCount: null }),
+      availability: createValidationState({ status: 'valid', blocking: false, message: 'Optional dataset not selected.', rowCount: null }),
+      volume: createValidationState({ status: 'valid', blocking: false, message: 'Optional dataset not selected.', rowCount: null })
+    };
     STATE.normalized = { events: [], availability: [], volume: [] };
     STATE.merged = { events: [], mergedRows: [], stats: {}, summary: null, pressRisk: [], sourceTables: { errorsAgg: [], availabilityAgg: [], volumeAgg: [] } };
     STATE.filtered = [];
@@ -5944,7 +6013,9 @@
   async function validateSingleFile(key, { progressStarted = false } = {}) {
     const file = STATE.files[key];
     if (!file) {
-      STATE.validation[key] = false;
+      STATE.validation[key] = key === 'errors'
+        ? createValidationState({ status: 'invalid', blocking: true, message: 'Errors dataset is required.', rowCount: null })
+        : createValidationState({ status: 'valid', blocking: false, message: 'Optional dataset not selected.', rowCount: null });
       STATE.cachedRaw[key] = null;
       resetFileProgress(key);
       setFileUI(key);
@@ -5957,15 +6028,44 @@
       if (key === 'errors') await normalizeErrorsRows(rows.slice(0, Math.min(rows.length, 120)));
       if (key === 'availability') await normalizeAvailabilityRows(rows.slice(0, Math.min(rows.length, 120)));
       if (key === 'volume') await normalizeVolumeRows(rows.slice(0, Math.min(rows.length, 120)), { dataContract: buildDataContract({ volume: rows }) });
-      STATE.validation[key] = true;
+      STATE.validation[key] = createValidationState({
+        status: 'valid',
+        blocking: false,
+        message: `${key} dataset validated successfully.`,
+        rowCount: rows.length
+      });
       await finishFileProgress(key, true);
     } catch (error) {
-      STATE.validation[key] = true;
-      console.warn(`[validation-warning] ${key} dataset validation warning. Loading dataset for analysis continuity.`, error);
-      await finishFileProgress(key, true, 'Loaded with warnings');
-      if (key === 'errors') setStatus('Errors dataset loaded with warnings. Analysis will still run.', 'warning');
+      const isRequired = key === 'errors';
+      STATE.validation[key] = createValidationState({
+        status: 'invalid',
+        blocking: true,
+        message: `${key} dataset validation failed: ${error?.message || 'Unknown validation error.'}`,
+        rowCount: Array.isArray(STATE.cachedRaw[key]) ? STATE.cachedRaw[key].length : null,
+        errors: [error?.message || 'Validation failed']
+      });
+      if (!isRequired) {
+        STATE.files[key] = null;
+        STATE.cachedRaw[key] = null;
+        STATE.validation[key] = createValidationState({
+          status: 'warning',
+          blocking: false,
+          message: `${key} dataset is unreadable and was excluded from analysis.`,
+          rowCount: null,
+          warnings: [error?.message || 'Validation failed; optional dataset excluded']
+        });
+      }
+      console.warn(`[validation-${isRequired ? 'error' : 'warning'}] ${key}`, error);
+      await finishFileProgress(key, !isRequired, isRequired ? 'Validation failed' : 'Excluded (optional)');
+      setStatus(
+        isRequired
+          ? 'Errors dataset is invalid. Replace or clear the file before running analysis.'
+          : `${key} dataset is invalid and has been excluded. Analysis can continue with other valid datasets.`,
+        isRequired ? 'error' : 'warning'
+      );
     }
     setFileUI(key);
+    updateRunButtonState();
   }
 
   
@@ -6132,6 +6232,7 @@ function bind() {
         console.log('[file-selected]', key, file?.name, file?.size);
         if (!file) return;
         STATE.files[key] = file;
+        STATE.validation[key] = createValidationState({ status: 'warning', blocking: false, message: 'Validation in progress…', rowCount: null });
         setFileUI(key);
         updateRunButtonState();
         try {
