@@ -122,7 +122,7 @@
     .zone-row .meta { color:#b9c9e1; font-size:.79rem; margin-top:6px; line-height:1.35; }
     .chart-empty-state { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; text-align:center; color:var(--muted); font-size:.86rem; padding:14px; background:rgba(12,17,25,.35); border:1px dashed rgba(255,255,255,.14); border-radius:10px; pointer-events:none; }
     .micro { color:var(--muted); font-size:.82rem; margin:6px 0 8px; }
-    .dashboard-status { margin-bottom:10px; border:1px solid rgba(171,193,230,.2); border-radius:12px; padding:10px 12px; background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(255,255,255,.02)); }
+    .dashboard-status { margin-bottom:8px; border:1px solid var(--border); border-radius:10px; padding:8px 10px; background:rgba(255,255,255,.02); }
     .dashboard-status.green { border-color:rgba(87,201,138,.45); background:rgba(87,201,138,.12); }
     .dashboard-status.warning { border-color:rgba(240,177,101,.45); background:rgba(240,177,101,.12); }
     .dashboard-status.red { border-color:rgba(243,107,99,.45); background:rgba(243,107,99,.12); }
@@ -192,60 +192,9 @@
     .summary-kpi-card .value{font-size:1.05rem;font-weight:700;margin-top:5px}
     .summary-preview{border:1px solid var(--border);background:#fff;border-radius:10px;padding:10px;max-height:420px;overflow:auto}
     .summary-preview iframe{width:100%;height:380px;border:0}
-    .command-shell{display:grid;grid-template-columns:270px minmax(0,1fr) 360px;gap:16px;align-items:start}.card{border-radius:16px;border:1px solid rgba(180,202,235,.16);background:linear-gradient(180deg,rgba(19,28,44,.96),rgba(12,19,31,.96));box-shadow:0 10px 30px rgba(0,0,0,.35)}
-    .command-sidebar{position:sticky;top:10px;display:grid;gap:10px;height:calc(100vh - 24px)}
-    .side-nav{display:grid;gap:6px;margin-top:8px}
-    .side-nav-item{display:flex;align-items:center;gap:10px;background:transparent;color:#d5e2f8;border:1px solid transparent;border-radius:12px;padding:11px 12px;text-align:left;cursor:pointer;font-weight:580;transition:all .2s ease}
-    .side-nav-item:hover{border-color:var(--border);background:rgba(255,255,255,.04)}
-    .side-nav-item.active{background:linear-gradient(140deg, rgba(104,125,255,.35), rgba(62,115,212,.18));border-color:rgba(137,163,255,.65);box-shadow:inset 0 0 0 1px rgba(200,217,255,.1),0 6px 24px rgba(75,103,238,.3)}
-    .sidebar-status{padding:10px}
-    .collapse-nav{margin-top:auto}
-    .command-main{min-width:0}
-    .command-header{margin-bottom:8px}
-    .command-grid .card{background:linear-gradient(180deg,rgba(255,255,255,.03),rgba(255,255,255,.01))}
-    
-    :root {
-      --bg-app:#060a12;--bg-sidebar:#0b1220;--bg-panel:#101a2b;--bg-card:#131f33;--border-soft:rgba(170,194,224,.22);
-      --text-primary:#edf4ff;--text-muted:#93a8c7;--accent-blue:#6f8dff;--accent-red:#f36b63;--accent-amber:#f0b165;--accent-green:#57c98a;--accent-cyan:#3ec7de;
-      --radius-card:14px;--shadow-panel:0 14px 30px rgba(0,0,0,.35);
-    }
-    .command-shell{display:grid;grid-template-columns:260px 1fr 320px;gap:12px;align-items:start}
-    .command-sidebar{position:sticky;top:10px;height:calc(100vh - 20px);background:linear-gradient(180deg,#0a1120,#0b1524);border:1px solid var(--border-soft);border-radius:18px;padding:14px;display:flex;flex-direction:column;gap:12px;box-shadow:var(--shadow-panel)}
-    .sidebar-brand{display:flex;justify-content:space-between;align-items:center;font-weight:700}
-    .command-main{display:grid;gap:10px}
-    .critical-status-banner{border:1px solid rgba(243,107,99,.45);background:linear-gradient(180deg,rgba(243,107,99,.22),rgba(243,107,99,.1));border-radius:14px;padding:12px}
-    .critical-status-banner.warning{border-color:rgba(240,177,101,.45);background:linear-gradient(180deg,rgba(240,177,101,.2),rgba(240,177,101,.08));}
-    .critical-status-banner.stable{border-color:rgba(87,201,138,.45);background:linear-gradient(180deg,rgba(87,201,138,.2),rgba(87,201,138,.08));}
-    .command-meta-row{font-size:.82rem;color:var(--text-muted);padding:8px 10px;border:1px solid var(--border-soft);border-radius:12px;background:rgba(255,255,255,.03)}
-    .command-kpi-grid{display:grid;grid-template-columns:repeat(7,minmax(120px,1fr));gap:8px}
-    .command-kpi-grid .kpi{background:var(--bg-card);border:1px solid var(--border-soft);border-radius:12px}
-    .executive-insights-row{display:grid;grid-template-columns:2fr 1fr;gap:10px}
-    .key-insights-panel,.action-center-panel,.command-chart-grid article,.ai-assistant-rail,.recent-alerts-strip,.system-health-card{background:var(--bg-panel);border:1px solid var(--border-soft);border-radius:14px;padding:12px}
-    .command-chart-grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:10px}
-    .command-chart-grid .span-4{grid-column:span 4}.command-chart-grid .span-6{grid-column:span 6}
-    .assistant-rail,.ai-assistant-rail{position:sticky;top:16px;align-self:start;display:grid;gap:10px}
-    .recent-alerts-strip{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
-    .drilldown-shell .summary-stat,.drilldown-shell .card{border-color:var(--border-soft);background:var(--bg-panel)}
-    @media(max-width:1320px){.command-shell{grid-template-columns:240px 1fr}.ai-assistant-rail{grid-column:1/-1;position:static}}
-    @media(max-width:1000px){.command-shell{grid-template-columns:1fr}.command-sidebar{position:static;height:auto}.command-kpi-grid{grid-template-columns:repeat(2,minmax(140px,1fr))}.executive-insights-row{grid-template-columns:1fr}.command-chart-grid{grid-template-columns:1fr}.recent-alerts-strip{grid-template-columns:1fr 1fr}}
-.assistant-rail{position:sticky;top:16px;align-self:start;padding:14px;display:grid;gap:10px}.kpi{padding:13px;border-radius:14px;background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(255,255,255,.015));border:1px solid rgba(178,197,228,.2)}.v{font-size:1.35rem;font-weight:760}.k{font-size:.7rem;color:#9ab0d0}
 
-    @media(max-width:1320px){.command-shell{grid-template-columns:240px 1fr}.assistant-rail{grid-column:1 / -1;position:static}}
-    @media(max-width:1000px){ .command-shell{grid-template-columns:1fr}.command-sidebar{position:static;height:auto}.kpis{grid-template-columns:repeat(2,minmax(150px,1fr));}.topbar{grid-template-columns:1fr}.span-6,.span-4,.span-8,.span-3{grid-column:span 12}.file-row{grid-template-columns:1fr} .file-state{justify-content:flex-start}.press-analytics-grid{grid-template-columns:1fr}.press-chart-area{height:280px;min-height:280px;}.press-chart-area.primary{height:340px;min-height:340px;} }
+    @media(max-width:1000px){ .kpis{grid-template-columns:repeat(2,minmax(150px,1fr));}.topbar{grid-template-columns:1fr}.span-6,.span-4,.span-8,.span-3{grid-column:span 12}.file-row{grid-template-columns:1fr} .file-state{justify-content:flex-start}.press-analytics-grid{grid-template-columns:1fr}.press-chart-area{height:280px;min-height:280px;}.press-chart-area.primary{height:340px;min-height:340px;} }
     @media(max-width:760px){ .summary-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr));}.kpi-row.core,.kpi-row.context{grid-template-columns:repeat(2,minmax(150px,1fr));} }
-  
-    /* Command Center UI layer */
-    .cc-app{display:grid;grid-template-columns:260px minmax(0,1fr) 330px;gap:14px;min-height:calc(100vh - 30px)}
-    .cc-sidebar,.cc-assistant,.cc-panel{background:linear-gradient(180deg,#0f1828,#0a1220);border:1px solid rgba(178,197,228,.2);border-radius:14px}
-    .cc-sidebar{padding:12px;display:flex;flex-direction:column;gap:10px}.cc-main{display:grid;gap:10px}.cc-header{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;padding:12px}.cc-status-banner,.cc-meta-row,.cc-kpi-grid,.cc-page,.cc-insights-row,.cc-action-center,.cc-chart-grid,.cc-bottom-strip{background:rgba(255,255,255,.02);border:1px solid rgba(178,197,228,.2);border-radius:12px;padding:10px}
-    .cc-status-banner.critical{border-color:rgba(243,107,99,.6);background:rgba(243,107,99,.14)}.cc-status-banner.warning{border-color:rgba(240,177,101,.6);background:rgba(240,177,101,.12)}.cc-status-banner.stable{border-color:rgba(87,201,138,.6);background:rgba(87,201,138,.12)}
-    .cc-nav{display:grid;gap:6px}.cc-nav button{padding:9px;border-radius:10px;border:1px solid transparent;background:transparent;color:#dbe7fa;text-align:left}.cc-nav button.active{border-color:rgba(123,141,255,.6);background:rgba(123,141,255,.2)}
-    .cc-kpi-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px}.cc-kpi{padding:9px;border:1px solid rgba(178,197,228,.2);border-radius:10px;background:rgba(255,255,255,.03)}
-    .cc-insights-row,.cc-chart-grid,.cc-bottom-strip{display:grid;gap:8px}.cc-insights-row{grid-template-columns:2fr 1fr}.cc-chart-grid{grid-template-columns:repeat(12,minmax(0,1fr))}.cc-chart{grid-column:span 6;padding:9px;border:1px solid rgba(178,197,228,.2);border-radius:10px}.cc-mini-bars{display:grid;gap:6px}.cc-bar{display:grid;grid-template-columns:120px 1fr auto;gap:8px;align-items:center}.cc-bar-fill{height:8px;border-radius:999px;background:linear-gradient(90deg,#6f8dff,#3ec7de)}
-    .cc-assistant{position:sticky;top:10px;padding:12px;display:grid;gap:8px;height:fit-content}.cc-chips{display:flex;flex-wrap:wrap;gap:6px}.cc-chip{border:1px solid rgba(178,197,228,.2);border-radius:999px;padding:5px 8px;background:rgba(255,255,255,.03);cursor:pointer}.cc-settings-row{display:flex;justify-content:space-between;padding:8px;border:1px solid rgba(178,197,228,.2);border-radius:10px}
-    .cc-sidebar.collapsed{width:72px}.cc-sidebar.collapsed .cc-nav span,.cc-sidebar.collapsed .cc-brand-text,.cc-sidebar.collapsed .cc-status-card{display:none}
-    @media(max-width:1200px){.cc-app{grid-template-columns:1fr}.cc-assistant{position:static}.cc-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.cc-insights-row{grid-template-columns:1fr}.cc-chart{grid-column:span 12}}
-
   </style>
 </head>
 <body>
@@ -322,59 +271,40 @@
     </article>
   </section>
 
-  <section id="dashboardScreen" class="hidden command-shell">
-    <aside class="command-sidebar">
+  <section id="dashboardScreen" class="hidden">
+    <header class="topbar">
       <div>
-        <div class="eyebrow">Navigation</div>
-        <nav class="side-nav">
-          <button class="side-nav-item active" data-view="command-center">📡 <span>Command Center</span></button><button class="side-nav-item" data-view="overview">🧭 <span>Overview</span></button><button class="side-nav-item" data-view="press-performance">🖨️ <span>Press Performance</span></button><button class="side-nav-item" data-view="drilldown-explorer">🔎 <span>Drilldown Explorer</span></button><button class="side-nav-item" data-view="alerts-events">🚨 <span>Alerts & Events</span></button><button class="side-nav-item" data-view="data-quality">✅ <span>Data Quality</span></button>
-        </nav>
-      </div>
-      <section class="sidebar-status card">
-        <h4>Data Status</h4>
-        <span id="headerDataStatus" class="meta-pill ok">All data validated</span>
-        <div class="micro">7/7 metrics valid</div>
-        <button class="btn secondary" data-action="view-validation">View validation</button>
-        <div class="micro">Last refresh: <span id="sidebarRefreshTime">—</span> • <span style="color:#57c98a;">● Live</span></div>
-      </section>
-      <button class="btn secondary collapse-nav">Collapse</button>
-    </aside>
-
-    <section class="command-main">
-    <header class="topbar command-header">
-      <div>
-        <h1 class="brand-title">Operational Command Center</h1>
-        <p class="subtitle">Real-time operational intelligence for press performance</p>
+        <div class="eyebrow">Operational Command Center</div>
+        <h1 class="brand-title">Landa Insight<span class="brand-plus">Pro+</span></h1>
+        <p class="subtitle">Operational intelligence platform for press performance, downtime analysis, and production insights.</p>
         <p id="datasetMeta" class="subtitle">Dataset not loaded</p>
+        <div class="meta-indicators">
+          <span id="dataRangeIndicator" class="meta-pill">Data range: N/A</span>
+          <span id="headerDataStatus" class="meta-pill ok hidden">Data status</span>
+        </div>
       </div>
       <div class="controls">
-        <span id="dataRangeIndicator" class="meta-pill">Date range: N/A</span>
-        <button id="summaryBtn" class="btn secondary">Filters</button>
-        <button id="exportBtn" class="btn secondary">Share</button>
         <button id="replaceBtn" class="btn">Load new dataset</button>
+        <button id="exportBtn" class="btn secondary">Export filtered CSV</button>
+        <button id="summaryBtn" class="btn secondary">Summary</button>
       </div>
     </header>
-    <section id="executiveSummaryCard" class="critical-status-banner" style="margin-bottom:8px;"></section>
-    <section class="command-meta-row" id="metaRow">Data validated: <span id="metaValidatedAt">—</span> • Source rows: <span id="metaRowCount">—</span> • Confidence: HIGH</section>
-    <section id="kpiStrip" class="command-kpi-grid"></section>
+
+    <section id="kpiStrip" class="kpis"></section>
     <section id="dashboardStatusPanel" class="dashboard-status hidden"></section>
 
-    <section class="filters"><span class="meta-pill">Scope Filters</span>
+    <section id="executiveSummaryCard" class="card" style="margin-bottom:12px;"></section>
+
+    <section class="filters">
       <select id="pressFilter" class="select"><option value="all">All presses</option></select>
       <select id="subsystemFilter" class="select"><option value="all">All subsystems</option></select>
       <select id="versionFilter" class="select"><option value="all">All software versions</option></select>
       <input id="startDateFilter" type="date" title="Start date" />
       <input id="endDateFilter" type="date" title="End date" />
-      <input id="searchInput" placeholder="Search press, alert, subsystem, version" />
+      <input id="searchFilter" placeholder="Search press, alert, subsystem, version" />
     </section>
 
-    <main class="command-workspace">
-      <section class="executive-insights-row">
-      <article class="key-insights-panel" id="keyInsightsCard"></article>
-      <article class="action-center-panel" id="actionCenterCard"></article>
-      </section>
-      <section class="command-chart-grid">
-      
+    <main class="grid">
       <article class="card span-12 press-analysis-shell">
         <div class="chart-head"><h3>Press Abnormality Investigation</h3></div>
         <div class="micro" id="pressValidationNote">Validating scoped duration data before render…</div>
@@ -398,22 +328,22 @@
       </article>
 
       <article class="card span-6" data-rank-card="subsystem">
-        <div class="chart-head"><h3>Events by Subsystem</h3><div class="chart-tools"><div class="metric-toggle" data-chart-toggle="subsystem"><button class="btn active" data-mode="events">Events</button><button class="btn" data-mode="duration">Duration</button></div><button class="btn secondary" data-expand="subsystem">Show all</button></div></div>
+        <div class="chart-head"><h3>Top Subsystems</h3><div class="chart-tools"><div class="metric-toggle" data-chart-toggle="subsystem"><button class="btn active" data-mode="events">Events</button><button class="btn" data-mode="duration">Duration</button></div><button class="btn secondary" data-expand="subsystem">Show all</button></div></div>
         <div class="micro">Metric source shown dynamically by mode.</div><div class="chart-area"><canvas id="subsystemChart"></canvas></div>
       </article>
 
       <article class="card span-6" data-rank-card="alert">
-        <div class="chart-head"><h3>Events by Alert (Top 8)</h3><div class="chart-tools"><div class="metric-toggle" data-chart-toggle="alert"><button class="btn active" data-mode="events">Events</button><button class="btn" data-mode="duration">Duration</button></div><button class="btn secondary" data-expand="alert">Show all</button></div></div>
+        <div class="chart-head"><h3>Top Errors</h3><div class="chart-tools"><div class="metric-toggle" data-chart-toggle="alert"><button class="btn active" data-mode="events">Events</button><button class="btn" data-mode="duration">Duration</button></div><button class="btn secondary" data-expand="alert">Show all</button></div></div>
         <div class="micro">Alert ranking uses Name, with Alert Title fallback.</div><div class="chart-area"><canvas id="alertChart"></canvas></div>
       </article>
 
       <article class="card span-6" data-rank-card="version">
-        <div class="chart-head"><h3>Downtime by Press (Top 10)</h3><div class="chart-tools"><div class="metric-toggle" data-chart-toggle="version"><button class="btn active" data-mode="events">Events</button><button class="btn" data-mode="duration">Duration</button></div><button class="btn secondary" data-expand="version">Show all</button></div></div>
+        <div class="chart-head"><h3>Top Versions</h3><div class="chart-tools"><div class="metric-toggle" data-chart-toggle="version"><button class="btn active" data-mode="events">Events</button><button class="btn" data-mode="duration">Duration</button></div><button class="btn secondary" data-expand="version">Show all</button></div></div>
         <div class="micro">Version exposure with production-normalized context.</div><div class="chart-area"><canvas id="versionChart"></canvas></div>
       </article>
 
       <article class="card span-6">
-        <div class="chart-head"><h3>Waste vs Good Volume</h3><div class="chart-tools"><select id="customerVolumeMetric" class="select"><option value="totalPrintedSheets">Total</option><option value="goodPrintedSheets">Good</option><option value="wastePrintedSheets">Waste only</option><option value="wasteRatio">Waste ratio</option></select><select id="customerVolumeSort" class="select"><option value="desc">Highest first</option><option value="asc">Lowest first</option></select><button id="customerVolumeExpand" class="btn secondary">Show all</button></div></div>
+        <div class="chart-head"><h3>Print Volume By Press</h3><div class="chart-tools"><select id="customerVolumeMetric" class="select"><option value="totalPrintedSheets">Total</option><option value="goodPrintedSheets">Good</option><option value="wastePrintedSheets">Waste only</option><option value="wasteRatio">Waste ratio</option></select><select id="customerVolumeSort" class="select"><option value="desc">Highest first</option><option value="asc">Lowest first</option></select><button id="customerVolumeExpand" class="btn secondary">Show all</button></div></div>
         <div class="micro" id="customerVolumeNote">Stacked bars: muted dollar green = Good Volume, top segment = Waste. Waste color is based on per-press waste ratio.</div><div class="chart-area"><canvas id="customerVolumeChart"></canvas></div>
       </article>
 
@@ -424,31 +354,7 @@
         <div class="micro">Each row combines Errors with matching Availability and Print Volume bucket context.</div>
         <div class="table-wrap"><table id="eventTable"></table></div>
       </article>
-      <article class="card span-8"><h3>Recent Alerts</h3><div id="recentAlertsStrip" class="summary-grid"></div></article>
-      <article class="card span-4"><h3>System Health</h3><p class="micro">Operational state</p><div class="status-chip">✅ Platform operational. Data sync and validation pipelines healthy.</div></article>
-    </section>
-      <section id="recentAlertsRail" class="recent-alerts-strip"></section>
-      <section class="system-health-card" id="systemHealthCard"></section>
-
-      <section id="pageOverview" class="card hidden"><h3>Executive Overview</h3><div id="overviewContent" class="summary-grid"></div></section>
-      <section id="pagePressPerformance" class="card hidden"><h3>Press Performance Workspace</h3><div class="chart-area"><canvas id="pressPerformanceChart"></canvas></div><div id="pressPerformanceTable" class="table-wrap" style="margin-top:8px;"></div></section>
-      <section id="pageDrilldownExplorer" class="card hidden"><h3>Drilldown Explorer</h3><p class="micro">Open KPI cards or chart bars to launch full drilldown drawer with breadcrumbs and traceability.</p><button id="openEventsDrilldown" class="btn secondary">Open Events Drilldown</button><button id="openDowntimeDrilldown" class="btn secondary">Open Downtime Drilldown</button></section>
-      <section id="pageAlertsEvents" class="card hidden"><h3>Alerts & Events</h3><div class="summary-grid"><article class="summary-stat span-4"><div class="label">Total events</div><div class="value" id="alertsTotal"></div></article><article class="summary-stat span-4"><div class="label">Top alert</div><div class="value" id="alertsTop"></div></article><article class="summary-stat span-4"><div class="label">Critical share</div><div class="value" id="alertsCritical"></div></article></div><div class="table-wrap" style="margin-top:8px;"><table id="alertsTable"></table></div></section>
-      <section id="pageAnalysisHub" class="card hidden"><h3>Analysis Hub</h3><div id="analysisHubCards" class="summary-grid"></div></section>
-      <section id="pageAiInsights" class="card hidden"><h3>AI Insights</h3><div id="aiInsightsContent"></div></section>
-      <section id="pageReports" class="card hidden"><h3>Reports</h3><p class="micro">Use Share and Export to generate scoped executive outputs.</p><button class="btn" id="openSummaryFromReports">Open Report Builder</button><div id="reportsSnapshot" class="summary-grid" style="margin-top:10px;"></div></section>
-      <section id="pageDataQuality" class="card hidden"><h3>Data Quality</h3><div id="dataQualityContent"></div></section>
-      <section id="pageSettings" class="card hidden"><h3>Settings</h3><div class="filters"><label class="meta-pill">Default page<select id="defaultLanding" class="select"><option value="command-center">Command Center</option><option value="overview">Overview</option></select></label><button id="toggleAssistant" class="btn secondary">Toggle assistant panel</button><button id="resetPreferences" class="btn secondary">Reset preferences</button></div></section>
     </main>
-    </section>
-    <aside class="assistant-rail ai-assistant-rail" id="aiAssistantRail">
-      <div class="chart-head"><h3>AI Assistant</h3><span class="risk-pill risk-medium">BETA</span></div>
-      <p class="micro">Ask operational questions based on the current validated scope.</p>
-      <div class="exec-action-line"><button class="impact-chip" data-action="ask-downtime">Why is downtime high?</button><button class="impact-chip" data-action="ask-fix">What should we fix first?</button><button class="impact-chip" data-action="ask-waste">Show the top waste driver</button></div>
-      <div id="assistantAnswer" class="status-chip" style="margin-top:10px;">Awaiting analysis scope…</div>
-      <button class="btn secondary" style="margin-top:10px;" data-action="view-key-drivers">Show actions</button>
-      <div class="controls" style="margin-top:12px;"><input id="assistInput" class="select" placeholder="Ask a question..." style="width:100%;" /><button class="btn" data-action="assistant-send">Send</button></div>
-    </aside>
   </section>
 </div>
 
@@ -517,11 +423,7 @@
 
   const STATE = {
     files: { errors: null, availability: null, volume: null },
-    validation: {
-      errors: { status: 'invalid', blocking: true, message: 'Errors dataset is required.', rowCount: null, warnings: [], errors: [] },
-      availability: { status: 'valid', blocking: false, message: 'Optional dataset not selected.', rowCount: null, warnings: [], errors: [] },
-      volume: { status: 'valid', blocking: false, message: 'Optional dataset not selected.', rowCount: null, warnings: [], errors: [] }
-    },
+    validation: { errors: false, availability: false, volume: false },
     cachedRaw: { errors: null, availability: null, volume: null },
     normalized: { events: [], availability: [], volume: [] },
     merged: { events: [], mergedRows: [], stats: {}, summary: null, pressRisk: [], sourceTables: { errorsAgg: [], availabilityAgg: [], volumeAgg: [] } },
@@ -564,18 +466,6 @@
     availabilityDefinitions: null,
     dataContract: null,
     renderQueued: false,
-    ui: {
-      activeView: 'command-center',
-      activeSubView: null,
-      sidebarCollapsed: false,
-      assistantOpen: false,
-      filtersOpen: true,
-      selectedDateRange: 'all',
-      shareMenuOpen: false,
-      settings: {},
-      filters: { press: 'all', subsystem: 'all', version: 'all', startDay: '', endDay: '', query: '' }
-    },
-    assistantHistory: []
   };
 
   const CURRENT_UI_VERSION_V2 = 'CURRENT_UI_VERSION_V2';
@@ -966,62 +856,25 @@
     el.textContent = msg;
   }
 
-  function createValidationState({ status = 'invalid', blocking = true, message = '', rowCount = null, warnings = [], errors = [] } = {}) {
-    return { status, blocking, message, rowCount, warnings: [...warnings], errors: [...errors] };
-  }
-
-  function isFileAccepted(key) {
-    const v = STATE.validation?.[key];
-    if (v === true) return true;
-    return Boolean(v && (v.status === 'valid' || v.status === 'warning') && !v.blocking);
-  }
-
   function setFileUI(key) {
     const file = STATE.files[key];
     document.getElementById(`${key}Token`).textContent = file ? file.name : 'No file selected';
     const badge = document.getElementById(`${key}Badge`);
-    const validation = STATE.validation[key];
     if (!file) {
       badge.className = `badge ${key === 'errors' ? 'missing' : 'optional'}`;
       badge.textContent = key === 'errors' ? 'missing' : 'optional';
-    } else if (validation?.status === 'valid') {
+    } else if (STATE.validation[key]) {
       badge.className = 'badge validated';
       badge.textContent = 'validated';
-    } else if (validation?.status === 'warning') {
-      badge.className = 'badge loaded';
-      badge.textContent = 'warning';
-    } else if (validation?.status === 'invalid') {
-      badge.className = 'badge missing';
-      badge.textContent = 'invalid';
     } else {
       badge.className = 'badge loaded';
-      badge.textContent = 'validating';
+      badge.textContent = 'loaded';
     }
     updateRunButtonState();
   }
 
   function updateRunButtonState() {
-    const hasRequired = Boolean(STATE.files.errors);
-    const requiredAccepted = isFileAccepted('errors');
-    const hasBlockingOptional = ['availability', 'volume'].some(key => {
-      const fileChosen = Boolean(STATE.files[key]);
-      return fileChosen && !isFileAccepted(key);
-    });
-    els.runBtn.disabled = !hasRequired || !requiredAccepted || STATE.analysisRunning || hasBlockingOptional;
-    if (STATE.analysisRunning) return;
-    if (!hasRequired) {
-      setProcessingState({ stage: 'reading', status: 'idle', percent: 0, detail: 'Upload and validate files to begin processing.' });
-      return;
-    }
-    if (!requiredAccepted) {
-      setProcessingState({ stage: 'validating', status: 'error', percent: 1, detail: 'Errors dataset is not valid yet. Fix file issues before running analysis.' });
-      return;
-    }
-    if (hasBlockingOptional) {
-      setProcessingState({ stage: 'validating', status: 'warning', percent: 1, detail: 'One or more optional datasets are invalid and excluded from run until replaced or cleared.' });
-      return;
-    }
-    setProcessingState({ stage: 'validating', status: 'success', percent: 1, detail: 'Ready to run analysis.' });
+    els.runBtn.disabled = !STATE.files.errors || STATE.analysisRunning;
   }
 
   function setFileProgressUI(key, { state = 'idle', progress = 0, label = '' } = {}) {
@@ -2063,26 +1916,15 @@
     return { events: mergedEvents, mergedRows, sourceTables: { errorsAgg, availabilityAgg, volumeAgg }, stats };
   }
 
-  function getEl(id) { return document.getElementById(id); }
-  function getSelectValue(id, fallback = 'all') {
-    const el = getEl(id);
-    return el && 'value' in el ? el.value : fallback;
-  }
-  function getInputValue(id, fallback = '') {
-    const el = getEl(id);
-    return el && 'value' in el ? el.value : fallback;
-  }
   function currentFilterValues() {
-    const domFilters = {
-      press: getSelectValue('pressFilter', STATE.ui.filters.press || 'all'),
-      subsystem: getSelectValue('subsystemFilter', STATE.ui.filters.subsystem || 'all'),
-      version: getSelectValue('versionFilter', STATE.ui.filters.version || 'all'),
-      startDay: getInputValue('startDateFilter', STATE.ui.filters.startDay || ''),
-      endDay: getInputValue('endDateFilter', STATE.ui.filters.endDay || ''),
-      query: getInputValue('searchInput', STATE.ui.filters.query || '').trim().toLowerCase(),
+    return {
+      press: pressFilter.value,
+      subsystem: subsystemFilter.value,
+      version: versionFilter.value,
+      startDay: startDateFilter.value,
+      endDay: endDateFilter.value,
+      query: searchFilter.value.trim().toLowerCase(),
     };
-    STATE.ui.filters = { ...STATE.ui.filters, ...domFilters };
-    return { ...STATE.ui.filters };
   }
 
   function buildScopedAnalysisLink() {
@@ -2113,13 +1955,12 @@
     const state = parseAnalysisStateFromHash();
     if (!state) return false;
     const filters = state.filters || {};
-    if (filters.press != null && getEl('pressFilter')) getEl('pressFilter').value = filters.press;
-    if (filters.subsystem != null && getEl('subsystemFilter')) getEl('subsystemFilter').value = filters.subsystem;
-    if (filters.version != null && getEl('versionFilter')) getEl('versionFilter').value = filters.version;
-    if (filters.startDay != null && getEl('startDateFilter')) getEl('startDateFilter').value = filters.startDay;
-    if (filters.endDay != null && getEl('endDateFilter')) getEl('endDateFilter').value = filters.endDay;
-    if (filters.query != null && getEl('searchInput')) getEl('searchInput').value = filters.query;
-    STATE.ui.filters = { ...STATE.ui.filters, ...filters };
+    if (filters.press != null) pressFilter.value = filters.press;
+    if (filters.subsystem != null) subsystemFilter.value = filters.subsystem;
+    if (filters.version != null) versionFilter.value = filters.version;
+    if (filters.startDay != null) startDateFilter.value = filters.startDay;
+    if (filters.endDay != null) endDateFilter.value = filters.endDay;
+    if (filters.query != null) searchFilter.value = filters.query;
     if (state.metrics && typeof state.metrics === 'object') {
       STATE.metricByChart = { ...STATE.metricByChart, ...state.metrics };
       if (STATE.metricByChart.press === 'normalized') STATE.metricByChart.press = 'downtime';
@@ -2127,11 +1968,11 @@
     if (state.volumeMetric) {
       STATE.customerVolumeMetric = state.volumeMetric;
       STATE.customerVolumeMode = state.volumeMetric === 'wastePrintedSheets' ? 'waste' : (state.volumeMetric === 'goodPrintedSheets' ? 'good' : (state.volumeMetric === 'wasteRatio' ? 'wasteRatio' : 'total'));
-      if (getEl('customerVolumeMetric')) getEl('customerVolumeMetric').value = state.volumeMetric;
+      if (customerVolumeMetric) customerVolumeMetric.value = state.volumeMetric;
     }
     if (state.volumeSort) {
       STATE.customerVolumeSort = state.volumeSort;
-      if (getEl('customerVolumeSort')) getEl('customerVolumeSort').value = state.volumeSort;
+      if (customerVolumeSort) customerVolumeSort.value = state.volumeSort;
     }
     if (Array.isArray(state.simExclusions)) {
       STATE.drilldown.simulation.appliedExcluded = new Set(state.simExclusions);
@@ -2924,15 +2765,17 @@
 
   function renderKpis(k) {
     const cards = [
-      ['events','🧨','Total Events', metricRegistry.events.format(k.totalEvents), 'Validated event count','blue'],
-      ['downtime','🕒','Downtime', metricRegistry.downtime.format(k.totalDowntime), 'Planned + unplanned','red'],
-      ['mttr','🛠️','MTTR', metricRegistry.mttr.format(k.mttr), 'Average recovery','amber'],
-      ['mtbf','📈','MTBF', metricRegistry.mtbf.format(k.mtbf), 'Time between failures','cyan'],
-      ['volume','📦','Volume', metricRegistry.volume.format(k.totalPrintedSheets), 'Good + waste printed','green'],
-      ['wasteRatio','♻️','Waste Ratio', metricRegistry.wasteRatio.format(k.wasteRatio), 'Waste share','amber'],
-      ['availability','✅','Availability', metricRegistry.availability.format((k.availabilityPercent == null ? null : k.availabilityPercent / 100)), 'Runtime efficiency','green']
-    ].filter(x => !(x[0]==='wasteRatio' && k.wasteRatio==null));
-    document.getElementById('kpiStrip').innerHTML = cards.map(([metricKey,icon,label,value,sub]) => `<article class="kpi clickable" data-kpi-metric="${metricKey}"><div class="k">${icon} ${label}</div><div class="v">${esc(value)}</div><div class="kpi-sub">${esc(sub)}</div></article>`).join('');
+      ['Events', 'events', metricRegistry.events.format(k.totalEvents), metricRegistry.events.label],
+      ['Downtime', 'downtime', metricRegistry.downtime.format(k.totalDowntime), metricRegistry.downtime.label],
+      ['MTTR (Avg Duration)', 'mttr', metricRegistry.mttr.format(k.mttr), 'sum(totalErrorDurationSeconds) / sum(totalEvents)'],
+      ['MTBF', 'mtbf', metricRegistry.mtbf.format(k.mtbf), 'sum(runtimeSeconds) / sum(totalEvents)'],
+      ['Volume', 'volume', metricRegistry.volume.format(k.totalPrintedSheets), metricRegistry.volume.label],
+      ['Waste Ratio', 'wasteRatio', metricRegistry.wasteRatio.format(k.wasteRatio), 'sum(wastePrintedSheets) / sum(totalPrintedSheets)'],
+      ['Availability', 'availability', metricRegistry.availability.format((k.availabilityPercent == null ? null : k.availabilityPercent / 100)), 'sum(runtimeSeconds) / (sum(runtimeSeconds)+sum(downtimeSeconds))'],
+    ];
+    const visibleCards = cards.filter(([_, metricKey]) => !(metricKey === 'wasteRatio' && k.wasteRatio == null));
+    const toCard = ([label, metricKey, value, subtitle]) => `<article class="kpi clickable" role="button" tabindex="0" data-kpi-metric="${metricKey}" title="${esc(subtitle)}"><div class="k">${label}</div><div class="v">${esc(value)}</div><div class="kpi-sub">${esc(subtitle)}</div></article>`;
+    document.getElementById('kpiStrip').innerHTML = `<div class="kpi-row core" style="grid-template-columns:repeat(${Math.max(4, visibleCards.length)},minmax(140px,1fr));">${visibleCards.map(toCard).join('')}</div>`;
   }
 
   function renderExecutiveSummaryCard(summary) {
@@ -2949,8 +2792,8 @@
     const secondaryAction = topError !== 'N/A' ? `Contain dominant error ${topError}` : 'Contain dominant recurring error';
     const actions = [primaryAction, secondaryAction].filter((value, idx, arr) => arr.indexOf(value) === idx).slice(0, 2);
     document.getElementById('executiveSummaryCard').innerHTML = `
-      <div class="chart-head"><h3>Operational Severity</h3><div><button class="btn secondary">Why critical?</button> <button class="btn secondary">View key drivers</button></div></div>
-      <section class="exec-decision-panel" id="criticalStatusWhy">
+      <div class="chart-head"><h3>Operational Status Overview</h3></div>
+      <section class="exec-decision-panel">
         <div class="exec-row" style="gap:10px;flex-wrap:wrap;">
           <span class="exec-severity ${statusClass}">${esc(summary.status || 'WATCH')}</span>
           <span class="exec-headline">Main risk: <strong>${esc(topPress)}</strong> driven by <strong>${esc(topError)}</strong> (press-scoped).</span>
@@ -2971,22 +2814,6 @@
         </div>
         <div class="micro" style="margin:0;">Impact ranked by downtime severity (not event count). Top-press downtime signal: ${downtimeSignal.toFixed(1)}%.</div>
       </section>`;
-    const scope = STATE.sourceScope || {};
-    const rowCount = (scope.filteredErrorEventsNative || []).length + (scope.filteredAvailabilityRowsNative || []).length + (scope.filteredVolumeRowsNative || []).length;
-    const metaAt = new Date().toLocaleString();
-    const metaAtEl = optionalEl('metaValidatedAt'); if (metaAtEl) metaAtEl.textContent = metaAt;
-    const metaRowsEl = optionalEl('metaRowCount'); if (metaRowsEl) metaRowsEl.textContent = rowCount.toLocaleString();
-    const refreshEl = optionalEl('sidebarRefreshTime'); if (refreshEl) refreshEl.textContent = metaAt;
-    const aiAnswer = optionalEl('assistantAnswer');
-    if (aiAnswer) aiAnswer.textContent = `Top risk is ${topPress} with ${topError} as repeated error. Bottleneck subsystem: ${topSubsystem}.`;
-    const insightsHost = optionalEl('keyInsightsCard');
-    if (insightsHost) insightsHost.innerHTML = `<div class="chart-head"><h3>Key Insights</h3><button class="btn secondary">View all</button></div><p class="micro">Updated from the current validated scope.</p><div class="summary-grid"><article class="summary-stat span-4"><div class="label">Top Downtime Driver</div><div class="value">🚨 ${esc(topPress)}</div><div class="micro">${downtimeSignal.toFixed(1)}% of downtime concentration</div></article><article class="summary-stat span-4"><div class="label">Most Repeated Error</div><div class="value">🔁 ${esc(topError)}</div><div class="micro">${(summary?.repeatFailures || 0).toLocaleString()} repeated occurrences</div></article><article class="summary-stat span-4"><div class="label">Bottleneck Subsystem</div><div class="value">🧩 ${esc(topSubsystem)}</div><div class="micro">Primary impact concentration</div></article></div>`;
-    const actionHost = optionalEl('actionCenterCard');
-    if (actionHost) actionHost.innerHTML = `<div class="chart-head"><h3>Action Center</h3></div><div style="display:grid;gap:8px;"><div class="status-chip"><span class="risk-pill risk-high">High</span> Fix QCS on ${esc(topPress)}.<div class="micro">Highest downtime concentration press.</div></div><div class="status-chip"><span class="risk-pill risk-medium">Medium</span> Investigate ${esc(topError)} recurrence.<div class="micro">Reduce repeat incident frequency.</div></div><div class="status-chip"><span class="risk-pill risk-medium">Medium</span> Monitor ${esc(topSubsystem)} bottleneck.<div class="micro">Expected impact on availability.</div></div></div>`;
-    const alertsHost = optionalEl('recentAlertsStrip');
-    if (alertsHost) alertsHost.innerHTML = [topError, summary?.globalDriver?.name || 'Unspecified', topSubsystem].map((name, i) => `<article class="summary-stat"><div class="label">Alert ${i+1}</div><div class="value">${esc(name)}</div><div class="micro">${esc(topPress)} • ${new Date().toLocaleTimeString()}</div></article>`).join('');
-    const health=optionalEl('systemHealthCard');
-    if(health) health.innerHTML=`<div class="chart-head"><h3>System Health</h3><span class="risk-pill ${tone==='critical'?'risk-high':'risk-low'}">${tone==='critical'?'Warning':'Operational'}</span></div><div class="status-chip">${tone==='critical'?'Attention required on top downtime drivers.':'All systems operational with validated data flow.'}</div>`;
   }
 
   function renderRiskSection(riskRows) {
@@ -5566,51 +5393,10 @@
       if (!globalValidation.isValid) console.warn('[global-data-validation]', globalValidation);
       renderDashboardStatusPanel(sourceScope, mismatches, STATE.reconciliation.report, renderValidation, globalValidation, genericValidation);
       renderTable(STATE.filtered);
-      renderAuxPages();
-      renderCommandCenterApp();
     } catch (error) {
       console.error('[dashboard-render-failure]', error);
       ['pressImpactScatterChart', 'subsystemChart', 'alertChart', 'versionChart', 'customerVolumeChart'].forEach(id => setCanvasState(id, `Failed to render ${id}.`, 'error'));
     }
-  }
-
-
-  function buildCommandCenterViewModel() {
-    const source = STATE.dashboardScopeModel?.scopedSource || STATE.lastSourceScope || {};
-    const summary = STATE.merged?.summary || {};
-    const k = STATE.kpis || {};
-    const alerts = (source.errorsAgg || []).slice(0,8);
-    return {
-      status: (k.availabilityPercent||0)<80?'critical':((k.availabilityPercent||0)<90?'warning':'stable'),
-      severity: summary?.severity || 'watch', validatedAt: new Date().toISOString(),
-      sourceCounts: { errors:(source.errorsAgg||[]).length, availability:(source.availabilityAgg||[]).length, volume:(source.volumeAgg||[]).length },
-      confidence: STATE.renderValidation?.ok ? 'High' : 'Medium',
-      kpis: k, insights: summary,
-      actions: [handleAssistantQuery('fix first'), handleAssistantQuery('downtime')],
-      charts: { subsystem: rankBy((source.errorsAgg||[]).map(r=>({name:r.subsystem||'Unknown',value:Number(r.totalEvents||0)})),6), press: rankBy((source.errorsAgg||[]).map(r=>({name:r.canonicalPress||'Unknown',value:Number(r.totalErrorDurationSeconds||0)})),6), alert: rankBy((source.errorsAgg||[]).map(r=>({name:r.name||r.alertTitle||'Alert',value:Number(r.totalEvents||0)})),6) },
-      alerts, health: { availability: Number(k.availabilityPercent||0), waste: Number(k.wasteRatio||0) },
-      assistant: STATE.assistantHistory.slice(-4), validation: STATE.genericValidation || {},
-      settings: STATE.ui
-    };
-  }
-  function rankBy(rows,limit=6){const m=new Map();rows.forEach(r=>m.set(r.name,(m.get(r.name)||0)+Number(r.value||0)));return [...m.entries()].map(([name,value])=>({name,value})).sort((a,b)=>b.value-a.value).slice(0,limit);}
-  function setCommandView(view){ STATE.ui.activeView = VALID_VIEWS.has(view) ? view : 'command-center'; renderCommandCenterApp(); }
-  function renderCcBars(title,rows,fmt=(v)=>Number(v).toLocaleString()){ const max=Math.max(1,...rows.map(r=>r.value||0)); return `<article class="cc-chart"><h4>${title}</h4><div class="cc-mini-bars">${rows.map(r=>`<div class="cc-bar"><span>${r.name}</span><div class="cc-bar-track"><div class="cc-bar-fill" style="width:${((r.value||0)/max)*100}%"></div></div><strong>${fmt(r.value)}</strong></div>`).join('')}</div></article>`; }
-  function renderCcActivePage(model){ const v=STATE.ui.activeView||'command-center'; if(v==='command-center'){ return `<section class="cc-page"><div class="cc-insights-row"><div class="cc-panel"><h3>Key Insights</h3><ul><li>${handleAssistantQuery('downtime')}</li><li>${handleAssistantQuery('waste')}</li></ul></div><div class="cc-action-center"><h3>Action Center</h3><button class="btn" data-action="why-critical">Why critical</button> <button class="btn" data-action="view-validation">View validation</button></div></div><div class="cc-chart-grid">${renderCcBars('Events by Subsystem',model.charts.subsystem)}${renderCcBars('Downtime by Press',model.charts.press,v=>formatDuration(v||0))}${renderCcBars('Events by Alert',model.charts.alert)}${renderCcBars('Waste vs Good Volume', [{name:'Waste Ratio',value:model.health.waste*100},{name:'Availability',value:model.health.availability}],v=>v.toFixed(2)+'%')}</div><div class="cc-bottom-strip"><div><h4>Recent Alerts</h4><div>${model.alerts.slice(0,5).map(a=>`${a.name||a.alertTitle||'Alert'} (${Number(a.totalEvents||0)})`).join(' • ')||'No alerts in scope'}</div></div><div><h4>System Health</h4><div>Availability ${Number(model.health.availability||0).toFixed(2)}% • Waste ${formatRatioPercent(model.health.waste||0)}</div></div></div></section>`;}
-    if(v==='overview') return `<section class="cc-page"><h3>Overview</h3><p>Executive summary with KPI snapshot and validation status.</p><p>Events: ${(model.kpis.totalEvents||0).toLocaleString()} • Volume: ${formatCompactNumber(model.kpis.totalVolume||0)} • Waste: ${formatRatioPercent(model.kpis.wasteRatio||0)}</p></section>`;
-    if(v==='press-performance') return `<section class="cc-page"><h3>Press Performance</h3>${renderCcBars('Downtime by Press',model.charts.press,v=>formatDuration(v||0))}</section>`;
-    if(v==='drilldown-explorer') return `<section class="cc-page"><h3>Drilldown Explorer</h3><p>Scoped merged rows: ${(STATE.filtered||[]).length.toLocaleString()}</p><button class="btn" id="openEventsDrilldown">Open Events Drilldown</button></section>`;
-    if(v==='alerts-events') return `<section class="cc-page"><h3>Alerts & Events</h3>${renderCcBars('Top Alerts',model.charts.alert)}</section>`;
-    if(v==='analysis-hub') return `<section class="cc-page"><h3>Analysis Hub</h3><p>${handleAssistantQuery('fix first')}</p><p>${handleAssistantQuery('availability')}</p></section>`;
-    if(v==='ai-insights') return `<section class="cc-page"><h3>AI Insights</h3><p>${handleAssistantQuery('downtime')}</p><p>${handleAssistantQuery('waste')}</p><p>${handleAssistantQuery('validation')}</p></section>`;
-    if(v==='reports') return `<section class="cc-page"><h3>Reports</h3><button class="btn" id="summaryBtn">Summary snapshot</button><button class="btn secondary" id="exportBtn">Export CSV</button><div>Waste Ratio: ${formatRatioPercent(model.kpis.wasteRatio||0)} • Volume: ${formatCompactNumber(model.kpis.totalVolume||0)}</div></section>`;
-    if(v==='data-quality') return `<section class="cc-page"><h3>Data Quality</h3><p>Confidence: ${model.confidence} • Validated: ${new Date(model.validatedAt).toLocaleString()}</p><p>Waste check: ${formatRatioPercent(model.kpis.wasteRatio||0)} from ${(model.sourceCounts.volume||0).toLocaleString()} volume rows.</p></section>`;
-    return `<section class="cc-page"><h3>Settings</h3><div class="cc-settings-row"><span>Sidebar collapsed</span><button class="btn secondary" data-action="toggle-sidebar">${STATE.ui.sidebarCollapsed?'On':'Off'}</button></div><div class="cc-settings-row"><span>Assistant visibility</span><button class="btn secondary" data-action="toggle-assistant">${STATE.ui.assistantOpen?'On':'Off'}</button></div><div class="cc-settings-row"><span>Reset preferences</span><button class="btn secondary" data-action="reset-preferences">Reset</button></div></section>`; }
-
-  function renderCommandCenterApp(){
-    const model=buildCommandCenterViewModel(); const root=document.getElementById('dashboardScreen'); if(!root) return;
-    root.className='cc-app';
-    root.innerHTML=`<aside class="cc-sidebar ${STATE.ui.sidebarCollapsed?'collapsed':''}"><div><strong class="cc-brand-text">Landa InsightPro+</strong><button class="btn secondary" data-action="toggle-sidebar">☰</button></div><nav class="cc-nav">${NAV_ITEMS.map(([id,icon,label])=>`<button data-view="${id}" class="${STATE.ui.activeView===id?'active':''}">${icon} <span>${label}</span></button>`).join('')}</nav><div class="cc-status-card"><h4>Data Status</h4><button class="btn secondary" data-action="view-validation">View validation</button><div class="micro">Last refresh ${new Date(model.validatedAt).toLocaleTimeString()} • <span style="color:#57c98a">● Live</span></div></div></aside><main class="cc-main"><header class="cc-header cc-panel"><div><h2>Operational Command Center</h2><div class="micro">Post-analysis experience</div></div><div class="controls"><span class="meta-pill">Date range: scoped</span><button class="btn secondary" data-action="filters">Filters</button><button class="btn secondary" data-action="share">Share</button><button class="btn" data-action="load-new-dataset">Load dataset</button></div></header><section class="cc-status-banner ${model.status}"><strong>${model.status.toUpperCase()}</strong> • Waste ${formatRatioPercent(model.kpis.wasteRatio||0)} • Availability ${Number(model.kpis.availabilityPercent||0).toFixed(2)}%</section><section class="cc-meta-row">Validated ${new Date(model.validatedAt).toLocaleString()} • Sources E/A/V ${model.sourceCounts.errors}/${model.sourceCounts.availability}/${model.sourceCounts.volume} • Confidence ${model.confidence}</section><section class="cc-kpi-grid">${[['Events',(model.kpis.totalEvents||0).toLocaleString()],['Downtime',formatDuration(model.kpis.totalDowntimeSeconds||0)],['Volume',formatCompactNumber(model.kpis.totalVolume||0)],['Waste Ratio',formatRatioPercent(model.kpis.wasteRatio||0)],['Availability',Number(model.kpis.availabilityPercent||0).toFixed(2)+'%'],['Top Press',model.insights?.topPressByEvents?.name||'N/A']].map(([k,v])=>`<div class="cc-kpi"><div class="k">${k}</div><div class="v">${v}</div></div>`).join('')}</section>${renderCcActivePage(model)}</main><aside class="cc-assistant ${STATE.ui.assistantOpen?'':'hidden'}"><div class="chart-head"><h3>AI Assistant</h3><span class="risk-pill risk-medium">BETA</span></div><div class="cc-chips"><button class="cc-chip" data-action="ask-downtime">downtime</button><button class="cc-chip" data-action="ask-fix">fix first</button><button class="cc-chip" data-action="ask-waste">waste</button><button class="cc-chip" data-action="ask-availability">availability</button><button class="cc-chip" data-action="ask-validation">validation</button></div><div id="assistantAnswer" class="status-chip">${(model.assistant.at(-1)||{}).a||'Ask about downtime, waste, availability, or validation.'}</div><div class="controls"><input id="assistInput" class="select" placeholder="Ask assistant"/><button class="btn" data-action="assistant-send">Send</button></div></aside>`;
   }
 
   function syncMetricToggleUI() {
@@ -5669,13 +5455,6 @@
 
   function validateInputFiles() {
     if (!STATE.files.errors) return { ok: false, message: 'Errors dataset is required.' };
-    if (!isFileAccepted('errors')) {
-      return { ok: false, message: STATE.validation?.errors?.message || 'Errors dataset is invalid. Replace or clear and re-upload.' };
-    }
-    const blockingOptional = ['availability', 'volume'].filter(key => STATE.files[key] && !isFileAccepted(key));
-    if (blockingOptional.length) {
-      return { ok: false, message: `Optional dataset invalid: ${blockingOptional.join(', ')}. Replace or clear invalid files before running analysis.` };
-    }
     return { ok: true };
   }
 
@@ -5874,7 +5653,7 @@
     } finally {
       STATE.analysisRunning = false;
       STATE.analysisController = null;
-      document.getElementById('runBtn').disabled = !isFileAccepted('errors');
+      document.getElementById('runBtn').disabled = !STATE.validation.errors;
     }
   }
 
@@ -5905,12 +5684,10 @@
     try {
       const rows = await loadRowsFromFile(file);
       const detected = detectDatasetType(rows);
-      const inferred = inferDatasetFromFileName(file?.name || '');
-      const isRecognized = detected === 'errors' || detected === 'availability' || detected === 'volume';
-      const key = isRecognized ? detected : (inferred === 'unknown' ? null : inferred);
+      const key = detected === 'availability' || detected === 'volume' ? detected : 'errors';
       return { key, file, rows };
     } catch {
-      return { key: null, file, rows: null, error: 'Failed to parse file during classification.' };
+      return { key: 'errors', file, rows: null };
     }
   }
 
@@ -5922,38 +5699,19 @@
     await shortYield();
 
     const assignments = await Promise.all(files.map(classifyIncomingFile));
-    const byKey = new Map();
-    assignments.forEach((entry) => {
-      const { key, file, rows, error } = entry;
-      if (!key) {
-        console.warn('[intake-unassigned-file]', file?.name || 'unnamed file', error || 'unknown dataset');
-        setStatus(`Skipped unrecognized file: ${file?.name || 'Unnamed file'}. Rename or use a supported dataset schema.`, 'warning');
-        return;
-      }
-      if (byKey.has(key)) {
-        console.warn('[intake-duplicate-dataset]', { key, replaced: byKey.get(key)?.file?.name, incoming: file?.name });
-      }
-      byKey.set(key, { key, file, rows });
-    });
-    byKey.forEach(({ key, file, rows }) => {
+    assignments.forEach(({ key, file, rows }) => {
       STATE.files[key] = file;
       STATE.cachedRaw[key] = rows;
-      STATE.validation[key] = createValidationState({ status: 'warning', blocking: false, message: 'Validation in progress…', rowCount: null });
       setFileUI(key);
     });
-    await Promise.all([...byKey.keys()].map(key => validateSingleFile(key, { progressStarted: true })));
-    updateRunButtonState();
+    await Promise.all(likelyKeys.map(key => validateSingleFile(key, { progressStarted: true })));
   }
 
   function clearFiles() {
     markAnalysisCanceled('Canceled due to file reset.');
     STATE.files = { errors: null, availability: null, volume: null };
     STATE.cachedRaw = { errors: null, availability: null, volume: null };
-    STATE.validation = {
-      errors: createValidationState({ status: 'invalid', blocking: true, message: 'Errors dataset is required.', rowCount: null }),
-      availability: createValidationState({ status: 'valid', blocking: false, message: 'Optional dataset not selected.', rowCount: null }),
-      volume: createValidationState({ status: 'valid', blocking: false, message: 'Optional dataset not selected.', rowCount: null })
-    };
+    STATE.validation = { errors: false, availability: false, volume: false };
     STATE.normalized = { events: [], availability: [], volume: [] };
     STATE.merged = { events: [], mergedRows: [], stats: {}, summary: null, pressRisk: [], sourceTables: { errorsAgg: [], availabilityAgg: [], volumeAgg: [] } };
     STATE.filtered = [];
@@ -6013,9 +5771,7 @@
   async function validateSingleFile(key, { progressStarted = false } = {}) {
     const file = STATE.files[key];
     if (!file) {
-      STATE.validation[key] = key === 'errors'
-        ? createValidationState({ status: 'invalid', blocking: true, message: 'Errors dataset is required.', rowCount: null })
-        : createValidationState({ status: 'valid', blocking: false, message: 'Optional dataset not selected.', rowCount: null });
+      STATE.validation[key] = false;
       STATE.cachedRaw[key] = null;
       resetFileProgress(key);
       setFileUI(key);
@@ -6028,148 +5784,18 @@
       if (key === 'errors') await normalizeErrorsRows(rows.slice(0, Math.min(rows.length, 120)));
       if (key === 'availability') await normalizeAvailabilityRows(rows.slice(0, Math.min(rows.length, 120)));
       if (key === 'volume') await normalizeVolumeRows(rows.slice(0, Math.min(rows.length, 120)), { dataContract: buildDataContract({ volume: rows }) });
-      STATE.validation[key] = createValidationState({
-        status: 'valid',
-        blocking: false,
-        message: `${key} dataset validated successfully.`,
-        rowCount: rows.length
-      });
+      STATE.validation[key] = true;
       await finishFileProgress(key, true);
     } catch (error) {
-      const isRequired = key === 'errors';
-      STATE.validation[key] = createValidationState({
-        status: 'invalid',
-        blocking: true,
-        message: `${key} dataset validation failed: ${error?.message || 'Unknown validation error.'}`,
-        rowCount: Array.isArray(STATE.cachedRaw[key]) ? STATE.cachedRaw[key].length : null,
-        errors: [error?.message || 'Validation failed']
-      });
-      if (!isRequired) {
-        STATE.files[key] = null;
-        STATE.cachedRaw[key] = null;
-        STATE.validation[key] = createValidationState({
-          status: 'warning',
-          blocking: false,
-          message: `${key} dataset is unreadable and was excluded from analysis.`,
-          rowCount: null,
-          warnings: [error?.message || 'Validation failed; optional dataset excluded']
-        });
-      }
-      console.warn(`[validation-${isRequired ? 'error' : 'warning'}] ${key}`, error);
-      await finishFileProgress(key, !isRequired, isRequired ? 'Validation failed' : 'Excluded (optional)');
-      setStatus(
-        isRequired
-          ? 'Errors dataset is invalid. Replace or clear the file before running analysis.'
-          : `${key} dataset is invalid and has been excluded. Analysis can continue with other valid datasets.`,
-        isRequired ? 'error' : 'warning'
-      );
+      STATE.validation[key] = true;
+      console.warn(`[validation-warning] ${key} dataset validation warning. Loading dataset for analysis continuity.`, error);
+      await finishFileProgress(key, true, 'Loaded with warnings');
+      if (key === 'errors') setStatus('Errors dataset loaded with warnings. Analysis will still run.', 'warning');
     }
     setFileUI(key);
-    updateRunButtonState();
   }
 
-  
-  function formatRatioPercent(value, digits = 2) {
-    const n = Number(value || 0);
-    return `${(n * 100).toFixed(digits)}%`;
-  }
-
-  function handleAssistantQuery(q='') {
-    const summary = STATE.merged?.summary || {};
-    const k = STATE.kpis || {};
-    const lower = q.toLowerCase();
-    if (lower.includes('downtime')) return `Downtime is concentrated in ${summary?.topSubsystem?.name || 'the leading subsystem'} and led by ${summary?.topPressByDowntime?.name || summary?.topPressByEvents?.name || 'top press'}.`;
-    if (lower.includes('fix') || lower.includes('first')) return `Fix first: ${summary?.topAlert?.name || 'top recurring alert'} on ${summary?.topPressByEvents?.name || 'highest-impact press'}.`;
-    if (lower.includes('waste')) return `Top waste signal: Waste Ratio is ${formatRatioPercent(k.wasteRatio)} with ${(k.totalWasteVolume||0).toLocaleString()} waste sheets.`;
-    if (lower.includes('availability')) return `Availability is ${Number(k.availabilityPercent||0).toFixed(2)}% with ${formatDuration(k.totalDowntimeSeconds||0)} downtime.`;
-    if (lower.includes('validation')) return `Validation is ${STATE.renderValidation?.ok ? 'passing' : 'warning'} across current scoped sources.`;
-    return `Current scope shows ${(k.totalEvents||0).toLocaleString()} events, ${formatDuration(k.totalDowntimeSeconds||0)} downtime, and ${Number(k.availabilityPercent||0).toFixed(2)}% availability.`;
-  }
-
-  const NAV_ITEMS = [
-    ['command-center', '📡', 'Command Center'],
-    ['overview', '🧭', 'Overview'],
-    ['press-performance', '🖨️', 'Press Performance'],
-    ['drilldown-explorer', '🔎', 'Drilldown Explorer'],
-    ['alerts-events', '🚨', 'Alerts & Events'],
-    ['data-quality', '✅', 'Data Quality']
-  ];
-  const VALID_VIEWS = new Set(NAV_ITEMS.map(([id]) => id));
-  const VIEW_PAGE_MAP = {
-    overview: 'pageOverview', press-performance: 'pagePressPerformance', 'drilldown-explorer': 'pageDrilldownExplorer',
-    'alerts-events': 'pageAlertsEvents', 'analysis-hub': 'pageAnalysisHub', 'ai-insights': 'pageAiInsights',
-    reports: 'pageReports', 'data-quality': 'pageDataQuality', settings: 'pageSettings'
-  };
-
-  function buildCommandCenterModel() {
-    const source = STATE.dashboardScopeModel?.scopedSource || STATE.lastSourceScope || {};
-    const summary = STATE.merged?.summary || {};
-    const k = STATE.kpis || {};
-    return {
-      status: (k.availabilityPercent || 0) < 80 ? 'critical' : ((k.availabilityPercent || 0) < 90 ? 'warning' : 'stable'),
-      raw: { wasteRatio: Number(k.wasteRatio || 0), availabilityPercent: Number(k.availabilityPercent || 0), totalVolume: Number(k.totalVolume || 0), totalDowntimeSeconds: Number(k.totalDowntimeSeconds || 0) },
-      display: { wasteRatio: formatRatioPercent(k.wasteRatio), availability: `${Number(k.availabilityPercent || 0).toFixed(2)}%`, volume: `${formatCompactNumber(k.totalVolume || 0)} sheets`, downtime: formatDuration(k.totalDowntimeSeconds || 0) },
-      mainRisk: summary?.topAlert?.name || 'Primary recurring alert', topPress: summary?.topPressByEvents?.name || 'N/A', topSubsystem: summary?.topSubsystem?.name || 'N/A', topError: summary?.topAlert?.name || 'N/A',
-      validatedAt: new Date().toISOString(), sourceCounts: { errors: source.errorsAgg?.length || 0, availability: source.availabilityAgg?.length || 0, volume: source.volumeAgg?.length || 0 },
-      confidence: STATE.renderValidation?.ok ? 'Validated' : 'Warning',
-      kpis: [
-        { label: 'Events', value: (k.totalEvents || 0).toLocaleString() }, { label: 'Downtime', value: formatDuration(k.totalDowntimeSeconds || 0) },
-        { label: 'Volume', value: `${formatCompactNumber(k.totalVolume || 0)} sheets` }, { label: 'Waste Ratio', value: formatRatioPercent(k.wasteRatio) },
-        { label: 'Availability', value: `${Number(k.availabilityPercent || 0).toFixed(2)}%` }, { label: 'Top Press', value: summary?.topPressByEvents?.name || 'N/A' }
-      ],
-      insights: [handleAssistantQuery('downtime'), handleAssistantQuery('fix first'), handleAssistantQuery('waste')],
-      assistant: STATE.assistantHistory.slice(-4)
-    };
-  }
-
-  function renderSidebar() {
-    document.querySelectorAll('.side-nav [data-view]').forEach(btn => btn.classList.toggle('active', btn.getAttribute('data-view') === STATE.ui.activeView));
-    document.querySelector('.command-sidebar')?.classList.toggle('collapsed', !!STATE.ui.sidebarCollapsed);
-  }
-
-  function renderAssistantRail(model) {
-    const rail = document.getElementById('aiAssistantRail');
-    if (!rail) return;
-    rail.classList.toggle('hidden', !STATE.ui.assistantOpen);
-    const answer = rail.querySelector('#assistantAnswer');
-    if (answer) answer.textContent = model.assistant.length ? model.assistant[model.assistant.length - 1].a : 'Awaiting analysis scope…';
-  }
-
-  function renderCommandCenterView(model) {
-    const summary = document.getElementById('executiveSummaryCard');
-    if (summary) summary.textContent = `[${model.status.toUpperCase()}] ${model.mainRisk} • Waste ${model.display.wasteRatio} • Availability ${model.display.availability}`;
-    const meta = document.getElementById('metaRow');
-    if (meta) {
-      const validatedAtText = new Date(model.validatedAt).toLocaleString();
-      const sourceRowsText = (model.sourceCounts.errors + model.sourceCounts.availability + model.sourceCounts.volume).toLocaleString();
-      meta.innerHTML = `Data validated: <span>${validatedAtText}</span> • Source rows: <span>${sourceRowsText}</span> • Confidence: ${model.confidence.toUpperCase()}`;
-    }
-  }
-
-  function setActiveView(view) {
-    STATE.ui.activeView = VALID_VIEWS.has(view) ? view : 'command-center';
-    const isCommandCenter = STATE.ui.activeView === 'command-center';
-    const workspace = document.querySelector('.command-chart-grid')?.closest('.command-workspace');
-    if (workspace) workspace.classList.toggle('hidden', !isCommandCenter);
-    Object.entries(VIEW_PAGE_MAP).forEach(([key, id]) => {
-      const el = document.getElementById(id);
-      if (el) el.classList.toggle('hidden', STATE.ui.activeView !== key);
-    });
-    renderSidebar();
-  }
-
-  function updateCommandShell() {
-    const model = buildCommandCenterModel();
-    renderCommandCenterView(model);
-    renderAssistantRail(model);
-    setActiveView(STATE.ui.activeView);
-  }
-  function updateViewVisibility() {
-    if (!VALID_VIEWS.has(STATE.ui.activeView)) STATE.ui.activeView = 'command-center';
-    updateCommandShell();
-  }
-  function renderAuxPages(){ updateViewVisibility(); }
-function bind() {
+  function bind() {
     ['errors', 'availability', 'volume'].forEach(setFileUI);
     setStatus('Assign datasets and run analysis. Errors dataset is required.', 'info');
     setProcessingState({ stage: 'reading', status: 'idle', percent: 0, detail: 'Upload and validate files to begin processing.' });
@@ -6180,40 +5806,6 @@ function bind() {
       console.error('[library-missing] Chart library failed to load. Charts may use local fallback renderer.');
     }
     syncMetricToggleUI();
-    document.getElementById('dashboardScreen').addEventListener('click', (event) => {
-      const navBtn = event.target.closest('[data-view]');
-      if (navBtn) {
-        const nextView = navBtn.getAttribute('data-view');
-        if (VALID_VIEWS.has(nextView)) {
-          STATE.ui.activeView = nextView;
-          scheduleRender();
-        }
-        return;
-      }
-      const actionEl = event.target.closest('[data-action]');
-      if (!actionEl) return;
-      const action = actionEl.getAttribute('data-action');
-      if (action === 'toggle-sidebar') STATE.ui.sidebarCollapsed = !STATE.ui.sidebarCollapsed;
-      if (action === 'toggle-assistant') STATE.ui.assistantOpen = !STATE.ui.assistantOpen;
-      if (action === 'view-validation') STATE.ui.activeView = 'data-quality';
-      if (action === 'view-key-drivers') document.getElementById('keyInsightsCard')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      if (action === 'view-all-charts') document.querySelector('.command-chart-grid')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      if (action === 'why-critical') {
-        STATE.assistantHistory.push({ q: 'Why critical?', a: handleAssistantQuery('fix first') });
-        document.getElementById('keyInsightsCard')?.classList.remove('hidden');
-      }
-      if (action === 'load-new-dataset') { clearFiles(); document.getElementById('dashboardScreen').classList.add('hidden'); document.getElementById('intakeScreen').classList.remove('hidden'); }
-      if (action === 'ask-downtime') STATE.assistantHistory.push({ q: 'Downtime drivers', a: handleAssistantQuery('downtime') });
-      if (action === 'ask-waste') STATE.assistantHistory.push({ q: 'Waste signals', a: handleAssistantQuery('waste') });
-      if (action === 'ask-fix') STATE.assistantHistory.push({ q: 'What should we fix first?', a: handleAssistantQuery('fix first') });
-      if (action === 'assistant-send') {
-        const input = document.getElementById('assistInput');
-        const q = input?.value || '';
-        STATE.assistantHistory.push({ q, a: handleAssistantQuery(q) });
-        if (input) input.value = '';
-      }
-      scheduleRender();
-    });
 
     document.querySelectorAll('[data-pick]').forEach((btn) => {
       btn.addEventListener('click', () => {
@@ -6232,7 +5824,6 @@ function bind() {
         console.log('[file-selected]', key, file?.name, file?.size);
         if (!file) return;
         STATE.files[key] = file;
-        STATE.validation[key] = createValidationState({ status: 'warning', blocking: false, message: 'Validation in progress…', rowCount: null });
         setFileUI(key);
         updateRunButtonState();
         try {
@@ -6280,16 +5871,7 @@ function bind() {
       setProcessingState({ stage: 'reading', status: 'idle', percent: 0, detail: 'Existing files are loaded. Run analysis or upload replacements.' });
     });
 
-    const exportBtnEl = document.getElementById('exportBtn');
-    const searchInputEl = getEl('searchInput');
-    const customerVolumeMetricEl = getEl('customerVolumeMetric');
-    const customerVolumeSortEl = getEl('customerVolumeSort');
-    const customerVolumeExpandEl = getEl('customerVolumeExpand');
-    const closeDrilldownEl = getEl('closeDrilldown');
-    const drilldownDrawerEl = getEl('drilldownDrawer');
-    const drilldownSearchEl = getEl('drilldownSearch');
-    const drilldownExportEl = getEl('drilldownExport');
-    exportBtnEl?.addEventListener('click', () => exportRowsToCsv(STATE.lastSourceScope?.filteredMergedRows || STATE.filtered, 'dashboard-filtered-export.csv'));
+    exportBtn.addEventListener('click', () => exportRowsToCsv(STATE.lastSourceScope?.filteredMergedRows || STATE.filtered, 'dashboard-filtered-export.csv'));
     const summaryBtnEl = document.getElementById('summaryBtn');
     const summaryModal = document.getElementById('summaryModal');
     const closeSummaryBtnEl = document.getElementById('closeSummaryBtn');
@@ -6488,23 +6070,20 @@ function bind() {
       openKpiFromEventTarget(card);
     });
 
-    ['pressFilter', 'subsystemFilter', 'versionFilter', 'startDateFilter', 'endDateFilter'].forEach(id => {
-      const el = getEl(id);
-      el?.addEventListener('change', () => { currentFilterValues(); scheduleRender(); });
-    });
-    searchInputEl?.addEventListener('input', () => { currentFilterValues(); scheduleRender(); });
-    customerVolumeMetricEl?.addEventListener('change', e => {
+    ['pressFilter', 'subsystemFilter', 'versionFilter', 'startDateFilter', 'endDateFilter'].forEach(id => document.getElementById(id).addEventListener('change', scheduleRender));
+    searchFilter.addEventListener('input', scheduleRender);
+    customerVolumeMetric.addEventListener('change', e => {
       STATE.customerVolumeMetric = e.target.value || 'totalPrintedSheets';
       STATE.customerVolumeMode = STATE.customerVolumeMetric === 'wastePrintedSheets' ? 'waste' : (STATE.customerVolumeMetric === 'goodPrintedSheets' ? 'good' : (STATE.customerVolumeMetric === 'wasteRatio' ? 'wasteRatio' : 'total'));
       scheduleRender();
     });
-    customerVolumeSortEl?.addEventListener('change', e => { STATE.customerVolumeSort = e.target.value; scheduleRender(); });
-    customerVolumeExpandEl?.addEventListener('click', () => { STATE.customerVolumeExpanded = !STATE.customerVolumeExpanded; scheduleRender(); });
-    closeDrilldownEl?.addEventListener('click', () => drilldownDrawerEl?.classList.remove('show'));
+    customerVolumeSort.addEventListener('change', e => { STATE.customerVolumeSort = e.target.value; scheduleRender(); });
+    customerVolumeExpand.addEventListener('click', () => { STATE.customerVolumeExpanded = !STATE.customerVolumeExpanded; scheduleRender(); });
+    closeDrilldown.addEventListener('click', () => drilldownDrawer.classList.remove('show'));
     document.getElementById('drilldownBack')?.addEventListener('click', () => {
       const history = STATE.drilldownStack || [];
       if (history.length <= 1) {
-        drilldownDrawerEl?.classList.remove('show');
+        drilldownDrawer.classList.remove('show');
         return;
       }
       history.pop();
@@ -6518,9 +6097,9 @@ function bind() {
       };
       renderDrilldown();
     });
-    drilldownDrawerEl?.addEventListener('click', e => { if (e.target.id === 'drilldownDrawer') drilldownDrawerEl.classList.remove('show'); });
-    drilldownSearchEl?.addEventListener('input', e => { STATE.drilldown.search = e.target.value || ''; renderDrilldown(); });
-    drilldownExportEl?.addEventListener('click', () => {
+    drilldownDrawer.addEventListener('click', e => { if (e.target.id === 'drilldownDrawer') drilldownDrawer.classList.remove('show'); });
+    drilldownSearch.addEventListener('input', e => { STATE.drilldown.search = e.target.value || ''; renderDrilldown(); });
+    drilldownExport.addEventListener('click', () => {
       const scoped = !STATE.drilldown.search ? STATE.drilldown.rows : STATE.drilldown.rows.filter(r => `${r.press} ${r.subsystem} ${r.name} ${r.alertTitle} ${r.version}`.toLowerCase().includes(STATE.drilldown.search.toLowerCase()));
       exportRowsToCsv(scoped, 'drilldown-filtered-export.csv');
     });
