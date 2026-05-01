@@ -487,6 +487,17 @@
     const parsed = Number(String(value).replace(/,/g, '').trim());
     return Number.isFinite(parsed) ? parsed : 0;
   }
+  function groupBy(rows = [], keyFn = () => 'default') {
+    return (rows || []).reduce((acc, row, idx) => {
+      const key = String(keyFn(row, idx) ?? '');
+      if (!acc.has(key)) acc.set(key, []);
+      acc.get(key).push(row);
+      return acc;
+    }, new Map());
+  }
+  function sumBy(rows = [], valueFn = () => 0) {
+    return (rows || []).reduce((sum, row, idx) => sum + toNumberSafe(valueFn(row, idx)), 0);
+  }
   function resolveFieldName(rowOrHeaders = {}, candidates = []) {
     const headers = Array.isArray(rowOrHeaders) ? rowOrHeaders : Object.keys(rowOrHeaders || {});
     if (!headers.length || !Array.isArray(candidates) || !candidates.length) return null;
@@ -1354,6 +1365,7 @@
         jobName,
         durationSeconds,
         maintenance,
+        jobTypeNormalized: normalizedJobType,
         normalizedRawType: normalizedJobType,
         jobType,
         type: normalizedJobType,
@@ -1425,7 +1437,7 @@
       slot.printedFlats += job.printedFlats || 0;
       if (slot.raw.length < 20) slot.raw.push(job.raw);
     });
-    const specialJobRows = jobs.filter(job => job.normalizedRawType === 'special');
+    const specialJobRows = jobs.filter(job => job.jobTypeNormalized === 'special');
     const specialJobPrintedSheets = specialJobRows.reduce((sum, job) => sum + Number(job.printedSheets || job.productionPrintedSheets || 0), 0);
     const specialAggPrintedSheets = [...byKey.values()].reduce((sum, row) => sum + Number(row.wastePrintedSheets || 0), 0);
     console.info('[waste-debug] special-row-aggregation-validation', {
@@ -1435,8 +1447,8 @@
       parityPass: Math.abs(specialJobPrintedSheets - specialAggPrintedSheets) < 1e-6,
       note: 'Special rows are aggregated into press/day volumeAgg as wastePrintedSheets.'
     });
-    const rawWaste = jobs.reduce((sum, row) => sum + ((row.normalizedRawType === 'special') ? Number(row.printedSheets || row.productionPrintedSheets || 0) : 0), 0);
-    const rawProduction = jobs.reduce((sum, row) => sum + ((row.normalizedRawType !== 'special') ? Number(row.productionPrintedSheets || row.printedSheets || 0) : 0), 0);
+    const rawWaste = sumBy(jobs, row => (row.jobTypeNormalized === 'special') ? (row.printedSheets || row.productionPrintedSheets || 0) : 0);
+    const rawProduction = sumBy(jobs, row => (row.jobTypeNormalized !== 'special') ? (row.productionPrintedSheets || row.printedSheets || 0) : 0);
     const aggWaste = [...byKey.values()].reduce((sum, row) => sum + Number(row.wastePrintedSheets || 0), 0);
     const aggProduction = [...byKey.values()].reduce((sum, row) => sum + Number(row.productionPrintedSheets || 0), 0);
     const totalPrintedSheets = aggProduction + aggWaste;
@@ -1459,6 +1471,19 @@
       ]
     };
     console.group('Landa InsightPro+ Data Validation Report');
+    console.info(`Detected Printed Sheets field: ${detectedSheetsField || 'not found'}`);
+    console.info(`Detected Job Type field: ${detectedJobTypeField || 'not found'}`);
+    console.info(`Raw volume rows: ${rows.length}`);
+    console.info(`Normalized volume rows: ${jobs.length}`);
+    console.info(`Unique Job Types: ${[...normalizedJobTypes.keys()].sort().join(', ')}`);
+    console.info(`Special rows: ${specialJobRows.length}`);
+    console.info(`Total Printed Sheets: ${totalPrintedSheets}`);
+    console.info(`Waste Printed Sheets: ${wastePrintedSheets}`);
+    console.info(`Good Printed Sheets: ${goodPrintedSheets}`);
+    console.info(`Waste Ratio: ${(wasteRatio * 100).toFixed(4)}%`);
+    console.info(`Validation pass 1: ${validationReport.validationPassResults[0].status}`);
+    console.info(`Validation pass 2: ${validationReport.validationPassResults[1].status}`);
+    console.info(`Validation pass 3: ${validationReport.validationPassResults[2].status}`);
     console.info(validationReport);
     console.groupEnd();
     console.info('[volume-contract-debug]', {
