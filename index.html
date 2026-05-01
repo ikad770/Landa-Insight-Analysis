@@ -314,7 +314,7 @@
       <div>
         <div class="eyebrow">Navigation</div>
         <nav class="side-nav">
-          <button class="side-nav-item active">📡 <span>Command Center</span></button><button class="side-nav-item">🧭 <span>Overview</span></button><button class="side-nav-item">🖨️ <span>Press Performance</span></button><button class="side-nav-item">🔎 <span>Drilldown Explorer</span></button><button class="side-nav-item">🚨 <span>Alerts & Events</span></button><button class="side-nav-item">🧪 <span>Analysis Hub</span></button><button class="side-nav-item">🤖 <span>AI Insights</span></button><button class="side-nav-item">📄 <span>Reports</span></button><button class="side-nav-item">✅ <span>Data Quality</span></button><button class="side-nav-item">⚙️ <span>Settings</span></button>
+          <button class="side-nav-item active" data-view="command-center">📡 <span>Command Center</span></button><button class="side-nav-item" data-view="overview">🧭 <span>Overview</span></button><button class="side-nav-item" data-view="press-performance">🖨️ <span>Press Performance</span></button><button class="side-nav-item" data-view="drilldown-explorer">🔎 <span>Drilldown Explorer</span></button><button class="side-nav-item" data-view="alerts-events">🚨 <span>Alerts & Events</span></button><button class="side-nav-item" data-view="analysis-hub">🧪 <span>Analysis Hub</span></button><button class="side-nav-item" data-view="ai-insights">🤖 <span>AI Insights</span></button><button class="side-nav-item" data-view="reports">📄 <span>Reports</span></button><button class="side-nav-item" data-view="data-quality">✅ <span>Data Quality</span></button><button class="side-nav-item" data-view="settings">⚙️ <span>Settings</span></button>
         </nav>
       </div>
       <section class="sidebar-status card">
@@ -416,6 +416,16 @@
     </section>
       <section id="recentAlertsStrip" class="recent-alerts-strip"></section>
       <section class="system-health-card" id="systemHealthCard"></section>
+
+      <section id="pageOverview" class="card hidden"><h3>Executive Overview</h3><div id="overviewContent" class="summary-grid"></div></section>
+      <section id="pagePressPerformance" class="card hidden"><h3>Press Performance Workspace</h3><div class="chart-area"><canvas id="pressPerformanceChart"></canvas></div><div id="pressPerformanceTable" class="table-wrap" style="margin-top:8px;"></div></section>
+      <section id="pageDrilldownExplorer" class="card hidden"><h3>Drilldown Explorer</h3><p class="micro">Open KPI cards or chart bars to launch full drilldown drawer with breadcrumbs and traceability.</p><button id="openEventsDrilldown" class="btn secondary">Open Events Drilldown</button><button id="openDowntimeDrilldown" class="btn secondary">Open Downtime Drilldown</button></section>
+      <section id="pageAlertsEvents" class="card hidden"><h3>Alerts & Events</h3><div class="summary-grid"><article class="summary-stat span-4"><div class="label">Total events</div><div class="value" id="alertsTotal"></div></article><article class="summary-stat span-4"><div class="label">Top alert</div><div class="value" id="alertsTop"></div></article><article class="summary-stat span-4"><div class="label">Critical share</div><div class="value" id="alertsCritical"></div></article></div><div class="table-wrap" style="margin-top:8px;"><table id="alertsTable"></table></div></section>
+      <section id="pageAnalysisHub" class="card hidden"><h3>Analysis Hub</h3><div id="analysisHubCards" class="summary-grid"></div></section>
+      <section id="pageAiInsights" class="card hidden"><h3>AI Insights</h3><div id="aiInsightsContent"></div></section>
+      <section id="pageReports" class="card hidden"><h3>Reports</h3><p class="micro">Use Share and Export to generate scoped executive outputs.</p><button class="btn" id="openSummaryFromReports">Open Report Builder</button><div id="reportsSnapshot" class="summary-grid" style="margin-top:10px;"></div></section>
+      <section id="pageDataQuality" class="card hidden"><h3>Data Quality</h3><div id="dataQualityContent"></div></section>
+      <section id="pageSettings" class="card hidden"><h3>Settings</h3><div class="filters"><label class="meta-pill">Default page<select id="defaultLanding" class="select"><option value="command-center">Command Center</option><option value="overview">Overview</option></select></label><button id="toggleAssistant" class="btn secondary">Toggle assistant panel</button><button id="resetPreferences" class="btn secondary">Reset preferences</button></div></section>
     </main>
     </section>
     <aside class="assistant-rail ai-assistant-rail" id="aiAssistantRail">
@@ -537,6 +547,8 @@
     availabilityDefinitions: null,
     dataContract: null,
     renderQueued: false,
+    ui: { activeView: 'command-center', activeSubView: null, sidebarCollapsed: false, assistantOpen: true, filtersOpen: true, selectedDateRange: 'all', shareMenuOpen: false, settings: {} },
+    assistantHistory: []
   };
 
   const CURRENT_UI_VERSION_V2 = 'CURRENT_UI_VERSION_V2';
@@ -5478,6 +5490,8 @@
       if (!globalValidation.isValid) console.warn('[global-data-validation]', globalValidation);
       renderDashboardStatusPanel(sourceScope, mismatches, STATE.reconciliation.report, renderValidation, globalValidation, genericValidation);
       renderTable(STATE.filtered);
+      renderAuxPages();
+      updateViewVisibility();
     } catch (error) {
       console.error('[dashboard-render-failure]', error);
       ['pressImpactScatterChart', 'subsystemChart', 'alertChart', 'versionChart', 'customerVolumeChart'].forEach(id => setCanvasState(id, `Failed to render ${id}.`, 'error'));
@@ -5880,7 +5894,36 @@
     setFileUI(key);
   }
 
-  function bind() {
+  
+  function handleAssistantQuery(q='') {
+    const summary = STATE.merged?.summary || {};
+    const k = STATE.kpis || {};
+    const lower = q.toLowerCase();
+    if (lower.includes('downtime')) return `Downtime is concentrated in ${summary?.topSubsystem?.name || 'the leading subsystem'} and led by ${summary?.topPressByDowntime?.name || summary?.topPressByEvents?.name || 'top press'}.`;
+    if (lower.includes('fix') || lower.includes('first')) return `Fix first: ${summary?.topAlert?.name || 'top recurring alert'} on ${summary?.topPressByEvents?.name || 'highest-impact press'}.`;
+    if (lower.includes('waste')) return `Top waste signal: Waste Ratio is ${(k.wasteRatio||0).toFixed(2)}% with ${(k.totalWasteVolume||0).toLocaleString()} waste sheets.`;
+    return `Current scope shows ${(k.totalEvents||0).toLocaleString()} events, ${formatDuration(k.totalDowntimeSeconds||0)} downtime, and ${Number(k.availabilityPercent||0).toFixed(2)}% availability.`;
+  }
+
+  function updateViewVisibility(){
+    const isCommand=STATE.ui.activeView==='command-center';
+    document.querySelectorAll('.command-workspace > section').forEach(sec=>{
+      if(sec.id && sec.id.startsWith('page')) sec.classList.toggle('hidden', sec.id!==`page${STATE.ui.activeView.replace(/(^|-)([a-z])/g,(_,a,b)=>b.toUpperCase())}`);
+    });
+    document.querySelector('.executive-insights-row').classList.toggle('hidden', !isCommand);
+    document.querySelector('.command-chart-grid').classList.toggle('hidden', !isCommand);
+    document.getElementById('aiAssistantRail').classList.toggle('hidden', !STATE.ui.assistantOpen);
+    document.querySelectorAll('.side-nav-item').forEach(b=>b.classList.toggle('active',b.dataset.view===STATE.ui.activeView));
+  }
+
+  function renderAuxPages(){
+    const k=STATE.kpis||{}; const s=STATE.merged?.summary||{};
+    const ov=document.getElementById('overviewContent'); if(ov) ov.innerHTML=`<article class="summary-stat span-4"><div class="label">Events</div><div class="value">${(k.totalEvents||0).toLocaleString()}</div></article><article class="summary-stat span-4"><div class="label">Waste Ratio</div><div class="value">${Number(k.wasteRatio||0).toFixed(2)}%</div></article><article class="summary-stat span-4"><div class="label">Availability</div><div class="value">${Number(k.availabilityPercent||0).toFixed(2)}%</div></article>`;
+    document.getElementById('alertsTotal').textContent=(k.totalEvents||0).toLocaleString();document.getElementById('alertsTop').textContent=s?.topAlert?.name||'—';document.getElementById('alertsCritical').textContent=`${Number((s?.unplannedShare||0)*100).toFixed(1)}%`;
+    document.getElementById('aiInsightsContent').innerHTML=`<div class="status-chip">${handleAssistantQuery('downtime')}</div><div class="status-chip" style="margin-top:8px;">${handleAssistantQuery('fix first')}</div>`;
+    document.getElementById('dataQualityContent').innerHTML=document.getElementById('dashboardStatusPanel')?.innerHTML||'<div class="micro">Validation appears after analysis.</div>'
+  }
+function bind() {
     ['errors', 'availability', 'volume'].forEach(setFileUI);
     setStatus('Assign datasets and run analysis. Errors dataset is required.', 'info');
     setProcessingState({ stage: 'reading', status: 'idle', percent: 0, detail: 'Upload and validate files to begin processing.' });
