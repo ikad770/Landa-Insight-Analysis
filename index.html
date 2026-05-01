@@ -400,6 +400,27 @@
 
 <script>
 (() => {
+  function requireEl(id) {
+    const el = document.getElementById(id);
+    if (!el) throw new Error(`Missing required DOM element: ${id}`);
+    return el;
+  }
+  function optionalEl(id) { return document.getElementById(id); }
+
+  const els = {
+    bulkInput: requireEl('bulkInput'),
+    errorsPicker: requireEl('errorsPicker'),
+    availabilityPicker: requireEl('availabilityPicker'),
+    volumePicker: requireEl('volumePicker'),
+    clearBtn: requireEl('clearBtn'),
+    runBtn: requireEl('runBtn'),
+    dropZone: requireEl('dropZone'),
+    cancelRunBtn: optionalEl('cancelRunBtn'),
+    retryRunBtn: optionalEl('retryRunBtn'),
+    resetRunBtn: optionalEl('resetRunBtn'),
+    replaceBtn: optionalEl('replaceBtn')
+  };
+
   const STATE = {
     files: { errors: null, availability: null, volume: null },
     validation: { errors: false, availability: false, volume: false },
@@ -848,7 +869,11 @@
       badge.className = 'badge loaded';
       badge.textContent = 'loaded';
     }
-    document.getElementById('runBtn').disabled = !STATE.validation.errors;
+    updateRunButtonState();
+  }
+
+  function updateRunButtonState() {
+    els.runBtn.disabled = !STATE.files.errors || STATE.analysisRunning;
   }
 
   function setFileProgressUI(key, { state = 'idle', progress = 0, label = '' } = {}) {
@@ -1312,7 +1337,7 @@
       const preferredVolume = Number.isFinite(printedSheets) ? printedSheets : (Number.isFinite(printedFlats) ? printedFlats : 0);
       const customer = String(getField(r, ['Customer', 'Account', 'Client'])).trim() || 'Unspecified';
       const site = String(getField(r, ['Site', 'Location', 'Plant'])).trim() || 'Unspecified';
-      const jobType = String(getResolvedValue(r, detectedJobTypeField) ?? resolveJobTypeFromRow(r).value || '').trim() || 'Unspecified';
+      const jobType = String((getResolvedValue(r, detectedJobTypeField) ?? resolveJobTypeFromRow(r).value ?? '')).trim() || 'Unspecified';
       rawJobTypes.add(jobType);
       const normalizedJobType = normalizeTextValue(jobType) || 'unspecified';
       normalizedJobTypes.set(normalizedJobType, (normalizedJobTypes.get(normalizedJobType) || 0) + 1);
@@ -5613,7 +5638,7 @@
     STATE.mode = '';
     setStatus('Run state reset. Existing files are still loaded and ready to retry.', 'info');
     setProcessingState({ stage: 'reading', status: 'idle', percent: 0, detail: 'Ready to run analysis again.' });
-    document.getElementById('runBtn').disabled = !STATE.validation.errors;
+    updateRunButtonState();
   }
 
   function retryLastRun() {
@@ -5667,46 +5692,62 @@
     }
     syncMetricToggleUI();
 
-    document.querySelectorAll('[data-pick]').forEach(btn => btn.addEventListener('click', () => document.getElementById(`${btn.dataset.pick}Picker`).click()));
-    errorsPicker.addEventListener('change', async e => {
-      STATE.files.errors = e.target.files?.[0] || null;
-      await validateSingleFile('errors');
-      e.target.value = '';
+    document.querySelectorAll('[data-pick]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const key = btn.dataset.pick;
+        const picker = document.getElementById(`${key}Picker`);
+        if (!picker) {
+          console.error(`[intake] Missing picker for key: ${key}`);
+          return;
+        }
+        picker.click();
+      });
     });
-    availabilityPicker.addEventListener('change', async e => {
-      STATE.files.availability = e.target.files?.[0] || null;
-      await validateSingleFile('availability');
-      e.target.value = '';
-    });
-    volumePicker.addEventListener('change', async e => {
-      STATE.files.volume = e.target.files?.[0] || null;
-      await validateSingleFile('volume');
-      e.target.value = '';
-    });
+    function bindFilePicker(key, input) {
+      input.addEventListener('change', async (event) => {
+        const file = event.target.files && event.target.files[0];
+        console.log('[file-selected]', key, file?.name, file?.size);
+        if (!file) return;
+        STATE.files[key] = file;
+        setFileUI(key);
+        updateRunButtonState();
+        try {
+          await validateSingleFile(key);
+        } catch (err) {
+          console.warn(`[validation-warning] ${key}`, err);
+          setFileUI(key);
+        }
+        updateRunButtonState();
+        event.target.value = '';
+      });
+    }
+    bindFilePicker('errors', els.errorsPicker);
+    bindFilePicker('availability', els.availabilityPicker);
+    bindFilePicker('volume', els.volumePicker);
 
-    bulkInput.addEventListener('change', async e => {
+    els.bulkInput.addEventListener('change', async e => {
       await processIncomingFiles(e.target.files || []);
       e.target.value = '';
     });
 
-    const dropZone = document.getElementById('dropZone');
+    const dropZone = els.dropZone;
     ['dragenter', 'dragover'].forEach(ev => dropZone.addEventListener(ev, e => { e.preventDefault(); dropZone.classList.add('drag'); }));
     ['dragleave', 'drop'].forEach(ev => dropZone.addEventListener(ev, e => { e.preventDefault(); dropZone.classList.remove('drag'); }));
     dropZone.addEventListener('drop', async e => {
       await processIncomingFiles(e.dataTransfer?.files || []);
     });
 
-    clearBtn.addEventListener('click', clearFiles);
-    runBtn.addEventListener('click', runAnalysisFlow);
-    cancelRunBtn.addEventListener('click', () => {
+    els.clearBtn.addEventListener('click', clearFiles);
+    els.runBtn.addEventListener('click', runAnalysisFlow);
+    els.cancelRunBtn?.addEventListener('click', () => {
       if (!STATE.analysisRunning) return;
       markAnalysisCanceled('Canceled by user.');
       setStatus('Canceling analysis safely…', 'warning');
       setProcessingState({ stage: STATE.processingStage, status: 'running', percent: 0, detail: 'Cancel requested. Finishing current chunk safely…' });
     });
-    retryRunBtn.addEventListener('click', retryLastRun);
-    resetRunBtn.addEventListener('click', resetCurrentRunState);
-    replaceBtn.addEventListener('click', () => {
+    els.retryRunBtn?.addEventListener('click', retryLastRun);
+    els.resetRunBtn?.addEventListener('click', resetCurrentRunState);
+    els.replaceBtn?.addEventListener('click', () => {
       markAnalysisCanceled('Switched to intake screen.');
       STATE.analysisRunId += 1;
       document.getElementById('dashboardScreen').classList.add('hidden');
