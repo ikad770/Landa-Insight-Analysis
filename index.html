@@ -327,7 +327,7 @@
       <div>
         <div class="eyebrow">Navigation</div>
         <nav class="side-nav">
-          <button class="side-nav-item active" data-view="command-center">📡 <span>Command Center</span></button><button class="side-nav-item" data-view="overview">🧭 <span>Overview</span></button><button class="side-nav-item" data-view="press-performance">🖨️ <span>Press Performance</span></button><button class="side-nav-item" data-view="drilldown-explorer">🔎 <span>Drilldown Explorer</span></button><button class="side-nav-item" data-view="alerts-events">🚨 <span>Alerts & Events</span></button><button class="side-nav-item" data-view="analysis-hub">🧪 <span>Analysis Hub</span></button><button class="side-nav-item" data-view="ai-insights">🤖 <span>AI Insights</span></button><button class="side-nav-item" data-view="reports">📄 <span>Reports</span></button><button class="side-nav-item" data-view="data-quality">✅ <span>Data Quality</span></button><button class="side-nav-item" data-view="settings">⚙️ <span>Settings</span></button>
+          <button class="side-nav-item active" data-view="command-center">📡 <span>Command Center</span></button><button class="side-nav-item" data-view="overview">🧭 <span>Overview</span></button><button class="side-nav-item" data-view="press-performance">🖨️ <span>Press Performance</span></button><button class="side-nav-item" data-view="drilldown-explorer">🔎 <span>Drilldown Explorer</span></button><button class="side-nav-item" data-view="alerts-events">🚨 <span>Alerts & Events</span></button><button class="side-nav-item" data-view="data-quality">✅ <span>Data Quality</span></button>
         </nav>
       </div>
       <section class="sidebar-status card">
@@ -564,7 +564,7 @@
       activeView: 'command-center',
       activeSubView: null,
       sidebarCollapsed: false,
-      assistantOpen: true,
+      assistantOpen: false,
       filtersOpen: true,
       selectedDateRange: 'all',
       shareMenuOpen: false,
@@ -5987,9 +5987,12 @@
   }
 
   const NAV_ITEMS = [
-    ['command-center', '📡', 'Command Center'], ['overview', '🧭', 'Overview'], ['press-performance', '🖨️', 'Press Performance'],
-    ['drilldown-explorer', '🔎', 'Drilldown Explorer'], ['alerts-events', '🚨', 'Alerts & Events'], ['analysis-hub', '🧪', 'Analysis Hub'],
-    ['ai-insights', '🤖', 'AI Insights'], ['reports', '📄', 'Reports'], ['data-quality', '✅', 'Data Quality'], ['settings', '⚙️', 'Settings']
+    ['command-center', '📡', 'Command Center'],
+    ['overview', '🧭', 'Overview'],
+    ['press-performance', '🖨️', 'Press Performance'],
+    ['drilldown-explorer', '🔎', 'Drilldown Explorer'],
+    ['alerts-events', '🚨', 'Alerts & Events'],
+    ['data-quality', '✅', 'Data Quality']
   ];
   const VALID_VIEWS = new Set(NAV_ITEMS.map(([id]) => id));
   const VIEW_PAGE_MAP = {
