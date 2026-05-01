@@ -5982,7 +5982,11 @@
     const summary = document.getElementById('executiveSummaryCard');
     if (summary) summary.textContent = `[${model.status.toUpperCase()}] ${model.mainRisk} • Waste ${model.display.wasteRatio} • Availability ${model.display.availability}`;
     const meta = document.getElementById('metaRow');
-    if (meta) meta.innerHTML = `Data validated: <span id="metaValidatedAt">${new Date(model.validatedAt).toLocaleString()}</span> • Source rows: <span id="metaRowCount">${(model.sourceCounts.errors + model.sourceCounts.availability + model.sourceCounts.volume).toLocaleString()}</span> • Confidence: ${model.confidence.toUpperCase()}`;
+    if (meta) {
+      const validatedAtText = new Date(model.validatedAt).toLocaleString();
+      const sourceRowsText = (model.sourceCounts.errors + model.sourceCounts.availability + model.sourceCounts.volume).toLocaleString();
+      meta.innerHTML = `Data validated: <span>${validatedAtText}</span> • Source rows: <span>${sourceRowsText}</span> • Confidence: ${model.confidence.toUpperCase()}`;
+    }
   }
 
   function setActiveView(view) {
