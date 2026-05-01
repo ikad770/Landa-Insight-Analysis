@@ -122,7 +122,7 @@
     .zone-row .meta { color:#b9c9e1; font-size:.79rem; margin-top:6px; line-height:1.35; }
     .chart-empty-state { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; text-align:center; color:var(--muted); font-size:.86rem; padding:14px; background:rgba(12,17,25,.35); border:1px dashed rgba(255,255,255,.14); border-radius:10px; pointer-events:none; }
     .micro { color:var(--muted); font-size:.82rem; margin:6px 0 8px; }
-    .dashboard-status { margin-bottom:8px; border:1px solid var(--border); border-radius:10px; padding:8px 10px; background:rgba(255,255,255,.02); }
+    .dashboard-status { margin-bottom:10px; border:1px solid rgba(171,193,230,.2); border-radius:12px; padding:10px 12px; background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(255,255,255,.02)); }
     .dashboard-status.green { border-color:rgba(87,201,138,.45); background:rgba(87,201,138,.12); }
     .dashboard-status.warning { border-color:rgba(240,177,101,.45); background:rgba(240,177,101,.12); }
     .dashboard-status.red { border-color:rgba(243,107,99,.45); background:rgba(243,107,99,.12); }
@@ -192,20 +192,20 @@
     .summary-kpi-card .value{font-size:1.05rem;font-weight:700;margin-top:5px}
     .summary-preview{border:1px solid var(--border);background:#fff;border-radius:10px;padding:10px;max-height:420px;overflow:auto}
     .summary-preview iframe{width:100%;height:380px;border:0}
-    .command-shell{display:grid;grid-template-columns:240px 1fr 320px;gap:12px;align-items:start}
+    .command-shell{display:grid;grid-template-columns:270px minmax(0,1fr) 360px;gap:16px;align-items:start}.card{border-radius:16px;border:1px solid rgba(180,202,235,.16);background:linear-gradient(180deg,rgba(19,28,44,.96),rgba(12,19,31,.96));box-shadow:0 10px 30px rgba(0,0,0,.35)}
     .command-sidebar{position:sticky;top:10px;display:grid;gap:10px;height:calc(100vh - 24px)}
     .side-nav{display:grid;gap:6px;margin-top:8px}
-    .side-nav-item{background:transparent;color:#d5e2f8;border:1px solid transparent;border-radius:10px;padding:9px 10px;text-align:left;cursor:pointer}
+    .side-nav-item{display:flex;align-items:center;gap:10px;background:transparent;color:#d5e2f8;border:1px solid transparent;border-radius:12px;padding:11px 12px;text-align:left;cursor:pointer;font-weight:580;transition:all .2s ease}
     .side-nav-item:hover{border-color:var(--border);background:rgba(255,255,255,.04)}
-    .side-nav-item.active{background:linear-gradient(160deg, rgba(123,141,255,.24), rgba(88,128,255,.11));border-color:rgba(123,141,255,.45)}
+    .side-nav-item.active{background:linear-gradient(140deg, rgba(104,125,255,.35), rgba(62,115,212,.18));border-color:rgba(137,163,255,.65);box-shadow:inset 0 0 0 1px rgba(200,217,255,.1),0 6px 24px rgba(75,103,238,.3)}
     .sidebar-status{padding:10px}
     .collapse-nav{margin-top:auto}
     .command-main{min-width:0}
     .command-header{margin-bottom:8px}
     .command-grid .card{background:linear-gradient(180deg,rgba(255,255,255,.03),rgba(255,255,255,.01))}
-    .assistant-rail{position:sticky;top:10px;padding:12px}
+    .assistant-rail{position:sticky;top:10px;padding:14px;display:grid;gap:10px}.kpi{padding:13px;border-radius:14px;background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(255,255,255,.015));border:1px solid rgba(178,197,228,.2)}.v{font-size:1.35rem;font-weight:760}.k{font-size:.7rem;color:#9ab0d0}
 
-    @media(max-width:1200px){.command-shell{grid-template-columns:220px 1fr}.assistant-rail{grid-column:1 / -1;position:static}}
+    @media(max-width:1320px){.command-shell{grid-template-columns:240px 1fr}.assistant-rail{grid-column:1 / -1;position:static}}
     @media(max-width:1000px){ .command-shell{grid-template-columns:1fr}.command-sidebar{position:static;height:auto}.kpis{grid-template-columns:repeat(2,minmax(150px,1fr));}.topbar{grid-template-columns:1fr}.span-6,.span-4,.span-8,.span-3{grid-column:span 12}.file-row{grid-template-columns:1fr} .file-state{justify-content:flex-start}.press-analytics-grid{grid-template-columns:1fr}.press-chart-area{height:280px;min-height:280px;}.press-chart-area.primary{height:340px;min-height:340px;} }
     @media(max-width:760px){ .summary-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr));}.kpi-row.core,.kpi-row.context{grid-template-columns:repeat(2,minmax(150px,1fr));} }
   </style>
@@ -289,7 +289,7 @@
       <div>
         <div class="eyebrow">Navigation</div>
         <nav class="side-nav">
-          <button class="side-nav-item active">⌘ Command Center</button><button class="side-nav-item">◉ Overview</button><button class="side-nav-item">▣ Press Performance</button><button class="side-nav-item">◫ Drilldown Explorer</button><button class="side-nav-item">⚠ Alerts & Events</button><button class="side-nav-item">◎ Analysis Hub</button><button class="side-nav-item">✦ AI Insights</button><button class="side-nav-item">⧉ Reports</button><button class="side-nav-item">✓ Data Quality</button><button class="side-nav-item">⚙ Settings</button>
+          <button class="side-nav-item active">📡 <span>Command Center</span></button><button class="side-nav-item">🧭 <span>Overview</span></button><button class="side-nav-item">🖨️ <span>Press Performance</span></button><button class="side-nav-item">🔎 <span>Drilldown Explorer</span></button><button class="side-nav-item">🚨 <span>Alerts & Events</span></button><button class="side-nav-item">🧪 <span>Analysis Hub</span></button><button class="side-nav-item">🤖 <span>AI Insights</span></button><button class="side-nav-item">📄 <span>Reports</span></button><button class="side-nav-item">✅ <span>Data Quality</span></button><button class="side-nav-item">⚙️ <span>Settings</span></button>
         </nav>
       </div>
       <section class="sidebar-status card">
@@ -321,7 +321,7 @@
     <section id="kpiStrip" class="kpis"></section>
     <section id="dashboardStatusPanel" class="dashboard-status hidden"></section>
 
-    <section class="filters">
+    <section class="filters"><span class="meta-pill">Scope Filters</span>
       <select id="pressFilter" class="select"><option value="all">All presses</option></select>
       <select id="subsystemFilter" class="select"><option value="all">All subsystems</option></select>
       <select id="versionFilter" class="select"><option value="all">All software versions</option></select>
@@ -356,22 +356,22 @@
       </article>
 
       <article class="card span-6" data-rank-card="subsystem">
-        <div class="chart-head"><h3>Top Subsystems</h3><div class="chart-tools"><div class="metric-toggle" data-chart-toggle="subsystem"><button class="btn active" data-mode="events">Events</button><button class="btn" data-mode="duration">Duration</button></div><button class="btn secondary" data-expand="subsystem">Show all</button></div></div>
+        <div class="chart-head"><h3>Events by Subsystem</h3><div class="chart-tools"><div class="metric-toggle" data-chart-toggle="subsystem"><button class="btn active" data-mode="events">Events</button><button class="btn" data-mode="duration">Duration</button></div><button class="btn secondary" data-expand="subsystem">Show all</button></div></div>
         <div class="micro">Metric source shown dynamically by mode.</div><div class="chart-area"><canvas id="subsystemChart"></canvas></div>
       </article>
 
       <article class="card span-6" data-rank-card="alert">
-        <div class="chart-head"><h3>Top Errors</h3><div class="chart-tools"><div class="metric-toggle" data-chart-toggle="alert"><button class="btn active" data-mode="events">Events</button><button class="btn" data-mode="duration">Duration</button></div><button class="btn secondary" data-expand="alert">Show all</button></div></div>
+        <div class="chart-head"><h3>Events by Alert (Top 8)</h3><div class="chart-tools"><div class="metric-toggle" data-chart-toggle="alert"><button class="btn active" data-mode="events">Events</button><button class="btn" data-mode="duration">Duration</button></div><button class="btn secondary" data-expand="alert">Show all</button></div></div>
         <div class="micro">Alert ranking uses Name, with Alert Title fallback.</div><div class="chart-area"><canvas id="alertChart"></canvas></div>
       </article>
 
       <article class="card span-6" data-rank-card="version">
-        <div class="chart-head"><h3>Top Versions</h3><div class="chart-tools"><div class="metric-toggle" data-chart-toggle="version"><button class="btn active" data-mode="events">Events</button><button class="btn" data-mode="duration">Duration</button></div><button class="btn secondary" data-expand="version">Show all</button></div></div>
+        <div class="chart-head"><h3>Downtime by Press (Top 10)</h3><div class="chart-tools"><div class="metric-toggle" data-chart-toggle="version"><button class="btn active" data-mode="events">Events</button><button class="btn" data-mode="duration">Duration</button></div><button class="btn secondary" data-expand="version">Show all</button></div></div>
         <div class="micro">Version exposure with production-normalized context.</div><div class="chart-area"><canvas id="versionChart"></canvas></div>
       </article>
 
       <article class="card span-6">
-        <div class="chart-head"><h3>Print Volume By Press</h3><div class="chart-tools"><select id="customerVolumeMetric" class="select"><option value="totalPrintedSheets">Total</option><option value="goodPrintedSheets">Good</option><option value="wastePrintedSheets">Waste only</option><option value="wasteRatio">Waste ratio</option></select><select id="customerVolumeSort" class="select"><option value="desc">Highest first</option><option value="asc">Lowest first</option></select><button id="customerVolumeExpand" class="btn secondary">Show all</button></div></div>
+        <div class="chart-head"><h3>Waste vs Good Volume</h3><div class="chart-tools"><select id="customerVolumeMetric" class="select"><option value="totalPrintedSheets">Total</option><option value="goodPrintedSheets">Good</option><option value="wastePrintedSheets">Waste only</option><option value="wasteRatio">Waste ratio</option></select><select id="customerVolumeSort" class="select"><option value="desc">Highest first</option><option value="asc">Lowest first</option></select><button id="customerVolumeExpand" class="btn secondary">Show all</button></div></div>
         <div class="micro" id="customerVolumeNote">Stacked bars: muted dollar green = Good Volume, top segment = Waste. Waste color is based on per-press waste ratio.</div><div class="chart-area"><canvas id="customerVolumeChart"></canvas></div>
       </article>
 
@@ -2804,17 +2804,17 @@
 
   function renderKpis(k) {
     const cards = [
-      ['◉ Total Events', 'events', metricRegistry.events.format(k.totalEvents), 'Scoped incident count'],
-      ['⏱ Downtime', 'downtime', metricRegistry.downtime.format(k.totalDowntime), 'Planned + unplanned downtime'],
-      ['🛠 MTTR', 'mttr', metricRegistry.mttr.format(k.mttr), 'Average time to recover'],
-      ['📈 MTBF', 'mtbf', metricRegistry.mtbf.format(k.mtbf), 'Mean time between failures'],
-      ['▦ Volume', 'volume', metricRegistry.volume.format(k.totalPrintedSheets), 'Good + waste output'],
-      ['♻ Waste Ratio', 'wasteRatio', metricRegistry.wasteRatio.format(k.wasteRatio), 'Waste share of total volume'],
-      ['✓ Availability', 'availability', metricRegistry.availability.format((k.availabilityPercent == null ? null : k.availabilityPercent / 100)), 'Runtime efficiency'],
+      ['🧨', 'Total Events', 'events', metricRegistry.events.format(k.totalEvents), 'Incident count in current scope'],
+      ['🕒', 'Downtime', 'downtime', metricRegistry.downtime.format(k.totalDowntime), 'Planned + unplanned duration'],
+      ['🛠️', 'MTTR', 'mttr', metricRegistry.mttr.format(k.mttr), 'Average recovery duration'],
+      ['📈', 'MTBF', 'mtbf', metricRegistry.mtbf.format(k.mtbf), 'Mean time between failures'],
+      ['📦', 'Volume', 'volume', metricRegistry.volume.format(k.totalPrintedSheets), 'Good + waste printed sheets'],
+      ['♻️', 'Waste Ratio', 'wasteRatio', metricRegistry.wasteRatio.format(k.wasteRatio), 'Waste share of printed volume'],
+      ['✅', 'Availability', 'availability', metricRegistry.availability.format((k.availabilityPercent == null ? null : k.availabilityPercent / 100)), 'Runtime efficiency'],
     ];
-    const visibleCards = cards.filter(([_, metricKey]) => !(metricKey === 'wasteRatio' && k.wasteRatio == null));
-    const toCard = ([label, metricKey, value, subtitle]) => `<article class="kpi clickable" role="button" tabindex="0" data-kpi-metric="${metricKey}" title="${esc(subtitle)}"><div class="k">${label}</div><div class="v">${esc(value)}</div><div class="kpi-sub">${esc(subtitle)}</div></article>`;
-    document.getElementById('kpiStrip').innerHTML = `<div class="kpi-row core" style="grid-template-columns:repeat(${Math.max(4, visibleCards.length)},minmax(140px,1fr));">${visibleCards.map(toCard).join('')}</div>`;
+    const visibleCards = cards.filter(([, , metricKey]) => !(metricKey === 'wasteRatio' && k.wasteRatio == null));
+    const toCard = ([icon,label, metricKey, value, subtitle]) => `<article class="kpi clickable" role="button" tabindex="0" data-kpi-metric="${metricKey}" title="${esc(subtitle)}"><div class="k">${icon} ${label}</div><div class="v">${esc(value)}</div><div class="kpi-sub">${esc(subtitle)}</div></article>`;
+    document.getElementById('kpiStrip').innerHTML = `<div class="kpi-row core" style="grid-template-columns:repeat(${Math.max(4, visibleCards.length)},minmax(160px,1fr));">${visibleCards.map(toCard).join('')}</div>`;
   }
 
   function renderExecutiveSummaryCard(summary) {
@@ -2862,7 +2862,7 @@
     const aiAnswer = optionalEl('assistantAnswer');
     if (aiAnswer) aiAnswer.textContent = `Top risk is ${topPress} with ${topError} as repeated error. Bottleneck subsystem: ${topSubsystem}.`;
     const insightsHost = optionalEl('keyInsightsCard');
-    if (insightsHost) insightsHost.innerHTML = `<div class="chart-head"><h3>Key Insights</h3><button class="btn secondary">View all</button></div><div class="summary-grid"><article class="summary-stat span-4"><div class="label">Top Downtime Driver</div><div class="value">${esc(topPress)}</div><div class="micro">${downtimeSignal.toFixed(1)}% downtime signal</div></article><article class="summary-stat span-4"><div class="label">Most Repeated Error</div><div class="value">${esc(topError)}</div><div class="micro">${(summary?.repeatFailures || 0).toLocaleString()} repeats</div></article><article class="summary-stat span-4"><div class="label">Bottleneck Subsystem</div><div class="value">${esc(topSubsystem)}</div><div class="micro">Primary impact concentration</div></article></div>`;
+    if (insightsHost) insightsHost.innerHTML = `<div class="chart-head"><h3>Key Insights</h3><button class="btn secondary">View all</button></div><p class="micro">Updated from the current validated scope.</p><div class="summary-grid"><article class="summary-stat span-4"><div class="label">Top Downtime Driver</div><div class="value">🚨 ${esc(topPress)}</div><div class="micro">${downtimeSignal.toFixed(1)}% of downtime concentration</div></article><article class="summary-stat span-4"><div class="label">Most Repeated Error</div><div class="value">🔁 ${esc(topError)}</div><div class="micro">${(summary?.repeatFailures || 0).toLocaleString()} repeated occurrences</div></article><article class="summary-stat span-4"><div class="label">Bottleneck Subsystem</div><div class="value">🧩 ${esc(topSubsystem)}</div><div class="micro">Primary impact concentration</div></article></div>`;
     const actionHost = optionalEl('actionCenterCard');
     if (actionHost) actionHost.innerHTML = `<div class="chart-head"><h3>Action Center</h3></div><div style="display:grid;gap:8px;"><div class="status-chip"><span class="risk-pill risk-high">High</span> Fix QCS on ${esc(topPress)}.<div class="micro">Highest downtime concentration press.</div></div><div class="status-chip"><span class="risk-pill risk-medium">Medium</span> Investigate ${esc(topError)} recurrence.<div class="micro">Reduce repeat incident frequency.</div></div><div class="status-chip"><span class="risk-pill risk-medium">Medium</span> Monitor ${esc(topSubsystem)} bottleneck.<div class="micro">Expected impact on availability.</div></div></div>`;
     const alertsHost = optionalEl('recentAlertsStrip');
