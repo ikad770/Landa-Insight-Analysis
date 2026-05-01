@@ -223,12 +223,12 @@
     .key-insights-panel,.action-center-panel,.command-chart-grid article,.ai-assistant-rail,.recent-alerts-strip,.system-health-card{background:var(--bg-panel);border:1px solid var(--border-soft);border-radius:14px;padding:12px}
     .command-chart-grid{display:grid;grid-template-columns:repeat(12,minmax(0,1fr));gap:10px}
     .command-chart-grid .span-4{grid-column:span 4}.command-chart-grid .span-6{grid-column:span 6}
-    .assistant-rail,.ai-assistant-rail{position:sticky;top:10px;display:grid;gap:10px}
+    .assistant-rail,.ai-assistant-rail{position:sticky;top:16px;align-self:start;display:grid;gap:10px}
     .recent-alerts-strip{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
     .drilldown-shell .summary-stat,.drilldown-shell .card{border-color:var(--border-soft);background:var(--bg-panel)}
     @media(max-width:1320px){.command-shell{grid-template-columns:240px 1fr}.ai-assistant-rail{grid-column:1/-1;position:static}}
     @media(max-width:1000px){.command-shell{grid-template-columns:1fr}.command-sidebar{position:static;height:auto}.command-kpi-grid{grid-template-columns:repeat(2,minmax(140px,1fr))}.executive-insights-row{grid-template-columns:1fr}.command-chart-grid{grid-template-columns:1fr}.recent-alerts-strip{grid-template-columns:1fr 1fr}}
-.assistant-rail{position:sticky;top:10px;padding:14px;display:grid;gap:10px}.kpi{padding:13px;border-radius:14px;background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(255,255,255,.015));border:1px solid rgba(178,197,228,.2)}.v{font-size:1.35rem;font-weight:760}.k{font-size:.7rem;color:#9ab0d0}
+.assistant-rail{position:sticky;top:16px;align-self:start;padding:14px;display:grid;gap:10px}.kpi{padding:13px;border-radius:14px;background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(255,255,255,.015));border:1px solid rgba(178,197,228,.2)}.v{font-size:1.35rem;font-weight:760}.k{font-size:.7rem;color:#9ab0d0}
 
     @media(max-width:1320px){.command-shell{grid-template-columns:240px 1fr}.assistant-rail{grid-column:1 / -1;position:static}}
     @media(max-width:1000px){ .command-shell{grid-template-columns:1fr}.command-sidebar{position:static;height:auto}.kpis{grid-template-columns:repeat(2,minmax(150px,1fr));}.topbar{grid-template-columns:1fr}.span-6,.span-4,.span-8,.span-3{grid-column:span 12}.file-row{grid-template-columns:1fr} .file-state{justify-content:flex-start}.press-analytics-grid{grid-template-columns:1fr}.press-chart-area{height:280px;min-height:280px;}.press-chart-area.primary{height:340px;min-height:340px;} }
@@ -321,7 +321,7 @@
         <h4>Data Status</h4>
         <span id="headerDataStatus" class="meta-pill ok">All data validated</span>
         <div class="micro">7/7 metrics valid</div>
-        <button class="btn secondary">View validation</button>
+        <button class="btn secondary" data-action="view-validation">View validation</button>
         <div class="micro">Last refresh: <span id="sidebarRefreshTime">—</span> • <span style="color:#57c98a;">● Live</span></div>
       </section>
       <button class="btn secondary collapse-nav">Collapse</button>
@@ -414,7 +414,7 @@
       <article class="card span-8"><h3>Recent Alerts</h3><div id="recentAlertsStrip" class="summary-grid"></div></article>
       <article class="card span-4"><h3>System Health</h3><p class="micro">Operational state</p><div class="status-chip">✅ Platform operational. Data sync and validation pipelines healthy.</div></article>
     </section>
-      <section id="recentAlertsStrip" class="recent-alerts-strip"></section>
+      <section id="recentAlertsRail" class="recent-alerts-strip"></section>
       <section class="system-health-card" id="systemHealthCard"></section>
 
       <section id="pageOverview" class="card hidden"><h3>Executive Overview</h3><div id="overviewContent" class="summary-grid"></div></section>
@@ -431,10 +431,10 @@
     <aside class="assistant-rail ai-assistant-rail" id="aiAssistantRail">
       <div class="chart-head"><h3>AI Assistant</h3><span class="risk-pill risk-medium">BETA</span></div>
       <p class="micro">Ask operational questions based on the current validated scope.</p>
-      <div class="exec-action-line"><span class="impact-chip">Why is downtime high?</span><span class="impact-chip">What should we fix first?</span><span class="impact-chip">Show the top waste driver</span></div>
+      <div class="exec-action-line"><button class="impact-chip" data-action="ask-downtime">Why is downtime high?</button><button class="impact-chip" data-action="ask-fix">What should we fix first?</button><button class="impact-chip" data-action="ask-waste">Show the top waste driver</button></div>
       <div id="assistantAnswer" class="status-chip" style="margin-top:10px;">Awaiting analysis scope…</div>
-      <button class="btn secondary" style="margin-top:10px;">Show actions</button>
-      <input class="select" placeholder="Ask a question..." style="margin-top:12px;width:100%;" />
+      <button class="btn secondary" style="margin-top:10px;" data-action="view-key-drivers">Show actions</button>
+      <div class="controls" style="margin-top:12px;"><input id="assistInput" class="select" placeholder="Ask a question..." style="width:100%;" /><button class="btn" data-action="assistant-send">Send</button></div>
     </aside>
   </section>
 </div>
@@ -5917,13 +5917,18 @@
   }
 
   
+  function formatRatioPercent(value, digits = 2) {
+    const n = Number(value || 0);
+    return `${(n * 100).toFixed(digits)}%`;
+  }
+
   function handleAssistantQuery(q='') {
     const summary = STATE.merged?.summary || {};
     const k = STATE.kpis || {};
     const lower = q.toLowerCase();
     if (lower.includes('downtime')) return `Downtime is concentrated in ${summary?.topSubsystem?.name || 'the leading subsystem'} and led by ${summary?.topPressByDowntime?.name || summary?.topPressByEvents?.name || 'top press'}.`;
     if (lower.includes('fix') || lower.includes('first')) return `Fix first: ${summary?.topAlert?.name || 'top recurring alert'} on ${summary?.topPressByEvents?.name || 'highest-impact press'}.`;
-    if (lower.includes('waste')) return `Top waste signal: Waste Ratio is ${(k.wasteRatio||0).toFixed(2)}% with ${(k.totalWasteVolume||0).toLocaleString()} waste sheets.`;
+    if (lower.includes('waste')) return `Top waste signal: Waste Ratio is ${formatRatioPercent(k.wasteRatio)} with ${(k.totalWasteVolume||0).toLocaleString()} waste sheets.`;
     return `Current scope shows ${(k.totalEvents||0).toLocaleString()} events, ${formatDuration(k.totalDowntimeSeconds||0)} downtime, and ${Number(k.availabilityPercent||0).toFixed(2)}% availability.`;
   }
 
@@ -5933,80 +5938,74 @@
     ['ai-insights', '🤖', 'AI Insights'], ['reports', '📄', 'Reports'], ['data-quality', '✅', 'Data Quality'], ['settings', '⚙️', 'Settings']
   ];
   const VALID_VIEWS = new Set(NAV_ITEMS.map(([id]) => id));
+  const VIEW_PAGE_MAP = {
+    overview: 'pageOverview', press-performance: 'pagePressPerformance', 'drilldown-explorer': 'pageDrilldownExplorer',
+    'alerts-events': 'pageAlertsEvents', 'analysis-hub': 'pageAnalysisHub', 'ai-insights': 'pageAiInsights',
+    reports: 'pageReports', 'data-quality': 'pageDataQuality', settings: 'pageSettings'
+  };
+
   function buildCommandCenterModel() {
     const source = STATE.dashboardScopeModel?.scopedSource || STATE.lastSourceScope || {};
     const summary = STATE.merged?.summary || {};
     const k = STATE.kpis || {};
     return {
       status: (k.availabilityPercent || 0) < 80 ? 'critical' : ((k.availabilityPercent || 0) < 90 ? 'warning' : 'stable'),
-      mainRisk: summary?.topAlert?.name || 'Primary recurring alert',
-      topPress: summary?.topPressByEvents?.name || 'N/A',
-      topSubsystem: summary?.topSubsystem?.name || 'N/A',
-      topError: summary?.topAlert?.name || 'N/A',
-      wasteRatio: `${Number(k.wasteRatio || 0).toFixed(2)}%`,
-      availability: `${Number(k.availabilityPercent || 0).toFixed(2)}%`,
-      validatedAt: new Date().toISOString(),
-      sourceCounts: { errors: source.errorsAgg?.length || 0, availability: source.availabilityAgg?.length || 0, volume: source.volumeAgg?.length || 0 },
+      raw: { wasteRatio: Number(k.wasteRatio || 0), availabilityPercent: Number(k.availabilityPercent || 0), totalVolume: Number(k.totalVolume || 0), totalDowntimeSeconds: Number(k.totalDowntimeSeconds || 0) },
+      display: { wasteRatio: formatRatioPercent(k.wasteRatio), availability: `${Number(k.availabilityPercent || 0).toFixed(2)}%`, volume: `${formatCompactNumber(k.totalVolume || 0)} sheets`, downtime: formatDuration(k.totalDowntimeSeconds || 0) },
+      mainRisk: summary?.topAlert?.name || 'Primary recurring alert', topPress: summary?.topPressByEvents?.name || 'N/A', topSubsystem: summary?.topSubsystem?.name || 'N/A', topError: summary?.topAlert?.name || 'N/A',
+      validatedAt: new Date().toISOString(), sourceCounts: { errors: source.errorsAgg?.length || 0, availability: source.availabilityAgg?.length || 0, volume: source.volumeAgg?.length || 0 },
       confidence: STATE.renderValidation?.ok ? 'Validated' : 'Warning',
       kpis: [
         { label: 'Events', value: (k.totalEvents || 0).toLocaleString() }, { label: 'Downtime', value: formatDuration(k.totalDowntimeSeconds || 0) },
-        { label: 'Volume', value: `${formatCompactNumber(k.totalVolume || 0)} sheets` }, { label: 'Waste Ratio', value: `${Number(k.wasteRatio || 0).toFixed(2)}%` },
+        { label: 'Volume', value: `${formatCompactNumber(k.totalVolume || 0)} sheets` }, { label: 'Waste Ratio', value: formatRatioPercent(k.wasteRatio) },
         { label: 'Availability', value: `${Number(k.availabilityPercent || 0).toFixed(2)}%` }, { label: 'Top Press', value: summary?.topPressByEvents?.name || 'N/A' }
       ],
       insights: [handleAssistantQuery('downtime'), handleAssistantQuery('fix first'), handleAssistantQuery('waste')],
-      actions: ['View validation', 'View key drivers', 'Why critical', 'View all charts', 'Load new dataset'],
-      recentAlerts: (STATE.filteredErrors || []).slice(0, 4).map(r => `${r.press}: ${r.alertTitle || r.name}`),
-      systemHealth: [STATE.mode || 'Unknown mode', `Source confidence: ${STATE.renderValidation?.ok ? 'High' : 'Medium'}`],
       assistant: STATE.assistantHistory.slice(-4)
     };
   }
-  function renderSidebar(model) { return `<aside class="command-sidebar"><div class="sidebar-brand"><span>Landa Command</span><button class="btn secondary" data-action="toggle-sidebar">${STATE.ui.sidebarCollapsed ? 'Expand' : 'Collapse'}</button></div><nav class="side-nav">${NAV_ITEMS.map(([id, icon, label]) => `<button class="side-nav-item ${STATE.ui.activeView === id ? 'active' : ''}" data-view="${id}">${icon} <span>${label}</span></button>`).join('')}</nav></aside>`; }
-  const renderKpiCard = kpi => `<article class="kpi"><div class="k">${kpi.label}</div><div class="v">${kpi.value}</div></article>`;
-  const renderInsightCard = insight => `<article class="status-chip">${insight}</article>`;
-  const renderActionRow = action => `<button class="btn secondary" data-action="${action.toLowerCase().replace(/\s+/g, '-')}">${action}</button>`;
-  function renderCommandCenterView(model) {
-    return `<section class="command-main">
-      <section class="command-header"><h2>Command Center</h2></section>
-      <section class="critical-status-banner ${model.status}"><strong>Critical Focus:</strong> ${model.mainRisk}</section>
-      <section class="command-meta-row">Top Press: ${model.topPress} • Top Subsystem: ${model.topSubsystem} • Top Error: ${model.topError} • Confidence: ${model.confidence}</section>
-      <section class="command-kpi-grid">${model.kpis.map(renderKpiCard).join('')}</section>
-      <section class="command-content-grid executive-insights-row">
-        <article class="key-insights-panel"><h3>Key Insights</h3>${model.insights.map(renderInsightCard).join('')}</article>
-        <article class="action-center-panel"><h3>Action Center</h3>${model.actions.map(renderActionRow).join('')}</article>
-      </section>
-      <section class="command-chart-grid">
-        <article class="span-4 card"><h3>Press Impact Ranking</h3><canvas id="pressImpactScatterChart"></canvas></article>
-        <article class="span-4 card"><h3>Subsystem Ranking</h3><canvas id="subsystemChart"></canvas></article>
-        <article class="span-4 card"><h3>Alerts Ranking</h3><canvas id="alertChart"></canvas></article>
-      </section>
-      <section class="recent-alerts-strip">${model.recentAlerts.map(alert => `<article class="status-chip">${alert}</article>`).join('')}</section>
-      <section class="system-health-card">${model.systemHealth.map(s => `<div class="micro">${s}</div>`).join('')}</section>
-    </section>`;
+
+  function renderSidebar() {
+    document.querySelectorAll('.side-nav [data-view]').forEach(btn => btn.classList.toggle('active', btn.getAttribute('data-view') === STATE.ui.activeView));
+    document.querySelector('.command-sidebar')?.classList.toggle('collapsed', !!STATE.ui.sidebarCollapsed);
   }
-  function renderPageShell(title, subtitle, content) { return `<section class="command-main"><section class="card"><h2>${title}</h2><p class="subtitle">${subtitle}</p>${content}</section></section>`; }
-  function renderActiveView(model) {
-    const s = STATE.merged?.summary || {};
-    if (STATE.ui.activeView === 'command-center') return renderCommandCenterView(model);
-    if (STATE.ui.activeView === 'overview') return renderPageShell('Overview', 'Executive KPI overview and trend context.', `<div class="summary-grid">${model.kpis.map(renderKpiCard).join('')}</div>`);
-    if (STATE.ui.activeView === 'press-performance') return renderPageShell('Press Performance', 'Press ranking, downtime and volume context.', `<canvas id="customerVolumeChart"></canvas><div class="micro" id="customerVolumeNote"></div>`);
-    if (STATE.ui.activeView === 'drilldown-explorer') return renderPageShell('Drilldown Explorer', 'Filtered deep-dive from current scope.', `<div id="drilldown"></div>`);
-    if (STATE.ui.activeView === 'alerts-events') return renderPageShell('Alerts & Events', 'Event-heavy areas and latest alert signals.', `<div class="status-grid"><div class="status-chip">Total: ${(STATE.kpis?.totalEvents || 0).toLocaleString()}</div><div class="status-chip">Top: ${s?.topAlert?.name || 'N/A'}</div></div>`);
-    if (STATE.ui.activeView === 'analysis-hub') return renderPageShell('Analysis Hub', 'Cross-metric analyzers using normalized source tables.', `<div class="micro">${handleAssistantQuery('downtime')}</div>`);
-    if (STATE.ui.activeView === 'ai-insights') return renderPageShell('AI Insights', 'Rule-based explainers and recommendations.', model.insights.map(renderInsightCard).join(''));
-    if (STATE.ui.activeView === 'reports') return renderPageShell('Reports', 'Export current scoped summary and links.', `<button class="btn" id="openSummaryBtn">Generate Executive Summary</button>`);
-    if (STATE.ui.activeView === 'data-quality') return renderPageShell('Data Quality', 'Validation, reconciliation, and source coverage.', `<div id="dataQualityContent">${document.getElementById('dashboardStatusPanel')?.innerHTML || ''}</div>`);
-    return renderPageShell('Settings', 'UI behavior controls.', `<label><input type="checkbox" ${STATE.ui.assistantOpen ? 'checked' : ''} data-action="toggle-assistant" /> Assistant rail</label>`);
-  }
+
   function renderAssistantRail(model) {
-    if (!STATE.ui.assistantOpen) return '';
-    return `<aside class="assistant-rail" id="aiAssistantRail"><article class="card"><h3>Assistant</h3><div>${model.assistant.map(msg => `<div class="micro">${msg.q}: ${msg.a}</div>`).join('')}</div><div><button class="btn secondary" data-action="ask-downtime">Downtime drivers</button><button class="btn secondary" data-action="ask-waste">Waste signals</button></div><div class="controls"><input id="assistInput" placeholder="Ask..." /><button class="btn" data-action="assistant-send">Send</button></div></article></aside>`;
+    const rail = document.getElementById('aiAssistantRail');
+    if (!rail) return;
+    rail.classList.toggle('hidden', !STATE.ui.assistantOpen);
+    const answer = rail.querySelector('#assistantAnswer');
+    if (answer) answer.textContent = model.assistant.length ? model.assistant[model.assistant.length - 1].a : 'Awaiting analysis scope…';
   }
-  function renderAppShell(model) {
-    document.getElementById('dashboardScreen').innerHTML = `<section class="app-shell command-shell ${STATE.ui.sidebarCollapsed ? 'collapsed' : ''}">${renderSidebar(model)}${renderActiveView(model)}${renderAssistantRail(model)}</section>`;
+
+  function renderCommandCenterView(model) {
+    const summary = document.getElementById('executiveSummaryCard');
+    if (summary) summary.textContent = `[${model.status.toUpperCase()}] ${model.mainRisk} • Waste ${model.display.wasteRatio} • Availability ${model.display.availability}`;
+    const meta = document.getElementById('metaRow');
+    if (meta) meta.innerHTML = `Data validated: <span id="metaValidatedAt">${new Date(model.validatedAt).toLocaleString()}</span> • Source rows: <span id="metaRowCount">${(model.sourceCounts.errors + model.sourceCounts.availability + model.sourceCounts.volume).toLocaleString()}</span> • Confidence: ${model.confidence.toUpperCase()}`;
+  }
+
+  function setActiveView(view) {
+    STATE.ui.activeView = VALID_VIEWS.has(view) ? view : 'command-center';
+    const isCommandCenter = STATE.ui.activeView === 'command-center';
+    const workspace = document.querySelector('.command-chart-grid')?.closest('.command-workspace');
+    if (workspace) workspace.classList.toggle('hidden', !isCommandCenter);
+    Object.entries(VIEW_PAGE_MAP).forEach(([key, id]) => {
+      const el = document.getElementById(id);
+      if (el) el.classList.toggle('hidden', STATE.ui.activeView !== key);
+    });
+    renderSidebar();
+  }
+
+  function updateCommandShell() {
+    const model = buildCommandCenterModel();
+    renderCommandCenterView(model);
+    renderAssistantRail(model);
+    setActiveView(STATE.ui.activeView);
   }
   function updateViewVisibility() {
     if (!VALID_VIEWS.has(STATE.ui.activeView)) STATE.ui.activeView = 'command-center';
-    renderAppShell(buildCommandCenterModel());
+    updateCommandShell();
   }
   function renderAuxPages(){ updateViewVisibility(); }
 function bind() {
@@ -6036,11 +6035,16 @@ function bind() {
       if (action === 'toggle-sidebar') STATE.ui.sidebarCollapsed = !STATE.ui.sidebarCollapsed;
       if (action === 'toggle-assistant') STATE.ui.assistantOpen = !STATE.ui.assistantOpen;
       if (action === 'view-validation') STATE.ui.activeView = 'data-quality';
-      if (action === 'view-key-drivers' || action === 'view-all-charts') STATE.ui.activeView = 'analysis-hub';
-      if (action === 'why-critical') alert(handleAssistantQuery('fix first'));
+      if (action === 'view-key-drivers') document.getElementById('keyInsightsCard')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      if (action === 'view-all-charts') document.querySelector('.command-chart-grid')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      if (action === 'why-critical') {
+        STATE.assistantHistory.push({ q: 'Why critical?', a: handleAssistantQuery('fix first') });
+        document.getElementById('keyInsightsCard')?.classList.remove('hidden');
+      }
       if (action === 'load-new-dataset') { clearFiles(); document.getElementById('dashboardScreen').classList.add('hidden'); document.getElementById('intakeScreen').classList.remove('hidden'); }
       if (action === 'ask-downtime') STATE.assistantHistory.push({ q: 'Downtime drivers', a: handleAssistantQuery('downtime') });
       if (action === 'ask-waste') STATE.assistantHistory.push({ q: 'Waste signals', a: handleAssistantQuery('waste') });
+      if (action === 'ask-fix') STATE.assistantHistory.push({ q: 'What should we fix first?', a: handleAssistantQuery('fix first') });
       if (action === 'assistant-send') {
         const input = document.getElementById('assistInput');
         const q = input?.value || '';
