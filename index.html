@@ -233,6 +233,19 @@
     @media(max-width:1320px){.command-shell{grid-template-columns:240px 1fr}.assistant-rail{grid-column:1 / -1;position:static}}
     @media(max-width:1000px){ .command-shell{grid-template-columns:1fr}.command-sidebar{position:static;height:auto}.kpis{grid-template-columns:repeat(2,minmax(150px,1fr));}.topbar{grid-template-columns:1fr}.span-6,.span-4,.span-8,.span-3{grid-column:span 12}.file-row{grid-template-columns:1fr} .file-state{justify-content:flex-start}.press-analytics-grid{grid-template-columns:1fr}.press-chart-area{height:280px;min-height:280px;}.press-chart-area.primary{height:340px;min-height:340px;} }
     @media(max-width:760px){ .summary-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr));}.kpi-row.core,.kpi-row.context{grid-template-columns:repeat(2,minmax(150px,1fr));} }
+  
+    /* Command Center UI layer */
+    .cc-app{display:grid;grid-template-columns:260px minmax(0,1fr) 330px;gap:14px;min-height:calc(100vh - 30px)}
+    .cc-sidebar,.cc-assistant,.cc-panel{background:linear-gradient(180deg,#0f1828,#0a1220);border:1px solid rgba(178,197,228,.2);border-radius:14px}
+    .cc-sidebar{padding:12px;display:flex;flex-direction:column;gap:10px}.cc-main{display:grid;gap:10px}.cc-header{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;padding:12px}.cc-status-banner,.cc-meta-row,.cc-kpi-grid,.cc-page,.cc-insights-row,.cc-action-center,.cc-chart-grid,.cc-bottom-strip{background:rgba(255,255,255,.02);border:1px solid rgba(178,197,228,.2);border-radius:12px;padding:10px}
+    .cc-status-banner.critical{border-color:rgba(243,107,99,.6);background:rgba(243,107,99,.14)}.cc-status-banner.warning{border-color:rgba(240,177,101,.6);background:rgba(240,177,101,.12)}.cc-status-banner.stable{border-color:rgba(87,201,138,.6);background:rgba(87,201,138,.12)}
+    .cc-nav{display:grid;gap:6px}.cc-nav button{padding:9px;border-radius:10px;border:1px solid transparent;background:transparent;color:#dbe7fa;text-align:left}.cc-nav button.active{border-color:rgba(123,141,255,.6);background:rgba(123,141,255,.2)}
+    .cc-kpi-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px}.cc-kpi{padding:9px;border:1px solid rgba(178,197,228,.2);border-radius:10px;background:rgba(255,255,255,.03)}
+    .cc-insights-row,.cc-chart-grid,.cc-bottom-strip{display:grid;gap:8px}.cc-insights-row{grid-template-columns:2fr 1fr}.cc-chart-grid{grid-template-columns:repeat(12,minmax(0,1fr))}.cc-chart{grid-column:span 6;padding:9px;border:1px solid rgba(178,197,228,.2);border-radius:10px}.cc-mini-bars{display:grid;gap:6px}.cc-bar{display:grid;grid-template-columns:120px 1fr auto;gap:8px;align-items:center}.cc-bar-fill{height:8px;border-radius:999px;background:linear-gradient(90deg,#6f8dff,#3ec7de)}
+    .cc-assistant{position:sticky;top:10px;padding:12px;display:grid;gap:8px;height:fit-content}.cc-chips{display:flex;flex-wrap:wrap;gap:6px}.cc-chip{border:1px solid rgba(178,197,228,.2);border-radius:999px;padding:5px 8px;background:rgba(255,255,255,.03);cursor:pointer}.cc-settings-row{display:flex;justify-content:space-between;padding:8px;border:1px solid rgba(178,197,228,.2);border-radius:10px}
+    .cc-sidebar.collapsed{width:72px}.cc-sidebar.collapsed .cc-nav span,.cc-sidebar.collapsed .cc-brand-text,.cc-sidebar.collapsed .cc-status-card{display:none}
+    @media(max-width:1200px){.cc-app{grid-template-columns:1fr}.cc-assistant{position:static}.cc-kpi-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.cc-insights-row{grid-template-columns:1fr}.cc-chart{grid-column:span 12}}
+
   </style>
 </head>
 <body>
@@ -5513,11 +5526,50 @@
       renderDashboardStatusPanel(sourceScope, mismatches, STATE.reconciliation.report, renderValidation, globalValidation, genericValidation);
       renderTable(STATE.filtered);
       renderAuxPages();
-      updateViewVisibility();
+      renderCommandCenterApp();
     } catch (error) {
       console.error('[dashboard-render-failure]', error);
       ['pressImpactScatterChart', 'subsystemChart', 'alertChart', 'versionChart', 'customerVolumeChart'].forEach(id => setCanvasState(id, `Failed to render ${id}.`, 'error'));
     }
+  }
+
+
+  function buildCommandCenterViewModel() {
+    const source = STATE.dashboardScopeModel?.scopedSource || STATE.lastSourceScope || {};
+    const summary = STATE.merged?.summary || {};
+    const k = STATE.kpis || {};
+    const alerts = (source.errorsAgg || []).slice(0,8);
+    return {
+      status: (k.availabilityPercent||0)<80?'critical':((k.availabilityPercent||0)<90?'warning':'stable'),
+      severity: summary?.severity || 'watch', validatedAt: new Date().toISOString(),
+      sourceCounts: { errors:(source.errorsAgg||[]).length, availability:(source.availabilityAgg||[]).length, volume:(source.volumeAgg||[]).length },
+      confidence: STATE.renderValidation?.ok ? 'High' : 'Medium',
+      kpis: k, insights: summary,
+      actions: [handleAssistantQuery('fix first'), handleAssistantQuery('downtime')],
+      charts: { subsystem: rankBy((source.errorsAgg||[]).map(r=>({name:r.subsystem||'Unknown',value:Number(r.totalEvents||0)})),6), press: rankBy((source.errorsAgg||[]).map(r=>({name:r.canonicalPress||'Unknown',value:Number(r.totalErrorDurationSeconds||0)})),6), alert: rankBy((source.errorsAgg||[]).map(r=>({name:r.name||r.alertTitle||'Alert',value:Number(r.totalEvents||0)})),6) },
+      alerts, health: { availability: Number(k.availabilityPercent||0), waste: Number(k.wasteRatio||0) },
+      assistant: STATE.assistantHistory.slice(-4), validation: STATE.genericValidation || {},
+      settings: STATE.ui
+    };
+  }
+  function rankBy(rows,limit=6){const m=new Map();rows.forEach(r=>m.set(r.name,(m.get(r.name)||0)+Number(r.value||0)));return [...m.entries()].map(([name,value])=>({name,value})).sort((a,b)=>b.value-a.value).slice(0,limit);}
+  function setCommandView(view){ STATE.ui.activeView = VALID_VIEWS.has(view) ? view : 'command-center'; renderCommandCenterApp(); }
+  function renderCcBars(title,rows,fmt=(v)=>Number(v).toLocaleString()){ const max=Math.max(1,...rows.map(r=>r.value||0)); return `<article class="cc-chart"><h4>${title}</h4><div class="cc-mini-bars">${rows.map(r=>`<div class="cc-bar"><span>${r.name}</span><div class="cc-bar-track"><div class="cc-bar-fill" style="width:${((r.value||0)/max)*100}%"></div></div><strong>${fmt(r.value)}</strong></div>`).join('')}</div></article>`; }
+  function renderCcActivePage(model){ const v=STATE.ui.activeView||'command-center'; if(v==='command-center'){ return `<section class="cc-page"><div class="cc-insights-row"><div class="cc-panel"><h3>Key Insights</h3><ul><li>${handleAssistantQuery('downtime')}</li><li>${handleAssistantQuery('waste')}</li></ul></div><div class="cc-action-center"><h3>Action Center</h3><button class="btn" data-action="why-critical">Why critical</button> <button class="btn" data-action="view-validation">View validation</button></div></div><div class="cc-chart-grid">${renderCcBars('Events by Subsystem',model.charts.subsystem)}${renderCcBars('Downtime by Press',model.charts.press,v=>formatDuration(v||0))}${renderCcBars('Events by Alert',model.charts.alert)}${renderCcBars('Waste vs Good Volume', [{name:'Waste Ratio',value:model.health.waste*100},{name:'Availability',value:model.health.availability}],v=>v.toFixed(2)+'%')}</div><div class="cc-bottom-strip"><div><h4>Recent Alerts</h4><div>${model.alerts.slice(0,5).map(a=>`${a.name||a.alertTitle||'Alert'} (${Number(a.totalEvents||0)})`).join(' • ')||'No alerts in scope'}</div></div><div><h4>System Health</h4><div>Availability ${Number(model.health.availability||0).toFixed(2)}% • Waste ${formatRatioPercent(model.health.waste||0)}</div></div></div></section>`;}
+    if(v==='overview') return `<section class="cc-page"><h3>Overview</h3><p>Executive summary with KPI snapshot and validation status.</p><p>Events: ${(model.kpis.totalEvents||0).toLocaleString()} • Volume: ${formatCompactNumber(model.kpis.totalVolume||0)} • Waste: ${formatRatioPercent(model.kpis.wasteRatio||0)}</p></section>`;
+    if(v==='press-performance') return `<section class="cc-page"><h3>Press Performance</h3>${renderCcBars('Downtime by Press',model.charts.press,v=>formatDuration(v||0))}</section>`;
+    if(v==='drilldown-explorer') return `<section class="cc-page"><h3>Drilldown Explorer</h3><p>Scoped merged rows: ${(STATE.filtered||[]).length.toLocaleString()}</p><button class="btn" id="openEventsDrilldown">Open Events Drilldown</button></section>`;
+    if(v==='alerts-events') return `<section class="cc-page"><h3>Alerts & Events</h3>${renderCcBars('Top Alerts',model.charts.alert)}</section>`;
+    if(v==='analysis-hub') return `<section class="cc-page"><h3>Analysis Hub</h3><p>${handleAssistantQuery('fix first')}</p><p>${handleAssistantQuery('availability')}</p></section>`;
+    if(v==='ai-insights') return `<section class="cc-page"><h3>AI Insights</h3><p>${handleAssistantQuery('downtime')}</p><p>${handleAssistantQuery('waste')}</p><p>${handleAssistantQuery('validation')}</p></section>`;
+    if(v==='reports') return `<section class="cc-page"><h3>Reports</h3><button class="btn" id="summaryBtn">Summary snapshot</button><button class="btn secondary" id="exportBtn">Export CSV</button><div>Waste Ratio: ${formatRatioPercent(model.kpis.wasteRatio||0)} • Volume: ${formatCompactNumber(model.kpis.totalVolume||0)}</div></section>`;
+    if(v==='data-quality') return `<section class="cc-page"><h3>Data Quality</h3><p>Confidence: ${model.confidence} • Validated: ${new Date(model.validatedAt).toLocaleString()}</p><p>Waste check: ${formatRatioPercent(model.kpis.wasteRatio||0)} from ${(model.sourceCounts.volume||0).toLocaleString()} volume rows.</p></section>`;
+    return `<section class="cc-page"><h3>Settings</h3><div class="cc-settings-row"><span>Sidebar collapsed</span><button class="btn secondary" data-action="toggle-sidebar">${STATE.ui.sidebarCollapsed?'On':'Off'}</button></div><div class="cc-settings-row"><span>Assistant visibility</span><button class="btn secondary" data-action="toggle-assistant">${STATE.ui.assistantOpen?'On':'Off'}</button></div><div class="cc-settings-row"><span>Reset preferences</span><button class="btn secondary" data-action="reset-preferences">Reset</button></div></section>`; }
+
+  function renderCommandCenterApp(){
+    const model=buildCommandCenterViewModel(); const root=document.getElementById('dashboardScreen'); if(!root) return;
+    root.className='cc-app';
+    root.innerHTML=`<aside class="cc-sidebar ${STATE.ui.sidebarCollapsed?'collapsed':''}"><div><strong class="cc-brand-text">Landa InsightPro+</strong><button class="btn secondary" data-action="toggle-sidebar">☰</button></div><nav class="cc-nav">${NAV_ITEMS.map(([id,icon,label])=>`<button data-view="${id}" class="${STATE.ui.activeView===id?'active':''}">${icon} <span>${label}</span></button>`).join('')}</nav><div class="cc-status-card"><h4>Data Status</h4><button class="btn secondary" data-action="view-validation">View validation</button><div class="micro">Last refresh ${new Date(model.validatedAt).toLocaleTimeString()} • <span style="color:#57c98a">● Live</span></div></div></aside><main class="cc-main"><header class="cc-header cc-panel"><div><h2>Operational Command Center</h2><div class="micro">Post-analysis experience</div></div><div class="controls"><span class="meta-pill">Date range: scoped</span><button class="btn secondary" data-action="filters">Filters</button><button class="btn secondary" data-action="share">Share</button><button class="btn" data-action="load-new-dataset">Load dataset</button></div></header><section class="cc-status-banner ${model.status}"><strong>${model.status.toUpperCase()}</strong> • Waste ${formatRatioPercent(model.kpis.wasteRatio||0)} • Availability ${Number(model.kpis.availabilityPercent||0).toFixed(2)}%</section><section class="cc-meta-row">Validated ${new Date(model.validatedAt).toLocaleString()} • Sources E/A/V ${model.sourceCounts.errors}/${model.sourceCounts.availability}/${model.sourceCounts.volume} • Confidence ${model.confidence}</section><section class="cc-kpi-grid">${[['Events',(model.kpis.totalEvents||0).toLocaleString()],['Downtime',formatDuration(model.kpis.totalDowntimeSeconds||0)],['Volume',formatCompactNumber(model.kpis.totalVolume||0)],['Waste Ratio',formatRatioPercent(model.kpis.wasteRatio||0)],['Availability',Number(model.kpis.availabilityPercent||0).toFixed(2)+'%'],['Top Press',model.insights?.topPressByEvents?.name||'N/A']].map(([k,v])=>`<div class="cc-kpi"><div class="k">${k}</div><div class="v">${v}</div></div>`).join('')}</section>${renderCcActivePage(model)}</main><aside class="cc-assistant ${STATE.ui.assistantOpen?'':'hidden'}"><div class="chart-head"><h3>AI Assistant</h3><span class="risk-pill risk-medium">BETA</span></div><div class="cc-chips"><button class="cc-chip" data-action="ask-downtime">downtime</button><button class="cc-chip" data-action="ask-fix">fix first</button><button class="cc-chip" data-action="ask-waste">waste</button><button class="cc-chip" data-action="ask-availability">availability</button><button class="cc-chip" data-action="ask-validation">validation</button></div><div id="assistantAnswer" class="status-chip">${(model.assistant.at(-1)||{}).a||'Ask about downtime, waste, availability, or validation.'}</div><div class="controls"><input id="assistInput" class="select" placeholder="Ask assistant"/><button class="btn" data-action="assistant-send">Send</button></div></aside>`;
   }
 
   function syncMetricToggleUI() {
@@ -5929,6 +5981,8 @@
     if (lower.includes('downtime')) return `Downtime is concentrated in ${summary?.topSubsystem?.name || 'the leading subsystem'} and led by ${summary?.topPressByDowntime?.name || summary?.topPressByEvents?.name || 'top press'}.`;
     if (lower.includes('fix') || lower.includes('first')) return `Fix first: ${summary?.topAlert?.name || 'top recurring alert'} on ${summary?.topPressByEvents?.name || 'highest-impact press'}.`;
     if (lower.includes('waste')) return `Top waste signal: Waste Ratio is ${formatRatioPercent(k.wasteRatio)} with ${(k.totalWasteVolume||0).toLocaleString()} waste sheets.`;
+    if (lower.includes('availability')) return `Availability is ${Number(k.availabilityPercent||0).toFixed(2)}% with ${formatDuration(k.totalDowntimeSeconds||0)} downtime.`;
+    if (lower.includes('validation')) return `Validation is ${STATE.renderValidation?.ok ? 'passing' : 'warning'} across current scoped sources.`;
     return `Current scope shows ${(k.totalEvents||0).toLocaleString()} events, ${formatDuration(k.totalDowntimeSeconds||0)} downtime, and ${Number(k.availabilityPercent||0).toFixed(2)}% availability.`;
   }
 
