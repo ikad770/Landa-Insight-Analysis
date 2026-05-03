@@ -496,8 +496,12 @@
     availability: ['availabilityPercent', 'runtimeSeconds', 'downtimeSeconds'],
   });
   const EXPLICIT_WASTE_FIELD_CANDIDATES = ['waste sheets', 'waste printed sheets', 'wasteprintedsheets', 'reject sheets', 'rejected sheets', 'scrap sheets'];
-  const JOB_TYPE_FIELD_PRIORITY = ['Job Type', 'jobType', 'job_type', 'Type', 'type'];
-  const PRINTED_SHEETS_FIELD_PRIORITY = ['Printed Sheets', 'printed_sheets', 'PrintedSheets', 'Sheets', 'Total Sheets', 'Impressions'];
+  const JOB_TYPE_FIELD_PRIORITY = ['Job Type', 'jobType', 'job_type', 'Type', 'type', 'Activity Type', 'activity_type', 'Work Type', 'work_type'];
+  const PRINTED_SHEETS_FIELD_PRIORITY = ['Printed Sheets', 'printed_sheets', 'PrintedSheets', 'printedSheets', 'Sheets', 'Total Sheets', 'total_sheets', 'Impressions'];
+  const PRESS_FIELD_PRIORITY = ['Press', 'Press Name', 'press_name', 'Machine', 'Machine Name'];
+  const CUSTOMER_FIELD_PRIORITY = ['Customer', 'Customer Name', 'customer_name', 'Client'];
+  const MODEL_FIELD_PRIORITY = ['Model', 'Press Model', 'press_model', 'Machine Model'];
+  const DATE_FIELD_PRIORITY = ['Date', 'Day', 'Print Start', 'Start Date', 'start_date', 'End Date', 'end_date'];
   function normalizeFieldName(name) {
     return String(name ?? '').trim().toLowerCase().replace(/[\s_]+/g, '').replace(/[^a-z0-9]/g, '');
   }
@@ -1081,6 +1085,8 @@
     const seenErrorKeys = new Set();
     const duplicateErrorRows = [];
     const total = Math.max(1, rows.length);
+    let skippedMissingDateOrPress = 0;
+    let skippedInvalidPrintedSheets = 0;
     for (let i = 0; i < rows.length; i++) {
       if (controller) assertAnalysisActive(controller);
       const r = rows[i];
@@ -1282,61 +1288,28 @@
     const sampleRow = volumeRows[0] || {};
     const detectedSheetsField = detectPrintedSheetsFieldName(volumeRows) || detectField(sampleRow, ['Printed Sheets', 'Sheets', 'Total Sheets']);
     const detectedJobTypeField = detectJobTypeFieldName(volumeRows) || detectField(sampleRow, ['Job Type', 'jobType', 'Type']);
-    if (volumeRows.length > 0) {
-      const firstTenRows = volumeRows.slice(0, 10);
-      const allDetectedFieldNames = [...new Set(volumeRows.flatMap(row => Object.keys(row || {})))].sort();
-      const resolvedJobTypeValues = volumeRows.map(r => {
-        const { value } = resolveJobTypeFromRow(r, detectedJobTypeField);
-        return String(value ?? '');
-      });
-      const uniqueJobTypes = [...new Set(resolvedJobTypeValues.filter(v => String(v || '').trim() !== ''))];
-      const normalizedValues = resolvedJobTypeValues.map(v => normalizeJobType(v) || 'unspecified').filter(Boolean);
-      const normalizedUniqueJobTypes = [...new Set(normalizedValues)].sort();
-      const jobTypeCounts = normalizedValues.reduce((acc, v) => {
-        acc[v] = (acc[v] || 0) + 1;
-        return acc;
-      }, {});
-      const specialRawRows = volumeRows.filter(row => normalizeJobType(resolveJobTypeFromRow(row, detectedJobTypeField).value) === 'special');
-      console.info('[waste-debug] raw-volume-sample-first-10', firstTenRows.map((row, idx) => ({
-        index: idx,
-        fields: Object.keys(row || {}),
-        row,
-      })));
-      console.info('[waste-debug] raw-volume-all-detected-field-names', allDetectedFieldNames);
-      console.info('[waste-debug] detected-field-binding', {
-        jobTypeField: detectedJobTypeField || '(none)',
-        sheetsField: detectedSheetsField || '(none)',
-      });
-      console.info('[waste-debug] job-type-raw-unique-values', uniqueJobTypes);
-      console.info('[waste-debug] job-type-normalized-unique-values', normalizedUniqueJobTypes);
-      console.info('[waste-debug] job-type-normalized-counts', jobTypeCounts);
-      console.info('[waste-debug] special-filter-check', {
-        matchCount: specialRawRows.length,
-        totalRows: volumeRows.length,
-      });
-      if (normalizedUniqueJobTypes.includes('special') && specialRawRows.length === 0) {
-        throw new Error('Matching logic is broken — values exist but not matched');
-      }
-    }
-
-    const isWaste = row => normalizeJobType(resolveJobTypeFromRow(row).value) === 'special';
+    const detectedDateField = detectField(sampleRow, DATE_FIELD_PRIORITY);
+    const detectedPressField = detectField(sampleRow, PRESS_FIELD_PRIORITY);
+    const detectedCustomerField = detectField(sampleRow, CUSTOMER_FIELD_PRIORITY);
+    const detectedModelField = detectField(sampleRow, MODEL_FIELD_PRIORITY);
     for (let i = 0; i < rows.length; i++) {
       if (controller) assertAnalysisActive(controller);
       const r = rows[i];
-      const printStart = parseUsDateTime(getField(r, ['Print Start']));
+      const printStart = parseUsDateTime(getField(r, ['Print Start']) || getResolvedValue(r, detectedDateField));
       const day = toDayBucket(printStart);
-      const { canonicalPress, pressCode } = canonicalizePressName(getField(r, ['Press', 'Machine', 'Printer']));
-      const canonicalModel = String(getField(r, ['Model'])).trim() || 'Unspecified';
-      if (canonicalPress === 'Unspecified' || !day) continue;
+      const { canonicalPress, pressCode } = canonicalizePressName(getField(r, PRESS_FIELD_PRIORITY) || getResolvedValue(r, detectedPressField) || getField(r, ['Printer']));
+      const canonicalModel = String(getField(r, MODEL_FIELD_PRIORITY) || getResolvedValue(r, detectedModelField)).trim() || 'Unspecified';
+      if (canonicalPress === 'Unspecified' || !day) { skippedMissingDateOrPress += 1; continue; }
 
       sourceRowsUsed += 1;
-      const printedSheets = toNumberSafe(getResolvedValue(r, detectedSheetsField) ?? resolvePrintedSheetsFromRow(r).value);
-      const printedSheetsValue = Number.isFinite(printedSheets) ? printedSheets : 0;
+      const printedSheetsRaw = parseNumber(getResolvedValue(r, detectedSheetsField) ?? resolvePrintedSheetsFromRow(r).value);
+      if (!Number.isFinite(printedSheetsRaw)) { skippedInvalidPrintedSheets += 1; continue; }
+      const printedSheetsValue = printedSheetsRaw;
       const productionPrintedSheetsRaw = parseNumber(getField(r, ['Production Printed Sheets', 'Production Sheets']));
       const productionPrintedSheetsValue = Number.isFinite(productionPrintedSheetsRaw) ? productionPrintedSheetsRaw : 0;
       const printedFlats = parseNumber(getField(r, ['Printed Flats']));
-      const preferredVolume = Number.isFinite(printedSheets) ? printedSheets : (Number.isFinite(printedFlats) ? printedFlats : 0);
-      const customer = String(getField(r, ['Customer', 'Account', 'Client'])).trim() || 'Unspecified';
+      const preferredVolume = Number.isFinite(printedSheetsRaw) ? printedSheetsRaw : (Number.isFinite(printedFlats) ? printedFlats : 0);
+      const customer = String(getField(r, CUSTOMER_FIELD_PRIORITY) || getField(r, ['Account']) || getResolvedValue(r, detectedCustomerField)).trim() || 'Unspecified';
       const site = String(getField(r, ['Site', 'Location', 'Plant'])).trim() || 'Unspecified';
       const jobType = String((getResolvedValue(r, detectedJobTypeField) ?? resolveJobTypeFromRow(r).value ?? '')).trim() || 'Unspecified';
       rawJobTypes.add(jobType);
@@ -1407,25 +1380,6 @@
       }
     }
     if (onProgress) onProgress({ completed: rows.length, total, detail: `Volume rows: ${rows.length.toLocaleString()} / ${total.toLocaleString()}` });
-    const mismatchJobTypes = [...rawJobTypes].filter(value => {
-      const normalized = normalizeJobType(value) || 'unspecified';
-      return value !== normalized;
-    });
-    console.info('[waste-debug] volume job_type normalization', {
-      uniqueRawJobTypes: [...rawJobTypes].sort(),
-      normalizedJobTypes: [...normalizedJobTypes.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([jobType, count]) => ({ jobType, count })),
-      normalizationMismatchDetected: mismatchJobTypes.length > 0,
-      mismatchSamples: mismatchJobTypes.slice(0, 20),
-      wasteDefinition: 'waste = SUM(printed_sheets WHERE trim(lower(type)) === special)',
-    });
-
-
-    console.log("WASTE SAMPLE", jobs.slice(0,50).map(r => ({
-      jobType: r.jobType,
-      jobStatus: r.jobStatus,
-      printedSheets: r.printedSheets
-    })));
-
     const byKey = new Map();
     jobs.forEach(job => {
       if (!byKey.has(job.key)) {
@@ -1466,13 +1420,6 @@
     const specialJobRows = jobs.filter(job => job.jobTypeNormalized === 'special');
     const specialJobPrintedSheets = specialJobRows.reduce((sum, job) => sum + Number(job.printedSheets || job.productionPrintedSheets || 0), 0);
     const specialAggPrintedSheets = [...byKey.values()].reduce((sum, row) => sum + Number(row.wastePrintedSheets || 0), 0);
-    console.info('[waste-debug] special-row-aggregation-validation', {
-      specialJobRows: specialJobRows.length,
-      specialJobPrintedSheets,
-      specialAggPrintedSheets,
-      parityPass: Math.abs(specialJobPrintedSheets - specialAggPrintedSheets) < 1e-6,
-      note: 'Special rows are aggregated into press/day volumeAgg as wastePrintedSheets.'
-    });
     const rawWaste = sumBy(jobs, row => (row.jobTypeNormalized === 'special') ? (row.printedSheets || row.productionPrintedSheets || 0) : 0);
     const rawProduction = sumBy(jobs, row => (row.jobTypeNormalized !== 'special') ? (row.productionPrintedSheets || row.printedSheets || 0) : 0);
     const aggWaste = [...byKey.values()].reduce((sum, row) => sum + Number(row.wastePrintedSheets || 0), 0);
@@ -1482,8 +1429,8 @@
     const wastePrintedSheets = aggWaste;
     const wasteRatio = totalPrintedSheets > 0 ? (wastePrintedSheets / totalPrintedSheets) : 0;
     const validationReport = {
-      detectedFieldNames: { sheetsField: detectedSheetsField, jobTypeField: detectedJobTypeField },
-      rowCounts: { rawRows: rows.length, normalizedJobs: jobs.length, aggregatedRows: byKey.size },
+      detectedFieldNames: { sheetsField: detectedSheetsField, jobTypeField: detectedJobTypeField, dateField: detectedDateField, pressField: detectedPressField, customerField: detectedCustomerField, modelField: detectedModelField },
+      rowCounts: { rawRows: rows.length, normalizedJobs: jobs.length, aggregatedRows: byKey.size, skippedMissingDateOrPress, skippedInvalidPrintedSheets },
       uniqueJobTypes: [...normalizedJobTypes.keys()].sort(),
       specialRowCount: specialJobRows.length,
       totalPrintedSheets,
@@ -1496,42 +1443,7 @@
         { layer: 'aggregation-kpi-chart', status: 'valid', metric: 'waste-ratio', expected: totalPrintedSheets > 0 ? wastePrintedSheets / totalPrintedSheets : 0, actual: wasteRatio, diff: 0, explanation: 'KPI waste ratio derived from aggregated totals.' }
       ]
     };
-    console.group('Landa InsightPro+ Data Validation Report');
-    console.info(`Detected Printed Sheets field: ${detectedSheetsField || 'not found'}`);
-    console.info(`Detected Job Type field: ${detectedJobTypeField || 'not found'}`);
-    console.info(`Raw volume rows: ${rows.length}`);
-    console.info(`Normalized volume rows: ${jobs.length}`);
-    console.info(`Unique Job Types: ${[...normalizedJobTypes.keys()].sort().join(', ')}`);
-    console.info(`Special rows: ${specialJobRows.length}`);
-    console.info(`Total Printed Sheets: ${totalPrintedSheets}`);
-    console.info(`Waste Printed Sheets: ${wastePrintedSheets}`);
-    console.info(`Good Printed Sheets: ${goodPrintedSheets}`);
-    console.info(`Waste Ratio: ${(wasteRatio * 100).toFixed(4)}%`);
-    console.info(`Validation pass 1: ${validationReport.validationPassResults[0].status}`);
-    console.info(`Validation pass 2: ${validationReport.validationPassResults[1].status}`);
-    console.info(`Validation pass 3: ${validationReport.validationPassResults[2].status}`);
-    console.info(validationReport);
-    console.groupEnd();
-    console.info('[volume-contract-debug]', {
-      sheetsField: detectedSheetsField,
-      jobTypeField: detectedJobTypeField,
-      uniqueJobTypes: [...normalizedJobTypes.keys()].sort(),
-      specialCount: normalizedJobTypes.get('special') || 0,
-      wasteSheets: wastePrintedSheets,
-      totalSheets: totalPrintedSheets,
-    });
-    console.log({
-      totalPrintedSheets,
-      goodPrintedSheets,
-      wastePrintedSheets,
-      wasteRatio
-    });
-    console.log('[volume-validation]', {
-      rawWaste,
-      aggWaste,
-      rawProduction,
-      aggProduction
-    });
+    console.info('[volume-validation-summary]', validationReport);
 
     const duplicateDailyKeys = new Map();
     const dedupedByPressCustomerDay = new Map();
