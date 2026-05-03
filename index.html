@@ -1794,21 +1794,28 @@
       availabilityPercent: row.availabilityPercentContribCount ? (row.availabilityPercentAccumulator / row.availabilityPercentContribCount) : null,
       downtimeSeconds: row.downtimeSeconds || ((row.plannedDowntimeSeconds || 0) + (row.unplannedDowntimeSeconds || 0))
     }));
-    const volumeAgg = [...volumeByPressModelDay.values()].map(row => ({
-      key: row.key,
-      canonicalPress: row.canonicalPress,
-      canonicalModel: row.canonicalModel,
-      day: row.day,
-      customer: row.customer || 'Unspecified',
-      site: row.site || 'Unspecified',
-      productionVolume: row.productionVolume || 0,
-      maintenanceVolume: row.maintenanceVolume || 0,
-      totalVolume: row.totalVolume || 0,
-      productionPrintedSheets: row.productionPrintedSheets || 0,
-      wastePrintedSheets: row.wastePrintedSheets || 0,
-      printedSheets: row.printedSheets || 0,
-      printedFlats: row.printedFlats || 0
-    }));
+    const volumeAgg = [...volumeByPressModelDay.values()].map(row => {
+      const goodPrintedSheets = Number(row.goodPrintedSheets || row.productionPrintedSheets || 0);
+      const wastePrintedSheets = Number(row.wastePrintedSheets || 0);
+      const totalPrintedSheets = goodPrintedSheets + wastePrintedSheets;
+      return {
+        key: row.key,
+        canonicalPress: row.canonicalPress,
+        canonicalModel: row.canonicalModel,
+        day: row.day,
+        customer: row.customer || 'Unspecified',
+        site: row.site || 'Unspecified',
+        totalPrintedSheets,
+        goodPrintedSheets,
+        wastePrintedSheets,
+        productionPrintedSheets: goodPrintedSheets,
+        productionVolume: row.productionVolume || 0,
+        maintenanceVolume: row.maintenanceVolume || 0,
+        totalVolume: row.totalVolume || totalPrintedSheets,
+        printedSheets: row.printedSheets || 0,
+        printedFlats: row.printedFlats || 0
+      };
+    });
     stats.rows.mergedRowsCreated = mergedRows.length;
     stats.rows.errorsAggregated = errorsAgg.length;
     stats.rows.availabilityAggregated = availabilityAgg.length;
@@ -2465,15 +2472,26 @@
       if (scopeType === 'customer') return pressScope.size > 0 ? pressScope.has(press) : true;
       return pressScope.size > 0 ? pressScope.has(press) : true;
     });
+    const resolveSheets = row => {
+      const totalPrintedSheets = Number(row?.totalPrintedSheets);
+      if (Number.isFinite(totalPrintedSheets) && totalPrintedSheets > 0) return totalPrintedSheets;
+      const goodPlusWaste = Number(row?.goodPrintedSheets || 0) + Number(row?.wastePrintedSheets || 0);
+      if (Number.isFinite(goodPlusWaste) && goodPlusWaste > 0) return goodPlusWaste;
+      const productionPlusWaste = Number(row?.productionPrintedSheets || 0) + Number(row?.wastePrintedSheets || 0);
+      if (Number.isFinite(productionPlusWaste) && productionPlusWaste > 0) return productionPlusWaste;
+      const totalVolume = Number(row?.totalVolume);
+      if (Number.isFinite(totalVolume) && totalVolume > 0) return totalVolume;
+      return 0;
+    };
     scopedVolume.forEach(row => {
       const day = toDayBucket(row?.day || row?.date || row?.timestamp);
       if (!day) return;
-      const sheets = Number(row?.totalPrintedSheets || ((row?.goodPrintedSheets || row?.productionPrintedSheets || 0) + (row?.wastePrintedSheets || 0)) || 0);
+      const sheets = resolveSheets(row);
       if (!Number.isFinite(sheets) || sheets <= 0) return;
       trend.set(day, (trend.get(day) || 0) + sheets);
     });
     const max = Math.max(0, ...[...trend.values()].map(v => Number(v || 0)));
-    return { trend, available: trend.size > 0 && max > 0, max, scopeType, presses: pressScope.size, versions: versionScope.size };
+    return { trend, available: trend.size > 0 && max > 0, max, scopeType, presses: pressScope.size, versions: versionScope.size, diagnostics: { scopedRows: scopedVolume.length } };
   }
 
   function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], topSubsystems = [], topErrors = [] } = {}) {
@@ -3080,7 +3098,7 @@
         const xScale = chart.scales.x;
         const yScale = chart.scales.y;
         const horizontal = xScale && yScale && xScale.isHorizontal && !yScale.isHorizontal;
-        const formatter = config.formatter || (v => formatCompactNumber(v));
+        const formatter = config.formatter || (v => formatChartValue(v));
         ctx.save();
         ctx.fillStyle = config.color || '#dbe7f8';
         ctx.font = '600 11px Inter, system-ui, sans-serif';
@@ -4903,7 +4921,7 @@
     const topPayloads = topRows.map(([label]) => ({
       entityKey: label,
       displayLabel: label,
-      sourceType: 'errorEvents',
+      sourceType: sourceType === 'versionPerPress' ? 'versionPerPress' : 'errorEvents',
       metric: STATE.drilldown.metric || 'events',
       parentContext: { path: STATE.drilldown.path || [] }
     }));
