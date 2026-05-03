@@ -2455,12 +2455,15 @@
     return Math.ceil(n / magnitude) * magnitude;
   }
 
-  function buildProductionTrendByDay(rows = [], volumeAggRows = [], options = {}) {
+  function buildProductionTrendByDay(eventRows = [], sourceScope = {}, options = {}) {
     const scopeType = options.scopeType || 'eventScope';
     const trend = new Map();
-    const pressScope = new Set((rows || []).map(r => r?.press || r?.canonicalPress).filter(Boolean));
-    const versionScope = new Set((rows || []).map(r => r?.version).filter(Boolean));
-    const scopedVolume = (volumeAggRows || []).filter(r => {
+    const pressScope = new Set((eventRows || []).map(r => r?.press || r?.canonicalPress).filter(Boolean));
+    const versionScope = new Set((eventRows || []).map(r => r?.version).filter(Boolean));
+    const nativeRows = Array.isArray(sourceScope?.filteredVolumeRowsNative) ? sourceScope.filteredVolumeRowsNative : [];
+    const fallbackRows = Array.isArray(sourceScope?.volumeAgg) ? sourceScope.volumeAgg : [];
+    const sourceRows = nativeRows.length ? nativeRows : fallbackRows;
+    const scopedVolume = sourceRows.filter(r => {
       const press = r?.canonicalPress || r?.press;
       if (scopeType === 'kpi') return true;
       if (scopeType === 'press') return pressScope.size > 0 ? pressScope.has(press) : true;
@@ -2479,19 +2482,23 @@
       if (Number.isFinite(goodPlusWaste) && goodPlusWaste > 0) return goodPlusWaste;
       const productionPlusWaste = Number(row?.productionPrintedSheets || 0) + Number(row?.wastePrintedSheets || 0);
       if (Number.isFinite(productionPlusWaste) && productionPlusWaste > 0) return productionPlusWaste;
+      const printedSheets = Number(row?.printedSheets);
+      if (Number.isFinite(printedSheets) && printedSheets > 0) return printedSheets;
       const totalVolume = Number(row?.totalVolume);
       if (Number.isFinite(totalVolume) && totalVolume > 0) return totalVolume;
       return 0;
     };
     scopedVolume.forEach(row => {
-      const day = toDayBucket(row?.day || row?.date || row?.timestamp);
+      const rawDay = row?.day || row?.date || row?.timestamp;
+      if (!rawDay) return;
+      const day = toDayBucket(rawDay);
       if (!day) return;
       const sheets = resolveSheets(row);
       if (!Number.isFinite(sheets) || sheets <= 0) return;
       trend.set(day, (trend.get(day) || 0) + sheets);
     });
     const max = Math.max(0, ...[...trend.values()].map(v => Number(v || 0)));
-    return { trend, available: trend.size > 0 && max > 0, max, scopeType, presses: pressScope.size, versions: versionScope.size, diagnostics: { scopedRows: scopedVolume.length } };
+    return { trend, available: trend.size > 0 && max > 0, max, scopeType, presses: pressScope.size, versions: versionScope.size, diagnostics: { scopedRows: scopedVolume.length, sourceRows: sourceRows.length, source: nativeRows.length ? 'filteredVolumeRowsNative' : 'volumeAgg' } };
   }
 
   function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], topSubsystems = [], topErrors = [] } = {}) {
@@ -4692,7 +4699,7 @@
       const byDayCurrent = new Map(); appliedRows.forEach(r => { if (!r.day) return; byDayCurrent.set(r.day, (byDayCurrent.get(r.day) || 0) + rowMetricValue(r)); });
       const byDayBaseline = new Map(); baselineRows.forEach(r => { if (!r.day) return; byDayBaseline.set(r.day, (byDayBaseline.get(r.day) || 0) + rowMetricValue(r)); });
       const dayLabels = [...new Set([...byDayCurrent.keys(), ...byDayBaseline.keys()])].sort((a, b) => a.localeCompare(b));
-      const prodKpi = buildProductionTrendByDay([], STATE.lastSourceScope?.volumeAgg || [], { scopeType: 'kpi' });
+      const prodKpi = buildProductionTrendByDay(appliedRows, STATE.lastSourceScope || {}, { scopeType: 'kpi' });
       const productionSeries = dayLabels.map(x => (prodKpi.available ? (prodKpi.trend.get(x) ?? null) : null));
       const showKpiProduction = prodKpi.available && productionSeries.some(v => Number(v || 0) > 0);
       replaceChart('drilldownTrendChart', { type: 'line', data: { labels: dayLabels, datasets: [
@@ -4933,7 +4940,7 @@
     });
     const trendPoints = analytics.trendPoints.filter(([day]) => !!day);
     if (trendPoints.length) {
-      const production = buildProductionTrendByDay(scoped, STATE.lastSourceScope?.volumeAgg || [], { scopeType: sourceType === 'versionPerPress' ? 'version' : (dimension === 'press' ? 'press' : (dimension === 'subsystem' ? 'subsystem' : (dimension === 'alert' ? 'alert' : 'eventScope'))) });
+      const production = buildProductionTrendByDay(scoped, STATE.lastSourceScope || {}, { scopeType: sourceType === 'versionPerPress' ? 'version' : (dimension === 'press' ? 'press' : (dimension === 'subsystem' ? 'subsystem' : (dimension === 'alert' ? 'alert' : 'eventScope'))) });
       const productionSeries = trendPoints.map(x => production.available ? (production.trend.get(x[0]) ?? null) : null);
       const showProductionOverlay = production.available && productionSeries.some(v => Number(v || 0) > 0);
       replaceChart('drilldownTrendChart', {
