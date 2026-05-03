@@ -2413,14 +2413,24 @@
     return Math.round(num).toLocaleString();
   }
 
-  function formatChartValue(value) {
+  function formatChartValue(value, metric = '', options = {}) {
     const num = Number(value || 0);
     if (!Number.isFinite(num)) return '0';
     if (num === 0) return '0';
+    if (metric === 'wasteRatio' || metric === 'availability' || options.percent === true) {
+      return `${formatChartValue(num * 100, 'percent')}%`;
+    }
+    if (options.compact && Math.abs(num) >= 1000) return formatCompactNumber(num);
     const abs = Math.abs(num);
     if (abs >= 10) return num.toLocaleString(undefined, { maximumFractionDigits: 1 });
     if (abs >= 1) return num.toLocaleString(undefined, { maximumFractionDigits: 2 });
     return num.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+  }
+
+  function formatTooltipValue(value, metric = '') {
+    if (metric === 'downtime' || metric === 'avgDuration') return formatDurationCompact(Number(value || 0));
+    if (metric === 'wasteRatio' || metric === 'availability') return formatChartValue(Number(value || 0), metric);
+    return formatChartValue(value, metric);
   }
 
   function getMetricUnit(metric = '') {
@@ -2430,6 +2440,19 @@
     if (metric === 'wasteRatio' || metric === 'availability') return '%';
     if (metric === 'perPress') return 'presses';
     return 'value';
+  }
+
+  function buildProductionTrendByDay(rows = [], volumeAggRows = []) {
+    const pressScope = new Set((rows || []).map(r => r?.press || r?.canonicalPress).filter(Boolean));
+    const scoped = (volumeAggRows || []).filter(r => pressScope.size === 0 || pressScope.has(r?.canonicalPress || r?.press));
+    const trend = new Map();
+    scoped.forEach(row => {
+      const day = row?.day;
+      if (!day) return;
+      const sheets = Number(row?.totalPrintedSheets || ((row?.goodPrintedSheets || 0) + (row?.wastePrintedSheets || 0)) || 0);
+      trend.set(day, (trend.get(day) || 0) + sheets);
+    });
+    return trend;
   }
 
   function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], topSubsystems = [], topErrors = [] } = {}) {
@@ -3455,7 +3478,7 @@
     const payloads = view.map(x => ({
       entityKey: x.entityKey || x.name,
       displayLabel: x.displayLabel || x.name,
-      sourceType: x.sourceType || 'errorsAgg',
+      sourceType: (key === 'version' && metric === 'perPress') ? 'versionPerPress' : (x.sourceType || 'errorsAgg'),
       metric,
       parentContext: { path: [] }
     }));
@@ -3593,7 +3616,7 @@
           datasetMeta.data.forEach((bar, idx) => {
             const rawValue = Number(values[idx] || 0);
             if (!Number.isFinite(rawValue) || rawValue <= 0) return;
-            const label = formatChartValue(rawValue);
+            const label = formatTooltipValue(rawValue, metric);
             const barWidth = Math.abs((bar.x || 0) - (bar.base || 0));
             if (barWidth < 24) return;
             const inside = maxValue > 0 && rawValue >= (maxValue * 0.18);
@@ -4280,7 +4303,11 @@
       parentPath.forEach(node => {
         rows = rows.filter(row => eventValueForDimension(row, node.dimension) === node.entityKey);
       });
-      rows = rows.filter(r => eventValueForDimension(r, dimension) === entityKey);
+      if (sourceType === 'versionPerPress' && dimension === 'version') {
+        rows = rows.filter(r => (r.version || 'Unspecified') === entityKey);
+      } else {
+        rows = rows.filter(r => eventValueForDimension(r, dimension) === entityKey);
+      }
     }
     const prevPath = Array.isArray(payload?.parentContext?.path) ? payload.parentContext.path : [];
     if (!rows.length) {
@@ -4293,9 +4320,10 @@
       if (drilldownSpecial > 0 && mainChartWaste <= 0) console.error('WASTE PIPELINE ERROR');
       if (drilldownSpecial > 0 && mainChartWaste <= 0) console.warn('DATA MISMATCH');
     }
-    const nextPath = [...prevPath, { dimension, entityKey: payload?.entityKey || value, displayLabel: payload?.displayLabel || value, parentValue: Number(payload?.parentContext?.parentValue ?? payload?.parentValue ?? NaN) }];
+    const resolvedDimension = (sourceType === 'versionPerPress' && dimension === 'version') ? 'version' : dimension;
+    const nextPath = [...prevPath, { dimension: resolvedDimension, entityKey: payload?.entityKey || value, displayLabel: payload?.displayLabel || value, parentValue: Number(payload?.parentContext?.parentValue ?? payload?.parentValue ?? NaN) }];
     const nextDrilldownState = {
-      dimension,
+      dimension: resolvedDimension,
       value: payload?.displayLabel || value,
       entityKey: payload?.entityKey || value,
       sourceType,
@@ -4823,8 +4851,12 @@
       : null;
     const globalDriver = summary.globalDriver?.name || null;
     document.getElementById('drilldownCalcBody').innerHTML = `<div class="chart-head"><h4 style="margin:0;">What this selection means</h4><span class="risk-pill risk-medium">Analytical summary</span></div><div class="micro">${esc(analytics.insight)}${scopedDriver ? ` Press-scoped duration driver: ${scopedDriver}.` : ''}${globalDriver ? ` Global duration driver: ${globalDriver}.` : ''}</div>`;
-    const nextDimension = getNextErrorDrillDimension(dimension);
-    const topRows = (dimension === 'subsystem' ? analytics.topAlerts : analytics.topSubsystems);
+    const nextDimension = sourceType === 'versionPerPress'
+      ? 'press'
+      : getNextErrorDrillDimension(dimension);
+    const topRows = sourceType === 'versionPerPress'
+      ? buildDrilldownAnalytics(scoped, 'version', false, selectedMetric).topPresses
+      : (dimension === 'subsystem' ? analytics.topAlerts : analytics.topSubsystems);
     const topLabels = topRows.map(x => x[0]);
     const topValues = topRows.map(x => x[1]);
     const topPayloads = topRows.map(([label]) => ({
@@ -4842,17 +4874,8 @@
     });
     const trendPoints = analytics.trendPoints.filter(([day]) => !!day);
     if (trendPoints.length) {
-      const productionByDay = new Map();
-      if (selectedMetric !== 'downtime') {
-        const volumeRows = STATE.lastSourceScope?.volumeAgg || [];
-        volumeRows.forEach(row => {
-          const day = row?.day;
-          if (!day) return;
-          const sheets = Number(row?.totalPrintedSheets || ((row?.goodPrintedSheets || 0) + (row?.wastePrintedSheets || 0)) || 0);
-          productionByDay.set(day, (productionByDay.get(day) || 0) + sheets);
-        });
-      }
-      const showProductionOverlay = selectedMetric !== 'downtime';
+      const productionByDay = buildProductionTrendByDay(scoped, STATE.lastSourceScope?.volumeAgg || []);
+      const showProductionOverlay = true;
       replaceChart('drilldownTrendChart', {
         type: 'line',
         data: { labels: trendPoints.map(x => x[0]), datasets: [
@@ -4861,9 +4884,9 @@
         ] },
         options: { ...baseOptions('drilldown', trendPoints.map(x => x[0])), plugins: { legend: { display: true, labels: { color: '#c6d3ea' } }, tooltip: { callbacks: { label: ctx => {
           const v = Number(ctx.parsed.y || 0);
-          if (ctx.dataset?.label?.includes('Production')) return `Production: ${formatChartValue(v)} printed sheets`;
-          return selectedMetric === 'downtime' ? `Downtime: ${formatDurationCompact(v)}` : `Events: ${formatChartValue(v)} events`;
-        } } } }, scales: { x: { ticks: { color: '#c6d3ea' }, grid: { color: 'rgba(255,255,255,.04)' } }, y: { beginAtZero: true, ticks: { color: '#c6d3ea', callback: v => selectedMetric === 'downtime' ? formatDurationCompact(v) : formatChartValue(v) }, grid: { color: 'rgba(255,255,255,.04)' } }, y1: { display: showProductionOverlay, position: 'right', beginAtZero: true, ticks: { color: '#9fe3bb', callback: v => formatChartValue(v) }, grid: { drawOnChartArea: false } } } }
+          if (ctx.dataset?.label?.includes('Production')) return `Production: ${formatTooltipValue(v, 'volume')} printed sheets`;
+          return selectedMetric === 'downtime' ? `Downtime: ${formatTooltipValue(v, 'downtime')}` : `Events: ${formatTooltipValue(v, 'events')} events`;
+        } } } }, scales: { x: { ticks: { color: '#c6d3ea' }, grid: { color: 'rgba(255,255,255,.04)' } }, y: { beginAtZero: true, ticks: { color: '#c6d3ea', callback: v => selectedMetric === 'downtime' ? formatTooltipValue(v, 'downtime') : formatTooltipValue(v, 'events') }, grid: { color: 'rgba(255,255,255,.04)' } }, y1: { display: showProductionOverlay, position: 'right', beginAtZero: true, ticks: { color: '#9fe3bb', callback: v => formatTooltipValue(v, 'volume') }, grid: { drawOnChartArea: false } } } }
       });
     } else if (topRows.length) {
       setDrilldownHeading('drilldownTrendHeading', 'Events by Top Group (fallback)');
@@ -5375,7 +5398,7 @@
       press: STATE.metricByChart.press === 'events' ? 'events' : 'duration',
       subsystem: STATE.metricByChart.subsystem === 'downtime' ? 'duration' : 'events',
       alert: STATE.metricByChart.alert === 'downtime' ? 'duration' : 'events',
-      version: STATE.metricByChart.version === 'downtime' ? 'duration' : 'events',
+      version: STATE.metricByChart.version === 'downtime' ? 'duration' : (STATE.metricByChart.version === 'perPress' ? 'perPress' : 'events'),
     };
     document.querySelectorAll('[data-chart-toggle]').forEach(toggle => {
       const key = toggle.dataset.chartToggle;
