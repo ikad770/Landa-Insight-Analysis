@@ -469,7 +469,7 @@
     renderQueued: false,
   };
 
-  const APP_VERSION = 'InsightPro+ v1.1.1';
+  const APP_VERSION = 'InsightPro+ v1.1.2';
   const CURRENT_UI_VERSION_V2 = 'CURRENT_UI_VERSION_V2';
   const UI_RESTORE_INSTRUCTION = "If the user says 'return to current UI', restore the UI to CURRENT_UI_VERSION_V2 (not baseline V1).";
   const CHARTS = new Map();
@@ -2833,10 +2833,10 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
   function renderKpis(k) {
     const cards = [
       ['Events', 'events', metricRegistry.events.format(k.totalEvents), metricRegistry.events.label],
-      ['Downtime', 'downtime', metricRegistry.downtime.format(k.totalDowntime), metricRegistry.downtime.label],
-      ['MTTR (Avg Duration)', 'mttr', metricRegistry.mttr.format(k.mttr), 'sum(totalErrorDurationSeconds) / sum(totalEvents)'],
-      ['MTBF', 'mtbf', metricRegistry.mtbf.format(k.mtbf), 'sum(runtimeSeconds) / sum(totalEvents)'],
-      ['Volume', 'volume', metricRegistry.volume.format(k.totalPrintedSheets), metricRegistry.volume.label],
+      ['Clean Error Downtime', 'downtime', metricRegistry.downtime.format(k.totalDowntime), 'Clean aggregate error downtime (durationIncluded only)'],
+      ['MTTR / Avg repair time', 'mttr', metricRegistry.mttr.format(k.mttr), 'sum(cleanErrorDurationSeconds) / sum(cleanEventCount)'],
+      ['MTBF', 'mtbf', metricRegistry.mtbf.format(k.mtbf), 'sum(availabilityRuntimeSeconds) / sum(cleanEventCount)'],
+      ['Printed Flats', 'volume', `${formatCompactNumber(k.totalPrintedFlats || 0)} flats`, 'Printed Flats (default)'],
       ['Waste Ratio', 'wasteRatio', metricRegistry.wasteRatio.format(k.wasteRatio), 'sum(wastePrintedSheets) / sum(totalPrintedSheets)'],
       ['Availability', 'availability', metricRegistry.availability.format((k.availabilityPercent == null ? null : k.availabilityPercent / 100)), 'sum(runtimeSeconds) / (sum(runtimeSeconds)+sum(downtimeSeconds))'],
     ];
@@ -3300,8 +3300,16 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
       row?.goodSheets ?? row?.goodPrintedSheets,
       row?.wasteSheets ?? row?.wastePrintedSheets
     );
+    const printedFlats = Number(row?.printedFlats || 0);
+    const special = isSpecialJobType(row?.jobType);
+    const goodPrintedFlats = Number(row?.goodPrintedFlats ?? (special ? 0 : printedFlats));
+    const wastePrintedFlats = Number(row?.wastePrintedFlats ?? (special ? printedFlats : 0));
+    if (metric === 'printedFlats') return printedFlats;
+    if (metric === 'goodPrintedFlats') return goodPrintedFlats;
+    if (metric === 'wastePrintedFlats') return wastePrintedFlats;
     if (metric === 'wastePrintedSheets') return safe.wasteSheets;
     if (metric === 'goodPrintedSheets') return safe.goodSheets;
+    if (metric === 'totalPrintedSheets') return safe.totalSheets;
     if (metric === 'wasteRatio') return computeWasteRatio(safe.wasteSheets, safe.totalSheets);
     return safe.totalSheets;
   }
@@ -4292,9 +4300,21 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
       return (scope.availabilityAgg || []).map(r => ({ component: r.canonicalPress || 'Unspecified', press: r.canonicalPress || 'Unspecified', day: r.day || '', subsystem: r.subsystem || 'Unspecified', numerator: Number(r.runtimeSeconds || 0), denominator: Number((r.runtimeSeconds || 0) + (totalDowntimeFromAvailabilityRow(r) || 0)), metricValue: Number(totalDowntimeFromAvailabilityRow(r) || 0), source: 'availabilityAgg', raw: r }));
     }
     if (def.dataset === 'volume') {
-      return (scope.volumeAgg || []).map(r => ({ component: r.canonicalPress || 'Unspecified', press: r.canonicalPress || 'Unspecified', day: r.day || '', numerator: Number(r.wastePrintedSheets || 0), denominator: Number(r.totalPrintedSheets || ((r.goodPrintedSheets || 0) + (r.wastePrintedSheets || 0))), metricValue: Number(r.totalPrintedSheets || ((r.goodPrintedSheets || 0) + (r.wastePrintedSheets || 0))), source: 'volumeAgg', raw: r }));
+      return (scope.volumeAgg || []).map(r => {
+        const totalFlats = Number(r.printedFlats || 0);
+        const goodFlats = Number(r.goodPrintedFlats || (isSpecialJobType(r.jobType) ? 0 : totalFlats) || 0);
+        const wasteFlats = Number(r.wastePrintedFlats || (isSpecialJobType(r.jobType) ? totalFlats : 0) || 0);
+        return { component: r.canonicalPress || 'Unspecified', press: r.canonicalPress || 'Unspecified', day: r.day || '', numerator: wasteFlats, denominator: totalFlats, metricValue: totalFlats, source: 'volumeAgg', raw: r };
+      });
     }
-    return (scope.filteredErrorEventsNative || []).map(r => ({ component: r.press || 'Unspecified', press: r.press || 'Unspecified', day: r.day || '', subsystem: r.subsystem || 'Unspecified', alert: r.name !== 'Unspecified' ? r.name : r.alertTitle, durationSeconds: r.durationSeconds || 0, numerator: Number(r.durationSeconds || 0), denominator: 1, metricValue: 1, source: 'errorsAgg', raw: r }));
+    return (scope.filteredErrorEventsNative || []).map(r => {
+      const cleanDuration = r.durationIncluded ? Number(r.durationSeconds || 0) : 0;
+      const cleanEvent = r.durationIncluded ? 1 : 0;
+      const numerator = metricKey === 'events' ? 1 : cleanDuration;
+      const denominator = metricKey === 'mttr' || metricKey === 'mtbf' ? cleanEvent : 1;
+      const metricValue = metricKey === 'events' ? 1 : cleanDuration;
+      return { component: r.press || 'Unspecified', press: r.press || 'Unspecified', day: r.day || '', subsystem: r.subsystem || 'Unspecified', alert: r.name !== 'Unspecified' ? r.name : r.alertTitle, durationSeconds: Number(r.durationSeconds || 0), cleanDurationSeconds: cleanDuration, durationIncluded: !!r.durationIncluded, numerator, denominator, metricValue, source: 'errorsAgg', raw: r };
+    });
   }
 
 
@@ -4311,8 +4331,27 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
     if (drillSearch) drillSearch.value = '';
   }
 
-  function openKpiDrilldown(metricKey, metricName) {
+  function forceCloseDrilldown(reason = '') {
+    const drawer = document.getElementById('drilldownDrawer');
+    if (drawer) drawer.classList.remove('show');
+    ['drilldownTopChart', 'drilldownTrendChart', 'drilldownSecondaryChart', 'drilldownOpsChart'].forEach(id => {
+      const chart = CHARTS.get(id);
+      if (chart) {
+        try { chart.destroy(); } catch (_) {}
+        CHARTS.delete(id);
+      }
+    });
+    const validationBadge = document.getElementById('drilldownValidationBadge');
+    if (validationBadge) validationBadge.classList.add('hidden');
+    STATE.drilldown = { dimension: '', value: '', entityKey: '', sourceType: '', metric: '', parentContext: null, path: [], rows: [], search: '', sort: null, simulation: { pendingExcluded: new Set(), appliedExcluded: new Set() }, filters: {} };
+    STATE.drilldownStack = [];
     resetDrilldownScopedState();
+    const drillSearch = document.getElementById('drilldownSearch');
+    if (drillSearch) drillSearch.value = '';
+  }
+
+  function openKpiDrilldown(metricKey, metricName) {
+    forceCloseDrilldown('open-kpi-reset');
     const baselineData = buildKpiBaselineData(metricKey);
     if (!baselineData.length) {
       setStatus('No KPI drilldown data for this metric in current scope.', 'warning');
@@ -4409,7 +4448,9 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
   }
 
   function openDrilldown(dimension, value, payload = null) {
-    resetDrilldownScopedState();
+    const hasBreadcrumbPath = Array.isArray(payload?.parentContext?.path) && payload.parentContext.path.length > 0;
+    if (!hasBreadcrumbPath) forceCloseDrilldown('open-drilldown-reset');
+    else resetDrilldownScopedState();
     const existingSimulation = STATE.drilldown.simulation || { pendingExcluded: new Set(), appliedExcluded: new Set() };
     const entityKey = payload?.entityKey || value;
     const sourceType = payload?.sourceType || 'errorEvents';
@@ -4701,7 +4742,7 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
       scopedTotal = computeWasteRatio(waste, total);
     } else if (sourceType === 'volumeJobs') scopedTotal = scoped.reduce((a, r) => a + Number(volumeMetricValue(r, drillMetric) || 0), 0);
     else if (sourceType === 'availabilityNative' || sourceType === 'availabilityAgg') scopedTotal = scoped.reduce((a, r) => a + Number(totalDowntimeFromAvailabilityRow(r) || 0), 0);
-    else if (drillMetric === 'downtime') scopedTotal = scoped.reduce((a, r) => a + Number(r.durationSeconds || 0), 0);
+    else if (drillMetric === 'downtime') scopedTotal = scoped.reduce((a, r) => a + Number((r.durationIncluded ? r.durationSeconds : 0) || r.cleanDurationSeconds || 0), 0);
     else scopedTotal = scoped.length;
     const hasParentValidation = Number.isFinite(parentValue) && parentValue > 0;
     const mismatch = hasParentValidation && hasSignificantDiff(scopedTotal, parentValue);
@@ -4752,7 +4793,7 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
         : metricKey === 'mtbf' ? metricRegistry.mtbf.format(k.mtbf)
         : metricKey === 'availability' ? metricRegistry.availability.format(k.availabilityPercent == null ? null : (k.availabilityPercent / 100))
         : metricKey === 'wasteRatio' ? metricRegistry.wasteRatio.format(k.wasteRatio)
-        : metricKey === 'volume' ? metricRegistry.volume.format(k.totalPrintedSheets)
+        : metricKey === 'volume' ? `${formatCompactNumber(k.totalPrintedFlats || 0)} flats`
         : 'N/A';
       document.getElementById('drilldownTitle').textContent = `${metricName} Drilldown`;
       document.getElementById('drilldownSummary').textContent = `Validated KPI breakdown from scoped source aggregates.`;
@@ -6218,11 +6259,11 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
     });
     customerVolumeSort.addEventListener('change', e => { STATE.customerVolumeSort = e.target.value; scheduleRender(); });
     customerVolumeExpand.addEventListener('click', () => { STATE.customerVolumeExpanded = !STATE.customerVolumeExpanded; scheduleRender(); });
-    closeDrilldown.addEventListener('click', () => drilldownDrawer.classList.remove('show'));
+    closeDrilldown.addEventListener('click', () => forceCloseDrilldown('close-button'));
     document.getElementById('drilldownBack')?.addEventListener('click', () => {
       const history = STATE.drilldownStack || [];
       if (history.length <= 1) {
-        drilldownDrawer.classList.remove('show');
+        forceCloseDrilldown('back-root');
         return;
       }
       history.pop();
@@ -6236,7 +6277,11 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
       };
       renderDrilldown();
     });
-    drilldownDrawer.addEventListener('click', e => { if (e.target.id === 'drilldownDrawer') drilldownDrawer.classList.remove('show'); });
+    drilldownDrawer.addEventListener('click', e => { if (e.target.id === 'drilldownDrawer') forceCloseDrilldown('outside-click'); });
+    document.querySelector('#drilldownDrawer .drawer-panel')?.addEventListener('click', e => e.stopPropagation());
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape' && document.getElementById('drilldownDrawer')?.classList.contains('show')) forceCloseDrilldown('escape');
+    });
     drilldownSearch.addEventListener('input', e => { STATE.drilldown.search = e.target.value || ''; renderDrilldown(); });
     drilldownExport.addEventListener('click', () => {
       const scoped = !STATE.drilldown.search ? STATE.drilldown.rows : STATE.drilldown.rows.filter(r => `${r.press} ${r.subsystem} ${r.name} ${r.alertTitle} ${r.version}`.toLowerCase().includes(STATE.drilldown.search.toLowerCase()));
