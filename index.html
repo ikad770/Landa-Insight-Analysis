@@ -469,7 +469,7 @@
     renderQueued: false,
   };
 
-  const APP_VERSION = 'InsightPro+ v1.1.2';
+  const APP_VERSION = 'InsightPro+ v1.1.3';
   const CURRENT_UI_VERSION_V2 = 'CURRENT_UI_VERSION_V2';
   const UI_RESTORE_INSTRUCTION = "If the user says 'return to current UI', restore the UI to CURRENT_UI_VERSION_V2 (not baseline V1).";
   const CHARTS = new Map();
@@ -2142,6 +2142,57 @@
     };
   }
 
+  function buildDataSanityReport(sourceScope = {}) {
+    const errorRows = sourceScope.filteredErrorEventsNative || [];
+    const availabilityRows = sourceScope.filteredAvailabilityRowsNative || [];
+    const volumeRows = sourceScope.filteredVolumeRowsNative || [];
+    const availabilityDefinitions = computeAvailabilityDefinitions(sourceScope.availabilityAgg || []);
+    const totals = availabilityDefinitions.totals || {};
+    const validDurationRows = errorRows.filter(r => !r.invalidDuration);
+    const cleanRows = errorRows.filter(r => r.durationIncluded);
+    const anomalyRows = errorRows.filter(r => r.durationAnomaly);
+    const invalidRows = errorRows.filter(r => r.invalidDuration);
+    const rawDurationSeconds = validDurationRows.reduce((sum, r) => sum + Number(r.durationSeconds || 0), 0);
+    const cleanDurationSeconds = cleanRows.reduce((sum, r) => sum + Number(r.durationSeconds || 0), 0);
+    const excludedAnomalyDurationSeconds = anomalyRows.reduce((sum, r) => sum + Number(r.durationSeconds || 0), 0);
+    const volume = volumeRows.reduce((acc, row) => {
+      acc.totalPrintedFlats += Number(volumeMetricValue(row, 'printedFlats') || 0);
+      acc.goodPrintedFlats += Number(volumeMetricValue(row, 'goodPrintedFlats') || 0);
+      acc.wastePrintedFlats += Number(volumeMetricValue(row, 'wastePrintedFlats') || 0);
+      acc.totalPrintedSheets += Number(volumeMetricValue(row, 'totalPrintedSheets') || 0);
+      acc.goodPrintedSheets += Number(volumeMetricValue(row, 'goodPrintedSheets') || 0);
+      acc.wastePrintedSheets += Number(volumeMetricValue(row, 'wastePrintedSheets') || 0);
+      return acc;
+    }, { totalPrintedFlats: 0, goodPrintedFlats: 0, wastePrintedFlats: 0, totalPrintedSheets: 0, goodPrintedSheets: 0, wastePrintedSheets: 0 });
+    const cleanEventCount = cleanRows.length;
+    return {
+      errors: {
+        errorsRowsLoaded: errorRows.length,
+        errorsRowsWithValidDuration: validDurationRows.length,
+        cleanErrorRowsUsedForDuration: cleanRows.length,
+        durationAnomalyRowsExcluded: anomalyRows.length,
+        invalidDurationRowsExcluded: invalidRows.length,
+        rawDurationSeconds,
+        cleanDurationSeconds,
+        excludedAnomalyDurationSeconds,
+        anomalyRowsByPress: [...groupBy(anomalyRows, r => r.canonicalPress || r.press || 'Unspecified').entries()].map(([press, rows]) => ({ press, rows: rows.length })).sort((a, b) => b.rows - a.rows),
+        anomalyExamples: anomalyRows.slice(0, 5).map(r => ({ press: r.canonicalPress || r.press || 'Unspecified', day: r.day, alert: r.name || r.alertTitle, durationSeconds: Number(r.durationSeconds || 0) }))
+      },
+      availability: {
+        availabilityRowsLoaded: availabilityRows.length,
+        availableSeconds: Number(totals.runtime || 0),
+        maintenanceSeconds: Number(totals.planned || 0),
+        errorNotAvailableSeconds: Number(totals.unplanned || 0),
+        totalAvailabilityScopeSeconds: Number((totals.runtime || 0) + (totals.planned || 0) + (totals.unplanned || 0)),
+        availablePct: Number(availabilityDefinitions.runtimeOverTotal || 0),
+        maintenancePct: Number(availabilityDefinitions.runtimeOverTotal != null ? (((totals.planned || 0) / Math.max(1, (totals.runtime || 0) + (totals.planned || 0) + (totals.unplanned || 0))) * 100) : 0),
+        errorNotAvailablePct: Number(availabilityDefinitions.runtimeOverTotal != null ? (((totals.unplanned || 0) / Math.max(1, (totals.runtime || 0) + (totals.planned || 0) + (totals.unplanned || 0))) * 100) : 0)
+      },
+      volume: { volumeRowsLoaded: volumeRows.length, ...volume },
+      kpiConsistency: { kpiEvents: Number(sourceScope.kpis?.totalEvents || errorRows.length), kpiCleanDowntimeSeconds: Number(sourceScope.kpis?.totalDowntime || cleanDurationSeconds), kpiMttrSeconds: cleanEventCount > 0 ? (cleanDurationSeconds / cleanEventCount) : null, kpiMtbfSeconds: cleanEventCount > 0 ? (Number(totals.runtime || 0) / cleanEventCount) : null, kpiAvailabilityPct: Number(sourceScope.kpis?.availability || availabilityDefinitions.runtimeOverTotal || 0), kpiVolumeFlats: volume.totalPrintedFlats }
+    };
+  }
+
   function validateSourceAndLayerConsistency(sourceScope, filteredEvents, kpis, summary, riskRows, customerVolumeRows) {
     const logs = [];
     const errorsAgg = sourceScope?.errorsAgg || [];
@@ -2902,7 +2953,11 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
       }
     };
     check('events', rawErrors.length, errorsAgg.reduce((sum, row) => sum + Number(row?.totalEvents || 0), 0), 'errors.rawRows vs errorsAgg.totalEvents');
-    check('duration', rawErrors.reduce((sum, row) => sum + Number(row?.durationSeconds || 0), 0), errorsAgg.reduce((sum, row) => sum + Number(row?.totalErrorDurationSeconds || 0), 0), 'errors.rawRows.durationSeconds vs errorsAgg.totalErrorDurationSeconds');
+    const rawDurationSeconds = rawErrors.filter(r => !r?.invalidDuration).reduce((sum, row) => sum + Number(row?.durationSeconds || 0), 0);
+    const cleanDurationSeconds = rawErrors.reduce((sum, row) => sum + Number(row?.durationIncluded ? row?.durationSeconds : 0), 0);
+    const excludedAnomalyDurationSeconds = rawErrors.reduce((sum, row) => sum + Number(row?.durationAnomaly ? row?.durationSeconds : 0), 0);
+    check('duration.clean', cleanDurationSeconds, errorsAgg.reduce((sum, row) => sum + Number(row?.totalErrorDurationSeconds || 0), 0), 'errors.cleanDurationSeconds vs errorsAgg.totalErrorDurationSeconds');
+    check('duration.invariant', rawDurationSeconds, cleanDurationSeconds + excludedAnomalyDurationSeconds, 'rawDurationSeconds ≈ cleanDurationSeconds + excludedAnomalyDurationSeconds', 'warning', 'anomaly-exclusion-invariant');
     const sourceTotalEvents = errorsAgg.reduce((sum, row) => sum + Number(row?.totalEvents || 0), 0);
     const sourceTotalErrorDurationSeconds = errorsAgg.reduce((sum, row) => sum + Number(row?.totalErrorDurationSeconds || 0), 0);
     const expectedAvgDuration = sourceTotalEvents > 0 ? (sourceTotalErrorDurationSeconds / sourceTotalEvents) : 0;
@@ -4071,6 +4126,9 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
     const scopedSource = buildSourceScope(filters, scopedMergedRows, scopedErrorRows);
     scopedSource.hasWasteData = detectWasteData(scopedSource.filteredVolumeRowsNative || [], STATE.dataContract).hasWasteData;
     const scopedKpis = computeOperationalMetrics(scopedSource);
+    scopedSource.kpis = scopedKpis;
+    scopedSource.dataSanityReport = buildDataSanityReport(scopedSource);
+    STATE.dataSanityReport = scopedSource.dataSanityReport;
     const executiveSummary = buildExecutiveSummary(scopedErrorRows, scopedSource, scopedKpis);
     const hasScopedData =
       scopedSource.filteredErrorEventsNative.length > 0 ||
