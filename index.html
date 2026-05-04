@@ -1026,7 +1026,7 @@
       if (hasAnyField(row, ['Subsystem', 'Module'])) score.errors += 1;
       if (hasAnyField(row, ['Duration', 'Duration (sec)', 'DurationSeconds'])) score.errors += 1;
 
-      if (hasAnyField(row, ['Print']) || hasAnyField(row, ['Available Without Print'])) score.availability += 3;
+      if (hasAnyField(row, ['Print']) || hasAnyField(row, ['Available Without Print']) || (hasAnyField(row, ['Press']) && hasAnyField(row, ['Date']) && hasAnyField(row, ['Print (Production)']))) score.availability += 3;
       if (hasAnyField(row, ['Preventive Maintenance']) || hasAnyField(row, ['On Job Maintenance']) || hasAnyField(row, ['Recovery']) || hasAnyField(row, ['Jams'])) score.availability += 3;
       if (hasAnyField(row, ['Availability'])) score.availability += 1;
 
@@ -1052,7 +1052,71 @@
     return codeMatch ? `${codeMatch[1].toUpperCase()}${Number(codeMatch[2])}` : '';
   }
 
-  function extractPressCodeFromAvailabilityId(rawId) {
+  
+  const AVAILABILITY_FACTOR_COLUMNS = [
+    ['Print (Production)', 'printProductionSeconds'],
+    ['Calibration', 'calibrationSeconds'],
+    ['Proof', 'proofSeconds'],
+    ['Coating without Printing', 'coatingWithoutPrintingSeconds'],
+    ['Ready without Printing', 'readyWithoutPrintingSeconds'],
+    ['Feeder Pile Load', 'feederPileLoadSeconds'],
+    ['Standby without Activity', 'standbyWithoutActivitySeconds'],
+    ['Delivery Pile Unload', 'deliveryPileUnloadSeconds'],
+    ['On without Activity', 'onWithoutActivitySeconds'],
+    ['End Of Day Maintenance', 'endOfDayMaintenanceSeconds'],
+    ['Coating Setup', 'coatingSetupSeconds'],
+    ['Start Of Day Heatup & Maintenance', 'startOfDayHeatupMaintenanceSeconds'],
+    ['Substrate Replacement', 'substrateReplacementSeconds'],
+    ['Print Method Conversion', 'printMethodConversionSeconds'],
+    ['STS in Local control', 'stsLocalControlSeconds'],
+    ['HW Cleaning/Inspection', 'hwCleaningInspectionSeconds'],
+    ['Print Bar In Service Position', 'printBarInServicePositionSeconds'],
+    ['Fluids Activity', 'fluidsActivitySeconds'],
+    ['Filters Replacement', 'filtersReplacementSeconds'],
+    ['Imaging Blanket Replacement', 'imagingBlanketReplacementSeconds'],
+    ['PH Jetting Maintenance', 'phJettingMaintenanceSeconds'],
+    ['Print Head Replacement', 'printHeadReplacementSeconds'],
+    ['Diagnostic Special Job', 'diagnosticSpecialJobSeconds'],
+    ['Imaging Blanket Cleaner', 'imagingBlanketCleanerSeconds'],
+    ['Scheduler Event', 'schedulerEventSeconds'],
+    ['Error', 'errorSeconds'],
+    ['Restart', 'restartSeconds'],
+    ['Paper Jam', 'paperJamSeconds'],
+  ];
+
+  function detectAvailabilitySchema(rows = []) {
+    const sample = rows[0] || {};
+    const hasPress = Boolean(detectField(sample, ['Press']));
+    const hasDate = Boolean(detectField(sample, ['Date']));
+    const present = AVAILABILITY_FACTOR_COLUMNS.filter(([name]) => Boolean(detectField(sample, [name]))).length;
+    if (hasPress && hasDate && present >= 8) return 'availabilityFactorDistribution';
+    return 'availabilityDetails';
+  }
+
+  function normalizeAvailabilityFactorDistributionRows(rows = []) {
+    return (rows || []).map(r => {
+      const press = String(getField(r, ['Press'])).trim();
+      const day = toDayBucket(parseUsDateTime(getField(r, ['Date'])));
+      const { canonicalPress } = canonicalizePressName(press);
+      const normalized = { canonicalPress, press, day, raw: r };
+      AVAILABILITY_FACTOR_COLUMNS.forEach(([sourceName, target]) => {
+        normalized[target] = parseDurationSeconds(getField(r, [sourceName])).seconds || 0;
+      });
+      normalized.printGroupSeconds = normalized.printProductionSeconds + normalized.calibrationSeconds + normalized.proofSeconds + normalized.coatingWithoutPrintingSeconds;
+      normalized.availableWithoutPrintSeconds = normalized.readyWithoutPrintingSeconds + normalized.feederPileLoadSeconds + normalized.standbyWithoutActivitySeconds + normalized.deliveryPileUnloadSeconds + normalized.onWithoutActivitySeconds + normalized.endOfDayMaintenanceSeconds + normalized.coatingSetupSeconds + normalized.startOfDayHeatupMaintenanceSeconds + normalized.substrateReplacementSeconds + normalized.printMethodConversionSeconds;
+      normalized.availabilityRuntimeSeconds = normalized.printGroupSeconds + normalized.availableWithoutPrintSeconds;
+      normalized.preventiveMaintenanceSeconds = normalized.stsLocalControlSeconds + normalized.hwCleaningInspectionSeconds + normalized.printBarInServicePositionSeconds + normalized.fluidsActivitySeconds + normalized.filtersReplacementSeconds;
+      normalized.onJobMaintenanceSeconds = normalized.imagingBlanketReplacementSeconds + normalized.phJettingMaintenanceSeconds + normalized.printHeadReplacementSeconds + normalized.diagnosticSpecialJobSeconds + normalized.imagingBlanketCleanerSeconds + normalized.schedulerEventSeconds;
+      normalized.maintenanceSeconds = normalized.preventiveMaintenanceSeconds + normalized.onJobMaintenanceSeconds;
+      normalized.errorNotAvailableSeconds = normalized.errorSeconds + normalized.restartSeconds + normalized.paperJamSeconds;
+      normalized.totalTrackedSeconds = normalized.availabilityRuntimeSeconds + normalized.maintenanceSeconds + normalized.errorNotAvailableSeconds;
+      normalized.availabilityPct = normalized.totalTrackedSeconds > 0 ? normalized.availabilityRuntimeSeconds / normalized.totalTrackedSeconds : null;
+      normalized.maintenancePct = normalized.totalTrackedSeconds > 0 ? normalized.maintenanceSeconds / normalized.totalTrackedSeconds : null;
+      normalized.errorNotAvailablePct = normalized.totalTrackedSeconds > 0 ? normalized.errorNotAvailableSeconds / normalized.totalTrackedSeconds : null;
+      return normalized;
+    }).filter(r => r.day && r.press);
+  }
+function extractPressCodeFromAvailabilityId(rawId) {
     const value = String(rawId || '').trim().toLowerCase();
     const m = value.match(/^([a-z]).*?(\d{2})$/);
     if (!m) return '';
@@ -1181,6 +1245,8 @@
       unmatchedMachineIds: 0,
     };
     const readSeconds = (r, aliases) => parseDurationSeconds(getField(r, aliases)).seconds || 0;
+    const availabilitySourceType = detectAvailabilitySchema(rows);
+    const factorRows = availabilitySourceType === 'availabilityFactorDistribution' ? normalizeAvailabilityFactorDistributionRows(rows) : null;
 
     const total = Math.max(1, rows.length);
     for (let i = 0; i < rows.length; i++) {
@@ -1194,6 +1260,40 @@
       if (!rawPressId || !day) continue;
 
       diagnostics.sourceRowsUsed += 1;
+      if (availabilitySourceType === 'availabilityFactorDistribution') {
+        const fr = factorRows[diagnostics.sourceRowsUsed - 1];
+        if (!fr) continue;
+        const canonicalModel = 'Unspecified';
+        const canonicalPress = fr.canonicalPress;
+        out.push({
+          rawPressId,
+          canonicalPressCode: extractPressCodeFromPressName(canonicalPress),
+          canonicalPress,
+          canonicalModel,
+          day: fr.day,
+          key: buildKey({ canonicalPress, canonicalModel, day: fr.day }),
+          fallbackKey: buildPressDayKey({ canonicalPress, day: fr.day }),
+          availabilityPercent: fr.availabilityPct == null ? null : fr.availabilityPct * 100,
+          printSeconds: fr.printGroupSeconds,
+          availableWithoutPrintSeconds: fr.availableWithoutPrintSeconds,
+          preventiveMaintenanceSeconds: fr.preventiveMaintenanceSeconds,
+          onJobMaintenanceSeconds: fr.onJobMaintenanceSeconds,
+          recoverySeconds: fr.errorSeconds + fr.restartSeconds,
+          jamsSeconds: fr.paperJamSeconds,
+          runtimeSeconds: fr.availabilityRuntimeSeconds,
+          plannedDowntimeSeconds: fr.maintenanceSeconds,
+          unplannedDowntimeSeconds: fr.errorNotAvailableSeconds,
+          downtimeSeconds: fr.maintenanceSeconds + fr.errorNotAvailableSeconds,
+          serviceDowntimeSeconds: 0,
+          subsystem: 'Availability Distribution',
+          downtimeCategory: 'Availability Factors',
+          availabilitySourceType,
+          ...fr,
+          raw: r
+        });
+        diagnostics.normalizedRowsCreated += 1;
+        continue;
+      }
       const printSeconds = readSeconds(r, ['Print']);
       const availableWithoutPrintSeconds = readSeconds(r, ['Available Without Print']);
       const preventiveMaintenanceSeconds = readSeconds(r, ['Preventive Maintenance']);
@@ -1276,6 +1376,7 @@
         parsedRows: rows.length,
         ...diagnostics,
         aggregatedRowsCreated: 0,
+        availabilitySourceType,
       },
     };
   }
@@ -2439,62 +2540,61 @@
   }
 
   function computeRecoveryMetricsDiagnostics(scope = {}) {
-    const availabilityRows = scope.filteredAvailabilityRowsNative || [];
-    const runtimeSeconds = (scope.availabilityAgg || []).reduce((acc, row) => acc + Number(row?.runtimeSeconds || 0), 0);
-    const repairSeconds = (scope.availabilityAgg || []).reduce((acc, row) => acc + Number(row?.recoverySeconds || 0), 0);
-    const findRawNumber = (row, patterns = []) => {
-      for (const [key, value] of Object.entries(row || {})) {
-        const ck = canonical(key);
-        if (!patterns.some(p => ck.includes(p))) continue;
-        const n = parseNumber(value);
-        if (Number.isFinite(n)) return n;
-      }
-      return null;
-    };
-    const findRawDurationSeconds = (row, patterns = []) => {
-      for (const [key, value] of Object.entries(row || {})) {
-        const ck = canonical(key);
-        if (!patterns.some(p => ck.includes(p))) continue;
-        const parsed = parseDurationSeconds(value).seconds;
-        if (Number.isFinite(parsed) && parsed > 0) return parsed;
-      }
-      return null;
-    };
-    let explicitMttrSeconds = null;
-    let explicitMtbfSeconds = null;
-    let repairEventCount = null;
-    let failureCount = null;
-    for (const row of availabilityRows) {
-      explicitMttrSeconds = explicitMttrSeconds ?? findRawDurationSeconds(row.raw || row, ['avg time to repair', 'mttr']);
-      explicitMtbfSeconds = explicitMtbfSeconds ?? findRawDurationSeconds(row.raw || row, ['avg time between failures', 'mtbf']);
-      repairEventCount = repairEventCount ?? findRawNumber(row.raw || row, ['recovery events', 'repair events', 'repair count']);
-      failureCount = failureCount ?? findRawNumber(row.raw || row, ['proof events', 'failure count', 'failures', 'error events']);
-    }
-    const missingFields = [];
-    let confidence = 'unavailable';
-    let sourceUsed = 'none';
-    let computedMttrSeconds = null;
-    let computedMtbfSeconds = null;
-    if (explicitMttrSeconds != null || explicitMtbfSeconds != null) {
-      confidence = 'exact';
-      sourceUsed = 'explicit source recovery metrics';
-      computedMttrSeconds = explicitMttrSeconds;
-      computedMtbfSeconds = explicitMtbfSeconds;
-    } else {
-      if (!(repairEventCount > 0)) missingFields.push('repairEventCount');
-      if (!(failureCount > 0)) missingFields.push('failureCount');
-      if (!(repairSeconds > 0)) missingFields.push('recoverySeconds');
-      if (!(runtimeSeconds > 0)) missingFields.push('runtimeSeconds');
-      if (repairEventCount > 0 && repairSeconds > 0) computedMttrSeconds = repairSeconds / repairEventCount;
-      if (failureCount > 0 && runtimeSeconds > 0) computedMtbfSeconds = runtimeSeconds / failureCount;
-      if (computedMttrSeconds != null || computedMtbfSeconds != null) {
-        confidence = 'derived';
-        sourceUsed = 'availability runtime/recovery with explicit event counts';
-      }
-    }
-    return { sourceUsed, runtimeSeconds, repairSeconds, failureCount, repairEventCount, computedMtbfSeconds, computedMttrSeconds, availabilityRowsUsed: availabilityRows.length, missingFields, confidence };
-  }
+    const errorRows = scope.filteredErrorEventsNative || [];
+    const cleanRows = errorRows.filter(r => r && r.durationIncluded !== false && !r.durationAnomaly && !r.invalidDuration);
+    const norm = v => normalizeTextValue(v || '');
+    const isRepairMetricEvent = row => norm(row.preErrorState) === 'moving2ready' && norm(row.errorState).includes('stoppingonerrorsoft');
 
+    const repairRows = cleanRows.filter(isRepairMetricEvent).filter(r => Number(r.durationSeconds || 0) >= 0);
+    const moving2ReadyRows = cleanRows.filter(r => norm(r.preErrorState) === 'moving2ready').filter(r => Number(r.durationSeconds || 0) >= 0);
+    const repairDurationSeconds = repairRows.reduce((a,r)=>a+Number(r.durationSeconds||0),0);
+    const mttrSeconds = repairRows.length ? repairDurationSeconds / repairRows.length : null;
+    const moving2ReadyOnlyMttrSeconds = moving2ReadyRows.length ? moving2ReadyRows.reduce((a,r)=>a+Number(r.durationSeconds||0),0) / moving2ReadyRows.length : null;
+    const allCleanErrorsAvgDurationSeconds = cleanRows.length ? cleanRows.reduce((a,r)=>a+Number(r.durationSeconds||0),0) / cleanRows.length : null;
+
+    const byPress = new Map();
+    cleanRows.forEach(r => {
+      if (!(r.startTime instanceof Date) || !(r.recoveryTime instanceof Date)) return;
+      const key = r.canonicalPress || r.press || 'Unspecified';
+      if (!byPress.has(key)) byPress.set(key, []);
+      byPress.get(key).push(r);
+    });
+    const intervals = [];
+    let skippedMissingRecovery = 0;
+    let skippedNegativeIntervals = 0;
+    byPress.forEach(events => {
+      events.sort((a,b)=>a.startTime-b.startTime);
+      for (let i=0;i<events.length-1;i++) {
+        const prev=events[i], next=events[i+1];
+        if (!(prev.recoveryTime instanceof Date) || !(next.startTime instanceof Date)) { skippedMissingRecovery += 1; continue; }
+        const sec = (next.startTime - prev.recoveryTime)/1000;
+        if (sec < 0) { skippedNegativeIntervals += 1; continue; }
+        intervals.push(sec);
+      }
+    });
+    const computedMtbfSeconds = intervals.length ? intervals.reduce((a,v)=>a+v,0)/intervals.length : null;
+    return {
+      sourceUsed: 'errors chronology + repair-event rules',
+      confidence: (computedMtbfSeconds != null || mttrSeconds != null) ? 'derived' : 'unavailable',
+      computedMtbfSeconds,
+      computedMttrSeconds: mttrSeconds,
+      mtbfSeconds: computedMtbfSeconds,
+      mttrSeconds,
+      intervalCount: intervals.length,
+      pressCount: byPress.size,
+      skippedMissingRecovery,
+      skippedNegativeIntervals,
+      minInterval: intervals.length ? Math.min(...intervals) : null,
+      maxInterval: intervals.length ? Math.max(...intervals) : null,
+      repairEventCount: repairRows.length,
+      repairDurationSeconds,
+      ruleUsed: 'moving2ready + stoppingonerror.soft',
+      moving2ReadyOnlyMttrSeconds,
+      allCleanErrorsAvgDurationSeconds,
+      durationAnomalyRowsExcluded: errorRows.filter(r => r?.durationAnomaly).length,
+      mtbfIntervalCount: intervals.length,
+    };
+  }
   function aggregateErrorEvents(rows, keyFn) {
     const map = new Map();
     (rows || []).forEach(r => {
