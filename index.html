@@ -344,7 +344,7 @@
       </article>
 
       <article class="card span-6">
-        <div class="chart-head"><h3>Print Volume By Press</h3><div class="chart-tools"><select id="customerVolumeMetric" class="select"><option value="totalPrintedSheets">Total</option><option value="goodPrintedSheets">Good</option><option value="wastePrintedSheets">Waste only</option><option value="wasteRatio">Waste ratio</option></select><select id="customerVolumeSort" class="select"><option value="desc">Highest first</option><option value="asc">Lowest first</option></select><button id="customerVolumeExpand" class="btn secondary">Show all</button></div></div>
+        <div class="chart-head"><h3>Print Volume By Press (Flats/Sheets)</h3><div class="chart-tools"><select id="customerVolumeMetric" class="select"><option value="printedFlats">Total flats</option><option value="goodPrintedSheets">Good sheets</option><option value="wastePrintedSheets">Waste sheets</option><option value="totalPrintedSheets">Total sheets</option><option value="wasteRatio">Waste ratio</option></select><select id="customerVolumeSort" class="select"><option value="desc">Highest first</option><option value="asc">Lowest first</option></select><button id="customerVolumeExpand" class="btn secondary">Show all</button></div></div>
         <div class="micro" id="customerVolumeNote">Stacked bars: muted dollar green = Good Volume, top segment = Waste. Waste color is based on per-press waste ratio.</div><div class="chart-area"><canvas id="customerVolumeChart"></canvas></div>
       </article>
 
@@ -448,7 +448,7 @@
     lastRunSnapshot: null,
     expand: { press: false, subsystem: false, alert: false, version: false },
     metricByChart: { press: 'events', subsystem: 'events', alert: 'events', version: 'events' },
-    customerVolumeMetric: 'totalPrintedSheets',
+    customerVolumeMetric: 'printedFlats',
     customerVolumeMode: 'total',
     customerVolumeSort: 'desc',
     customerVolumeExpanded: false,
@@ -469,6 +469,7 @@
     renderQueued: false,
   };
 
+  const APP_VERSION = 'InsightPro+ v1.1.1';
   const CURRENT_UI_VERSION_V2 = 'CURRENT_UI_VERSION_V2';
   const UI_RESTORE_INSTRUCTION = "If the user says 'return to current UI', restore the UI to CURRENT_UI_VERSION_V2 (not baseline V1).";
   const CHARTS = new Map();
@@ -640,9 +641,9 @@
 
   const metricRegistry = Object.freeze({
     events: { id: 'events', label: 'Events', type: 'count', unit: 'events', dataset: 'errors', numeratorField: 'totalEvents', denominatorField: null, aggregate: scope => (scope.errorsAgg || []).reduce((acc, row) => acc + Number(row?.totalEvents || 0), 0), format: value => Math.round(Number(value || 0)).toLocaleString(), validate: value => Number.isFinite(Number(value)) && Number(value) >= 0 },
-    downtime: { id: 'downtime', label: 'Downtime', type: 'duration_sum', unit: 'seconds', dataset: 'errors', numeratorField: 'totalErrorDurationSeconds', denominatorField: null, aggregate: scope => (scope.errorsAgg || []).reduce((acc, row) => acc + Number(row?.totalErrorDurationSeconds || 0), 0), format: value => formatDuration(Number(value || 0)), validate: value => Number.isFinite(Number(value)) && Number(value) >= 0 },
-    mttr: { id: 'mttr', label: 'MTTR (Avg Duration)', type: 'average', unit: 'seconds', dataset: 'errors', numeratorField: 'totalErrorDurationSeconds', denominatorField: 'totalEvents', aggregate: scope => { const num = (scope.errorsAgg || []).reduce((acc, row) => acc + Number(row?.totalErrorDurationSeconds || 0), 0); const den = (scope.errorsAgg || []).reduce((acc, row) => acc + Number(row?.totalEvents || 0), 0); return den > 0 ? num / den : null; }, format: value => value == null ? 'N/A' : formatDuration(Number(value || 0)), validate: value => value == null || Number(value) >= 0 },
-    mtbf: { id: 'mtbf', label: 'MTBF', type: 'average', unit: 'seconds', dataset: 'availability', numeratorField: 'runtimeSeconds', denominatorField: 'totalEvents', aggregate: scope => { const num = (scope.availabilityAgg || []).reduce((acc, row) => acc + Number(row?.runtimeSeconds || 0), 0); const den = (scope.errorsAgg || []).reduce((acc, row) => acc + Number(row?.totalEvents || 0), 0); return den > 0 ? num / den : null; }, format: value => value == null ? 'N/A' : formatDuration(Number(value || 0)), validate: value => value == null || Number(value) >= 0 },
+    downtime: { id: 'downtime', label: 'Aggregate error downtime', type: 'duration_sum', unit: 'seconds', dataset: 'errors', numeratorField: 'totalErrorDurationSeconds', denominatorField: null, aggregate: scope => (scope.errorsAgg || []).reduce((acc, row) => acc + Number(row?.totalErrorDurationSeconds || 0), 0), format: value => formatDuration(Number(value || 0)), validate: value => Number.isFinite(Number(value)) && Number(value) >= 0 },
+    mttr: { id: 'mttr', label: 'MTTR / Avg repair time', type: 'average', unit: 'seconds', dataset: 'errors', numeratorField: 'totalErrorDurationSeconds', denominatorField: 'totalEvents', aggregate: scope => { const num = (scope.errorsAgg || []).reduce((acc, row) => acc + Number(row?.totalErrorDurationSeconds || 0), 0); const den = (scope.errorsAgg || []).reduce((acc, row) => acc + Number(row?.cleanEventCount || 0), 0); return den > 0 ? num / den : null; }, format: value => value == null ? 'N/A' : formatDuration(Number(value || 0)), validate: value => value == null || Number(value) >= 0 },
+    mtbf: { id: 'mtbf', label: 'MTBF', type: 'average', unit: 'seconds', dataset: 'availability', numeratorField: 'runtimeSeconds', denominatorField: 'totalEvents', aggregate: scope => { const num = (scope.availabilityAgg || []).reduce((acc, row) => acc + Number(row?.runtimeSeconds || 0), 0); const den = (scope.errorsAgg || []).reduce((acc, row) => acc + Number(row?.cleanEventCount || 0), 0); return den > 0 ? num / den : null; }, format: value => value == null ? 'N/A' : formatDuration(Number(value || 0)), validate: value => value == null || Number(value) >= 0 },
     volume: { id: 'volume', label: 'Volume', type: 'sum', unit: 'sheets', dataset: 'volume', numeratorField: 'totalPrintedSheets', denominatorField: null, aggregate: scope => (scope.volumeAgg || []).reduce((acc, row) => acc + Number(row?.totalPrintedSheets || ((row?.goodPrintedSheets || 0) + (row?.wastePrintedSheets || 0))), 0), format: value => `${formatCompactNumber(value)} sheets`, validate: value => Number.isFinite(Number(value)) && Number(value) >= 0 },
     wasteRatio: { id: 'wasteRatio', label: 'Waste Ratio', type: 'ratio', unit: 'percent', dataset: 'volume', numeratorField: 'wastePrintedSheets', denominatorField: 'totalPrintedSheets', aggregate: scope => { if (scope?.hasWasteData === false) return null; const num = (scope.volumeAgg || []).reduce((acc, row) => acc + Number(row?.wastePrintedSheets || 0), 0); const den = (scope.volumeAgg || []).reduce((acc, row) => acc + Number(row?.totalPrintedSheets || ((row?.goodPrintedSheets || 0) + (row?.wastePrintedSheets || 0))), 0); return den > 0 ? num / den : 0; }, format: value => value == null ? 'N/A' : `${(Number(value || 0) * 100).toFixed(2)}%`, validate: value => value == null || (Number.isFinite(Number(value)) && Number(value) >= 0 && Number(value) <= 1) },
     availability: { id: 'availability', label: 'Availability', type: 'percentage', unit: 'percent', dataset: 'availability', numeratorField: 'runtimeSeconds', denominatorField: 'runtimePlusDowntime', aggregate: scope => { const runtime = (scope.availabilityAgg || []).reduce((acc, row) => acc + Number(row?.runtimeSeconds || 0), 0); const downtime = (scope.availabilityAgg || []).reduce((acc, row) => acc + Number(totalDowntimeFromAvailabilityRow(row) || 0), 0); const den = runtime + downtime; return den > 0 ? runtime / den : null; }, format: value => value == null ? 'N/A' : `${(Number(value || 0) * 100).toFixed(1)}%`, validate: value => value == null || (Number(value) >= 0 && Number(value) <= 1) },
@@ -763,13 +764,20 @@
     return Number.isNaN(iso.getTime()) ? null : iso;
   };
 
+  const DURATION_ANOMALY_THRESHOLD_SECONDS = 24 * 3600;
   const parseDurationSeconds = v => {
     const raw = String(v ?? '').trim();
-    if (!raw) return 0;
-    if (/^\d+(\.\d+)?$/.test(raw)) return Number(raw);
-    const m = raw.match(/^(?:(\d+)\.)?(\d{1,2}):(\d{2}):(\d{2})/);
-    if (m) return Number(m[1] || 0) * 86400 + Number(m[2]) * 3600 + Number(m[3]) * 60 + Number(m[4]);
-    return 0;
+    if (!raw) return { seconds: 0, valid: true, raw };
+    if (/^\d+(\.\d+)?$/.test(raw)) {
+      const seconds = Number(raw);
+      return { seconds: Number.isFinite(seconds) ? seconds : 0, valid: Number.isFinite(seconds), raw };
+    }
+    const m = raw.match(/^(?:(\d+)\.)?(\d{1,2}):(\d{2}):(\d{2})(?:\.\d+)?$/);
+    if (m) {
+      const seconds = Number(m[1] || 0) * 86400 + Number(m[2]) * 3600 + Number(m[3]) * 60 + Number(m[4]);
+      return { seconds, valid: true, raw };
+    }
+    return { seconds: 0, valid: false, raw };
   };
   const parsePercent = v => {
     const raw = String(v ?? '').replace('%', '').trim();
@@ -1123,8 +1131,13 @@
         version: String(getField(r, ['Version', 'SW Version', 'Software Version', 'Firmware', 'Build Version'])).trim() || 'Unspecified',
         startTime,
         day: toDayBucket(startTime),
-        durationSeconds: parseDurationSeconds(getField(r, ['Duration', 'Duration (sec)', 'DurationSeconds'])),
+        durationMeta: parseDurationSeconds(getField(r, ['Duration', 'Duration (sec)', 'DurationSeconds'])),
       });
+      const norm = out[out.length - 1];
+      norm.durationSeconds = norm.durationMeta.seconds || 0;
+      norm.invalidDuration = !norm.durationMeta.valid;
+      norm.durationAnomaly = norm.durationMeta.valid && norm.durationSeconds >= DURATION_ANOMALY_THRESHOLD_SECONDS;
+      norm.durationIncluded = norm.durationMeta.valid && !norm.durationAnomaly;
       out[out.length - 1].key = buildKey({
         canonicalPress: out[out.length - 1].canonicalPress,
         canonicalModel: out[out.length - 1].canonicalModel,
@@ -1167,7 +1180,7 @@
       ambiguousMappings: 0,
       unmatchedMachineIds: 0,
     };
-    const readSeconds = (r, aliases) => parseDurationSeconds(getField(r, aliases));
+    const readSeconds = (r, aliases) => parseDurationSeconds(getField(r, aliases)).seconds || 0;
 
     const total = Math.max(1, rows.length);
     for (let i = 0; i < rows.length; i++) {
@@ -1688,7 +1701,11 @@
       if (!errorsByPressModelDay.has(rowKey)) errorsByPressModelDay.set(rowKey, { totalEvents: 0, totalErrorDurationSeconds: 0 });
       const bucket = errorsByPressModelDay.get(rowKey);
       bucket.totalEvents += 1;
-      bucket.totalErrorDurationSeconds += ev.durationSeconds || 0;
+      bucket.totalErrorDurationSeconds += ev.durationIncluded ? (ev.durationSeconds || 0) : 0;
+      bucket.cleanEventCount = (bucket.cleanEventCount || 0) + (ev.durationIncluded ? 1 : 0);
+      bucket.invalidDurationRows = (bucket.invalidDurationRows || 0) + (ev.invalidDuration ? 1 : 0);
+      bucket.durationAnomalyRows = (bucket.durationAnomalyRows || 0) + (ev.durationAnomaly ? 1 : 0);
+      bucket.excludedDurationAnomalySeconds = (bucket.excludedDurationAnomalySeconds || 0) + (ev.durationAnomaly ? (ev.durationSeconds || 0) : 0);
       if (i % 2500 === 0 && controller) await yieldAnalysisFrame(controller);
     }
 
@@ -1736,7 +1753,11 @@
       }
       const slot = mergedByPMD.get(rowKey);
       slot.totalEvents += 1;
-      slot.totalErrorDurationSeconds += ev.durationSeconds || 0;
+      slot.totalErrorDurationSeconds += ev.durationIncluded ? (ev.durationSeconds || 0) : 0;
+      slot.cleanEventCount = (slot.cleanEventCount || 0) + (ev.durationIncluded ? 1 : 0);
+      slot.invalidDurationRows = (slot.invalidDurationRows || 0) + (ev.invalidDuration ? 1 : 0);
+      slot.durationAnomalyRows = (slot.durationAnomalyRows || 0) + (ev.durationAnomaly ? 1 : 0);
+      slot.excludedDurationAnomalySeconds = (slot.excludedDurationAnomalySeconds || 0) + (ev.durationAnomaly ? (ev.durationSeconds || 0) : 0);
 
       if (avMatch && slot.matchedAvailabilityRows === 0) {
         slot.printSeconds += avMatch.printSeconds || 0;
@@ -1781,7 +1802,11 @@
       canonicalModel: (mergedByPMD.get(key)?.canonicalModel) || 'Unspecified',
       day: (mergedByPMD.get(key)?.day) || '',
       totalEvents: bucket.totalEvents || 0,
-      totalErrorDurationSeconds: bucket.totalErrorDurationSeconds || 0
+      totalErrorDurationSeconds: bucket.totalErrorDurationSeconds || 0,
+      cleanEventCount: bucket.cleanEventCount || 0,
+      invalidDurationRows: bucket.invalidDurationRows || 0,
+      durationAnomalyRows: bucket.durationAnomalyRows || 0,
+      excludedDurationAnomalySeconds: bucket.excludedDurationAnomalySeconds || 0
     }));
     const availabilityAgg = [...availabilityByPressModelDay.values()].map(row => ({
       key: row.key,
@@ -1967,7 +1992,11 @@
       });
       const slot = byKey.get(key);
       slot.totalEvents += 1;
-      slot.totalErrorDurationSeconds += row.durationSeconds || 0;
+      slot.totalErrorDurationSeconds += row.durationIncluded ? (row.durationSeconds || 0) : 0;
+      slot.cleanEventCount = (slot.cleanEventCount || 0) + (row.durationIncluded ? 1 : 0);
+      slot.invalidDurationRows = (slot.invalidDurationRows || 0) + (row.invalidDuration ? 1 : 0);
+      slot.durationAnomalyRows = (slot.durationAnomalyRows || 0) + (row.durationAnomaly ? 1 : 0);
+      slot.excludedDurationAnomalySeconds = (slot.excludedDurationAnomalySeconds || 0) + (row.durationAnomaly ? (row.durationSeconds || 0) : 0);
     });
     return [...byKey.values()];
   }
