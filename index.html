@@ -278,6 +278,7 @@
         <h1 class="brand-title">Landa Insight<span class="brand-plus">Pro+</span></h1>
         <p class="subtitle">Operational intelligence platform for press performance, downtime analysis, and production insights.</p>
         <p id="datasetMeta" class="subtitle">Dataset not loaded</p>
+        <p id="appVersionMeta" class="subtitle">Dashboard version: InsightPro+ v1.1.0</p>
         <div class="meta-indicators">
           <span id="dataRangeIndicator" class="meta-pill">Data range: N/A</span>
           <span id="headerDataStatus" class="meta-pill ok hidden">Data status</span>
@@ -2494,29 +2495,36 @@
   function buildGoodProductionTrendForBuckets(eventTrendBuckets = [], eventRows = [], sourceScope = {}, options = {}) {
     const scopeType = options.scopeType || 'eventScope';
     const granularity = options.granularity || 'day';
-    const pressScope = new Set((eventRows || []).map(r => r?.press || r?.canonicalPress).filter(Boolean));
+    const diagnostics = { bucketCount: eventTrendBuckets.length, productionRowsUsed: 0, matchedBuckets: 0, totalGoodProduction: 0, maxBucketGoodProduction: 0, excludedSpecialRows: 0, excludedSpecialSheets: 0, available: false, omittedReason: '' };
     const sourceRows = Array.isArray(sourceScope?.filteredVolumeRowsNative) ? sourceScope.filteredVolumeRowsNative : [];
-    const byBucket = new Map();
-    let totalGood = 0;
-    sourceRows.forEach(row => {
+    if (!sourceRows.length || !eventTrendBuckets.length) return { series: [], available: false, max: 0, label: granularity === 'day' ? 'Good Production (printed sheets per day)' : 'Good Production (printed sheets per bucket)', diagnostics: { ...diagnostics, omittedReason: 'No volume rows or buckets in scope' } };
+    const bucketSet = new Set(eventTrendBuckets);
+    const pressScope = new Set((eventRows || []).map(r => r?.press || r?.canonicalPress).filter(Boolean));
+    const byBucket = new Map(eventTrendBuckets.map(b => [b, 0]));
+    for (const row of sourceRows) {
       const press = row?.canonicalPress || row?.press;
-      if ((scopeType === 'press' || scopeType === 'eventScope' || scopeType === 'subsystem' || scopeType === 'alert' || scopeType === 'version') && pressScope.size && !pressScope.has(press)) return;
-      const bucket = getTrendBucketKey(row?.day || row?.date || row?.timestamp || row?.startTime, granularity);
-      if (!bucket) return;
+      if ((scopeType === 'press' || scopeType === 'eventScope' || scopeType === 'version' || scopeType === 'subsystem' || scopeType === 'alert') && pressScope.size && !pressScope.has(press)) continue;
       const jobType = normalizeJobType(row?.jobTypeNormalized || row?.jobType || row?.type);
-      if (jobType === 'special') return;
+      const maybeSheets = Number(row?.printedSheets || row?.wastePrintedSheets || 0);
+      if (jobType === 'special') { diagnostics.excludedSpecialRows += 1; diagnostics.excludedSpecialSheets += Number.isFinite(maybeSheets) ? maybeSheets : 0; continue; }
+      const bucket = getTrendBucketKey(row?.day || row?.date || row?.timestamp || row?.startTime, granularity);
+      if (!bucket || !bucketSet.has(bucket)) continue;
       let good = Number(row?.goodPrintedSheets);
       if (!Number.isFinite(good)) good = Number(row?.productionPrintedSheets);
-      if (!Number.isFinite(good) && jobType !== 'special') good = Number(row?.printedSheets);
-      if (!Number.isFinite(good) || good <= 0) return;
-      byBucket.set(bucket, (byBucket.get(bucket) || 0) + good);
-      totalGood += good;
-    });
+      if (!Number.isFinite(good)) good = Number(row?.printedSheets);
+      if (!Number.isFinite(good) || good <= 0) continue;
+      byBucket.set(bucket, Number(byBucket.get(bucket) || 0) + good);
+      diagnostics.productionRowsUsed += 1;
+      diagnostics.totalGoodProduction += good;
+    }
     const series = eventTrendBuckets.map(key => Number(byBucket.get(key) || 0));
-    const unique = [...new Set(series.filter(v => v > 0))];
-    const repeatedTotal = unique.length === 1 && unique[0] === totalGood && series.filter(v => v > 0).length > 1;
-    const available = series.some(v => v > 0) && !repeatedTotal;
-    return { series, available, max: Math.max(0, ...series), label: granularity === 'day' ? 'Good Production (printed sheets per day)' : 'Good Production (printed sheets per bucket)' };
+    diagnostics.matchedBuckets = series.filter(v => v > 0).length;
+    diagnostics.maxBucketGoodProduction = Math.max(0, ...series);
+    const nonZero = series.filter(v => v > 0);
+    const repeatedTotal = nonZero.length > 1 && nonZero.every(v => v === diagnostics.totalGoodProduction);
+    diagnostics.available = nonZero.length > 0 && !repeatedTotal;
+    if (!diagnostics.available) diagnostics.omittedReason = repeatedTotal ? 'Detected repeated full-period totals across buckets' : 'No scoped good production matched displayed buckets';
+    return { series, available: diagnostics.available, max: diagnostics.maxBucketGoodProduction, label: granularity === 'day' ? 'Good Production (printed sheets per day)' : 'Good Production (printed sheets per bucket)', diagnostics };
   }
 
 function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], topSubsystems = [], topErrors = [] } = {}) {
@@ -2727,11 +2735,21 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
   }
 
   function renderSummaryPlainText(model) {
-    const lines = ['Command Center Summary', model.statusStrip, '', 'Top Signals'];
+    const lines = ['Command Center Summary', `Reporting period: ${model.reportingPeriodLabel || 'Current validated dataset'}`, `Dashboard version: ${model.appVersion || APP_VERSION}`, model.statusStrip, '', 'Top Signals'];
     (model.topSignals || []).forEach(card => lines.push(`- ${card.title}: ${card.detail}`));
     lines.push('', 'Action Cards');
     (model.actionCards || []).forEach(card => lines.push(`- ${card.what} | ${card.where} | ${card.why} | ${card.impact}`));
     return lines.join('\n');
+  }
+
+  function deriveReportingPeriodLabel(scope = {}) {
+    const days = [];
+    (scope.filteredErrorEventsNative || []).forEach(r => { const d = toDayBucket(r?.day || r?.startTime || r?.timestamp); if (d) days.push(d); });
+    (scope.filteredAvailabilityRowsNative || []).forEach(r => { const d = toDayBucket(r?.day || r?.date); if (d) days.push(d); });
+    (scope.filteredVolumeRowsNative || []).forEach(r => { const d = toDayBucket(r?.day || r?.date || r?.startTime); if (d) days.push(d); });
+    if (!days.length) return 'Current validated dataset';
+    days.sort((a,b)=>a.localeCompare(b));
+    return `${days[0]} to ${days[days.length-1]}`;
   }
 
   function buildExecutiveSummaryModel(summary, kpis, rows, sourceScope) {
@@ -2748,6 +2766,8 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
     const reliabilityInterpretation = (kpis?.mttr || 0) < 900 && (kpis?.mtbf || 0) < 4*3600 ? 'Frequent short stops' : 'Rare but long failures';
     return {
       generatedAtLabel: new Date().toLocaleString(),
+      reportingPeriodLabel: deriveReportingPeriodLabel(scope),
+      appVersion: APP_VERSION,
       sourceCounts: { errors: (scope.errorsAgg || []).length, availability: (scope.availabilityAgg || []).length, volume: (scope.volumeAgg || []).length },
       statusStrip: `[${status}] • ${drivingPresses} presses driving ${(topShare * 100).toFixed(1)}% of downtime • Waste ${(wasteRatio * 100).toFixed(2)}% • Availability ${(availabilityRatio * 100).toFixed(1)}%`,
       topSignals: [
@@ -2778,7 +2798,7 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
   function renderSummaryHtmlByStructure(model, structure, channel) {
     const cards = (model.topSignals || []).slice(0, 3).map(card => `<article class="summary-stat span-4"><div class="label">${esc(card.title)}</div><div class="value" style="font-size:.9rem;line-height:1.35;">${esc(card.detail)}</div></article>`).join('');
     const actions = (model.actionCards || []).slice(0,3).map(card => `<article class="summary-stat"><div class="label">WHAT</div><div class="value" style="font-size:.88rem;">${esc(card.what)}</div><div class="micro">WHERE: ${esc(card.where)}<br>WHY: ${esc(card.why)}<br>EXPECTED IMPACT: ${esc(card.impact)}</div></article>`).join('');
-    return `<section class="summary-section"><div class="summary-section-head" style="background:#1f8bff;">Command Center Summary</div><div class="summary-section-body"><div class="summary-stat"><div class="value">${esc(model.statusStrip)}</div></div><div class="summary-grid" style="margin-top:10px;">${cards}</div><div style="margin-top:10px;display:grid;gap:8px;">${actions}</div></div></section>`;
+    return `<section class="summary-section"><div class="summary-section-head" style="background:#1f8bff;">Command Center Summary</div><div class="micro" style="padding:8px 12px 0;">Reporting period: ${esc(model.reportingPeriodLabel || 'Current validated dataset')} • Dashboard version: ${esc(model.appVersion || APP_VERSION)}</div><div class="summary-section-body"><div class="summary-stat"><div class="value">${esc(model.statusStrip)}</div></div><div class="summary-grid" style="margin-top:10px;">${cards}</div><div style="margin-top:10px;display:grid;gap:8px;">${actions}</div></div></section>`;
   }
 
   function renderKpis(k) {
@@ -3550,7 +3570,7 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
       if (metric === 'events') return x.metrics?.events || x.events || 0;
       if (metric === 'downtime') return isPressImpactChart
         ? (x.metrics?.durationSeconds || x.totalDurationSeconds || x.downtime || 0)
-        : ((x.metrics?.durationSeconds || x.totalDurationSeconds || x.downtime || 0) / 3600);
+        : (x.metrics?.durationSeconds || x.totalDurationSeconds || x.downtime || 0);
       if (metric === 'avgDuration') return x.metrics?.avgDuration || x.avgDuration || 0;
       if (metric === 'perPress') return x.perPress || 0;
       return x[metric] || 0;
@@ -4248,7 +4268,22 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
     return (scope.filteredErrorEventsNative || []).map(r => ({ component: r.press || 'Unspecified', press: r.press || 'Unspecified', day: r.day || '', subsystem: r.subsystem || 'Unspecified', alert: r.name !== 'Unspecified' ? r.name : r.alertTitle, durationSeconds: r.durationSeconds || 0, numerator: Number(r.durationSeconds || 0), denominator: 1, metricValue: 1, source: 'errorsAgg', raw: r }));
   }
 
+
+  function resetDrilldownScopedState() {
+    STATE.simulationData = null;
+    STATE.baselineData = null;
+    STATE.appliedSimulationData = null;
+    STATE.pendingSimulationChanges = new Set();
+    if (STATE.drilldown?.simulation) {
+      STATE.drilldown.simulation.pendingExcluded = new Set();
+      STATE.drilldown.simulation.appliedExcluded = new Set();
+    }
+    const drillSearch = document.getElementById('drilldownSearch');
+    if (drillSearch) drillSearch.value = '';
+  }
+
   function openKpiDrilldown(metricKey, metricName) {
+    resetDrilldownScopedState();
     const baselineData = buildKpiBaselineData(metricKey);
     if (!baselineData.length) {
       setStatus('No KPI drilldown data for this metric in current scope.', 'warning');
@@ -4345,6 +4380,7 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
   }
 
   function openDrilldown(dimension, value, payload = null) {
+    resetDrilldownScopedState();
     const existingSimulation = STATE.drilldown.simulation || { pendingExcluded: new Set(), appliedExcluded: new Set() };
     const entityKey = payload?.entityKey || value;
     const sourceType = payload?.sourceType || 'errorEvents';
@@ -4717,8 +4753,8 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
       const byDayCurrent = new Map(); appliedRows.forEach(r => { if (!r.day) return; byDayCurrent.set(r.day, (byDayCurrent.get(r.day) || 0) + rowMetricValue(r)); });
       const byDayBaseline = new Map(); baselineRows.forEach(r => { if (!r.day) return; byDayBaseline.set(r.day, (byDayBaseline.get(r.day) || 0) + rowMetricValue(r)); });
       const dayLabels = [...new Set([...byDayCurrent.keys(), ...byDayBaseline.keys()])].sort((a, b) => a.localeCompare(b));
-      const prodKpi = buildProductionTrendByDay(appliedRows, STATE.lastSourceScope || {}, { scopeType: 'kpi' });
-      const productionSeries = dayLabels.map(x => (prodKpi.available ? (prodKpi.trend.get(x) ?? null) : null));
+      const prodKpi = buildGoodProductionTrendForBuckets(dayLabels, appliedRows, STATE.lastSourceScope || {}, { scopeType: 'kpi', granularity: 'day' });
+      const productionSeries = dayLabels.map((_, idx) => (prodKpi.available ? Number(prodKpi.series[idx] || 0) : null));
       const showKpiProduction = prodKpi.available && productionSeries.some(v => Number(v || 0) > 0);
       replaceChart('drilldownTrendChart', { type: 'line', data: { labels: dayLabels, datasets: [
         ...(simulationActive ? [{ label: 'Baseline', simRole: 'baseline', data: dayLabels.map(x => byDayBaseline.get(x) || 0), borderColor: 'rgba(151,167,194,.6)', borderDash: [5, 4], tension: .25, fill: false, pointRadius: 0 }] : []),
@@ -5944,6 +5980,8 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
     });
 
     exportBtn.addEventListener('click', () => exportRowsToCsv(STATE.lastSourceScope?.filteredMergedRows || STATE.filtered, 'dashboard-filtered-export.csv'));
+    const appVersionMeta = document.getElementById('appVersionMeta');
+    if (appVersionMeta) appVersionMeta.textContent = `Dashboard version: ${APP_VERSION}`;
     const summaryBtnEl = document.getElementById('summaryBtn');
     const summaryModal = document.getElementById('summaryModal');
     const closeSummaryBtnEl = document.getElementById('closeSummaryBtn');
