@@ -641,9 +641,9 @@
 
   const metricRegistry = Object.freeze({
     events: { id: 'events', label: 'Events', type: 'count', unit: 'events', dataset: 'errors', numeratorField: 'totalEvents', denominatorField: null, aggregate: scope => (scope.errorsAgg || []).reduce((acc, row) => acc + Number(row?.totalEvents || 0), 0), format: value => Math.round(Number(value || 0)).toLocaleString(), validate: value => Number.isFinite(Number(value)) && Number(value) >= 0 },
-    downtime: { id: 'downtime', label: 'Aggregate error downtime', type: 'duration_sum', unit: 'seconds', dataset: 'errors', numeratorField: 'totalErrorDurationSeconds', denominatorField: null, aggregate: scope => (scope.errorsAgg || []).reduce((acc, row) => acc + Number(row?.totalErrorDurationSeconds || 0), 0), format: value => formatDuration(Number(value || 0)), validate: value => Number.isFinite(Number(value)) && Number(value) >= 0 },
-    mttr: { id: 'mttr', label: 'MTTR / Avg repair time', type: 'average', unit: 'seconds', dataset: 'errors', numeratorField: 'totalErrorDurationSeconds', denominatorField: 'totalEvents', aggregate: scope => { const num = (scope.errorsAgg || []).reduce((acc, row) => acc + Number(row?.totalErrorDurationSeconds || 0), 0); const den = (scope.errorsAgg || []).reduce((acc, row) => acc + Number(row?.cleanEventCount || 0), 0); return den > 0 ? num / den : null; }, format: value => value == null ? 'N/A' : formatDuration(Number(value || 0)), validate: value => value == null || Number(value) >= 0 },
-    mtbf: { id: 'mtbf', label: 'MTBF', type: 'average', unit: 'seconds', dataset: 'availability', numeratorField: 'runtimeSeconds', denominatorField: 'totalEvents', aggregate: scope => { const num = (scope.availabilityAgg || []).reduce((acc, row) => acc + Number(row?.runtimeSeconds || 0), 0); const den = (scope.errorsAgg || []).reduce((acc, row) => acc + Number(row?.cleanEventCount || 0), 0); return den > 0 ? num / den : null; }, format: value => value == null ? 'N/A' : formatDuration(Number(value || 0)), validate: value => value == null || Number(value) >= 0 },
+    downtime: { id: 'downtime', label: 'Total downtime', type: 'duration_sum', unit: 'seconds', dataset: 'availability', numeratorField: 'maintenanceSeconds+errorNotAvailableSeconds', denominatorField: null, aggregate: scope => (scope.availabilityAgg || []).reduce((acc, row) => acc + Number(totalDowntimeFromAvailabilityRow(row) || 0), 0), format: value => formatDuration(Number(value || 0)), validate: value => Number.isFinite(Number(value)) && Number(value) >= 0 },
+    mttr: { id: 'mttr', label: 'MTTR / Avg repair time', type: 'average', unit: 'seconds', dataset: 'availability', numeratorField: 'repairSeconds', denominatorField: 'repairEventCount', aggregate: scope => Number(computeRecoveryMetricsDiagnostics(scope)?.computedMttrSeconds ?? null), format: value => value == null ? 'Unavailable' : formatDuration(Number(value || 0)), validate: value => value == null || Number(value) >= 0 },
+    mtbf: { id: 'mtbf', label: 'MTBF', type: 'average', unit: 'seconds', dataset: 'availability', numeratorField: 'runtimeSeconds', denominatorField: 'failureCount', aggregate: scope => Number(computeRecoveryMetricsDiagnostics(scope)?.computedMtbfSeconds ?? null), format: value => value == null ? 'Unavailable' : formatDuration(Number(value || 0)), validate: value => value == null || Number(value) >= 0 },
     volume: { id: 'volume', label: 'Volume', type: 'sum', unit: 'sheets', dataset: 'volume', numeratorField: 'totalPrintedSheets', denominatorField: null, aggregate: scope => (scope.volumeAgg || []).reduce((acc, row) => acc + Number(row?.totalPrintedSheets || ((row?.goodPrintedSheets || 0) + (row?.wastePrintedSheets || 0))), 0), format: value => `${formatCompactNumber(value)} sheets`, validate: value => Number.isFinite(Number(value)) && Number(value) >= 0 },
     wasteRatio: { id: 'wasteRatio', label: 'Waste Ratio', type: 'ratio', unit: 'percent', dataset: 'volume', numeratorField: 'wastePrintedSheets', denominatorField: 'totalPrintedSheets', aggregate: scope => { if (scope?.hasWasteData === false) return null; const num = (scope.volumeAgg || []).reduce((acc, row) => acc + Number(row?.wastePrintedSheets || 0), 0); const den = (scope.volumeAgg || []).reduce((acc, row) => acc + Number(row?.totalPrintedSheets || ((row?.goodPrintedSheets || 0) + (row?.wastePrintedSheets || 0))), 0); return den > 0 ? num / den : 0; }, format: value => value == null ? 'N/A' : `${(Number(value || 0) * 100).toFixed(2)}%`, validate: value => value == null || (Number.isFinite(Number(value)) && Number(value) >= 0 && Number(value) <= 1) },
     availability: { id: 'availability', label: 'Availability', type: 'percentage', unit: 'percent', dataset: 'availability', numeratorField: 'runtimeSeconds', denominatorField: 'runtimePlusDowntime', aggregate: scope => { const runtime = (scope.availabilityAgg || []).reduce((acc, row) => acc + Number(row?.runtimeSeconds || 0), 0); const downtime = (scope.availabilityAgg || []).reduce((acc, row) => acc + Number(totalDowntimeFromAvailabilityRow(row) || 0), 0); const den = runtime + downtime; return den > 0 ? runtime / den : null; }, format: value => value == null ? 'N/A' : `${(Number(value || 0) * 100).toFixed(1)}%`, validate: value => value == null || (Number(value) >= 0 && Number(value) <= 1) },
@@ -2423,17 +2423,76 @@
     const goodPrintedSheets = volumeTotals.goodPrintedSheets;
     const wastePrintedSheets = hasWasteData ? volumeTotals.wastePrintedSheets : 0;
     const totalPrintedSheets = volumeTotals.totalPrintedSheets;
-    const mttr = aggregateMetricFromScope('mttr', scope);
-    const mtbf = aggregateMetricFromScope('mtbf', scope);
+    const recoveryMetricsDiagnostics = computeRecoveryMetricsDiagnostics(scope);
+    const mttr = recoveryMetricsDiagnostics.computedMttrSeconds;
+    const mtbf = recoveryMetricsDiagnostics.computedMtbfSeconds;
     const availabilityRatio = aggregateMetricFromScope('availability', scope);
     return {
       totalEvents, totalErrorDurationSeconds, totalDowntime, totalUnplanned, totalPlanned, totalService, totalOperating: runtimeSeconds, runtimeSeconds,
       downtimeSeconds: totalPlanned + totalUnplanned, totalPrintedFlats: volumeTotals.totalPrintedFlats, goodPrintedFlats: volumeTotals.goodPrintedFlats, wastePrintedFlats: hasWasteData ? volumeTotals.wastePrintedFlats : 0, goodPrintedSheets, wastePrintedSheets, totalPrintedSheets, totalProdVolume: goodPrintedSheets, totalMaintenanceVolume: 0, totalVolume: totalPrintedSheets, totalWasteVolume: wastePrintedSheets,
       avgDuration: mttr, avgDurationSeconds: mttr, mttr, mtbf, mtbr: null, availabilityPercent: availabilityRatio == null ? null : availabilityRatio * 100,
+      recoveryMetricsDiagnostics,
       downtimeHours: totalDowntime > 0 ? (totalDowntime / 3600) : 0, outputEfficiency: totalDowntime > 0 ? (goodPrintedSheets / (totalDowntime / 3600)) : null,
       volumePerDowntime: totalDowntime > 0 ? (goodPrintedSheets / totalDowntime) : null, volumePerEvents: totalEvents > 0 ? (goodPrintedSheets / totalEvents) : null,
       wasteRatio: aggregateMetricFromScope('wasteRatio', scope), hasWasteData, reasons: []
     };
+  }
+
+  function computeRecoveryMetricsDiagnostics(scope = {}) {
+    const availabilityRows = scope.filteredAvailabilityRowsNative || [];
+    const runtimeSeconds = (scope.availabilityAgg || []).reduce((acc, row) => acc + Number(row?.runtimeSeconds || 0), 0);
+    const repairSeconds = (scope.availabilityAgg || []).reduce((acc, row) => acc + Number(row?.recoverySeconds || 0), 0);
+    const findRawNumber = (row, patterns = []) => {
+      for (const [key, value] of Object.entries(row || {})) {
+        const ck = canonical(key);
+        if (!patterns.some(p => ck.includes(p))) continue;
+        const n = parseNumber(value);
+        if (Number.isFinite(n)) return n;
+      }
+      return null;
+    };
+    const findRawDurationSeconds = (row, patterns = []) => {
+      for (const [key, value] of Object.entries(row || {})) {
+        const ck = canonical(key);
+        if (!patterns.some(p => ck.includes(p))) continue;
+        const parsed = parseDurationSeconds(value).seconds;
+        if (Number.isFinite(parsed) && parsed > 0) return parsed;
+      }
+      return null;
+    };
+    let explicitMttrSeconds = null;
+    let explicitMtbfSeconds = null;
+    let repairEventCount = null;
+    let failureCount = null;
+    for (const row of availabilityRows) {
+      explicitMttrSeconds = explicitMttrSeconds ?? findRawDurationSeconds(row.raw || row, ['avg time to repair', 'mttr']);
+      explicitMtbfSeconds = explicitMtbfSeconds ?? findRawDurationSeconds(row.raw || row, ['avg time between failures', 'mtbf']);
+      repairEventCount = repairEventCount ?? findRawNumber(row.raw || row, ['recovery events', 'repair events', 'repair count']);
+      failureCount = failureCount ?? findRawNumber(row.raw || row, ['proof events', 'failure count', 'failures', 'error events']);
+    }
+    const missingFields = [];
+    let confidence = 'unavailable';
+    let sourceUsed = 'none';
+    let computedMttrSeconds = null;
+    let computedMtbfSeconds = null;
+    if (explicitMttrSeconds != null || explicitMtbfSeconds != null) {
+      confidence = 'exact';
+      sourceUsed = 'explicit source recovery metrics';
+      computedMttrSeconds = explicitMttrSeconds;
+      computedMtbfSeconds = explicitMtbfSeconds;
+    } else {
+      if (!(repairEventCount > 0)) missingFields.push('repairEventCount');
+      if (!(failureCount > 0)) missingFields.push('failureCount');
+      if (!(repairSeconds > 0)) missingFields.push('recoverySeconds');
+      if (!(runtimeSeconds > 0)) missingFields.push('runtimeSeconds');
+      if (repairEventCount > 0 && repairSeconds > 0) computedMttrSeconds = repairSeconds / repairEventCount;
+      if (failureCount > 0 && runtimeSeconds > 0) computedMtbfSeconds = runtimeSeconds / failureCount;
+      if (computedMttrSeconds != null || computedMtbfSeconds != null) {
+        confidence = 'derived';
+        sourceUsed = 'availability runtime/recovery with explicit event counts';
+      }
+    }
+    return { sourceUsed, runtimeSeconds, repairSeconds, failureCount, repairEventCount, computedMtbfSeconds, computedMttrSeconds, availabilityRowsUsed: availabilityRows.length, missingFields, confidence };
   }
 
   function aggregateErrorEvents(rows, keyFn) {
@@ -2755,7 +2814,7 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
     });
     const topDowntimePresses = [...downtimeByPress.entries()].map(([entity, downtime]) => ({ entity, downtime })).sort((a, b) => b.downtime - a.downtime);
     const topErrorDowntimePress = topDowntimePresses[0] || null;
-    const totalDowntime = Math.max(0, Number(kpis.totalErrorDurationSeconds || 0));
+    const totalDowntime = Math.max(0, Number(kpis.totalDowntime || 0));
     const top3Downtime = topDowntimePresses.slice(0, 3).reduce((sum, row) => sum + Number(row.downtime || 0), 0);
     const downtimeConcentrationPct = totalDowntime > 0 ? (top3Downtime / totalDowntime) * 100 : 0;
     const unplannedPct = totalDowntime > 0 ? ((Number(kpis.totalUnplanned || 0) / totalDowntime) * 100) : 0;
@@ -2766,7 +2825,7 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
       topSubsystemByEvents: topSubsystem ? { subsystem: topSubsystem.name, events: topSubsystem.events } : null,
       topAlertByEvents: topAlert ? { alert: topAlert.name, events: topAlert.events } : null,
       highestErrorDowntimePress: topErrorDowntimePress ? { press: topErrorDowntimePress.entity, downtimeSeconds: topErrorDowntimePress.downtime } : null,
-      sourceOfTruth: { events: 'errorsAgg / normalized errors events', downtime: 'errorsAgg.totalErrorDurationSeconds' }
+      sourceOfTruth: { events: 'errorsAgg / normalized errors events', downtime: 'availabilityAgg.(preventive+on-job-maintenance+recovery+jams)', cleanErrorEventDuration: 'errorsAgg.totalErrorDurationSeconds (diagnostic)' }
     });
 
     const overallStatus = deriveOperationalStatus(kpis, downtimeConcentrationPct, unplannedPct);
@@ -2936,11 +2995,18 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
   }
 
   function renderKpis(k) {
+    const rec = k?.recoveryMetricsDiagnostics || {};
+    const mttrValue = rec.confidence === 'unavailable' ? 'Unavailable' : metricRegistry.mttr.format(k.mttr);
+    const mtbfValue = rec.confidence === 'unavailable' ? 'Unavailable' : metricRegistry.mtbf.format(k.mtbf);
+    const totalScopeSeconds = Number(k?.runtimeSeconds || 0) + Number(k?.totalDowntime || 0);
+    const downtimePct = totalScopeSeconds > 0 ? ((Number(k?.totalDowntime || 0) / totalScopeSeconds) * 100) : 0;
+    const mttrSubtitle = rec.confidence === 'exact' ? `Source metric (${rec.sourceUsed})` : (rec.confidence === 'derived' ? 'Derived: repairSeconds / repairEventCount' : 'MTTR unavailable — missing repair event count');
+    const mtbfSubtitle = rec.confidence === 'exact' ? `Source metric (${rec.sourceUsed})` : (rec.confidence === 'derived' ? 'Derived: runtimeSeconds / failureCount' : 'MTBF unavailable — missing failure count');
     const cards = [
       ['Events', 'events', metricRegistry.events.format(k.totalEvents), metricRegistry.events.label],
-      ['Clean aggregate error downtime', 'downtime', metricRegistry.downtime.format(k.totalDowntime), 'Sum of clean Errors.Duration across selected scope; excludes >=24h anomalies'],
-      ['MTTR / Avg repair time', 'mttr', metricRegistry.mttr.format(k.mttr), 'sum(cleanErrorDurationSeconds) / sum(cleanEventCount)'],
-      ['MTBF', 'mtbf', metricRegistry.mtbf.format(k.mtbf), 'sum(availabilityRuntimeSeconds) / sum(cleanEventCount)'],
+      ['Total Downtime', 'downtime', metricRegistry.downtime.format(k.totalDowntime), `${downtimePct.toFixed(2)}% of selected time • maintenance + recovery + jams`],
+      ['MTTR / Avg repair time', 'mttr', mttrValue, mttrSubtitle],
+      ['MTBF', 'mtbf', mtbfValue, mtbfSubtitle],
       ['Printed Flats', 'volume', `${formatCompactNumber(k.totalPrintedFlats || 0)} flats`, 'Sum of totalPrintedFlats/printedFlats across selected scope'],
       ['Waste Ratio', 'wasteRatio', metricRegistry.wasteRatio.format(k.wasteRatio), 'sum(wastePrintedSheets) / sum(totalPrintedSheets)'],
       ['Availability', 'availability', metricRegistry.availability.format((k.availabilityPercent == null ? null : k.availabilityPercent / 100)), 'sum(runtimeSeconds) / (sum(runtimeSeconds)+sum(downtimeSeconds))'],
