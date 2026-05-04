@@ -1119,7 +1119,7 @@
         subsystem: String(getField(r, ['Subsystem', 'Module'])).trim() || 'Unspecified',
         preErrorState: String(getField(r, ['Pre Error State', 'Pre-State', 'Pre State'])).trim() || 'Unspecified',
         errorState: String(getField(r, ['Error State', 'State'])).trim() || 'Unspecified',
-        version: String(getField(r, ['Version', 'SW Version', 'Firmware'])).trim() || 'Unspecified',
+        version: String(getField(r, ['Version', 'SW Version', 'Software Version', 'Firmware', 'Build Version'])).trim() || 'Unspecified',
         startTime,
         day: toDayBucket(startTime),
         durationSeconds: parseDurationSeconds(getField(r, ['Duration', 'Duration (sec)', 'DurationSeconds'])),
@@ -2386,12 +2386,38 @@
     });
   }
 
-  function formatDuration(sec) {
-    if (!Number.isFinite(sec) || sec <= 0) return '0s';
-    const s = Math.round(sec), h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = s % 60;
+  function formatDurationFull(seconds) {
+    const sec = Math.max(0, Math.round(Number(seconds) || 0));
+    if (sec <= 0) return '0s';
+    const d = Math.floor(sec / 86400);
+    const h = Math.floor((sec % 86400) / 3600);
+    const m = Math.floor((sec % 3600) / 60);
+    const x = sec % 60;
+    if (d) return `${d}d ${h}h ${m}m ${x}s`;
     if (h) return `${h}h ${m}m ${x}s`;
     if (m) return `${m}m ${x}s`;
     return `${x}s`;
+  }
+
+  function formatDurationShort(seconds) {
+    const sec = Math.max(0, Math.round(Number(seconds) || 0));
+    if (sec <= 0) return '0s';
+    const d = Math.floor(sec / 86400);
+    const h = Math.floor((sec % 86400) / 3600);
+    const m = Math.floor((sec % 3600) / 60);
+    const x = sec % 60;
+    if (d) return `${d}d ${h}h`;
+    if (h) return `${h}h ${m}m`;
+    if (m) return `${m}m ${x}s`;
+    return `${x}s`;
+  }
+
+  function formatDurationAxis(seconds) {
+    return formatDurationShort(seconds);
+  }
+
+  function formatDuration(sec) {
+    return formatDurationFull(sec);
   }
 
   function formatClockDuration(sec) {
@@ -2403,12 +2429,7 @@
   }
 
   function formatDurationCompact(sec) {
-    if (!Number.isFinite(sec) || sec <= 0) return '0m';
-    const s = Math.round(sec);
-    const h = Math.floor(s / 3600);
-    const m = Math.floor((s % 3600) / 60);
-    if (h) return `${h}h ${m}m`;
-    return `${m}m`;
+    return formatDurationShort(sec);
   }
 
   function formatCompactNumber(value) {
@@ -2435,7 +2456,7 @@
   }
 
   function formatTooltipValue(value, metric = '') {
-    if (metric === 'downtime' || metric === 'avgDuration') return formatDurationCompact(Number(value || 0));
+    if (metric === 'downtime' || metric === 'avgDuration') return formatDurationFull(Number(value || 0));
     if (metric === 'wasteRatio' || metric === 'availability') return formatChartValue(Number(value || 0), metric);
     return formatChartValue(value, metric);
   }
@@ -2455,53 +2476,50 @@
     return Math.ceil(n / magnitude) * magnitude;
   }
 
-  function buildProductionTrendByDay(eventRows = [], sourceScope = {}, options = {}) {
-    const scopeType = options.scopeType || 'eventScope';
-    const trend = new Map();
-    const pressScope = new Set((eventRows || []).map(r => r?.press || r?.canonicalPress).filter(Boolean));
-    const versionScope = new Set((eventRows || []).map(r => r?.version).filter(Boolean));
-    const nativeRows = Array.isArray(sourceScope?.filteredVolumeRowsNative) ? sourceScope.filteredVolumeRowsNative : [];
-    const fallbackRows = Array.isArray(sourceScope?.volumeAgg) ? sourceScope.volumeAgg : [];
-    const sourceRows = nativeRows.length ? nativeRows : fallbackRows;
-    const scopedVolume = sourceRows.filter(r => {
-      const press = r?.canonicalPress || r?.press;
-      if (scopeType === 'kpi') return true;
-      if (scopeType === 'press') return pressScope.size > 0 ? pressScope.has(press) : true;
-      if (scopeType === 'version') {
-        if (!pressScope.size) return false;
-        return pressScope.has(press);
-      }
-      if (scopeType === 'subsystem' || scopeType === 'alert') return pressScope.size > 0 ? pressScope.has(press) : true;
-      if (scopeType === 'customer') return pressScope.size > 0 ? pressScope.has(press) : true;
-      return pressScope.size > 0 ? pressScope.has(press) : true;
-    });
-    const resolveSheets = row => {
-      const totalPrintedSheets = Number(row?.totalPrintedSheets);
-      if (Number.isFinite(totalPrintedSheets) && totalPrintedSheets > 0) return totalPrintedSheets;
-      const goodPlusWaste = Number(row?.goodPrintedSheets || 0) + Number(row?.wastePrintedSheets || 0);
-      if (Number.isFinite(goodPlusWaste) && goodPlusWaste > 0) return goodPlusWaste;
-      const productionPlusWaste = Number(row?.productionPrintedSheets || 0) + Number(row?.wastePrintedSheets || 0);
-      if (Number.isFinite(productionPlusWaste) && productionPlusWaste > 0) return productionPlusWaste;
-      const printedSheets = Number(row?.printedSheets);
-      if (Number.isFinite(printedSheets) && printedSheets > 0) return printedSheets;
-      const totalVolume = Number(row?.totalVolume);
-      if (Number.isFinite(totalVolume) && totalVolume > 0) return totalVolume;
-      return 0;
-    };
-    scopedVolume.forEach(row => {
-      const rawDay = row?.day || row?.date || row?.timestamp;
-      if (!rawDay) return;
-      const day = toDayBucket(rawDay);
-      if (!day) return;
-      const sheets = resolveSheets(row);
-      if (!Number.isFinite(sheets) || sheets <= 0) return;
-      trend.set(day, (trend.get(day) || 0) + sheets);
-    });
-    const max = Math.max(0, ...[...trend.values()].map(v => Number(v || 0)));
-    return { trend, available: trend.size > 0 && max > 0, max, scopeType, presses: pressScope.size, versions: versionScope.size, diagnostics: { scopedRows: scopedVolume.length, sourceRows: sourceRows.length, source: nativeRows.length ? 'filteredVolumeRowsNative' : 'volumeAgg' } };
+  function getTrendBucketKey(dateLike, granularity = 'day') {
+    const day = toDayBucket(dateLike);
+    if (!day) return null;
+    if (granularity === 'day') return day;
+    const dt = new Date(`${day}T00:00:00`);
+    if (Number.isNaN(dt.getTime())) return day;
+    if (granularity === 'month') return `${dt.getUTCFullYear()}-${String(dt.getUTCMonth() + 1).padStart(2, '0')}`;
+    if (granularity === 'week') {
+      const dayNum = dt.getUTCDay() || 7;
+      dt.setUTCDate(dt.getUTCDate() - dayNum + 1);
+      return toDayBucket(dt);
+    }
+    return day;
   }
 
-  function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], topSubsystems = [], topErrors = [] } = {}) {
+  function buildGoodProductionTrendForBuckets(eventTrendBuckets = [], eventRows = [], sourceScope = {}, options = {}) {
+    const scopeType = options.scopeType || 'eventScope';
+    const granularity = options.granularity || 'day';
+    const pressScope = new Set((eventRows || []).map(r => r?.press || r?.canonicalPress).filter(Boolean));
+    const sourceRows = Array.isArray(sourceScope?.filteredVolumeRowsNative) ? sourceScope.filteredVolumeRowsNative : [];
+    const byBucket = new Map();
+    let totalGood = 0;
+    sourceRows.forEach(row => {
+      const press = row?.canonicalPress || row?.press;
+      if ((scopeType === 'press' || scopeType === 'eventScope' || scopeType === 'subsystem' || scopeType === 'alert' || scopeType === 'version') && pressScope.size && !pressScope.has(press)) return;
+      const bucket = getTrendBucketKey(row?.day || row?.date || row?.timestamp || row?.startTime, granularity);
+      if (!bucket) return;
+      const jobType = normalizeJobType(row?.jobTypeNormalized || row?.jobType || row?.type);
+      if (jobType === 'special') return;
+      let good = Number(row?.goodPrintedSheets);
+      if (!Number.isFinite(good)) good = Number(row?.productionPrintedSheets);
+      if (!Number.isFinite(good) && jobType !== 'special') good = Number(row?.printedSheets);
+      if (!Number.isFinite(good) || good <= 0) return;
+      byBucket.set(bucket, (byBucket.get(bucket) || 0) + good);
+      totalGood += good;
+    });
+    const series = eventTrendBuckets.map(key => Number(byBucket.get(key) || 0));
+    const unique = [...new Set(series.filter(v => v > 0))];
+    const repeatedTotal = unique.length === 1 && unique[0] === totalGood && series.filter(v => v > 0).length > 1;
+    const available = series.some(v => v > 0) && !repeatedTotal;
+    return { series, available, max: Math.max(0, ...series), label: granularity === 'day' ? 'Good Production (printed sheets per day)' : 'Good Production (printed sheets per bucket)' };
+  }
+
+function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], topSubsystems = [], topErrors = [] } = {}) {
     const asPct = (num, den) => den > 0 ? ((num / den) * 100) : 0;
     const leaderSummary = (rows, valueKey, unitLabel, labelPlural) => {
       if (!rows.length) return `No ${labelPlural} were identified in the current scope.`;
@@ -3966,7 +3984,7 @@
   function renderTable(rows) {
     const table = document.getElementById('eventTable');
     if (!rows.length) { table.innerHTML = '<tbody><tr><td>No rows in current scope.</td></tr></tbody>'; return; }
-    table.innerHTML = `<thead><tr><th>Press</th><th>Subsystem</th><th>Alert Name</th><th>Version</th><th>Start</th><th>Duration</th><th>Prod Vol</th><th>Avail Context</th></tr></thead><tbody>${rows.slice(0, 800).map(r => `<tr><td>${esc(r.press)}</td><td>${esc(r.subsystem)}</td><td>${esc(r.name !== 'Unspecified' ? r.name : r.alertTitle)}</td><td>${esc(r.version)}</td><td>${esc(r.startTime?.toISOString() || '')}</td><td>${esc(formatDuration(r.durationSeconds))}</td><td>${esc(r?.volume?.productionVolume || 0)}</td><td>${esc(`U:${formatDuration(r?.availability?.unplannedDowntimeSeconds || 0)} P:${formatDuration(r?.availability?.plannedDowntimeSeconds || 0)} (${r?.mergeContext?.availabilityKeyUsed || 'none'})`)}</td></tr>`).join('')}</tbody>`;
+    table.innerHTML = `<thead><tr><th>Press</th><th>Subsystem</th><th>Alert Name</th><th>Version</th><th>Start</th><th>Duration</th><th>Prod Vol</th><th>Avail Context</th></tr></thead><tbody>${rows.slice(0, 800).map(r => `<tr><td>${esc(r.press)}</td><td>${esc(r.subsystem)}</td><td>${esc(r.name !== 'Unspecified' ? r.name : r.alertTitle)}</td><td>${esc(r.version || 'Version unavailable')}</td><td>${esc(r.startTime?.toISOString() || '')}</td><td>${esc(formatDuration(r.durationSeconds))}</td><td>${esc(r?.volume?.productionVolume || 0)}</td><td>${esc(`U:${formatDuration(r?.availability?.unplannedDowntimeSeconds || 0)} P:${formatDuration(r?.availability?.plannedDowntimeSeconds || 0)} (${r?.mergeContext?.availabilityKeyUsed || 'none'})`)}</td></tr>`).join('')}</tbody>`;
   }
 
   function populateFilter(id, values, label) {
@@ -4940,14 +4958,15 @@
     });
     const trendPoints = analytics.trendPoints.filter(([day]) => !!day);
     if (trendPoints.length) {
-      const production = buildProductionTrendByDay(scoped, STATE.lastSourceScope || {}, { scopeType: sourceType === 'versionPerPress' ? 'version' : (dimension === 'press' ? 'press' : (dimension === 'subsystem' ? 'subsystem' : (dimension === 'alert' ? 'alert' : 'eventScope'))) });
-      const productionSeries = trendPoints.map(x => production.available ? (production.trend.get(x[0]) ?? null) : null);
+      const trendBuckets = trendPoints.map(x => x[0]);
+      const production = buildGoodProductionTrendForBuckets(trendBuckets, scoped, STATE.lastSourceScope || {}, { scopeType: sourceType === 'versionPerPress' ? 'version' : (dimension === 'press' ? 'press' : (dimension === 'subsystem' ? 'subsystem' : (dimension === 'alert' ? 'alert' : 'eventScope'))), granularity: 'day' });
+      const productionSeries = production.available ? production.series : trendBuckets.map(() => null);
       const showProductionOverlay = production.available && productionSeries.some(v => Number(v || 0) > 0);
       replaceChart('drilldownTrendChart', {
         type: 'line',
         data: { labels: trendPoints.map(x => x[0]), datasets: [
           { label: selectedMetric === 'downtime' ? 'Downtime' : 'Events', data: trendPoints.map(x => selectedMetric === 'downtime' ? x[1].downtime : x[1].events), borderColor: selectedMetric === 'downtime' ? '#f97316' : '#7b8dff', backgroundColor: selectedMetric === 'downtime' ? 'rgba(249,115,22,.12)' : 'rgba(123,141,255,.25)', tension: 0.25, fill: true, yAxisID: 'y' },
-          ...(showProductionOverlay ? [{ label: 'Production (Printed sheets)', data: productionSeries, borderColor: '#57c98a', backgroundColor: 'rgba(87,201,138,.12)', tension: 0.25, fill: false, yAxisID: 'y1' }] : [])
+          ...(showProductionOverlay ? [{ label: production.label, data: productionSeries, borderColor: '#57c98a', backgroundColor: 'rgba(87,201,138,.12)', tension: 0.25, fill: false, yAxisID: 'y1' }] : [])
         ] },
         options: { ...baseOptions('drilldown', trendPoints.map(x => x[0])), plugins: { legend: { display: true, labels: { color: '#c6d3ea' } }, tooltip: { callbacks: { label: ctx => {
           const v = Number(ctx.parsed.y || 0);
@@ -5003,7 +5022,7 @@
     });
     document.getElementById('drilldownTable').innerHTML = `<thead><tr>${columns.map(col => `<th data-dd-col="${col}" style="cursor:pointer">${esc(col)} ${sort.key === col ? (sort.dir === 'asc' ? '▲' : '▼') : ''}</th>`).join('')}</tr></thead><tbody>${sorted.slice(0, 1000).map(r => isVolume
       ? `<tr><td>${esc(r.press)}</td><td>${esc(r.day)}</td><td>${esc(r.jobType)}</td><td>${esc(r.jobStatus)}</td><td>${esc(r.pressMode)}</td><td>${esc((r.totalVolume || r.volume || 0).toLocaleString())}</td></tr>`
-      : `<tr><td>${esc(r.press)}</td><td>${esc(r.subsystem)}</td><td>${esc(r.name !== 'Unspecified' ? r.name : r.alertTitle)}</td><td>${esc(r.version)}</td><td>${esc(r.startTime?.toISOString() || '')}</td><td>${esc(formatDuration(r.durationSeconds))}</td></tr>`).join('')}</tbody>`;
+      : `<tr><td>${esc(r.press)}</td><td>${esc(r.subsystem)}</td><td>${esc(r.name !== 'Unspecified' ? r.name : r.alertTitle)}</td><td>${esc(r.version || 'Version unavailable')}</td><td>${esc(r.startTime?.toISOString() || '')}</td><td>${esc(formatDuration(r.durationSeconds))}</td></tr>`).join('')}</tbody>`;
     document.querySelectorAll('#drilldownTable [data-dd-col]').forEach(th => th.addEventListener('click', () => {
       const key = th.dataset.ddCol;
       STATE.drilldown.sort = { key, dir: STATE.drilldown.sort?.key === key && STATE.drilldown.sort?.dir === 'asc' ? 'desc' : 'asc' };
