@@ -1376,7 +1376,10 @@
         wastePrintedSheets,
         productionPrintedSheets: goodPrintedSheets,
         printedSheets: printedSheetsValue,
-        printedFlats: Number.isFinite(printedFlats) ? printedFlats : 0,
+        printedFlats: flatValue,
+        goodPrintedFlats,
+        wastePrintedFlats,
+        totalPrintedFlats,
         simplexDuplex,
         substrate,
         jobName,
@@ -1418,6 +1421,9 @@
           productionPrintedSheets: 0,
           printedSheets: 0,
           printedFlats: 0,
+          goodPrintedFlats: 0,
+          wastePrintedFlats: 0,
+          totalPrintedFlats: 0,
           raw: [],
         });
       }
@@ -1433,6 +1439,9 @@
       if (slot.site === 'Unspecified' && job.site) slot.site = job.site;
       slot.printedSheets += job.printedSheets || 0;
       slot.printedFlats += job.printedFlats || 0;
+      slot.goodPrintedFlats += job.goodPrintedFlats || 0;
+      slot.wastePrintedFlats += job.wastePrintedFlats || 0;
+      slot.totalPrintedFlats += job.totalPrintedFlats || 0;
       if (slot.raw.length < 20) slot.raw.push(job.raw);
     });
     const specialJobRows = jobs.filter(job => job.jobTypeNormalized === 'special');
@@ -2506,8 +2515,12 @@
     return isDurationIncluded(row) ? Number(row.durationSeconds || 0) : 0;
   }
 
+  function cleanDurationRows(rows) {
+    return (rows || []).filter(isDurationIncluded);
+  }
+
   function cleanEventCount(rows) {
-    return (rows || []).filter(isDurationIncluded).length;
+    return cleanDurationRows(rows).length;
   }
 
   function formatDurationAxis(seconds) {
@@ -3377,12 +3390,18 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
     const goodPrintedFlats = Number(row?.goodPrintedFlats ?? (special ? 0 : printedFlats));
     const wastePrintedFlats = Number(row?.wastePrintedFlats ?? (special ? printedFlats : 0));
     if (metric === 'printedFlats') return printedFlats;
+    if (metric === 'totalPrintedFlats') return Number(row?.totalPrintedFlats ?? (goodPrintedFlats + wastePrintedFlats));
     if (metric === 'goodPrintedFlats') return goodPrintedFlats;
     if (metric === 'wastePrintedFlats') return wastePrintedFlats;
+    if (metric === 'printedSheets') return Number(row?.printedSheets ?? safe.totalSheets);
     if (metric === 'wastePrintedSheets') return safe.wasteSheets;
     if (metric === 'goodPrintedSheets') return safe.goodSheets;
     if (metric === 'totalPrintedSheets') return safe.totalSheets;
-    if (metric === 'wasteRatio') return computeWasteRatio(safe.wasteSheets, safe.totalSheets);
+    if (metric === 'wasteRatio') {
+      const totalFlats = Number(row?.totalPrintedFlats ?? (goodPrintedFlats + wastePrintedFlats));
+      if (totalFlats > 0) return computeWasteRatio(wastePrintedFlats, totalFlats);
+      return computeWasteRatio(safe.wasteSheets, safe.totalSheets);
+    }
     return safe.totalSheets;
   }
 
@@ -4384,11 +4403,11 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
     }
     return (scope.filteredErrorEventsNative || []).map(r => {
       const cleanDuration = cleanDurationSeconds(r);
-      const cleanEvent = r.durationIncluded ? 1 : 0;
+      const cleanEvent = isDurationIncluded(r) ? 1 : 0;
       const numerator = metricKey === 'events' ? 1 : cleanDuration;
       const denominator = metricKey === 'mttr' || metricKey === 'mtbf' ? cleanEvent : 1;
       const metricValue = metricKey === 'events' ? 1 : cleanDuration;
-      return { component: r.press || 'Unspecified', press: r.press || 'Unspecified', day: r.day || '', subsystem: r.subsystem || 'Unspecified', alert: r.name !== 'Unspecified' ? r.name : r.alertTitle, durationSeconds: cleanDurationSeconds(r), cleanDurationSeconds: cleanDuration, durationIncluded: !!r.durationIncluded, numerator, denominator, metricValue, source: 'errorsAgg', raw: r };
+      return { component: r.press || 'Unspecified', press: r.press || 'Unspecified', day: r.day || '', subsystem: r.subsystem || 'Unspecified', alert: r.name !== 'Unspecified' ? r.name : r.alertTitle, durationSeconds: cleanDurationSeconds(r), cleanDurationSeconds: cleanDuration, durationIncluded: isDurationIncluded(r), numerator, denominator, metricValue, source: 'errorsAgg', raw: r };
     });
   }
 
@@ -4817,7 +4836,7 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
       scopedTotal = computeWasteRatio(waste, total);
     } else if (sourceType === 'volumeJobs') scopedTotal = scoped.reduce((a, r) => a + Number(volumeMetricValue(r, drillMetric) || 0), 0);
     else if (sourceType === 'availabilityNative' || sourceType === 'availabilityAgg') scopedTotal = scoped.reduce((a, r) => a + Number(totalDowntimeFromAvailabilityRow(r) || 0), 0);
-    else if (drillMetric === 'downtime') scopedTotal = scoped.reduce((a, r) => a + Number((r.durationIncluded ? r.durationSeconds : 0) || r.cleanDurationSeconds || 0), 0);
+    else if (drillMetric === 'downtime') scopedTotal = scoped.reduce((a, r) => a + cleanDurationSeconds(r), 0);
     else scopedTotal = scoped.length;
     const hasParentValidation = Number.isFinite(parentValue) && parentValue > 0;
     const mismatch = hasParentValidation && hasSignificantDiff(scopedTotal, parentValue);
