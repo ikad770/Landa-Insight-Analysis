@@ -237,6 +237,17 @@
             <div class="file-state"><span id="availabilityBadge" class="badge optional">optional</span></div>
           </div>
           <div class="file-row">
+            <div class="file-label"><strong>Availability details dataset</strong><small>Optional validation / fallback</small></div>
+            <div class="picker-stack">
+              <div class="picker-wrap"><button class="btn" data-pick="availabilityDetails">Choose file</button><span id="availabilityDetailsToken" class="file-token">No file selected</span><input id="availabilityDetailsPicker" class="hidden" type="file" accept=".csv,.xlsx,.xls,.json" /></div>
+              <div id="availabilityDetailsProgress" class="file-progress">
+                <div class="file-progress-meta"><span id="availabilityDetailsProgressLabel">Processing…</span><span id="availabilityDetailsProgressPercent">0%</span></div>
+                <div class="file-progress-track"><div id="availabilityDetailsProgressFill" class="file-progress-fill"></div></div>
+              </div>
+            </div>
+            <div class="file-state"><span id="availabilityDetailsBadge" class="badge optional">optional</span></div>
+          </div>
+          <div class="file-row">
             <div class="file-label"><strong>Print volume dataset</strong><small>Recommended for normalized KPIs</small></div>
             <div class="picker-stack">
               <div class="picker-wrap"><button class="btn" data-pick="volume">Choose file</button><span id="volumeToken" class="file-token">No file selected</span><input id="volumePicker" class="hidden" type="file" accept=".csv,.xlsx,.xls,.json" /></div>
@@ -412,6 +423,7 @@
     bulkInput: requireEl('bulkInput'),
     errorsPicker: requireEl('errorsPicker'),
     availabilityPicker: requireEl('availabilityPicker'),
+    availabilityDetailsPicker: requireEl('availabilityDetailsPicker'),
     volumePicker: requireEl('volumePicker'),
     clearBtn: requireEl('clearBtn'),
     runBtn: requireEl('runBtn'),
@@ -423,9 +435,9 @@
   };
 
   const STATE = {
-    files: { errors: null, availability: null, volume: null },
-    validation: { errors: false, availability: false, volume: false },
-    cachedRaw: { errors: null, availability: null, volume: null },
+    files: { errors: null, availability: null, availabilityDetails: null, volume: null },
+    validation: { errors: false, availability: false, availabilityDetails: false, volume: false },
+    cachedRaw: { errors: null, availability: null, availabilityDetails: null, volume: null },
     normalized: { events: [], availability: [], volume: [] },
     merged: { events: [], mergedRows: [], stats: {}, summary: null, pressRisk: [], sourceTables: { errorsAgg: [], availabilityAgg: [], volumeAgg: [] } },
     volumeModel: null,
@@ -443,6 +455,7 @@
     fileProgress: {
       errors: { state: 'idle', progress: 0, label: '', startedAt: 0, timer: null },
       availability: { state: 'idle', progress: 0, label: '', startedAt: 0, timer: null },
+      availabilityDetails: { state: 'idle', progress: 0, label: '', startedAt: 0, timer: null },
       volume: { state: 'idle', progress: 0, label: '', startedAt: 0, timer: null },
     },
     lastRunSnapshot: null,
@@ -655,7 +668,7 @@
     downtime: { id: 'downtime', label: 'Total downtime', type: 'duration_sum', unit: 'seconds', dataset: 'availability', numeratorField: 'maintenanceSeconds+errorNotAvailableSeconds', denominatorField: null, aggregate: scope => (scope.availabilityAgg || []).reduce((acc, row) => acc + Number(totalDowntimeFromAvailabilityRow(row) || 0), 0), format: value => formatDuration(Number(value || 0)), validate: value => Number.isFinite(Number(value)) && Number(value) >= 0 },
     mttr: { id: 'mttr', label: 'MTTR / Avg repair time', type: 'average', unit: 'seconds', dataset: 'availability', numeratorField: 'repairSeconds', denominatorField: 'repairEventCount', aggregate: scope => Number(computeRecoveryMetricsDiagnostics(scope)?.computedMttrSeconds ?? null), format: value => value == null ? 'Unavailable' : formatDuration(Number(value || 0)), validate: value => value == null || Number(value) >= 0 },
     mtbf: { id: 'mtbf', label: 'MTBF', type: 'average', unit: 'seconds', dataset: 'availability', numeratorField: 'runtimeSeconds', denominatorField: 'failureCount', aggregate: scope => Number(computeRecoveryMetricsDiagnostics(scope)?.computedMtbfSeconds ?? null), format: value => value == null ? 'Unavailable' : formatDuration(Number(value || 0)), validate: value => value == null || Number(value) >= 0 },
-    volume: { id: 'volume', label: 'Volume', type: 'sum', unit: 'sheets', dataset: 'volume', numeratorField: 'totalPrintedSheets', denominatorField: null, aggregate: scope => (scope.volumeAgg || []).reduce((acc, row) => acc + Number(row?.totalPrintedSheets || ((row?.goodPrintedSheets || 0) + (row?.wastePrintedSheets || 0))), 0), format: value => `${formatCompactNumber(value)} sheets`, validate: value => Number.isFinite(Number(value)) && Number(value) >= 0 },
+    volume: { id: 'volume', label: 'Printed Flats', type: 'sum', unit: 'flats', dataset: 'volume', numeratorField: 'totalPrintedFlats', denominatorField: null, aggregate: scope => (scope.volumeAgg || []).reduce((acc, row) => acc + Number(row?.totalPrintedFlats || ((row?.goodPrintedFlats || 0) + (row?.wastePrintedFlats || 0))), 0), format: value => `${formatCompactNumber(value)} flats`, validate: value => Number.isFinite(Number(value)) && Number(value) >= 0 },
     wasteRatio: { id: 'wasteRatio', label: 'Waste Ratio', type: 'ratio', unit: 'percent', dataset: 'volume', numeratorField: 'wastePrintedFlats', denominatorField: 'totalPrintedFlats', aggregate: scope => { if (scope?.hasWasteData === false) return null; const num = (scope.volumeAgg || []).reduce((acc, row) => acc + Number(row?.wastePrintedFlats || 0), 0); const den = (scope.volumeAgg || []).reduce((acc, row) => acc + Number(row?.totalPrintedFlats || ((row?.goodPrintedFlats || 0) + (row?.wastePrintedFlats || 0))), 0); return den > 0 ? num / den : 0; }, format: value => value == null ? 'N/A' : `${(Number(value || 0) * 100).toFixed(2)}%`, validate: value => value == null || (Number.isFinite(Number(value)) && Number(value) >= 0 && Number(value) <= 1) },
     availability: { id: 'availability', label: 'Availability', type: 'percentage', unit: 'percent', dataset: 'availability', numeratorField: 'runtimeSeconds', denominatorField: 'runtimePlusDowntime', aggregate: scope => { const runtime = (scope.availabilityAgg || []).reduce((acc, row) => acc + Number(row?.runtimeSeconds || 0), 0); const downtime = (scope.availabilityAgg || []).reduce((acc, row) => acc + Number(totalDowntimeFromAvailabilityRow(row) || 0), 0); const den = runtime + downtime; return den > 0 ? runtime / den : null; }, format: value => value == null ? 'N/A' : `${(Number(value || 0) * 100).toFixed(1)}%`, validate: value => value == null || (Number(value) >= 0 && Number(value) <= 1) },
   });
@@ -2282,6 +2295,7 @@ function extractPressCodeFromAvailabilityId(rawId) {
   }
 
   function buildDataSanityReport(sourceScope = {}) {
+    const sourceMeta = STATE.availabilitySourceMeta || {};
     const errorRows = sourceScope.filteredErrorEventsNative || [];
     const availabilityRows = sourceScope.filteredAvailabilityRowsNative || [];
     const availabilityAgg = sourceScope.availabilityAgg || [];
@@ -2322,7 +2336,7 @@ function extractPressCodeFromAvailabilityId(rawId) {
     const errorNotAvailablePct = totalTrackedSeconds > 0 ? totals.errorNotAvailableSeconds / totalTrackedSeconds : 0;
     const recoveryDiagnostics = computeRecoveryMetricsDiagnostics(sourceScope);
     return {
-      dataSources: { errorsLoaded: errorRows.length > 0, availabilityFactorDistributionLoaded: availabilitySourceType === 'availabilityFactorDistribution' && availabilityRows.length > 0, availabilityDetailsLoaded: availabilitySourceType === 'availabilityDetails' && availabilityRows.length > 0, printVolumeLoaded: volumeRows.length > 0, selectedAvailabilitySource: availabilitySourceType === 'availabilityFactorDistribution' ? 'Press Availability Factor Distribution' : (availabilityRows.length > 0 ? 'availability details' : 'none') },
+      dataSources: { errorsLoaded: errorRows.length > 0, availabilityFactorDistributionLoaded: Number(sourceMeta.factorRows || 0) > 0 || (availabilitySourceType === 'availabilityFactorDistribution' && availabilityRows.length > 0), availabilityDetailsLoaded: Number(sourceMeta.detailsRows || 0) > 0 || (availabilitySourceType === 'availabilityDetails' && availabilityRows.length > 0), printVolumeLoaded: volumeRows.length > 0, selectedAvailabilitySource: (sourceMeta.selectedAvailabilitySource === 'availabilityFactorDistribution' || availabilitySourceType === 'availabilityFactorDistribution') ? 'Press Availability Factor Distribution' : (availabilityRows.length > 0 ? 'availability details' : 'none') },
       errors: { errorsRowsLoaded: errorRows.length, cleanErrorRowsUsedForDuration: cleanRows.length, durationAnomalyRowsExcluded: anomalyRows.length, invalidDurationRowsExcluded: invalidRows.length, rawErrorDurationSeconds, cleanErrorDurationSeconds },
       availability: { availabilitySourceType, availabilityRowsLoaded: availabilityRows.length, availabilityPressCount: new Set(availabilityRows.map(r => r?.canonicalPress || r?.press).filter(Boolean)).size, availabilityDayCount: new Set(availabilityRows.map(r => r?.day).filter(Boolean)).size, ...totals, totalTrackedSeconds, totalDowntimeSeconds, availabilityPct, maintenancePct, errorNotAvailablePct, totalDowntimePct: totalTrackedSeconds > 0 ? totalDowntimeSeconds / totalTrackedSeconds : 0 },
       mtbfMttr: { mtbfSeconds: Number(recoveryDiagnostics?.computedMtbfSeconds ?? 0), mtbfIntervalCount: Number(recoveryDiagnostics?.intervalCount || 0), mtbfPressCount: Number(recoveryDiagnostics?.pressCount || 0), mttrSeconds: Number(recoveryDiagnostics?.computedMttrSeconds ?? 0), repairEventCount: Number(recoveryDiagnostics?.repairEventCount || 0), selectedRepairRule: String(recoveryDiagnostics?.ruleUsed || 'moving2ready + stoppingonerror.soft'), moving2ReadyOnlyMttrSeconds: Number(recoveryDiagnostics?.moving2ReadyOnlyMttrSeconds ?? 0), allCleanErrorsAvgDurationSeconds: Number(recoveryDiagnostics?.allCleanErrorsAvgDurationSeconds ?? 0) },
@@ -2542,9 +2556,15 @@ function extractPressCodeFromAvailabilityId(rawId) {
     const mttr = recoveryMetricsDiagnostics.computedMttrSeconds;
     const mtbf = recoveryMetricsDiagnostics.computedMtbfSeconds;
     const availabilityRatio = aggregateMetricFromScope('availability', scope);
+    const availabilityRuntimeSeconds = Number(recoveryMetricsDiagnostics.availabilityRuntimeSeconds || runtimeSeconds || 0);
+    const availabilityMaintenanceSeconds = Number(recoveryMetricsDiagnostics.maintenanceSeconds || totalPlanned || 0);
+    const availabilityErrorNotAvailableSeconds = Number(recoveryMetricsDiagnostics.errorNotAvailableSeconds || totalUnplanned || 0);
+    const availabilityTotalTrackedSeconds = Number(recoveryMetricsDiagnostics.totalTrackedSeconds || (availabilityRuntimeSeconds + availabilityMaintenanceSeconds + availabilityErrorNotAvailableSeconds));
+    const availabilityTotalDowntimeSeconds = Number(recoveryMetricsDiagnostics.totalDowntimeSeconds || (availabilityMaintenanceSeconds + availabilityErrorNotAvailableSeconds));
+    const availabilityTotalDowntimePct = availabilityTotalTrackedSeconds > 0 ? availabilityTotalDowntimeSeconds / availabilityTotalTrackedSeconds : null;
     return {
-      totalEvents, totalErrorDurationSeconds, totalDowntime, totalUnplanned, totalPlanned, totalService, totalOperating: runtimeSeconds, runtimeSeconds,
-      downtimeSeconds: totalPlanned + totalUnplanned, totalPrintedFlats: volumeTotals.totalPrintedFlats, goodPrintedFlats: volumeTotals.goodPrintedFlats, wastePrintedFlats: hasWasteData ? volumeTotals.wastePrintedFlats : 0, goodPrintedSheets, wastePrintedSheets, totalPrintedSheets, totalProdVolume: goodPrintedSheets, totalMaintenanceVolume: 0, totalVolume: totalPrintedSheets, totalWasteVolume: wastePrintedSheets,
+      totalEvents, totalErrorDurationSeconds, totalDowntime: availabilityTotalDowntimeSeconds, totalDowntimePct: availabilityTotalDowntimePct, totalUnplanned: availabilityErrorNotAvailableSeconds, totalPlanned: availabilityMaintenanceSeconds, totalService, totalOperating: availabilityRuntimeSeconds, runtimeSeconds: availabilityRuntimeSeconds, totalTrackedSeconds: availabilityTotalTrackedSeconds,
+      downtimeSeconds: availabilityTotalDowntimeSeconds, totalPrintedFlats: volumeTotals.totalPrintedFlats, goodPrintedFlats: volumeTotals.goodPrintedFlats, wastePrintedFlats: hasWasteData ? volumeTotals.wastePrintedFlats : 0, goodPrintedSheets, wastePrintedSheets, totalPrintedSheets, totalProdVolume: goodPrintedSheets, totalMaintenanceVolume: 0, totalVolume: totalPrintedSheets, totalWasteVolume: wastePrintedSheets,
       avgDuration: mttr, avgDurationSeconds: mttr, mttr, mtbf, mtbr: null, availabilityPercent: availabilityRatio == null ? null : availabilityRatio * 100,
       recoveryMetricsDiagnostics,
       downtimeHours: totalDowntime > 0 ? (totalDowntime / 3600) : 0, outputEfficiency: totalDowntime > 0 ? (goodPrintedSheets / (totalDowntime / 3600)) : null,
@@ -2554,7 +2574,7 @@ function extractPressCodeFromAvailabilityId(rawId) {
   }
 
   function computeChronologicalMtbf(errorRows = []) {
-    const cleanRows = (errorRows || []).filter(r => r);
+    const cleanRows = (errorRows || []).filter(r => r && isDurationIncluded(r));
     const byPress = new Map();
     let skippedMissingRecovery = 0;
     cleanRows.forEach(r => {
@@ -3143,11 +3163,11 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
     const rec = k?.recoveryMetricsDiagnostics || {};
     const mttrValue = rec.confidence === 'unavailable' ? 'Unavailable' : metricRegistry.mttr.format(k.mttr);
     const mtbfValue = rec.confidence === 'unavailable' ? 'Unavailable' : metricRegistry.mtbf.format(k.mtbf);
-    const totalDowntimePct = Number(rec?.totalDowntimePct || 0);
+    const totalDowntimePct = Number(rec?.totalDowntimePct ?? ((k?.totalDowntimePct != null) ? k.totalDowntimePct * 100 : 0));
     const maintenancePct = Number(rec?.maintenancePct || 0);
     const errorNotAvailablePct = Number(rec?.errorNotAvailablePct || 0);
-    const totalDowntimeHours = Math.floor(Number(rec?.totalDowntimeSeconds || 0) / 3600);
-    const totalDowntimeMinutes = Math.floor((Number(rec?.totalDowntimeSeconds || 0) % 3600) / 60);
+    const totalDowntimeHours = Math.floor(Number(rec?.totalDowntimeSeconds ?? k?.totalDowntime ?? 0) / 3600);
+    const totalDowntimeMinutes = Math.floor((Number(rec?.totalDowntimeSeconds ?? k?.totalDowntime ?? 0) % 3600) / 60);
     const downtimeSubtitle = `${totalDowntimeHours.toLocaleString()}h ${String(totalDowntimeMinutes).padStart(2, '0')}m fleet aggregate • Maintenance ${maintenancePct.toFixed(2)}% • Not Available ${errorNotAvailablePct.toFixed(2)}%`;
     const mttrSubtitle = 'avg(Duration where Moving2Ready + StoppingOnError.Soft)';
     const mtbfSubtitle = 'avg(next Start Time - previous Recovery), grouped by press';
@@ -4394,7 +4414,7 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
     return { filters, scopedMergedRows, scopedErrorRows, scopedSource, scopedKpis, executiveSummary, hasScopedData };
   }
 
-  function buildCustomerVolumeChart(volumeAggRows, metric = 'totalPrintedSheets', sort = 'desc', expanded = false) {
+  function buildCustomerVolumeChart(volumeAggRows, metric = 'totalPrintedFlats', sort = 'desc', expanded = false) {
     const byPress = new Map();
     STATE.customerVolumeLookup = new Map();
     (volumeAggRows || []).forEach(r => {
@@ -5655,7 +5675,7 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
     sourceScope.wasteDetection = wasteDetection;
     sourceScope.hasWasteData = wasteDetection.hasWasteData;
     if (sourceScope.hasWasteData === false && (STATE.customerVolumeMetric === 'wastePrintedSheets' || STATE.customerVolumeMetric === 'wasteRatio')) {
-      STATE.customerVolumeMetric = 'totalPrintedSheets';
+      STATE.customerVolumeMetric = 'totalPrintedFlats';
     }
     console.info('[waste-debug] type-detection', {
       detectedJobTypeFieldName: wasteDetection.jobTypeField,
@@ -5975,6 +5995,7 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
         cachedRaw: {
           errors: STATE.cachedRaw.errors ? [...STATE.cachedRaw.errors] : null,
           availability: STATE.cachedRaw.availability ? [...STATE.cachedRaw.availability] : null,
+          availabilityDetails: STATE.cachedRaw.availabilityDetails ? [...STATE.cachedRaw.availabilityDetails] : null,
           volume: STATE.cachedRaw.volume ? [...STATE.cachedRaw.volume] : null,
         }
       };
@@ -5986,7 +6007,22 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
       const errorsRaw = STATE.cachedRaw.errors || await parseErrorsFile(STATE.files.errors);
       setProcessingState({ stage: 'reading', status: 'running', percent: 0.5, detail: 'Loading Availability dataset…' });
       await yieldAnalysisFrame(controller);
-      const availabilityRaw = STATE.files.availability ? (STATE.cachedRaw.availability || await parseAvailabilityFile(STATE.files.availability)) : [];
+      const availabilityFactorRaw = STATE.files.availability ? (STATE.cachedRaw.availability || await parseAvailabilityFile(STATE.files.availability)) : [];
+      const availabilityDetailsRaw = STATE.files.availabilityDetails ? (STATE.cachedRaw.availabilityDetails || await parseAvailabilityFile(STATE.files.availabilityDetails)) : [];
+      const factorSchema = availabilityFactorRaw.length ? detectAvailabilitySchema(availabilityFactorRaw) : '';
+      const detailsSchema = availabilityDetailsRaw.length ? detectAvailabilitySchema(availabilityDetailsRaw) : '';
+      const availabilityRaw = factorSchema === 'availabilityFactorDistribution'
+        ? availabilityFactorRaw
+        : (availabilityDetailsRaw.length ? availabilityDetailsRaw : availabilityFactorRaw);
+      const availabilitySourceType = availabilityRaw.length ? detectAvailabilitySchema(availabilityRaw) : '';
+      STATE.availabilitySourceMeta = {
+        selectedAvailabilitySource: availabilitySourceType || 'none',
+        factorRows: availabilityFactorRaw.length,
+        detailsRows: availabilityDetailsRaw.length,
+        factorSchema,
+        detailsSchema,
+        selectedRows: availabilityRaw.length,
+      };
       setProcessingState({ stage: 'reading', status: 'running', percent: 1, detail: 'Loading Print Volume dataset…' });
       await yieldAnalysisFrame(controller);
       const volumeRaw = STATE.files.volume ? (STATE.cachedRaw.volume || await parsePrintVolumeFile(STATE.files.volume)) : [];
@@ -6173,19 +6209,23 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
       if (inferred === 'unknown') {
         keys.add('errors');
         keys.add('availability');
+        keys.add('availabilityDetails');
         keys.add('volume');
         return;
       }
       keys.add(inferred);
     });
-    return keys.size ? [...keys] : ['errors', 'availability', 'volume'];
+    return keys.size ? [...keys] : ['errors', 'availability', 'availabilityDetails', 'volume'];
   }
 
   async function classifyIncomingFile(file) {
     try {
       const rows = await loadRowsFromFile(file);
       const detected = detectDatasetType(rows);
-      const key = detected === 'availability' || detected === 'volume' ? detected : 'errors';
+      let key = detected === 'availability' || detected === 'volume' ? detected : 'errors';
+      if (detected === 'availability') {
+        key = detectAvailabilitySchema(rows) === 'availabilityFactorDistribution' ? 'availability' : 'availabilityDetails';
+      }
       return { key, file, rows };
     } catch {
       return { key: 'errors', file, rows: null };
@@ -6200,19 +6240,21 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
     await shortYield();
 
     const assignments = await Promise.all(files.map(classifyIncomingFile));
+    const assignedKeys = new Set(likelyKeys);
     assignments.forEach(({ key, file, rows }) => {
       STATE.files[key] = file;
       STATE.cachedRaw[key] = rows;
+      assignedKeys.add(key);
       setFileUI(key);
     });
-    await Promise.all(likelyKeys.map(key => validateSingleFile(key, { progressStarted: true })));
+    await Promise.all([...assignedKeys].map(key => validateSingleFile(key, { progressStarted: true })));
   }
 
   function clearFiles() {
     markAnalysisCanceled('Canceled due to file reset.');
-    STATE.files = { errors: null, availability: null, volume: null };
-    STATE.cachedRaw = { errors: null, availability: null, volume: null };
-    STATE.validation = { errors: false, availability: false, volume: false };
+    STATE.files = { errors: null, availability: null, availabilityDetails: null, volume: null };
+    STATE.cachedRaw = { errors: null, availability: null, availabilityDetails: null, volume: null };
+    STATE.validation = { errors: false, availability: false, availabilityDetails: false, volume: false };
     STATE.normalized = { events: [], availability: [], volume: [] };
     STATE.merged = { events: [], mergedRows: [], stats: {}, summary: null, pressRisk: [], sourceTables: { errorsAgg: [], availabilityAgg: [], volumeAgg: [] } };
     STATE.filtered = [];
@@ -6226,8 +6268,8 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
     STATE.processingStatus = 'idle';
     STATE.processingDetail = '';
     STATE.processingPercent = 0;
-    ['errors', 'availability', 'volume'].forEach(resetFileProgress);
-    ['bulkInput', 'errorsPicker', 'availabilityPicker', 'volumePicker'].forEach(id => {
+    ['errors', 'availability', 'availabilityDetails', 'volume'].forEach(resetFileProgress);
+    ['bulkInput', 'errorsPicker', 'availabilityPicker', 'availabilityDetailsPicker', 'volumePicker'].forEach(id => {
       const input = document.getElementById(id);
       if (input) input.value = '';
     });
@@ -6263,9 +6305,10 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
     STATE.cachedRaw = {
       errors: STATE.lastRunSnapshot.cachedRaw.errors ? [...STATE.lastRunSnapshot.cachedRaw.errors] : null,
       availability: STATE.lastRunSnapshot.cachedRaw.availability ? [...STATE.lastRunSnapshot.cachedRaw.availability] : null,
+      availabilityDetails: STATE.lastRunSnapshot.cachedRaw.availabilityDetails ? [...STATE.lastRunSnapshot.cachedRaw.availabilityDetails] : null,
       volume: STATE.lastRunSnapshot.cachedRaw.volume ? [...STATE.lastRunSnapshot.cachedRaw.volume] : null,
     };
-    ['errors', 'availability', 'volume'].forEach(setFileUI);
+    ['errors', 'availability', 'availabilityDetails', 'volume'].forEach(setFileUI);
     runAnalysisFlow(STATE.lastRunSnapshot);
   }
 
@@ -6283,7 +6326,7 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
       const rows = Array.isArray(STATE.cachedRaw[key]) ? STATE.cachedRaw[key] : await loadRowsFromFile(file);
       STATE.cachedRaw[key] = rows;
       if (key === 'errors') await normalizeErrorsRows(rows.slice(0, Math.min(rows.length, 120)));
-      if (key === 'availability') await normalizeAvailabilityRows(rows.slice(0, Math.min(rows.length, 120)));
+      if (key === 'availability' || key === 'availabilityDetails') await normalizeAvailabilityRows(rows.slice(0, Math.min(rows.length, 120)));
       if (key === 'volume') await normalizeVolumeRows(rows.slice(0, Math.min(rows.length, 120)), { dataContract: buildDataContract({ volume: rows }) });
       STATE.validation[key] = true;
       await finishFileProgress(key, true);
@@ -6297,7 +6340,7 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
   }
 
   function bind() {
-    ['errors', 'availability', 'volume'].forEach(setFileUI);
+    ['errors', 'availability', 'availabilityDetails', 'volume'].forEach(setFileUI);
     setStatus('Assign datasets and run analysis. Errors dataset is required.', 'info');
     setProcessingState({ stage: 'reading', status: 'idle', percent: 0, detail: 'Upload and validate files to begin processing.' });
     if (!hasSpreadsheetLibrary()) {
@@ -6339,6 +6382,7 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
     }
     bindFilePicker('errors', els.errorsPicker);
     bindFilePicker('availability', els.availabilityPicker);
+    bindFilePicker('availabilityDetails', els.availabilityDetailsPicker);
     bindFilePicker('volume', els.volumePicker);
 
     els.bulkInput.addEventListener('change', async e => {
@@ -6576,7 +6620,7 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
     ['pressFilter', 'subsystemFilter', 'versionFilter', 'startDateFilter', 'endDateFilter'].forEach(id => document.getElementById(id).addEventListener('change', scheduleRender));
     searchFilter.addEventListener('input', scheduleRender);
     customerVolumeMetric.addEventListener('change', e => {
-      STATE.customerVolumeMetric = e.target.value || 'totalPrintedSheets';
+      STATE.customerVolumeMetric = e.target.value || 'totalPrintedFlats';
       STATE.customerVolumeMode = STATE.customerVolumeMetric === 'wastePrintedSheets' ? 'waste' : (STATE.customerVolumeMetric === 'goodPrintedSheets' ? 'good' : (STATE.customerVolumeMetric === 'wasteRatio' ? 'wasteRatio' : 'total'));
       scheduleRender();
     });
