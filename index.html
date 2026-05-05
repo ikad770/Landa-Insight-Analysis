@@ -482,7 +482,7 @@
     renderQueued: false,
   };
 
-  const APP_VERSION = 'InsightPro+ v1.1.3';
+  const APP_VERSION = 'InsightPro+ v1.1.5';
   const CURRENT_UI_VERSION_V2 = 'CURRENT_UI_VERSION_V2';
   const UI_RESTORE_INSTRUCTION = "If the user says 'return to current UI', restore the UI to CURRENT_UI_VERSION_V2 (not baseline V1).";
   const CHARTS = new Map();
@@ -655,7 +655,9 @@
     const scannedValues = new Set(detectedValues);
     let specialJobRows = 0;
     (rows || []).forEach(row => {
-      const normalized = normalizeJobType(resolveJobTypeFromRow(row, jobTypeField).value);
+      const explicitType = row?.jobTypeNormalized ?? row?.normalizedRawType ?? row?.type ?? row?.jobType;
+      const resolvedType = explicitType ?? resolveJobTypeFromRow(row, jobTypeField).value;
+      const normalized = normalizeJobType(resolvedType);
       if (!normalized) return;
       scannedValues.add(normalized);
       if (normalized === 'special') specialJobRows += 1;
@@ -1618,12 +1620,20 @@ function extractPressCodeFromAvailabilityId(rawId) {
         totalPrintedSheets: 0,
         goodPrintedSheets: 0,
         wastePrintedSheets: 0,
+        totalPrintedFlats: 0,
+        goodPrintedFlats: 0,
+        wastePrintedFlats: 0,
+        printedFlats: 0,
         totalVolume: 0,
         productionPrintedSheets: 0,
       };
       existing.totalPrintedSheets += Number(row.goodPrintedSheets || 0) + Number(row.wastePrintedSheets || 0);
       existing.goodPrintedSheets += Number(row.goodPrintedSheets || row.productionPrintedSheets || 0);
       existing.wastePrintedSheets += Number(row.wastePrintedSheets || 0);
+      existing.totalPrintedFlats += Number(row.totalPrintedFlats || 0);
+      existing.goodPrintedFlats += Number(row.goodPrintedFlats || 0);
+      existing.wastePrintedFlats += Number(row.wastePrintedFlats || 0);
+      existing.printedFlats += Number(row.printedFlats || 0);
       existing.productionPrintedSheets = existing.goodPrintedSheets;
       dedupedByPressCustomerDay.set(dedupeKey, existing);
     });
@@ -2578,7 +2588,7 @@ function extractPressCodeFromAvailabilityId(rawId) {
       recoveryMetricsDiagnostics,
       downtimeHours: totalDowntime > 0 ? (totalDowntime / 3600) : 0, outputEfficiency: totalDowntime > 0 ? (goodPrintedSheets / (totalDowntime / 3600)) : null,
       volumePerDowntime: totalDowntime > 0 ? (goodPrintedSheets / totalDowntime) : null, volumePerEvents: totalEvents > 0 ? (goodPrintedSheets / totalEvents) : null,
-      wasteRatio: aggregateMetricFromScope('wasteRatio', scope), hasWasteData, reasons: []
+      wasteRatio: volumeTotals.totalPrintedFlats > 0 ? (volumeTotals.wastePrintedFlats / volumeTotals.totalPrintedFlats) : 0, hasWasteData, reasons: []
     };
   }
 
@@ -2676,7 +2686,7 @@ function extractPressCodeFromAvailabilityId(rawId) {
       const key = keyFn(r) || 'Unspecified';
       const slot = map.get(key) || { name: key, events: 0, downtime: 0, volume: 0, recent: 0, subsystems: new Set(), volumeSeen: new Set() };
       slot.events += 1;
-      slot.downtime += r?.durationSeconds || 0;
+      slot.downtime += cleanDurationSeconds(r);
       const vJoin = r?.mergeContext?.volumeKeyUsed ? r?.mergeContext?.key : '';
       if (vJoin && !slot.volumeSeen.has(vJoin)) {
         slot.volumeSeen.add(vJoin);
@@ -4382,7 +4392,7 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
   function renderTable(rows) {
     const table = document.getElementById('eventTable');
     if (!rows.length) { table.innerHTML = '<tbody><tr><td>No rows in current scope.</td></tr></tbody>'; return; }
-    table.innerHTML = `<thead><tr><th>Press</th><th>Subsystem</th><th>Alert Name</th><th>Version</th><th>Start</th><th>Duration</th><th>Prod Vol</th><th>Avail Context</th></tr></thead><tbody>${rows.slice(0, 800).map(r => `<tr><td>${esc(r.press)}</td><td>${esc(r.subsystem)}</td><td>${esc(r.name !== 'Unspecified' ? r.name : r.alertTitle)}</td><td>${esc(r.version || 'Version unavailable')}</td><td>${esc(r.startTime?.toISOString() || '')}</td><td>${esc(formatDuration(r.durationSeconds))}</td><td>${esc(r?.volume?.productionVolume || 0)}</td><td>${esc(`U:${formatDuration(r?.availability?.unplannedDowntimeSeconds || 0)} P:${formatDuration(r?.availability?.plannedDowntimeSeconds || 0)} (${r?.mergeContext?.availabilityKeyUsed || 'none'})`)}</td></tr>`).join('')}</tbody>`;
+    table.innerHTML = `<thead><tr><th>Press</th><th>Subsystem</th><th>Alert Name</th><th>Version</th><th>Start</th><th>Duration</th><th>Prod Vol</th><th>Avail Context</th></tr></thead><tbody>${rows.slice(0, 800).map(r => `<tr><td>${esc(r.press)}</td><td>${esc(r.subsystem)}</td><td>${esc(r.name !== 'Unspecified' ? r.name : r.alertTitle)}</td><td>${esc(r.version || 'Version unavailable')}</td><td>${esc(r.startTime?.toISOString() || '')}</td><td>${esc(formatDuration(cleanDurationSeconds(r)))}</td><td>${esc(r?.volume?.productionVolume || 0)}</td><td>${esc(`U:${formatDuration(r?.availability?.unplannedDowntimeSeconds || 0)} P:${formatDuration(r?.availability?.plannedDowntimeSeconds || 0)} (${r?.mergeContext?.availabilityKeyUsed || 'none'})`)}</td></tr>`).join('')}</tbody>`;
   }
 
   function populateFilter(id, values, label) {
@@ -4428,13 +4438,16 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
     STATE.customerVolumeLookup = new Map();
     (volumeAggRows || []).forEach(r => {
       const entityKey = r.canonicalPress || 'Unspecified';
-      const slot = byPress.get(entityKey) || { entityKey, displayLabel: entityKey, canonicalPress: entityKey, totalPrintedSheets: 0, goodPrintedSheets: 0, printedSheets: 0, printedFlats: 0, maintenanceVolume: 0, wasteVolume: 0, wastePrintedSheets: 0, customers: new Set(), models: new Set(), sourceRows: 0 };
+      const slot = byPress.get(entityKey) || { entityKey, displayLabel: entityKey, canonicalPress: entityKey, totalPrintedSheets: 0, goodPrintedSheets: 0, printedSheets: 0, printedFlats: 0, totalPrintedFlats: 0, goodPrintedFlats: 0, wastePrintedFlats: 0, maintenanceVolume: 0, wasteVolume: 0, wastePrintedSheets: 0, customers: new Set(), models: new Set(), sourceRows: 0 };
       const safe = sanitizeVolumeComponents(r.totalPrintedSheets, r.goodPrintedSheets, r.wastePrintedSheets);
       slot.totalPrintedSheets += safe.totalSheets;
       slot.goodPrintedSheets += safe.goodSheets;
       slot.wastePrintedSheets += safe.wasteSheets;
       slot.printedSheets += Number(r.printedSheets || 0);
       slot.printedFlats += Number(r.printedFlats || 0);
+      slot.totalPrintedFlats += Number(r.totalPrintedFlats || r.printedFlats || 0);
+      slot.goodPrintedFlats += Number(r.goodPrintedFlats || 0);
+      slot.wastePrintedFlats += Number(r.wastePrintedFlats || 0);
       slot.maintenanceVolume += Number(r.maintenanceVolume || 0);
       slot.wasteVolume += Number(r.wasteVolume || 0);
       if (r.customer) slot.customers.add(r.customer);
@@ -4448,7 +4461,11 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
     const dir = sort === 'asc' ? 1 : -1;
     const rows = [...byPress.values()].map(row => {
       const safe = sanitizeVolumeComponents(row.totalPrintedSheets, row.goodPrintedSheets, row.wastePrintedSheets);
-      const wasteRatio = safe.totalSheets > 0 ? (safe.wasteSheets / safe.totalSheets) : 0;
+      const flatTotal = Number(row.totalPrintedFlats || row.printedFlats || 0);
+      const flatWaste = Number(row.wastePrintedFlats || 0);
+      const wasteRatio = metric.includes('Flats') || metric === 'wasteRatio'
+        ? computeWasteRatio(flatWaste, flatTotal)
+        : (safe.totalSheets > 0 ? (safe.wasteSheets / safe.totalSheets) : 0);
       return {
         ...row,
         sourceType: 'volumeJobs',
@@ -4456,6 +4473,9 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
         wasteSheets: safe.wasteSheets,
         goodSheets: safe.goodSheets,
         totalPrintedSheets: safe.totalSheets,
+        totalPrintedFlats: flatTotal,
+        goodPrintedFlats: Number(row.goodPrintedFlats || 0),
+        wastePrintedFlats: flatWaste,
         wasteRatio,
         metricValue: metric === 'wasteRatio' ? wasteRatio : volumeMetricValue({ ...row, ...safe }, metric),
         parentContext: { path: [], parentValue: metric === 'wasteRatio' ? wasteRatio : volumeMetricValue({ ...row, ...safe }, metric) }
@@ -4471,8 +4491,9 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
       const ratio = safe.totalSheets > 0 ? (safe.wasteSheets / safe.totalSheets) : 0;
       return { ...row, ...safe, wasteRatio: ratio };
     });
-    const goodValues = enriched.map(r => r.goodSheets);
-    const wasteValues = enriched.map(r => r.wasteSheets);
+    const useFlats = String(STATE.customerVolumeMetric || '').includes('Flats') || STATE.customerVolumeMetric === 'wasteRatio';
+    const goodValues = enriched.map(r => useFlats ? Number(r.goodPrintedFlats || 0) : r.goodSheets);
+    const wasteValues = enriched.map(r => useFlats ? Number(r.wastePrintedFlats || 0) : r.wasteSheets);
     const wasteColors = enriched.map(r => wasteRatioColor(r.wasteRatio));
     const goodFill = '#2E8B57';
 
@@ -4640,12 +4661,32 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
     const scope = STATE.lastSourceScope || {};
     const def = getMetricDefinition(metricKey);
     if (!def) return [];
+    if (metricKey === 'mttr') {
+      const repairRows = (scope.filteredErrorEventsNative || []).filter(r => isDurationIncluded(r) && isRepairMetricEvent(r));
+      return repairRows.map(r => ({ component: r.press || 'Unspecified', press: r.press || 'Unspecified', day: r.day || '', subsystem: r.subsystem || 'Unspecified', alert: r.name !== 'Unspecified' ? r.name : r.alertTitle, numerator: cleanDurationSeconds(r), denominator: 1, metricValue: cleanDurationSeconds(r), source: 'errorsAgg', raw: r }));
+    }
+    if (metricKey === 'mtbf') {
+      const cleanRows = (scope.filteredErrorEventsNative || []).filter(r => r && isDurationIncluded(r) && r.startTime instanceof Date && r.recoveryTime instanceof Date);
+      const byPress = new Map();
+      cleanRows.forEach(r => { const key = r.canonicalPress || r.press || 'Unspecified'; if (!byPress.has(key)) byPress.set(key, []); byPress.get(key).push(r); });
+      const intervalRows = [];
+      byPress.forEach((events, press) => {
+        events.sort((a,b)=>a.startTime-b.startTime);
+        for (let i=0;i<events.length-1;i++) {
+          const prev = events[i], next = events[i+1];
+          const interval = (next.startTime - prev.recoveryTime) / 1000;
+          if (!Number.isFinite(interval) || interval < 0) continue;
+          intervalRows.push({ component: press, press, day: next.day || toDayBucket(next.startTime), subsystem: next.subsystem || 'Unspecified', alert: next.name !== 'Unspecified' ? next.name : next.alertTitle, numerator: interval, denominator: 1, metricValue: interval, source: 'errorsAgg', raw: next, intervalSeconds: interval });
+        }
+      });
+      return intervalRows;
+    }
     if (def.dataset === 'availability') {
       return (scope.availabilityAgg || []).map(r => ({ component: r.canonicalPress || 'Unspecified', press: r.canonicalPress || 'Unspecified', day: r.day || '', subsystem: r.subsystem || 'Unspecified', numerator: Number(r.runtimeSeconds || 0), denominator: Number((r.runtimeSeconds || 0) + (totalDowntimeFromAvailabilityRow(r) || 0)), metricValue: Number(totalDowntimeFromAvailabilityRow(r) || 0), source: 'availabilityAgg', raw: r }));
     }
     if (def.dataset === 'volume') {
       return (scope.volumeAgg || []).map(r => {
-        const totalFlats = Number(r.printedFlats || 0);
+        const totalFlats = Number(r.totalPrintedFlats || r.printedFlats || 0);
         const goodFlats = Number(r.goodPrintedFlats || (isSpecialJobType(r.jobType) ? 0 : totalFlats) || 0);
         const wasteFlats = Number(r.wastePrintedFlats || (isSpecialJobType(r.jobType) ? totalFlats : 0) || 0);
         return { component: r.canonicalPress || 'Unspecified', press: r.canonicalPress || 'Unspecified', day: r.day || '', numerator: wasteFlats, denominator: totalFlats, metricValue: totalFlats, source: 'volumeAgg', raw: r };
@@ -5075,6 +5116,7 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
     const isVolume = sourceType === 'volumeJobs';
     const isAvailability = sourceType === 'availabilityNative' || sourceType === 'availabilityAgg';
     const isKpiDrilldown = STATE.drilldown.mode === 'kpi' || sourceType === 'kpi';
+    const metricKey = STATE.drilldown.metricKey || STATE.drilldown.metric || (isVolume ? 'volume' : (isAvailability ? 'downtime' : 'events'));
     if (!isKpiDrilldown) {
       const tableWrap = document.getElementById('drilldownTableWrap');
       if (tableWrap) tableWrap.style.display = 'block';
@@ -5089,8 +5131,8 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
     const drillMetric = STATE.drilldown.metric || (sourceType === 'volumeJobs' ? STATE.customerVolumeMetric : (isAvailability ? 'downtime' : 'events'));
     let scopedTotal = NaN;
     if (sourceType === 'volumeJobs' && drillMetric === 'wasteRatio') {
-      const waste = scoped.reduce((a, r) => a + Number(r.wastePrintedSheets || r.wasteSheets || 0), 0);
-      const total = scoped.reduce((a, r) => a + Number(r.totalPrintedSheets || r.totalSheets || r.totalVolume || ((r.goodPrintedSheets || r.productionPrintedSheets || 0) + (r.wastePrintedSheets || r.wasteSheets || 0))), 0);
+      const waste = scoped.reduce((a, r) => a + Number(r.wastePrintedFlats || 0), 0);
+      const total = scoped.reduce((a, r) => a + Number(r.totalPrintedFlats || r.printedFlats || 0), 0);
       scopedTotal = computeWasteRatio(waste, total);
     } else if (sourceType === 'volumeJobs') scopedTotal = scoped.reduce((a, r) => a + Number(volumeMetricValue(r, drillMetric) || 0), 0);
     else if (sourceType === 'availabilityNative' || sourceType === 'availabilityAgg') scopedTotal = scoped.reduce((a, r) => a + Number(totalDowntimeFromAvailabilityRow(r) || 0), 0);
@@ -5135,7 +5177,6 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
       if (drilldownPanel && chartsContainer && simulationStrip) {
         drilldownPanel.insertBefore(document.getElementById('drilldownCalcDetails'), simulationStrip);
       }
-      const metricKey = STATE.drilldown.metricKey || STATE.drilldown.metric;
       const metricName = STATE.drilldown.value;
       const profile = kpiMetricProfile(metricKey, metricName);
       const k = STATE.kpis || {};
@@ -5393,7 +5434,7 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
         const m = new Map();
         scoped.forEach(r => {
           const press = r?.press || 'Unspecified';
-          const inc = selectedMetric === 'downtime' ? Number(r?.durationSeconds || 0) : 1;
+          const inc = selectedMetric === 'downtime' ? cleanDurationSeconds(r) : 1;
           m.set(press, (m.get(press) || 0) + inc);
         });
         return [...m.entries()].sort((a, b) => b[1] - a[1]);
@@ -5480,7 +5521,7 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
     });
     document.getElementById('drilldownTable').innerHTML = `<thead><tr>${columns.map(col => `<th data-dd-col="${col}" style="cursor:pointer">${esc(col)} ${sort.key === col ? (sort.dir === 'asc' ? '▲' : '▼') : ''}</th>`).join('')}</tr></thead><tbody>${sorted.slice(0, 1000).map(r => isVolume
       ? `<tr><td>${esc(r.press)}</td><td>${esc(r.day)}</td><td>${esc(r.jobType)}</td><td>${esc(r.jobStatus)}</td><td>${esc(r.pressMode)}</td><td>${esc((r.totalVolume || r.volume || 0).toLocaleString())}</td></tr>`
-      : `<tr><td>${esc(r.press)}</td><td>${esc(r.subsystem)}</td><td>${esc(r.name !== 'Unspecified' ? r.name : r.alertTitle)}</td><td>${esc(r.version || 'Version unavailable')}</td><td>${esc(r.startTime?.toISOString() || '')}</td><td>${esc(formatDuration(r.durationSeconds))}</td></tr>`).join('')}</tbody>`;
+      : `<tr><td>${esc(r.press)}</td><td>${esc(r.subsystem)}</td><td>${esc(r.name !== 'Unspecified' ? r.name : r.alertTitle)}</td><td>${esc(r.version || 'Version unavailable')}</td><td>${esc(r.startTime?.toISOString() || '')}</td><td>${esc(formatDuration(cleanDurationSeconds(r)))}</td></tr>`).join('')}</tbody>`;
     document.querySelectorAll('#drilldownTable [data-dd-col]').forEach(th => th.addEventListener('click', () => {
       const key = th.dataset.ddCol;
       STATE.drilldown.sort = { key, dir: STATE.drilldown.sort?.key === key && STATE.drilldown.sort?.dir === 'asc' ? 'desc' : 'asc' };
