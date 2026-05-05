@@ -656,7 +656,7 @@
     mttr: { id: 'mttr', label: 'MTTR / Avg repair time', type: 'average', unit: 'seconds', dataset: 'availability', numeratorField: 'repairSeconds', denominatorField: 'repairEventCount', aggregate: scope => Number(computeRecoveryMetricsDiagnostics(scope)?.computedMttrSeconds ?? null), format: value => value == null ? 'Unavailable' : formatDuration(Number(value || 0)), validate: value => value == null || Number(value) >= 0 },
     mtbf: { id: 'mtbf', label: 'MTBF', type: 'average', unit: 'seconds', dataset: 'availability', numeratorField: 'runtimeSeconds', denominatorField: 'failureCount', aggregate: scope => Number(computeRecoveryMetricsDiagnostics(scope)?.computedMtbfSeconds ?? null), format: value => value == null ? 'Unavailable' : formatDuration(Number(value || 0)), validate: value => value == null || Number(value) >= 0 },
     volume: { id: 'volume', label: 'Volume', type: 'sum', unit: 'sheets', dataset: 'volume', numeratorField: 'totalPrintedSheets', denominatorField: null, aggregate: scope => (scope.volumeAgg || []).reduce((acc, row) => acc + Number(row?.totalPrintedSheets || ((row?.goodPrintedSheets || 0) + (row?.wastePrintedSheets || 0))), 0), format: value => `${formatCompactNumber(value)} sheets`, validate: value => Number.isFinite(Number(value)) && Number(value) >= 0 },
-    wasteRatio: { id: 'wasteRatio', label: 'Waste Ratio', type: 'ratio', unit: 'percent', dataset: 'volume', numeratorField: 'wastePrintedSheets', denominatorField: 'totalPrintedSheets', aggregate: scope => { if (scope?.hasWasteData === false) return null; const num = (scope.volumeAgg || []).reduce((acc, row) => acc + Number(row?.wastePrintedSheets || 0), 0); const den = (scope.volumeAgg || []).reduce((acc, row) => acc + Number(row?.totalPrintedSheets || ((row?.goodPrintedSheets || 0) + (row?.wastePrintedSheets || 0))), 0); return den > 0 ? num / den : 0; }, format: value => value == null ? 'N/A' : `${(Number(value || 0) * 100).toFixed(2)}%`, validate: value => value == null || (Number.isFinite(Number(value)) && Number(value) >= 0 && Number(value) <= 1) },
+    wasteRatio: { id: 'wasteRatio', label: 'Waste Ratio', type: 'ratio', unit: 'percent', dataset: 'volume', numeratorField: 'wastePrintedFlats', denominatorField: 'totalPrintedFlats', aggregate: scope => { if (scope?.hasWasteData === false) return null; const num = (scope.volumeAgg || []).reduce((acc, row) => acc + Number(row?.wastePrintedFlats || 0), 0); const den = (scope.volumeAgg || []).reduce((acc, row) => acc + Number(row?.totalPrintedFlats || ((row?.goodPrintedFlats || 0) + (row?.wastePrintedFlats || 0))), 0); return den > 0 ? num / den : 0; }, format: value => value == null ? 'N/A' : `${(Number(value || 0) * 100).toFixed(2)}%`, validate: value => value == null || (Number.isFinite(Number(value)) && Number(value) >= 0 && Number(value) <= 1) },
     availability: { id: 'availability', label: 'Availability', type: 'percentage', unit: 'percent', dataset: 'availability', numeratorField: 'runtimeSeconds', denominatorField: 'runtimePlusDowntime', aggregate: scope => { const runtime = (scope.availabilityAgg || []).reduce((acc, row) => acc + Number(row?.runtimeSeconds || 0), 0); const downtime = (scope.availabilityAgg || []).reduce((acc, row) => acc + Number(totalDowntimeFromAvailabilityRow(row) || 0), 0); const den = runtime + downtime; return den > 0 ? runtime / den : null; }, format: value => value == null ? 'N/A' : `${(Number(value || 0) * 100).toFixed(1)}%`, validate: value => value == null || (Number(value) >= 0 && Number(value) <= 1) },
   });
 
@@ -2284,76 +2284,49 @@ function extractPressCodeFromAvailabilityId(rawId) {
   function buildDataSanityReport(sourceScope = {}) {
     const errorRows = sourceScope.filteredErrorEventsNative || [];
     const availabilityRows = sourceScope.filteredAvailabilityRowsNative || [];
+    const availabilityAgg = sourceScope.availabilityAgg || [];
     const volumeRows = sourceScope.filteredVolumeRowsNative || [];
-    const availabilityDefinitions = computeAvailabilityDefinitions(sourceScope.availabilityAgg || []);
-    const totals = availabilityDefinitions.totals || {};
     const validDurationRows = errorRows.filter(r => !r.invalidDuration);
     const cleanRows = errorRows.filter(r => r.durationIncluded);
     const anomalyRows = errorRows.filter(r => r.durationAnomaly);
     const invalidRows = errorRows.filter(r => r.invalidDuration);
-    const rawDurationSeconds = validDurationRows.reduce((sum, r) => sum + Number(r.durationSeconds || 0), 0);
-    const cleanDurationTotalSeconds = cleanRows.reduce((sum, r) => sum + cleanDurationSeconds(r), 0);
-    const excludedAnomalyDurationSeconds = anomalyRows.reduce((sum, r) => sum + Number(r.durationSeconds || 0), 0);
+    const rawErrorDurationSeconds = validDurationRows.reduce((sum, r) => sum + Number(r.durationSeconds || 0), 0);
+    const cleanErrorDurationSeconds = cleanRows.reduce((sum, r) => sum + cleanDurationSeconds(r), 0);
     const volume = volumeRows.reduce((acc, row) => {
       const special = normalizeJobType(row?.jobTypeNormalized || row?.jobType) === 'special';
-      const printedFlatsRaw = Number(row?.totalPrintedFlats ?? row?.printedFlats);
-      const printedFlats = Number.isFinite(printedFlatsRaw) ? Math.max(0, printedFlatsRaw) : 0;
-      const printedSheetsRaw = Number(row?.totalPrintedSheets ?? row?.printedSheets);
-      const printedSheets = Number.isFinite(printedSheetsRaw) ? Math.max(0, printedSheetsRaw) : 0;
-      acc.totalPrintedFlats += printedFlats;
-      acc.goodPrintedFlats += special ? 0 : printedFlats;
-      acc.wastePrintedFlats += special ? printedFlats : 0;
-      acc.totalPrintedSheets += printedSheets;
-      acc.goodPrintedSheets += special ? 0 : printedSheets;
-      acc.wastePrintedSheets += special ? printedSheets : 0;
+      const printedFlats = Math.max(0, Number(row?.totalPrintedFlats ?? row?.printedFlats) || 0);
+      const printedSheets = Math.max(0, Number(row?.totalPrintedSheets ?? row?.printedSheets) || 0);
+      acc.totalPrintedFlats += printedFlats; acc.goodPrintedFlats += special ? 0 : printedFlats; acc.wastePrintedFlats += special ? printedFlats : 0;
+      acc.totalPrintedSheets += printedSheets; acc.goodPrintedSheets += special ? 0 : printedSheets; acc.wastePrintedSheets += special ? printedSheets : 0;
       return acc;
     }, { totalPrintedFlats: 0, goodPrintedFlats: 0, wastePrintedFlats: 0, totalPrintedSheets: 0, goodPrintedSheets: 0, wastePrintedSheets: 0 });
-    const hasPositivePrintedFlatsSource = volumeRows.some(row => Number((row?.totalPrintedFlats ?? row?.printedFlats) || 0) > 0);
-    const cleanEventCount = cleanRows.length;
-    const recoveryDiagnostics = computeRecoveryMetricsDiagnostics(sourceScope);
+    const wasteRatio = volume.totalPrintedFlats > 0 ? (volume.wastePrintedFlats / volume.totalPrintedFlats) : 0;
     const availabilitySourceType = detectAvailabilitySchema(availabilityRows.map(r => r?.raw || r));
-    const availabilityPressCount = new Set(availabilityRows.map(r => r?.canonicalPress || r?.press).filter(Boolean)).size;
-    const availabilityDayCount = new Set(availabilityRows.map(r => r?.day).filter(Boolean)).size;
-    const validationFailures = [];
-    if (volumeRows.length > 0 && volume.totalPrintedFlats === 0 && hasPositivePrintedFlatsSource) validationFailures.push('Printed Flats source mismatch');
+    const totals = availabilityAgg.reduce((acc, row) => {
+      acc.printGroupSeconds += Number(row?.printSeconds || row?.printGroupSeconds || 0);
+      acc.availableWithoutPrintSeconds += Number(row?.availableWithoutPrintSeconds || 0);
+      acc.availabilityRuntimeSeconds += Number(row?.runtimeSeconds || row?.availabilityRuntimeSeconds || 0);
+      acc.preventiveMaintenanceSeconds += Number(row?.preventiveMaintenanceSeconds || 0);
+      acc.onJobMaintenanceSeconds += Number(row?.onJobMaintenanceSeconds || 0);
+      acc.maintenanceSeconds += Number(row?.plannedDowntimeSeconds || row?.maintenanceSeconds || 0);
+      acc.errorSeconds += Number(row?.errorSeconds || 0);
+      acc.restartSeconds += Number(row?.restartSeconds || 0);
+      acc.paperJamSeconds += Number(row?.paperJamSeconds || 0);
+      acc.errorNotAvailableSeconds += Number(row?.unplannedDowntimeSeconds || row?.errorNotAvailableSeconds || 0);
+      return acc;
+    }, { printGroupSeconds:0, availableWithoutPrintSeconds:0, availabilityRuntimeSeconds:0, preventiveMaintenanceSeconds:0, onJobMaintenanceSeconds:0, maintenanceSeconds:0, errorSeconds:0, restartSeconds:0, paperJamSeconds:0, errorNotAvailableSeconds:0 });
+    const totalTrackedSeconds = totals.availabilityRuntimeSeconds + totals.maintenanceSeconds + totals.errorNotAvailableSeconds;
+    const totalDowntimeSeconds = totals.maintenanceSeconds + totals.errorNotAvailableSeconds;
+    const availabilityPct = totalTrackedSeconds > 0 ? totals.availabilityRuntimeSeconds / totalTrackedSeconds : 0;
+    const maintenancePct = totalTrackedSeconds > 0 ? totals.maintenanceSeconds / totalTrackedSeconds : 0;
+    const errorNotAvailablePct = totalTrackedSeconds > 0 ? totals.errorNotAvailableSeconds / totalTrackedSeconds : 0;
+    const recoveryDiagnostics = computeRecoveryMetricsDiagnostics(sourceScope);
     return {
-      errors: {
-        errorsRowsLoaded: errorRows.length,
-        errorsRowsWithValidDuration: validDurationRows.length,
-        cleanErrorRowsUsedForDuration: cleanRows.length,
-        durationAnomalyRowsExcluded: anomalyRows.length,
-        invalidDurationRowsExcluded: invalidRows.length,
-        rawDurationSeconds,
-        cleanDurationSeconds: cleanDurationTotalSeconds,
-        excludedAnomalyDurationSeconds,
-        anomalyRowsByPress: [...groupBy(anomalyRows, r => r.canonicalPress || r.press || 'Unspecified').entries()].map(([press, rows]) => ({ press, rows: rows.length })).sort((a, b) => b.rows - a.rows),
-        anomalyExamples: anomalyRows.slice(0, 5).map(r => ({ press: r.canonicalPress || r.press || 'Unspecified', day: r.day, alert: r.name || r.alertTitle, durationSeconds: cleanDurationSeconds(r) }))
-      },
-      availability: {
-        availabilitySourceType,
-        availabilityRowsLoaded: availabilityRows.length,
-        availabilityPressCount,
-        availabilityDayCount,
-        printGroupSeconds: Number(totals.print || 0),
-        availableWithoutPrintSeconds: Number(totals.availableWithoutPrint || 0),
-        availabilityRuntimeSeconds: Number(totals.runtime || 0),
-        preventiveMaintenanceSeconds: Number(totals.preventiveMaintenance || 0),
-        onJobMaintenanceSeconds: Number(totals.onJobMaintenance || 0),
-        maintenanceSeconds: Number(totals.planned || 0),
-        errorSeconds: Number(totals.error || 0),
-        restartSeconds: Number(totals.restart || 0),
-        paperJamSeconds: Number(totals.paperJam || 0),
-        errorNotAvailableSeconds: Number(totals.unplanned || 0),
-        totalTrackedSeconds: Number((totals.runtime || 0) + (totals.planned || 0) + (totals.unplanned || 0)),
-        availabilityPct: Number(availabilityDefinitions.runtimeOverTotal || 0),
-        maintenancePct: Number(availabilityDefinitions.runtimeOverTotal != null ? ((totals.planned || 0) / Math.max(1, (totals.runtime || 0) + (totals.planned || 0) + (totals.unplanned || 0))) : 0),
-        errorNotAvailablePct: Number(availabilityDefinitions.runtimeOverTotal != null ? ((totals.unplanned || 0) / Math.max(1, (totals.runtime || 0) + (totals.planned || 0) + (totals.unplanned || 0))) : 0),
-        totalDowntimeSeconds: Number((totals.planned || 0) + (totals.unplanned || 0)),
-        totalDowntimePct: Number(availabilityDefinitions.runtimeOverTotal != null ? (((totals.planned || 0) + (totals.unplanned || 0)) / Math.max(1, (totals.runtime || 0) + (totals.planned || 0) + (totals.unplanned || 0))) : 0),
-      },
-      volume: { volumeRowsLoaded: volumeRows.length, ...volume },
-      validationFailures,
-      kpiConsistency: { kpiEvents: Number(sourceScope.kpis?.totalEvents || errorRows.length), kpiCleanDowntimeSeconds: Number(sourceScope.kpis?.totalDowntime || cleanDurationTotalSeconds), kpiMttrSeconds: recoveryDiagnostics.computedMttrSeconds, kpiMtbfSeconds: recoveryDiagnostics.computedMtbfSeconds, kpiAvailabilityPct: Number(sourceScope.kpis?.availability || availabilityDefinitions.runtimeOverTotal || 0), kpiVolumeFlats: volume.totalPrintedFlats }
+      dataSources: { errorsLoaded: errorRows.length > 0, availabilityFactorDistributionLoaded: availabilitySourceType === 'availabilityFactorDistribution' && availabilityRows.length > 0, availabilityDetailsLoaded: availabilitySourceType === 'availabilityDetails' && availabilityRows.length > 0, printVolumeLoaded: volumeRows.length > 0, selectedAvailabilitySource: availabilitySourceType === 'availabilityFactorDistribution' ? 'Press Availability Factor Distribution' : (availabilityRows.length > 0 ? 'availability details' : 'none') },
+      errors: { errorsRowsLoaded: errorRows.length, cleanErrorRowsUsedForDuration: cleanRows.length, durationAnomalyRowsExcluded: anomalyRows.length, invalidDurationRowsExcluded: invalidRows.length, rawErrorDurationSeconds, cleanErrorDurationSeconds },
+      availability: { availabilitySourceType, availabilityRowsLoaded: availabilityRows.length, availabilityPressCount: new Set(availabilityRows.map(r => r?.canonicalPress || r?.press).filter(Boolean)).size, availabilityDayCount: new Set(availabilityRows.map(r => r?.day).filter(Boolean)).size, ...totals, totalTrackedSeconds, totalDowntimeSeconds, availabilityPct, maintenancePct, errorNotAvailablePct, totalDowntimePct: totalTrackedSeconds > 0 ? totalDowntimeSeconds / totalTrackedSeconds : 0 },
+      mtbfMttr: { mtbfSeconds: Number(recoveryDiagnostics?.computedMtbfSeconds ?? 0), mtbfIntervalCount: Number(recoveryDiagnostics?.intervalCount || 0), mtbfPressCount: Number(recoveryDiagnostics?.pressCount || 0), mttrSeconds: Number(recoveryDiagnostics?.computedMttrSeconds ?? 0), repairEventCount: Number(recoveryDiagnostics?.repairEventCount || 0), selectedRepairRule: String(recoveryDiagnostics?.ruleUsed || 'moving2ready + stoppingonerror.soft'), moving2ReadyOnlyMttrSeconds: Number(recoveryDiagnostics?.moving2ReadyOnlyMttrSeconds ?? 0), allCleanErrorsAvgDurationSeconds: Number(recoveryDiagnostics?.allCleanErrorsAvgDurationSeconds ?? 0) },
+      volume: { ...volume, wasteRatio }
     };
   }
 
@@ -2581,7 +2554,7 @@ function extractPressCodeFromAvailabilityId(rawId) {
   }
 
   function computeChronologicalMtbf(errorRows = []) {
-    const cleanRows = (errorRows || []).filter(r => r && r.durationIncluded !== false && !r.durationAnomaly && !r.invalidDuration);
+    const cleanRows = (errorRows || []).filter(r => r);
     const byPress = new Map();
     let skippedMissingRecovery = 0;
     cleanRows.forEach(r => {
@@ -3184,7 +3157,7 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
       ['MTTR / Avg repair time', 'mttr', mttrValue, mttrSubtitle],
       ['MTBF', 'mtbf', mtbfValue, mtbfSubtitle],
       ['Printed Flats', 'volume', `${formatCompactNumber(k.totalPrintedFlats || 0)} flats`, 'Sum of totalPrintedFlats/printedFlats across selected scope'],
-      ['Waste Ratio', 'wasteRatio', metricRegistry.wasteRatio.format(k.wasteRatio), 'sum(wastePrintedSheets) / sum(totalPrintedSheets)'],
+      ['Waste Ratio', 'wasteRatio', metricRegistry.wasteRatio.format(k.wasteRatio), 'sum(wastePrintedFlats) / sum(totalPrintedFlats)'],
       ['Availability', 'availability', metricRegistry.availability.format((k.availabilityPercent == null ? null : k.availabilityPercent / 100)), 'sum(runtimeSeconds) / (sum(runtimeSeconds)+sum(downtimeSeconds))'],
     ];
     const visibleCards = cards.filter(([_, metricKey]) => !(metricKey === 'wasteRatio' && k.wasteRatio == null));
