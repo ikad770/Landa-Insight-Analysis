@@ -667,6 +667,42 @@
     return { hasWasteData: hasSpecialJobType, hasJobTypeField, jobTypeField, normalizedJobTypeValues, hasSpecialJobType, specialJobRows, hasTypeField: hasJobTypeField, typeField: jobTypeField, normalizedTypeValues: normalizedJobTypeValues, hasSpecialType: hasSpecialJobType };
   }
 
+  function getWasteRatioMetrics(sourceScope = STATE.lastSourceScope || {}) {
+    const scope = sourceScope || {};
+    const rows = (Array.isArray(scope.filteredVolumeRowsNative) && scope.filteredVolumeRowsNative.length)
+      ? scope.filteredVolumeRowsNative
+      : ((Array.isArray(scope.volumeRowsNormalized) && scope.volumeRowsNormalized.length)
+        ? scope.volumeRowsNormalized
+        : (Array.isArray(scope.volumeAgg) ? scope.volumeAgg : []));
+    const totals = rows.reduce((acc, row) => {
+      const special = isSpecialJobType(row?.jobTypeNormalized || row?.normalizedRawType || row?.type || row?.jobType);
+      const totalFlatsRaw = Number(row?.totalPrintedFlats ?? row?.printedFlats ?? ((row?.goodPrintedFlats || 0) + (row?.wastePrintedFlats || 0)));
+      const totalSheetsRaw = Number(row?.totalPrintedSheets ?? row?.printedSheets ?? ((row?.goodPrintedSheets || 0) + (row?.wastePrintedSheets || 0)));
+      const totalFlats = Number.isFinite(totalFlatsRaw) ? Math.max(0, totalFlatsRaw) : 0;
+      const totalSheets = Number.isFinite(totalSheetsRaw) ? Math.max(0, totalSheetsRaw) : 0;
+      const explicitWasteFlatsRaw = Number(row?.wastePrintedFlats);
+      const explicitWasteSheetsRaw = Number(row?.wastePrintedSheets);
+      const wasteFlats = Number.isFinite(explicitWasteFlatsRaw) ? Math.max(0, explicitWasteFlatsRaw) : (special ? totalFlats : 0);
+      const wasteSheets = Number.isFinite(explicitWasteSheetsRaw) ? Math.max(0, explicitWasteSheetsRaw) : (special ? totalSheets : 0);
+      const goodFlats = Math.max(0, totalFlats - wasteFlats);
+      const goodSheets = Math.max(0, totalSheets - wasteSheets);
+      acc.totalPrintedFlats += totalFlats;
+      acc.goodPrintedFlats += goodFlats;
+      acc.wastePrintedFlats += wasteFlats;
+      acc.totalPrintedSheets += totalSheets;
+      acc.goodPrintedSheets += goodSheets;
+      acc.wastePrintedSheets += wasteSheets;
+      if (special) acc.specialJobRows += 1;
+      return acc;
+    }, { totalPrintedFlats: 0, goodPrintedFlats: 0, wastePrintedFlats: 0, totalPrintedSheets: 0, goodPrintedSheets: 0, wastePrintedSheets: 0, specialJobRows: 0 });
+    return {
+      ...totals,
+      wasteRatioFlats: totals.totalPrintedFlats > 0 ? (totals.wastePrintedFlats / totals.totalPrintedFlats) : null,
+      wasteRatioSheets: totals.totalPrintedSheets > 0 ? (totals.wastePrintedSheets / totals.totalPrintedSheets) : null,
+    };
+  }
+
+
   function nearlyEqual(a, b, tolerance = 0.001) {
     const left = Number(a || 0);
     const right = Number(b || 0);
@@ -2333,16 +2369,7 @@ function extractPressCodeFromAvailabilityId(rawId) {
     const invalidRows = errorRows.filter(r => r.invalidDuration);
     const rawErrorDurationSeconds = validDurationRows.reduce((sum, r) => sum + Number(r.durationSeconds || 0), 0);
     const cleanErrorDurationSeconds = cleanRows.reduce((sum, r) => sum + cleanDurationSeconds(r), 0);
-    const volume = volumeRows.reduce((acc, row) => {
-      const special = isSpecialJobType(row?.jobTypeNormalized || row?.normalizedRawType || row?.type || row?.jobType);
-      const printedFlats = Math.max(0, Number(row?.totalPrintedFlats ?? row?.printedFlats) || 0);
-      const printedSheets = Math.max(0, Number(row?.totalPrintedSheets ?? row?.printedSheets) || 0);
-      acc.totalPrintedFlats += printedFlats; acc.goodPrintedFlats += special ? 0 : printedFlats; acc.wastePrintedFlats += special ? printedFlats : 0;
-      acc.totalPrintedSheets += printedSheets; acc.goodPrintedSheets += special ? 0 : printedSheets; acc.wastePrintedSheets += special ? printedSheets : 0;
-      return acc;
-    }, { totalPrintedFlats: 0, goodPrintedFlats: 0, wastePrintedFlats: 0, totalPrintedSheets: 0, goodPrintedSheets: 0, wastePrintedSheets: 0 });
-    const specialJobRows = volumeRows.filter(row => isSpecialJobType(row?.jobTypeNormalized || row?.normalizedRawType || row?.type || row?.jobType)).length;
-    const wasteRatio = volume.totalPrintedFlats > 0 ? (volume.wastePrintedFlats / volume.totalPrintedFlats) : 0;
+    const wasteMetrics = getWasteRatioMetrics(sourceScope);
     const availabilitySourceType = detectAvailabilitySchema(availabilityRows.map(r => r?.raw || r));
     const totals = availabilityAgg.reduce((acc, row) => {
       acc.printGroupSeconds += Number(row?.printSeconds || row?.printGroupSeconds || 0);
@@ -2368,7 +2395,7 @@ function extractPressCodeFromAvailabilityId(rawId) {
       errors: { errorsRowsLoaded: errorRows.length, cleanErrorRowsUsedForDuration: cleanRows.length, durationAnomalyRowsExcluded: anomalyRows.length, invalidDurationRowsExcluded: invalidRows.length, rawErrorDurationSeconds, cleanErrorDurationSeconds },
       availability: { availabilitySourceType, availabilityRowsLoaded: availabilityRows.length, availabilityPressCount: new Set(availabilityRows.map(r => r?.canonicalPress || r?.press).filter(Boolean)).size, availabilityDayCount: new Set(availabilityRows.map(r => r?.day).filter(Boolean)).size, ...totals, totalTrackedSeconds, totalDowntimeSeconds, availabilityPct, maintenancePct, errorNotAvailablePct, totalDowntimePct: totalTrackedSeconds > 0 ? totalDowntimeSeconds / totalTrackedSeconds : 0 },
       mtbfMttr: { mtbfSeconds: Number(recoveryDiagnostics?.computedMtbfSeconds ?? 0), mtbfIntervalCount: Number(recoveryDiagnostics?.intervalCount || 0), mtbfPressCount: Number(recoveryDiagnostics?.pressCount || 0), mttrSeconds: Number(recoveryDiagnostics?.computedMttrSeconds ?? 0), repairEventCount: Number(recoveryDiagnostics?.repairEventCount || 0), selectedRepairRule: String(recoveryDiagnostics?.ruleUsed || 'moving2ready + stoppingonerror.soft'), moving2ReadyOnlyMttrSeconds: Number(recoveryDiagnostics?.moving2ReadyOnlyMttrSeconds ?? 0), allCleanErrorsAvgDurationSeconds: Number(recoveryDiagnostics?.allCleanErrorsAvgDurationSeconds ?? 0) },
-      volume: { ...volume, specialJobRows, wasteRatio }
+      volume: { ...wasteMetrics }
     };
   }
 
@@ -2561,23 +2588,9 @@ function extractPressCodeFromAvailabilityId(rawId) {
     const totalUnplanned = (scope.availabilityAgg || []).reduce((acc, row) => acc + Number(row?.unplannedDowntimeSeconds || 0), 0);
     const totalService = (scope.availabilityAgg || []).reduce((acc, row) => acc + Number(row?.serviceDowntimeSeconds || 0), 0);
     const runtimeSeconds = (scope.availabilityAgg || []).reduce((acc, row) => acc + Number(row?.runtimeSeconds || 0), 0);
-    const specialJobRows = (scope.filteredVolumeRowsNative || []).filter(row => isSpecialJobType(row?.jobTypeNormalized || row?.normalizedRawType || row?.type || row?.jobType)).length;
-    const hasWasteData = scope?.hasWasteData !== false || specialJobRows > 0;
-    const volumeRows = scope.filteredVolumeRowsNative || [];
-    const volumeTotals = volumeRows.reduce((acc, row) => {
-      const special = isSpecialJobType(row?.jobTypeNormalized || row?.normalizedRawType || row?.type || row?.jobType);
-      const printedFlatsRaw = Number(row?.totalPrintedFlats ?? row?.printedFlats);
-      const printedFlats = Number.isFinite(printedFlatsRaw) ? Math.max(0, printedFlatsRaw) : 0;
-      const printedSheetsRaw = Number(row?.totalPrintedSheets ?? row?.printedSheets);
-      const printedSheets = Number.isFinite(printedSheetsRaw) ? Math.max(0, printedSheetsRaw) : 0;
-      acc.totalPrintedFlats += printedFlats;
-      acc.goodPrintedFlats += special ? 0 : printedFlats;
-      acc.wastePrintedFlats += special ? printedFlats : 0;
-      acc.totalPrintedSheets += printedSheets;
-      acc.goodPrintedSheets += special ? 0 : printedSheets;
-      acc.wastePrintedSheets += special ? printedSheets : 0;
-      return acc;
-    }, { totalPrintedFlats: 0, goodPrintedFlats: 0, wastePrintedFlats: 0, totalPrintedSheets: 0, goodPrintedSheets: 0, wastePrintedSheets: 0 });
+    const wasteMetrics = getWasteRatioMetrics(scope);
+    const hasWasteData = scope?.hasWasteData !== false || wasteMetrics.specialJobRows > 0 || wasteMetrics.wastePrintedFlats > 0;
+    const volumeTotals = wasteMetrics;
     const goodPrintedSheets = volumeTotals.goodPrintedSheets;
     const wastePrintedSheets = hasWasteData ? volumeTotals.wastePrintedSheets : 0;
     const totalPrintedSheets = volumeTotals.totalPrintedSheets;
@@ -2598,7 +2611,7 @@ function extractPressCodeFromAvailabilityId(rawId) {
       recoveryMetricsDiagnostics,
       downtimeHours: totalDowntime > 0 ? (totalDowntime / 3600) : 0, outputEfficiency: totalDowntime > 0 ? (goodPrintedSheets / (totalDowntime / 3600)) : null,
       volumePerDowntime: totalDowntime > 0 ? (goodPrintedSheets / totalDowntime) : null, volumePerEvents: totalEvents > 0 ? (goodPrintedSheets / totalEvents) : null,
-      wasteRatio: volumeTotals.totalPrintedFlats > 0 ? (volumeTotals.wastePrintedFlats / volumeTotals.totalPrintedFlats) : 0, hasWasteData, reasons: []
+      wasteRatio: volumeTotals.wasteRatioFlats, wasteRatioFlats: volumeTotals.wasteRatioFlats, wasteRatioSheets: volumeTotals.wasteRatioSheets, specialJobRows: volumeTotals.specialJobRows, hasWasteData, reasons: []
     };
   }
 
@@ -3206,10 +3219,10 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
       ['MTTR / Avg repair time', 'mttr', mttrValue, mttrSubtitle],
       ['MTBF', 'mtbf', mtbfValue, mtbfSubtitle],
       ['Printed Flats', 'volume', `${formatCompactNumber(k.totalPrintedFlats || 0)} flats`, 'Sum of totalPrintedFlats/printedFlats across selected scope'],
-      ['Waste Ratio', 'wasteRatio', metricRegistry.wasteRatio.format(k.wasteRatio), 'sum(wastePrintedFlats) / sum(totalPrintedFlats)'],
+      ['Waste Ratio', 'wasteRatio', metricRegistry.wasteRatio.format(k.wasteRatioFlats ?? k.wasteRatio), 'sum(wastePrintedFlats) / sum(totalPrintedFlats)'],
       ['Availability', 'availability', metricRegistry.availability.format((k.availabilityPercent == null ? null : k.availabilityPercent / 100)), 'Available / tracked time'],
     ];
-    const visibleCards = cards.filter(([_, metricKey]) => !(metricKey === 'wasteRatio' && k.wasteRatio == null));
+    const visibleCards = cards.filter(([_, metricKey]) => !(metricKey === 'wasteRatio' && (k.wasteRatioFlats ?? k.wasteRatio) == null));
     const toCard = ([label, metricKey, value, subtitle]) => `<article class="kpi clickable" role="button" tabindex="0" data-kpi-metric="${metricKey}" title="${esc(subtitle)}"><div class="k">${label}</div><div class="v">${esc(value)}</div><div class="kpi-sub">${esc(subtitle)}</div></article>`;
     document.getElementById('kpiStrip').innerHTML = `<div class="kpi-row core" style="grid-template-columns:repeat(${Math.max(4, visibleCards.length)},minmax(140px,1fr));">${visibleCards.map(toCard).join('')}</div>`;
   }
@@ -5312,11 +5325,12 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
     if (metricKey === 'volume' || metricKey === 'wasteRatio') {
       const rows = scope.filteredVolumeRowsNative || [];
       if (!rows.length) return false;
-      const totalFlats = rows.reduce((a,r)=>a+Number(r.totalPrintedFlats||r.printedFlats||0),0);
-      const wasteFlats = rows.reduce((a,r)=>a+Number(r.wastePrintedFlats||0),0);
-      const goodFlats = rows.reduce((a,r)=>a+Number(r.goodPrintedFlats||Math.max(0,Number(r.totalPrintedFlats||r.printedFlats||0)-Number(r.wastePrintedFlats||0))),0);
+      const wasteMetrics = getWasteRatioMetrics(scope);
+      const totalFlats = wasteMetrics.totalPrintedFlats;
+      const wasteFlats = wasteMetrics.wastePrintedFlats;
+      const goodFlats = wasteMetrics.goodPrintedFlats;
       setTitle(metricKey === 'wasteRatio' ? 'Waste Ratio Drilldown' : 'Printed Flats Drilldown', 'Print Volume source: good production, waste/special jobs, and production trends.');
-      setCards([{label:'Total Flats', value: formatCompactNumber(totalFlats)}, {label:'Good Flats', value: formatCompactNumber(goodFlats)}, {label:'Waste Flats', value: formatCompactNumber(wasteFlats)}, {label:'Waste Ratio', value: metricRegistry.wasteRatio.format(computeWasteRatio(wasteFlats,totalFlats))}]);
+      setCards([{label:'Total Flats', value: formatCompactNumber(totalFlats)}, {label:'Good Flats', value: formatCompactNumber(goodFlats)}, {label:'Waste Flats', value: formatCompactNumber(wasteFlats)}, {label:'Waste Ratio', value: metricRegistry.wasteRatio.format(wasteMetrics.wasteRatioFlats)}]);
       setContext('Production Volume', metricKey === 'wasteRatio' ? 'Waste Ratio = Waste Flats / Total Printed Flats. Special jobs count as waste.' : 'Printed Flats = Good Flats + Waste/Special Flats.');
       const byMonth = group(rows, r=>(r.day||'').slice(0,7)||'Unspecified', r=>metricKey==='wasteRatio'?Number(r.wastePrintedFlats||0):Number(r.totalPrintedFlats||r.printedFlats||0));
       setDrilldownHeading('drilldownTopHeading', metricKey === 'wasteRatio' ? 'Waste Flats by Month' : 'Printed Flats by Month');
