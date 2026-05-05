@@ -2326,13 +2326,14 @@ function extractPressCodeFromAvailabilityId(rawId) {
     const rawErrorDurationSeconds = validDurationRows.reduce((sum, r) => sum + Number(r.durationSeconds || 0), 0);
     const cleanErrorDurationSeconds = cleanRows.reduce((sum, r) => sum + cleanDurationSeconds(r), 0);
     const volume = volumeRows.reduce((acc, row) => {
-      const special = normalizeJobType(row?.jobTypeNormalized || row?.jobType) === 'special';
+      const special = isSpecialJobType(row?.jobTypeNormalized || row?.normalizedRawType || row?.type || row?.jobType);
       const printedFlats = Math.max(0, Number(row?.totalPrintedFlats ?? row?.printedFlats) || 0);
       const printedSheets = Math.max(0, Number(row?.totalPrintedSheets ?? row?.printedSheets) || 0);
       acc.totalPrintedFlats += printedFlats; acc.goodPrintedFlats += special ? 0 : printedFlats; acc.wastePrintedFlats += special ? printedFlats : 0;
       acc.totalPrintedSheets += printedSheets; acc.goodPrintedSheets += special ? 0 : printedSheets; acc.wastePrintedSheets += special ? printedSheets : 0;
       return acc;
     }, { totalPrintedFlats: 0, goodPrintedFlats: 0, wastePrintedFlats: 0, totalPrintedSheets: 0, goodPrintedSheets: 0, wastePrintedSheets: 0 });
+    const specialJobRows = volumeRows.filter(row => isSpecialJobType(row?.jobTypeNormalized || row?.normalizedRawType || row?.type || row?.jobType)).length;
     const wasteRatio = volume.totalPrintedFlats > 0 ? (volume.wastePrintedFlats / volume.totalPrintedFlats) : 0;
     const availabilitySourceType = detectAvailabilitySchema(availabilityRows.map(r => r?.raw || r));
     const totals = availabilityAgg.reduce((acc, row) => {
@@ -2359,7 +2360,7 @@ function extractPressCodeFromAvailabilityId(rawId) {
       errors: { errorsRowsLoaded: errorRows.length, cleanErrorRowsUsedForDuration: cleanRows.length, durationAnomalyRowsExcluded: anomalyRows.length, invalidDurationRowsExcluded: invalidRows.length, rawErrorDurationSeconds, cleanErrorDurationSeconds },
       availability: { availabilitySourceType, availabilityRowsLoaded: availabilityRows.length, availabilityPressCount: new Set(availabilityRows.map(r => r?.canonicalPress || r?.press).filter(Boolean)).size, availabilityDayCount: new Set(availabilityRows.map(r => r?.day).filter(Boolean)).size, ...totals, totalTrackedSeconds, totalDowntimeSeconds, availabilityPct, maintenancePct, errorNotAvailablePct, totalDowntimePct: totalTrackedSeconds > 0 ? totalDowntimeSeconds / totalTrackedSeconds : 0 },
       mtbfMttr: { mtbfSeconds: Number(recoveryDiagnostics?.computedMtbfSeconds ?? 0), mtbfIntervalCount: Number(recoveryDiagnostics?.intervalCount || 0), mtbfPressCount: Number(recoveryDiagnostics?.pressCount || 0), mttrSeconds: Number(recoveryDiagnostics?.computedMttrSeconds ?? 0), repairEventCount: Number(recoveryDiagnostics?.repairEventCount || 0), selectedRepairRule: String(recoveryDiagnostics?.ruleUsed || 'moving2ready + stoppingonerror.soft'), moving2ReadyOnlyMttrSeconds: Number(recoveryDiagnostics?.moving2ReadyOnlyMttrSeconds ?? 0), allCleanErrorsAvgDurationSeconds: Number(recoveryDiagnostics?.allCleanErrorsAvgDurationSeconds ?? 0) },
-      volume: { ...volume, wasteRatio }
+      volume: { ...volume, specialJobRows, wasteRatio }
     };
   }
 
@@ -2552,10 +2553,11 @@ function extractPressCodeFromAvailabilityId(rawId) {
     const totalUnplanned = (scope.availabilityAgg || []).reduce((acc, row) => acc + Number(row?.unplannedDowntimeSeconds || 0), 0);
     const totalService = (scope.availabilityAgg || []).reduce((acc, row) => acc + Number(row?.serviceDowntimeSeconds || 0), 0);
     const runtimeSeconds = (scope.availabilityAgg || []).reduce((acc, row) => acc + Number(row?.runtimeSeconds || 0), 0);
-    const hasWasteData = scope?.hasWasteData !== false;
+    const specialJobRows = (scope.filteredVolumeRowsNative || []).filter(row => isSpecialJobType(row?.jobTypeNormalized || row?.normalizedRawType || row?.type || row?.jobType)).length;
+    const hasWasteData = scope?.hasWasteData !== false || specialJobRows > 0;
     const volumeRows = scope.filteredVolumeRowsNative || [];
     const volumeTotals = volumeRows.reduce((acc, row) => {
-      const special = normalizeJobType(row?.jobTypeNormalized || row?.jobType) === 'special';
+      const special = isSpecialJobType(row?.jobTypeNormalized || row?.normalizedRawType || row?.type || row?.jobType);
       const printedFlatsRaw = Number(row?.totalPrintedFlats ?? row?.printedFlats);
       const printedFlats = Number.isFinite(printedFlatsRaw) ? Math.max(0, printedFlatsRaw) : 0;
       const printedSheetsRaw = Number(row?.totalPrintedSheets ?? row?.printedSheets);
@@ -4491,9 +4493,11 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
       const ratio = safe.totalSheets > 0 ? (safe.wasteSheets / safe.totalSheets) : 0;
       return { ...row, ...safe, wasteRatio: ratio };
     });
-    const useFlats = String(STATE.customerVolumeMetric || '').includes('Flats') || STATE.customerVolumeMetric === 'wasteRatio';
-    const goodValues = enriched.map(r => useFlats ? Number(r.goodPrintedFlats || 0) : r.goodSheets);
-    const wasteValues = enriched.map(r => useFlats ? Number(r.wastePrintedFlats || 0) : r.wasteSheets);
+    const volumeBasis = (String(STATE.customerVolumeMetric || '').includes('Flats') || STATE.customerVolumeMetric === 'wasteRatio') ? 'flats' : 'sheets';
+    const useFlats = volumeBasis === 'flats';
+    const goodValues = enriched.map(r => useFlats ? Number(r.goodPrintedFlats || 0) : Number(r.goodSheets || 0));
+    const wasteValues = enriched.map(r => useFlats ? Number(r.wastePrintedFlats || 0) : Number(r.wasteSheets || 0));
+    const totalValues = enriched.map(r => useFlats ? Number(r.totalPrintedFlats || (Number(r.goodPrintedFlats||0)+Number(r.wastePrintedFlats||0))) : Number(r.totalSheets || (Number(r.goodSheets||0)+Number(r.wasteSheets||0))));
     const wasteColors = enriched.map(r => wasteRatioColor(r.wasteRatio));
     const goodFill = '#2E8B57';
 
@@ -4503,8 +4507,8 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
       data: {
         labels,
         datasets: [
-          { label: 'Good Volume', data: goodValues, backgroundColor: goodFill, borderColor: goodFill, borderWidth: 1, borderRadius: 6, minBarLength: 3, stack: 'volume' },
-          ...(hasWasteData ? [{ label: 'Waste', data: wasteValues, backgroundColor: wasteColors, borderColor: wasteColors, borderWidth: 1, borderRadius: 6, minBarLength: 2, stack: 'volume' }] : [])
+          { label: useFlats ? 'Good Flats' : 'Good Sheets', data: goodValues, backgroundColor: goodFill, borderColor: goodFill, borderWidth: 1, borderRadius: 6, minBarLength: 3, stack: 'volume' },
+          ...(hasWasteData ? [{ label: useFlats ? 'Waste Flats' : 'Waste Sheets', data: wasteValues, backgroundColor: wasteColors, borderColor: wasteColors, borderWidth: 1, borderRadius: 6, minBarLength: 2, stack: 'volume' }] : [])
         ]
       },
       options: {
@@ -4536,12 +4540,14 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
                 const goodVisible = chart.isDatasetVisible(0);
                 const wasteVisible = chart.isDatasetVisible(1);
                 if (ctx.datasetIndex === 0 && goodVisible) {
+                  const unitLabel = useFlats ? 'flats' : 'sheets';
                   return wasteVisible
-                    ? [`Good sheets: ${(row.goodSheets || 0).toLocaleString()}`, `Total sheets: ${(row.totalSheets || 0).toLocaleString()}`]
-                    : [`Good sheets: ${(row.goodSheets || 0).toLocaleString()}`];
+                    ? [`Good ${unitLabel}: ${(useFlats ? Number(row.goodPrintedFlats||0) : Number(row.goodSheets||0)).toLocaleString()}`, `Total ${unitLabel}: ${(useFlats ? Number(row.totalPrintedFlats||0) : Number(row.totalSheets||0)).toLocaleString()}`]
+                    : [`Good ${unitLabel}: ${(useFlats ? Number(row.goodPrintedFlats||0) : Number(row.goodSheets||0)).toLocaleString()}`];
                 }
                 if (ctx.datasetIndex === 1 && wasteVisible) {
-                  return [`Waste sheets: ${(row.wasteSheets || 0).toLocaleString()}`, `Waste ratio: ${ratioPct.toFixed(2)}%`, `Status: ${status}`];
+                  const unitLabel = useFlats ? 'flats' : 'sheets';
+                  return [`Waste ${unitLabel}: ${(useFlats ? Number(row.wastePrintedFlats||0) : Number(row.wasteSheets||0)).toLocaleString()}`, `Waste ratio: ${ratioPct.toFixed(2)}%`, `Status: ${status}`];
                 }
                 return [];
               },
@@ -4554,18 +4560,18 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
                 const wasteVisible = chart?.isDatasetVisible?.(1);
                 if (!goodVisible && wasteVisible) {
                   return [
-                    `Waste sheets: ${(row.wasteSheets || 0).toLocaleString()}`,
+                    `Waste ${useFlats ? 'flats' : 'sheets'}: ${(useFlats ? Number(row.wastePrintedFlats||0) : Number(row.wasteSheets||0)).toLocaleString()}`,
                     `Waste ratio: ${ratioPct.toFixed(2)}%`,
                     `Status: ${status}`,
                   ];
                 }
                 if (goodVisible && !wasteVisible) {
-                  return [`Good sheets: ${(row.goodSheets || 0).toLocaleString()}`];
+                  return [`Good ${useFlats ? 'flats' : 'sheets'}: ${(useFlats ? Number(row.goodPrintedFlats||0) : Number(row.goodSheets||0)).toLocaleString()}`];
                 }
                 return [
-                  `Good sheets: ${(row.goodSheets || 0).toLocaleString()}`,
-                  `Waste sheets: ${(row.wasteSheets || 0).toLocaleString()}`,
-                  `Total sheets: ${(row.totalSheets || 0).toLocaleString()}`,
+                  `Good ${useFlats ? 'flats' : 'sheets'}: ${(useFlats ? Number(row.goodPrintedFlats||0) : Number(row.goodSheets||0)).toLocaleString()}`,
+                  `Waste ${useFlats ? 'flats' : 'sheets'}: ${(useFlats ? Number(row.wastePrintedFlats||0) : Number(row.wasteSheets||0)).toLocaleString()}`,
+                  `Total ${useFlats ? 'flats' : 'sheets'}: ${(useFlats ? Number(row.totalPrintedFlats||0) : Number(row.totalSheets||0)).toLocaleString()}`,
                   `Waste ratio: ${ratioPct.toFixed(2)}%`,
                   `Status: ${status}`,
                 ];
@@ -5116,7 +5122,7 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
     const isVolume = sourceType === 'volumeJobs';
     const isAvailability = sourceType === 'availabilityNative' || sourceType === 'availabilityAgg';
     const isKpiDrilldown = STATE.drilldown.mode === 'kpi' || sourceType === 'kpi';
-    const metricKey = STATE.drilldown.metricKey || STATE.drilldown.metric || (isVolume ? 'volume' : (isAvailability ? 'downtime' : 'events'));
+    const metricKey = STATE.drilldown.metricKey || STATE.drilldown.metric || sourceType || (isVolume ? 'volume' : (isAvailability ? 'downtime' : 'events'));
     if (!isKpiDrilldown) {
       const tableWrap = document.getElementById('drilldownTableWrap');
       if (tableWrap) tableWrap.style.display = 'block';
@@ -5171,6 +5177,14 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
     if (drillExplanation) { drillExplanation.innerHTML = ''; drillExplanation.classList.remove('hidden'); }
     if (drillCalcBody) drillCalcBody.innerHTML = '';
     if (isKpiDrilldown) {
+      const hasKpiRows = Array.isArray(scoped) && scoped.length > 0;
+      if (!hasKpiRows) {
+        showNoDataChart('drilldownTopChart', 'No data available for this drilldown.');
+        showNoDataChart('drilldownTrendChart', 'No data available for this drilldown.');
+        showNoDataChart('drilldownSecondaryChart', 'No data available for this drilldown.');
+        showNoDataChart('drilldownOpsChart', 'No data available for this drilldown.');
+        return;
+      }
       const drilldownPanel = document.querySelector('#drilldownDrawer .drawer-panel');
       const chartsContainer = document.getElementById('drilldownChartsContainer');
       const simulationStrip = document.getElementById('simulationStateStrip');
