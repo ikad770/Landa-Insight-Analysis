@@ -355,7 +355,7 @@
       </article>
 
       <article class="card span-6">
-        <div class="chart-head"><h3>Print Volume By Press (Flats/Sheets)</h3><div class="chart-tools"><select id="customerVolumeMetric" class="select"><option value="totalPrintedFlats">Total flats</option><option value="goodPrintedFlats">Good flats</option><option value="wastePrintedFlats">Waste flats</option><option value="totalPrintedSheets">Total sheets</option><option value="goodPrintedSheets">Good sheets</option><option value="wastePrintedSheets">Waste sheets</option><option value="wasteRatio">Waste ratio</option></select><select id="customerVolumeSort" class="select"><option value="desc">Highest first</option><option value="asc">Lowest first</option></select><button id="customerVolumeExpand" class="btn secondary">Show all</button></div></div>
+        <div class="chart-head"><h3>Print Volume By Press (Flats/Sheets)</h3><div class="chart-tools"><div class="metric-toggle" id="customerVolumeUnitToggle"><button class="btn active" data-unit="flats">Flats</button><button class="btn" data-unit="sheets">Sheets</button></div><label class="micro" style="display:flex;align-items:center;gap:8px;"><input type="checkbox" id="customerVolumeShowWaste" checked /> Show Waste</label><select id="customerVolumeSort" class="select"><option value="desc">Highest first</option><option value="asc">Lowest first</option></select><button id="customerVolumeExpand" class="btn secondary">Show all</button></div></div>
         <div class="micro" id="customerVolumeNote">Stacked bars: muted dollar green = Good Volume, top segment = Waste. Waste color is based on per-press waste ratio.</div><div class="chart-area"><canvas id="customerVolumeChart"></canvas></div>
       </article>
 
@@ -462,6 +462,8 @@
     expand: { press: false, subsystem: false, alert: false, version: false },
     metricByChart: { press: 'events', subsystem: 'events', alert: 'events', version: 'events' },
     customerVolumeMetric: 'totalPrintedFlats',
+    customerVolumeUnit: 'flats',
+    customerVolumeShowWaste: true,
     customerVolumeMode: 'total',
     customerVolumeSort: 'desc',
     customerVolumeExpanded: false,
@@ -2148,7 +2150,7 @@ function extractPressCodeFromAvailabilityId(rawId) {
   function filterAvailabilityNativeRows(filterValues) {
     return (STATE.normalized.availability || []).filter(r => {
       const text = `${r.canonicalPress} ${r.canonicalModel} ${r.subsystem} ${r.downtimeCategory || ''}`.toLowerCase();
-      const day = r.day;
+      const day = r.day || toDayBucket(r.printStart || r.date || r.startTime);
       const press = r.canonicalPress || 'Unspecified';
       const subsystem = r.subsystem || 'Unspecified';
       return (filterValues.press === 'all' || press === filterValues.press) &&
@@ -2162,7 +2164,7 @@ function extractPressCodeFromAvailabilityId(rawId) {
   function filterVolumeNativeRows(filterValues) {
     return (STATE.normalized.volume || []).filter(r => {
       const text = `${r.canonicalPress} ${r.canonicalModel} ${r.customer} ${r.site}`.toLowerCase();
-      const day = r.day;
+      const day = r.day || toDayBucket(r.printStart || r.date || r.startTime);
       const press = r.canonicalPress || 'Unspecified';
       return (filterValues.press === 'all' || press === filterValues.press) &&
         (!filterValues.startDay || (day && day >= filterValues.startDay)) &&
@@ -4508,9 +4510,17 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
     return { chartRows: rows.slice(0, expanded ? rows.length : 12), fullRows: rows };
   }
 
-  function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) {
+  
+  function syncCustomerVolumeMetricFromControls() {
+    const unit = STATE.customerVolumeUnit === 'sheets' ? 'sheets' : 'flats';
+    const showWaste = STATE.customerVolumeShowWaste !== false;
+    if (unit === 'sheets') STATE.customerVolumeMetric = showWaste ? 'totalPrintedSheets' : 'goodPrintedSheets';
+    else STATE.customerVolumeMetric = showWaste ? 'totalPrintedFlats' : 'goodPrintedFlats';
+    STATE.customerVolumeMode = showWaste ? 'total' : 'good';
+  }
+function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) {
     const labels = customerVolumeRows.map(r => r.displayLabel || r.entityKey || r.canonicalPress || 'Unspecified');
-    const volumeBasis = (String(STATE.customerVolumeMetric || '').includes('Flats') || STATE.customerVolumeMetric === 'wasteRatio') ? 'flats' : 'sheets';
+    const volumeBasis = STATE.customerVolumeUnit === 'sheets' ? 'sheets' : 'flats';
     const useFlats = volumeBasis === 'flats';
     const enriched = customerVolumeRows.map(row => {
       const safe = sanitizeVolumeComponents(row.totalPrintedSheets, row.goodSheets || row.goodPrintedSheets, row.wasteSheets || row.wastePrintedSheets);
@@ -5284,19 +5294,19 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
       const notAvail = rows.reduce((a,r)=>a+Number(r.unplannedDowntimeSeconds||r.errorNotAvailableSeconds||0),0);
       const td = maint + notAvail;
       setTitle(metricKey === 'availability' ? 'Availability Drilldown' : 'Total Downtime Drilldown', 'Availability source: runtime, maintenance and not-available split by press and day.');
-      setCards([{label:'Availability', value: totalTracked ? `${(runtime/totalTracked*100).toFixed(2)}%` : 'N/A'}, {label:'Total Downtime', value: totalTracked ? `${(td/totalTracked*100).toFixed(2)}%` : 'N/A'}, {label:'Maintenance', value: totalTracked ? `${(maint/totalTracked*100).toFixed(2)}%` : 'N/A'}, {label:'Not Available', value: totalTracked ? `${(notAvail/totalTracked*100).toFixed(2)}%` : 'N/A'}]);
+      setCards(metricKey === 'availability' ? [{label:'Availability %', value: totalTracked ? `${(runtime/totalTracked*100).toFixed(2)}%` : 'N/A'}, {label:'Print Group %', value: totalTracked ? `${((runtime-maint)/totalTracked*100).toFixed(2)}%` : 'N/A'}, {label:'Total Downtime %', value: totalTracked ? `${(td/totalTracked*100).toFixed(2)}%` : 'N/A'}, {label:'Available runtime hours', value: `${Math.round(runtime/3600).toLocaleString()}h aggregate`}] : [{label:'Total Downtime %', value: totalTracked ? `${(td/totalTracked*100).toFixed(2)}%` : 'N/A'}, {label:'Maintenance %', value: totalTracked ? `${(maint/totalTracked*100).toFixed(2)}%` : 'N/A'}, {label:'Not Available %', value: totalTracked ? `${(notAvail/totalTracked*100).toFixed(2)}%` : 'N/A'}, {label:'Aggregate downtime hours', value: `${Math.round(td/3600).toLocaleString()}h aggregate`}]);
       setContext('Availability source', 'Total Downtime = Maintenance + Not Available/Error. Availability = Available runtime / total tracked time.');
       const byPress = averageGroup(rows, r=>r.canonicalPress || r.press, r=> { const den = Number((r.runtimeSeconds||0)+totalDowntimeFromAvailabilityRow(r)); return den ? (metricKey === 'availability' ? (Number(r.runtimeSeconds||0)/den*100) : (totalDowntimeFromAvailabilityRow(r)/den*100)) : 0; });
       setDrilldownHeading('drilldownTopHeading', metricKey === 'availability' ? 'Availability % by Press' : 'Total Downtime % by Press');
       renderBar('drilldownTopChart', topN(byPress).map(x=>x[0]), topN(byPress).map(x=>x[1]), metricKey === 'availability' ? 'Availability' : 'Downtime', 'percent');
       const dayAgg = new Map(); rows.forEach(r=>{ const d=r.day||''; if(!d)return; const slot=dayAgg.get(d)||{runtime:0,maint:0,na:0}; slot.runtime+=Number(r.runtimeSeconds||0); slot.maint+=Number(r.plannedDowntimeSeconds||r.maintenanceSeconds||0); slot.na+=Number(r.unplannedDowntimeSeconds||r.errorNotAvailableSeconds||0); dayAgg.set(d,slot); });
       const days=[...dayAgg.entries()].sort((a,b)=>a[0].localeCompare(b[0]));
-      setDrilldownHeading('drilldownTrendHeading','Availability / Downtime trend');
-      renderLine('drilldownTrendChart', days.map(x=>x[0]), [{label:'Availability %',data:days.map(([,v])=>{const den=v.runtime+v.maint+v.na;return den?v.runtime/den*100:0;})},{label:'Downtime %',data:days.map(([,v])=>{const den=v.runtime+v.maint+v.na;return den?(v.maint+v.na)/den*100:0;})}], 'percent');
-      setDrilldownHeading('drilldownSecondaryHeading','Downtime split');
-      renderBar('drilldownSecondaryChart', ['Maintenance','Not Available'], [maint, notAvail], 'Seconds', 'duration');
-      setDrilldownHeading('drilldownOpsHeading','Top presses by aggregate downtime');
-      const tdPress = topN(group(rows, r=>r.canonicalPress || r.press, r=>totalDowntimeFromAvailabilityRow(r))); renderBar('drilldownOpsChart', tdPress.map(x=>x[0]), tdPress.map(x=>x[1]), 'Downtime', 'duration');
+      setDrilldownHeading('drilldownTrendHeading', metricKey === 'availability' ? 'Availability / Print Group / Total Downtime trend' : 'Total Downtime % trend over time');
+      renderLine('drilldownTrendChart', days.map(x=>x[0]), metricKey === 'availability' ? [{label:'Availability %',data:days.map(([,v])=>{const den=v.runtime+v.maint+v.na;return den?v.runtime/den*100:0;})},{label:'Print Group %',data:days.map(([,v])=>{const den=v.runtime+v.maint+v.na;return den?((v.runtime-v.maint)/den*100):0;})},{label:'Total Downtime %',data:days.map(([,v])=>{const den=v.runtime+v.maint+v.na;return den?(v.maint+v.na)/den*100:0;})}] : [{label:'Total Downtime %',data:days.map(([,v])=>{const den=v.runtime+v.maint+v.na;return den?(v.maint+v.na)/den*100:0;})}], 'percent');
+      setDrilldownHeading('drilldownSecondaryHeading', metricKey === 'availability' ? 'Top presses by low Availability %' : 'Maintenance vs Not Available split');
+      if (metricKey === 'availability') { const lowAvail = averageGroup(rows, r=>r.canonicalPress || r.press, r=> { const den = Number((r.runtimeSeconds||0)+totalDowntimeFromAvailabilityRow(r)); return den ? (Number(r.runtimeSeconds||0)/den*100) : 0; }).sort((a,b)=>a[1]-b[1]); renderBar('drilldownSecondaryChart', topN(lowAvail).map(x=>x[0]), topN(lowAvail).map(x=>x[1]), 'Availability %', 'percent'); } else { renderBar('drilldownSecondaryChart', ['Maintenance','Not Available'], [maint, notAvail].map(v=>v/3600), 'Aggregate downtime hours', 'number'); }
+      setDrilldownHeading('drilldownOpsHeading', metricKey === 'availability' ? 'Print Group % by Press' : 'Top presses by aggregate downtime hours');
+      if (metricKey === 'availability') { const pgByPress = averageGroup(rows, r=>r.canonicalPress || r.press, r=>{const den=Number((r.runtimeSeconds||0)+totalDowntimeFromAvailabilityRow(r)); return den?((Number(r.runtimeSeconds||0)-Number(r.plannedDowntimeSeconds||r.maintenanceSeconds||0))/den*100):0;}); renderBar('drilldownOpsChart', topN(pgByPress).map(x=>x[0]), topN(pgByPress).map(x=>x[1]), 'Print Group %', 'percent'); } else { const tdPress = topN(group(rows, r=>r.canonicalPress || r.press, r=>totalDowntimeFromAvailabilityRow(r)/3600)); renderBar('drilldownOpsChart', tdPress.map(x=>x[0]), tdPress.map(x=>x[1]), 'Aggregate downtime hours', 'number'); }
       setTable(['Press','Day','Runtime','Maintenance','Not available','Total downtime'], rows, r=>[r.canonicalPress||r.press, r.day, formatDuration(r.runtimeSeconds||0), formatDuration(r.plannedDowntimeSeconds||r.maintenanceSeconds||0), formatDuration(r.unplannedDowntimeSeconds||r.errorNotAvailableSeconds||0), formatDuration(totalDowntimeFromAvailabilityRow(r))]);
       return true;
     }
@@ -5335,7 +5345,7 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
       const byMonth = group(rows, r=>(r.day||'').slice(0,7)||'Unspecified', r=>metricKey==='wasteRatio'?Number(r.wastePrintedFlats||0):Number(r.totalPrintedFlats||r.printedFlats||0));
       setDrilldownHeading('drilldownTopHeading', metricKey === 'wasteRatio' ? 'Waste Flats by Month' : 'Printed Flats by Month');
       renderBar('drilldownTopChart', byMonth.map(x=>x[0]), byMonth.map(x=>x[1]), metricKey === 'wasteRatio' ? 'Waste Flats' : 'Printed Flats');
-      const trend = byDay(rows, r=>metricKey==='wasteRatio'?computeWasteRatio(Number(r.wastePrintedFlats||0), Number(r.totalPrintedFlats||r.printedFlats||0))*100:Number(r.goodPrintedFlats||0));
+      const trend = byDay(rows, r=>metricKey==='wasteRatio'?computeWasteRatio(Number(r.wastePrintedFlats||0), Number(r.totalPrintedFlats||r.printedFlats||0)):Number(r.goodPrintedFlats||0));
       setDrilldownHeading('drilldownTrendHeading', metricKey === 'wasteRatio' ? 'Waste Ratio trend' : 'Good Production trend');
       renderLine('drilldownTrendChart', trend.map(x=>x[0]), [{label: metricKey==='wasteRatio'?'Waste Ratio %':'Good Flats', data:trend.map(x=>x[1]), fill:true}], metricKey==='wasteRatio'?'percent':'number');
       const byPress = topN(group(rows, r=>r.press||r.canonicalPress, r=>metricKey==='wasteRatio'?Number(r.wastePrintedFlats||0):Number(r.totalPrintedFlats||r.printedFlats||0)));
@@ -5984,14 +5994,7 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
       hasJobTypeField: wasteDetection.hasJobTypeField,
       hasSpecialJobType: wasteDetection.hasSpecialJobType
     });
-    const customerVolumeMetricSelect = document.getElementById('customerVolumeMetric');
-    if (customerVolumeMetricSelect) {
-      [...customerVolumeMetricSelect.options].forEach(opt => {
-        const isWasteOption = opt.value === 'wastePrintedSheets' || opt.value === 'wasteRatio';
-        opt.hidden = isWasteOption && sourceScope.hasWasteData === false;
-      });
-      customerVolumeMetricSelect.value = STATE.customerVolumeMetric;
-    }
+    syncCustomerVolumeMetricFromControls();
     const renderValidation = validateRenderConsistency(sourceScope, STATE.kpis);
     STATE.renderValidation = renderValidation;
     if (!renderValidation.ok) {
@@ -6920,9 +6923,17 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
 
     ['pressFilter', 'subsystemFilter', 'versionFilter', 'startDateFilter', 'endDateFilter'].forEach(id => document.getElementById(id).addEventListener('change', scheduleRender));
     searchFilter.addEventListener('input', scheduleRender);
-    customerVolumeMetric.addEventListener('change', e => {
-      STATE.customerVolumeMetric = e.target.value || 'totalPrintedFlats';
-      STATE.customerVolumeMode = STATE.customerVolumeMetric === 'wastePrintedSheets' ? 'waste' : (STATE.customerVolumeMetric === 'goodPrintedSheets' ? 'good' : (STATE.customerVolumeMetric === 'wasteRatio' ? 'wasteRatio' : 'total'));
+    const customerVolumeUnitToggle = document.getElementById('customerVolumeUnitToggle');
+    const customerVolumeShowWaste = document.getElementById('customerVolumeShowWaste');
+    customerVolumeUnitToggle?.querySelectorAll('button[data-unit]').forEach(btn => btn.addEventListener('click', () => {
+      STATE.customerVolumeUnit = btn.dataset.unit === 'sheets' ? 'sheets' : 'flats';
+      customerVolumeUnitToggle.querySelectorAll('button[data-unit]').forEach(b => b.classList.toggle('active', b === btn));
+      syncCustomerVolumeMetricFromControls();
+      scheduleRender();
+    }));
+    customerVolumeShowWaste?.addEventListener('change', e => {
+      STATE.customerVolumeShowWaste = Boolean(e.target.checked);
+      syncCustomerVolumeMetricFromControls();
       scheduleRender();
     });
     customerVolumeSort.addEventListener('change', e => { STATE.customerVolumeSort = e.target.value; scheduleRender(); });
