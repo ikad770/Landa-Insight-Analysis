@@ -484,7 +484,7 @@
     renderQueued: false,
   };
 
-  const APP_VERSION = 'InsightPro+ v1.1.9';
+  const APP_VERSION = 'InsightPro+ v1.1.10';
   const CURRENT_UI_VERSION_V2 = 'CURRENT_UI_VERSION_V2';
   const UI_RESTORE_INSTRUCTION = "If the user says 'return to current UI', restore the UI to CURRENT_UI_VERSION_V2 (not baseline V1).";
   const CHARTS = new Map();
@@ -5273,72 +5273,150 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
       });
       return [...map.entries()].sort((a,b)=>a[0].localeCompare(b[0])).map(([day, slot]) => [day, avg && slot.count ? slot.sum / slot.count : slot.sum]);
     };
-    const renderBar = (id, labels, values, label, unit = 'number', clickKey = 'drilldown', payloads = null) => {
-      if (!labels.length) { showNoDataChart(id, 'No data available for this chart.'); return; }
-      const formatUnit = value => unit === 'duration'
-        ? formatDurationCompact(Number(value || 0))
-        : unit === 'percent'
-          ? `${Number(value || 0).toFixed(2)}%`
-          : Number(value || 0).toLocaleString();
-      replaceChart(id, {
-        type: 'bar',
-        data: {
-          labels,
-          datasets: [{ label, data: values, backgroundColor: labels.map((_, i) => COLORS[i % COLORS.length]), borderRadius: 6 }]
-        },
-        options: {
-          ...baseOptions(clickKey, labels, payloads),
-          plugins: {
-            legend: { display: false },
-            tooltip: { callbacks: { label: ctx => {
-              const payload = payloads?.[ctx.dataIndex] || null;
-              if (unit === 'percent' && payload && Number.isFinite(Number(payload.aggregateSeconds)) && Number.isFinite(Number(payload.denominatorSeconds))) {
-                return buildAvailabilityPercentTooltip(label, Number(ctx.parsed.y || 0) / 100, Number(payload.aggregateSeconds || 0), Number(payload.denominatorSeconds || 0));
-              }
-              return `${label}: ${formatUnit(ctx.parsed.y)}`;
-            } } }
-          },
-          scales: {
-            x: { ticks: { color: '#c6d3ea' }, grid: { color: 'rgba(255,255,255,.04)' } },
-            y: { beginAtZero: true, ticks: { color: '#c6d3ea', callback: v => formatUnit(v) }, grid: { color: 'rgba(255,255,255,.04)' } }
-          }
-        },
-        valueLabels: { formatter: v => unit === 'duration' ? formatDurationCompact(v) : unit === 'percent' ? `${Number(v || 0).toFixed(1)}%` : formatCompactNumber(v) }
-      });
+    const drilldownSeriesColor = (label = '', index = 0) => {
+      const text = String(label || '').toLowerCase();
+      if (text.includes('production') || text.includes('good') || text.includes('volume') || text.includes('printed')) return '#22c55e';
+      if (text.includes('downtime') || text.includes('error') || text.includes('critical')) return '#ef4444';
+      if (text.includes('waste') || text.includes('maintenance')) return '#f59e0b';
+      if (text.includes('availability') || text.includes('runtime')) return '#38bdf8';
+      if (text.includes('mttr')) return '#f97316';
+      if (text.includes('mtbf')) return '#60a5fa';
+      if (text.includes('event')) return '#60a5fa';
+      return COLORS[index % COLORS.length] || '#7b8dff';
     };
+
+    const formatDrilldownValue = (value, unit = 'number') => {
+      const n = Number(value || 0);
+      if (unit === 'duration') return formatDurationCompact(n);
+      if (unit === 'percent') return `${n.toFixed(2)}%`;
+      return formatCompactNumber(n);
+    };
+
+    const tooltipTextForPoint = (label, value, unit, payload = null) => {
+      if (unit === 'percent' && payload && Number.isFinite(Number(payload.aggregateSeconds)) && Number.isFinite(Number(payload.denominatorSeconds))) {
+        return buildAvailabilityPercentTooltip(label, Number(value || 0) / 100, Number(payload.aggregateSeconds || 0), Number(payload.denominatorSeconds || 0)).join('\n');
+      }
+      return `${label}: ${formatDrilldownValue(value, unit)}`;
+    };
+
+    const prepareDrilldownChartHost = (id) => {
+      const canvas = document.getElementById(id);
+      if (!canvas) return null;
+      destroyChart(id);
+      const area = canvas.closest('.chart-area');
+      if (!area) return null;
+      area.querySelector('.chart-empty-state')?.remove();
+      area.querySelector('.drilldown-svg-chart')?.remove();
+      canvas.style.display = 'none';
+      const host = document.createElement('div');
+      host.className = 'drilldown-svg-chart';
+      host.style.cssText = 'width:100%;height:100%;min-height:220px;position:relative;';
+      area.appendChild(host);
+      return host;
+    };
+
+    const clearDrilldownSvgChart = (id) => {
+      const canvas = document.getElementById(id);
+      const area = canvas?.closest('.chart-area');
+      area?.querySelector('.drilldown-svg-chart')?.remove();
+      if (canvas) canvas.style.display = '';
+    };
+
+    const renderSvgNoData = (id, message = 'No data available for this chart.') => {
+      clearDrilldownSvgChart(id);
+      showNoDataChart(id, message);
+    };
+
+    const renderBar = (id, labels, values, label, unit = 'number', clickKey = 'drilldown', payloads = null) => {
+      labels = (labels || []).map(v => String(v ?? 'Unspecified'));
+      values = (values || []).map(v => Number(v || 0));
+      if (!labels.length || !values.some(v => Number.isFinite(v))) { renderSvgNoData(id); return; }
+      const host = prepareDrilldownChartHost(id);
+      if (!host) return;
+      const W = 760, H = 245;
+      const m = { left: 52, right: 18, top: 18, bottom: 68 };
+      const innerW = W - m.left - m.right;
+      const innerH = H - m.top - m.bottom;
+      const maxRaw = Math.max(...values.map(v => Number.isFinite(v) ? v : 0), 1);
+      const maxY = unit === 'percent' ? Math.min(100, Math.max(1, maxRaw * 1.18)) : maxRaw * 1.18;
+      const step = innerW / Math.max(labels.length, 1);
+      const barW = Math.max(12, Math.min(48, step * .62));
+      const color = drilldownSeriesColor(label, 0);
+      const y = v => m.top + innerH - (Math.max(0, v) / maxY) * innerH;
+      const grid = [0,.25,.5,.75,1].map(t => {
+        const yy = m.top + innerH - t * innerH;
+        const val = maxY * t;
+        return `<line x1="${m.left}" y1="${yy}" x2="${W-m.right}" y2="${yy}" stroke="rgba(255,255,255,.08)"/><text x="${m.left-8}" y="${yy+4}" text-anchor="end" fill="#c6d3ea" font-size="11">${unit === 'percent' ? `${val.toFixed(0)}%` : formatDrilldownValue(val, unit)}</text>`;
+      }).join('');
+      const bars = labels.map((name, i) => {
+        const v = Number(values[i] || 0);
+        const x = m.left + i * step + (step - barW) / 2;
+        const yy = y(v);
+        const h = Math.max(1, m.top + innerH - yy);
+        const c = COLORS[i % COLORS.length] || color;
+        const title = tooltipTextForPoint(label, v, unit, payloads?.[i]);
+        const shortName = name.length > 22 ? `${name.slice(0, 20)}…` : name;
+        const valLabel = formatDrilldownValue(v, unit);
+        return `<g class="svg-click-target" data-idx="${i}" style="cursor:pointer"><title>${esc(title)}</title><rect x="${x.toFixed(1)}" y="${yy.toFixed(1)}" width="${barW.toFixed(1)}" height="${h.toFixed(1)}" rx="6" fill="${c}" opacity=".92"/><text x="${(x+barW/2).toFixed(1)}" y="${Math.max(12, yy-7).toFixed(1)}" text-anchor="middle" fill="#dbe7f8" font-size="11" font-weight="700">${esc(valLabel)}</text><text x="${(x+barW/2).toFixed(1)}" y="${H-22}" text-anchor="end" transform="rotate(-32 ${(x+barW/2).toFixed(1)} ${H-22})" fill="#c6d3ea" font-size="11">${esc(shortName)}</text></g>`;
+      }).join('');
+      host.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="100%" height="100%" preserveAspectRatio="none" role="img" aria-label="${esc(label)} chart">${grid}<line x1="${m.left}" y1="${m.top+innerH}" x2="${W-m.right}" y2="${m.top+innerH}" stroke="rgba(255,255,255,.12)"/>${bars}</svg>`;
+      host.querySelectorAll('.svg-click-target').forEach(node => node.addEventListener('click', event => {
+        event.stopPropagation();
+        const idx = Number(node.getAttribute('data-idx'));
+        const payload = payloads?.[idx] || null;
+        if (payload && payload.entityKey) openDrilldown(clickKey, payload.entityKey, payload);
+        else if (labels[idx]) openDrilldown(clickKey, labels[idx]);
+      }));
+    };
+
     const renderLine = (id, labels, datasets, unit = 'number', clickKey = 'drilldown', payloads = null) => {
-      if (!labels.length || !datasets.length) { showNoDataChart(id, 'No data available for this chart.'); return; }
-      const formatUnit = value => unit === 'duration'
-        ? formatDurationCompact(Number(value || 0))
-        : unit === 'percent'
-          ? `${Number(value || 0).toFixed(2)}%`
-          : Number(value || 0).toLocaleString();
-      replaceChart(id, {
-        type: 'line',
-        data: {
-          labels,
-          datasets: datasets.map((ds, i) => ({ ...ds, borderColor: ds.borderColor || COLORS[i % COLORS.length], backgroundColor: ds.backgroundColor || 'rgba(123,141,255,.16)', tension: .25, fill: Boolean(ds.fill) }))
-        },
-        options: {
-          ...baseOptions(clickKey, labels, payloads),
-          plugins: {
-            legend: { display: true, labels: { color: '#c6d3ea' } },
-            tooltip: { callbacks: { label: ctx => {
-              const ds = ctx.dataset || {};
-              const secondsArr = ds.aggregateSeconds || [];
-              const denomArr = ds.denominatorSeconds || [];
-              if (unit === 'percent' && Number.isFinite(Number(secondsArr[ctx.dataIndex])) && Number.isFinite(Number(denomArr[ctx.dataIndex]))) {
-                return buildAvailabilityPercentTooltip(ds.label || 'Value', Number(ctx.parsed.y || 0) / 100, Number(secondsArr[ctx.dataIndex] || 0), Number(denomArr[ctx.dataIndex] || 0));
-              }
-              return `${ctx.dataset.label}: ${formatUnit(ctx.parsed.y)}`;
-            } } }
-          },
-          scales: {
-            x: { ticks: { color: '#c6d3ea' }, grid: { color: 'rgba(255,255,255,.04)' } },
-            y: { beginAtZero: true, ticks: { color: '#c6d3ea', callback: v => formatUnit(v) }, grid: { color: 'rgba(255,255,255,.04)' } }
-          }
-        }
-      });
+      labels = (labels || []).map(v => String(v ?? ''));
+      datasets = (datasets || []).filter(ds => Array.isArray(ds.data) && ds.data.length);
+      if (!labels.length || !datasets.length) { renderSvgNoData(id); return; }
+      const host = prepareDrilldownChartHost(id);
+      if (!host) return;
+      const W = 760, H = 245;
+      const m = { left: 54, right: 18, top: 30, bottom: 56 };
+      const innerW = W - m.left - m.right;
+      const innerH = H - m.top - m.bottom;
+      const allVals = datasets.flatMap(ds => ds.data.map(v => Number(v || 0))).filter(Number.isFinite);
+      const maxRaw = Math.max(...allVals, 1);
+      const maxY = unit === 'percent' ? Math.min(100, Math.max(1, maxRaw * 1.18)) : maxRaw * 1.18;
+      const x = i => m.left + (labels.length <= 1 ? innerW / 2 : (i / (labels.length - 1)) * innerW);
+      const y = v => m.top + innerH - (Math.max(0, Number(v || 0)) / maxY) * innerH;
+      const grid = [0,.25,.5,.75,1].map(t => {
+        const yy = m.top + innerH - t * innerH;
+        const val = maxY * t;
+        return `<line x1="${m.left}" y1="${yy}" x2="${W-m.right}" y2="${yy}" stroke="rgba(255,255,255,.08)"/><text x="${m.left-8}" y="${yy+4}" text-anchor="end" fill="#c6d3ea" font-size="11">${unit === 'percent' ? `${val.toFixed(0)}%` : formatDrilldownValue(val, unit)}</text>`;
+      }).join('');
+      const legend = datasets.map((ds, i) => {
+        const c = ds.borderColor || drilldownSeriesColor(ds.label, i);
+        return `<g transform="translate(${m.left + i * 145},14)"><rect width="18" height="4" rx="2" fill="${c}"/><text x="24" y="5" fill="#c6d3ea" font-size="11">${esc(ds.label || 'Value')}</text></g>`;
+      }).join('');
+      const series = datasets.map((ds, di) => {
+        const c = ds.borderColor || drilldownSeriesColor(ds.label, di);
+        const points = ds.data.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
+        const circles = ds.data.map((v, i) => {
+          const title = unit === 'percent' && Array.isArray(ds.aggregateSeconds) && Array.isArray(ds.denominatorSeconds)
+            ? buildAvailabilityPercentTooltip(ds.label || 'Value', Number(v || 0) / 100, Number(ds.aggregateSeconds[i] || 0), Number(ds.denominatorSeconds[i] || 0)).join('\n')
+            : `${ds.label || 'Value'}: ${formatDrilldownValue(v, unit)}\n${labels[i] || ''}`;
+          return `<circle class="svg-click-target" data-idx="${i}" cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="4" fill="${c}" stroke="#0f172a" stroke-width="1.5" style="cursor:pointer"><title>${esc(title)}</title></circle>`;
+        }).join('');
+        const area = ds.fill ? `<polygon points="${m.left},${m.top+innerH} ${points} ${m.left+innerW},${m.top+innerH}" fill="${c}" opacity=".13"/>` : '';
+        return `${area}<polyline points="${points}" fill="none" stroke="${c}" stroke-width="2.5"/>${circles}`;
+      }).join('');
+      const xLabels = labels.map((name, i) => {
+        const show = labels.length <= 12 || i % Math.ceil(labels.length / 12) === 0 || i === labels.length - 1;
+        if (!show) return '';
+        return `<text x="${x(i).toFixed(1)}" y="${H-22}" text-anchor="end" transform="rotate(-45 ${x(i).toFixed(1)} ${H-22})" fill="#c6d3ea" font-size="11">${esc(name)}</text>`;
+      }).join('');
+      host.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="100%" height="100%" preserveAspectRatio="none" role="img">${legend}${grid}<line x1="${m.left}" y1="${m.top+innerH}" x2="${W-m.right}" y2="${m.top+innerH}" stroke="rgba(255,255,255,.12)"/>${series}${xLabels}</svg>`;
+      host.querySelectorAll('.svg-click-target').forEach(node => node.addEventListener('click', event => {
+        event.stopPropagation();
+        const idx = Number(node.getAttribute('data-idx'));
+        const payload = payloads?.[idx] || null;
+        if (payload && payload.entityKey) openDrilldown(clickKey, payload.entityKey, payload);
+      }));
     };
     const topN = arr => arr.slice(0, 10);
     const cardsHost = ['drilldownTopChart','drilldownTrendChart','drilldownSecondaryChart','drilldownOpsChart'];
