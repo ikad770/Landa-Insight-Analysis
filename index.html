@@ -3620,6 +3620,26 @@ function buildSectionSummaries({ topPressDowntime = [], topPrintVolume = [], top
     if (node) node.textContent = text;
   }
 
+  function formatPercentRatio(value) {
+    const ratio = Number(value || 0);
+    if (!Number.isFinite(ratio)) return '0.00%';
+    return `${(ratio * 100).toFixed(2)}%`;
+  }
+
+  function formatAggregateHours(seconds) {
+    const totalSeconds = Math.max(0, Number(seconds || 0));
+    const totalMinutes = Math.round(totalSeconds / 60);
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+    return `${hours.toLocaleString()}h ${minutes.toLocaleString()}m`;
+  }
+
+  function availabilityTooltipLabel(label, ratio, seconds, denominatorSeconds = null) {
+    const parts = [`${label}: ${formatPercentRatio(ratio)} • ${formatAggregateHours(seconds)} aggregate`];
+    if (Number(denominatorSeconds || 0) > 0) parts.push(`of ${formatAggregateHours(denominatorSeconds)} tracked`);
+    return parts.join(' • ');
+  }
+
   function baseOptions(key, labels, payloads = null) {
     return {
       responsive: true,
@@ -4776,6 +4796,51 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
     if (drillSearch) drillSearch.value = '';
   }
 
+  function pushDrilldownLevel(nextState) {
+    if (!nextState || !Array.isArray(nextState.rows) || nextState.rows.length === 0) {
+      setStatus('No data available for this selection', 'warning');
+      return false;
+    }
+    if (!Array.isArray(STATE.drilldownStack)) STATE.drilldownStack = [];
+    if (STATE.drilldown?.rows?.length) {
+      STATE.drilldownStack.push(structuredClone({
+        ...STATE.drilldown,
+        simulation: {
+          pendingExcluded: [...(STATE.drilldown.simulation?.pendingExcluded || [])],
+          appliedExcluded: [...(STATE.drilldown.simulation?.appliedExcluded || [])]
+        }
+      }));
+    }
+    STATE.drilldown = nextState;
+    renderDrilldown();
+    refreshDrilldownChartsAfterOpen();
+    scrollDrilldownChartsIntoView();
+    return true;
+  }
+
+  function goBackDrilldownLevel() {
+    const history = STATE.drilldownStack || [];
+    if (!history.length) {
+      forceCloseDrilldown('back-root');
+      return;
+    }
+    const previous = history.pop();
+    if (!previous || !Array.isArray(previous.rows) || previous.rows.length === 0) {
+      setStatus('No data available for this selection', 'warning');
+      return;
+    }
+    STATE.drilldown = {
+      ...previous,
+      simulation: {
+        pendingExcluded: new Set(previous.simulation?.pendingExcluded || []),
+        appliedExcluded: new Set(previous.simulation?.appliedExcluded || [])
+      }
+    };
+    renderDrilldown();
+    refreshDrilldownChartsAfterOpen();
+    scrollDrilldownChartsIntoView();
+  }
+
   function openKpiDrilldown(metricKey, metricName) {
     forceCloseDrilldown('open-kpi-reset');
     const baselineData = buildKpiBaselineData(metricKey);
@@ -4940,17 +5005,9 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
         }
       })];
     }
-    STATE.drilldownStack.push(structuredClone({
-      ...nextDrilldownState,
-      simulation: {
-        pendingExcluded: [...(nextDrilldownState.simulation?.pendingExcluded || [])],
-        appliedExcluded: [...(nextDrilldownState.simulation?.appliedExcluded || [])]
-      }
-    }));
-    STATE.drilldown = nextDrilldownState;
     showBreakdown = false;
     document.getElementById('drilldownDrawer').classList.add('show');
-    requestAnimationFrame(() => { renderDrilldown(); refreshDrilldownChartsAfterOpen(); scrollDrilldownChartsIntoView(); });
+    pushDrilldownLevel(nextDrilldownState);
   }
 
   function buildDrilldownAnalytics(rows, dimension, isVolume = false, metric = 'events') {
@@ -5296,17 +5353,18 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
       setTitle(metricKey === 'availability' ? 'Availability Drilldown' : 'Total Downtime Drilldown', 'Availability source: runtime, maintenance and not-available split by press and day.');
       setCards(metricKey === 'availability' ? [{label:'Availability %', value: totalTracked ? `${(runtime/totalTracked*100).toFixed(2)}%` : 'N/A'}, {label:'Print Group %', value: totalTracked ? `${((runtime-maint)/totalTracked*100).toFixed(2)}%` : 'N/A'}, {label:'Total Downtime %', value: totalTracked ? `${(td/totalTracked*100).toFixed(2)}%` : 'N/A'}, {label:'Available runtime hours', value: `${Math.round(runtime/3600).toLocaleString()}h aggregate`}] : [{label:'Total Downtime %', value: totalTracked ? `${(td/totalTracked*100).toFixed(2)}%` : 'N/A'}, {label:'Maintenance %', value: totalTracked ? `${(maint/totalTracked*100).toFixed(2)}%` : 'N/A'}, {label:'Not Available %', value: totalTracked ? `${(notAvail/totalTracked*100).toFixed(2)}%` : 'N/A'}, {label:'Aggregate downtime hours', value: `${Math.round(td/3600).toLocaleString()}h aggregate`}]);
       setContext('Availability source', 'Total Downtime = Maintenance + Not Available/Error. Availability = Available runtime / total tracked time.');
-      const byPress = averageGroup(rows, r=>r.canonicalPress || r.press, r=> { const den = Number((r.runtimeSeconds||0)+totalDowntimeFromAvailabilityRow(r)); return den ? (metricKey === 'availability' ? (Number(r.runtimeSeconds||0)/den*100) : (totalDowntimeFromAvailabilityRow(r)/den*100)) : 0; });
+      const pressRatios = averageGroup(rows, r=>r.canonicalPress || r.press, r=> { const den = Number((r.runtimeSeconds||0)+totalDowntimeFromAvailabilityRow(r)); return den ? (metricKey === 'availability' ? (Number(r.runtimeSeconds||0)/den) : (totalDowntimeFromAvailabilityRow(r)/den)) : 0; });
       setDrilldownHeading('drilldownTopHeading', metricKey === 'availability' ? 'Availability % by Press' : 'Total Downtime % by Press');
-      renderBar('drilldownTopChart', topN(byPress).map(x=>x[0]), topN(byPress).map(x=>x[1]), metricKey === 'availability' ? 'Availability' : 'Downtime', 'percent');
+      const topPressRatios = topN(pressRatios);
+      replaceChart('drilldownTopChart', { type: 'bar', data: { labels: topPressRatios.map(x=>x[0]), datasets: [{ label: metricKey === 'availability' ? 'Availability %' : 'Total Downtime %', data: topPressRatios.map(x=>Number(x[1]||0) * 100), backgroundColor: COLORS, borderRadius: 6 }] }, options: { ...baseOptions('press', topPressRatios.map(x=>x[0]), topPressRatios.map(x=>({ entityKey:x[0], displayLabel:x[0], sourceType:'availabilityAgg', metric: metricKey, parentContext:{ path: STATE.drilldown.path || [] } }))), plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => { const press = ctx.label; const pressRows = rows.filter(r => (r.canonicalPress || r.press || 'Unspecified') === press); const tracked = pressRows.reduce((a,r)=>a+Number((r.runtimeSeconds||0)+totalDowntimeFromAvailabilityRow(r)),0); const seconds = metricKey === 'availability' ? pressRows.reduce((a,r)=>a+Number(r.runtimeSeconds||0),0) : pressRows.reduce((a,r)=>a+Number(totalDowntimeFromAvailabilityRow(r)||0),0); return availabilityTooltipLabel(metricKey === 'availability' ? 'Availability' : 'Total Downtime', Number(ctx.parsed.y||0)/100, seconds, tracked); } } } } }, valueLabels: { formatter: v => `${Number(v||0).toFixed(2)}%` } });
       const dayAgg = new Map(); rows.forEach(r=>{ const d=r.day||''; if(!d)return; const slot=dayAgg.get(d)||{runtime:0,maint:0,na:0}; slot.runtime+=Number(r.runtimeSeconds||0); slot.maint+=Number(r.plannedDowntimeSeconds||r.maintenanceSeconds||0); slot.na+=Number(r.unplannedDowntimeSeconds||r.errorNotAvailableSeconds||0); dayAgg.set(d,slot); });
       const days=[...dayAgg.entries()].sort((a,b)=>a[0].localeCompare(b[0]));
       setDrilldownHeading('drilldownTrendHeading', metricKey === 'availability' ? 'Availability / Print Group / Total Downtime trend' : 'Total Downtime % trend over time');
       renderLine('drilldownTrendChart', days.map(x=>x[0]), metricKey === 'availability' ? [{label:'Availability %',data:days.map(([,v])=>{const den=v.runtime+v.maint+v.na;return den?v.runtime/den*100:0;})},{label:'Print Group %',data:days.map(([,v])=>{const den=v.runtime+v.maint+v.na;return den?((v.runtime-v.maint)/den*100):0;})},{label:'Total Downtime %',data:days.map(([,v])=>{const den=v.runtime+v.maint+v.na;return den?(v.maint+v.na)/den*100:0;})}] : [{label:'Total Downtime %',data:days.map(([,v])=>{const den=v.runtime+v.maint+v.na;return den?(v.maint+v.na)/den*100:0;})}], 'percent');
       setDrilldownHeading('drilldownSecondaryHeading', metricKey === 'availability' ? 'Top presses by low Availability %' : 'Maintenance vs Not Available split');
-      if (metricKey === 'availability') { const lowAvail = averageGroup(rows, r=>r.canonicalPress || r.press, r=> { const den = Number((r.runtimeSeconds||0)+totalDowntimeFromAvailabilityRow(r)); return den ? (Number(r.runtimeSeconds||0)/den*100) : 0; }).sort((a,b)=>a[1]-b[1]); renderBar('drilldownSecondaryChart', topN(lowAvail).map(x=>x[0]), topN(lowAvail).map(x=>x[1]), 'Availability %', 'percent'); } else { renderBar('drilldownSecondaryChart', ['Maintenance','Not Available'], [maint, notAvail].map(v=>v/3600), 'Aggregate downtime hours', 'number'); }
+      if (metricKey === 'availability') { const lowAvail = averageGroup(rows, r=>r.canonicalPress || r.press, r=> { const den = Number((r.runtimeSeconds||0)+totalDowntimeFromAvailabilityRow(r)); return den ? (Number(r.runtimeSeconds||0)/den*100) : 0; }).sort((a,b)=>a[1]-b[1]); renderBar('drilldownSecondaryChart', topN(lowAvail).map(x=>x[0]), topN(lowAvail).map(x=>x[1]), 'Availability %', 'percent'); } else { renderBar('drilldownSecondaryChart', ['Maintenance %','Not Available %'], [maint/totalTracked*100, notAvail/totalTracked*100], 'Downtime split %', 'percent'); }
       setDrilldownHeading('drilldownOpsHeading', metricKey === 'availability' ? 'Print Group % by Press' : 'Top presses by aggregate downtime hours');
-      if (metricKey === 'availability') { const pgByPress = averageGroup(rows, r=>r.canonicalPress || r.press, r=>{const den=Number((r.runtimeSeconds||0)+totalDowntimeFromAvailabilityRow(r)); return den?((Number(r.runtimeSeconds||0)-Number(r.plannedDowntimeSeconds||r.maintenanceSeconds||0))/den*100):0;}); renderBar('drilldownOpsChart', topN(pgByPress).map(x=>x[0]), topN(pgByPress).map(x=>x[1]), 'Print Group %', 'percent'); } else { const tdPress = topN(group(rows, r=>r.canonicalPress || r.press, r=>totalDowntimeFromAvailabilityRow(r)/3600)); renderBar('drilldownOpsChart', tdPress.map(x=>x[0]), tdPress.map(x=>x[1]), 'Aggregate downtime hours', 'number'); }
+      if (metricKey === 'availability') { const pgByPress = averageGroup(rows, r=>r.canonicalPress || r.press, r=>{const den=Number((r.runtimeSeconds||0)+totalDowntimeFromAvailabilityRow(r)); return den?((Number(r.runtimeSeconds||0)-Number(r.plannedDowntimeSeconds||r.maintenanceSeconds||0))/den*100):0;}); renderBar('drilldownOpsChart', topN(pgByPress).map(x=>x[0]), topN(pgByPress).map(x=>x[1]), 'Print Group %', 'percent'); } else { const tdPress = topN(averageGroup(rows, r=>r.canonicalPress || r.press, r=>{ const tracked=Number((r.runtimeSeconds||0)+totalDowntimeFromAvailabilityRow(r)); return tracked ? totalDowntimeFromAvailabilityRow(r)/tracked*100 : 0; })); renderBar('drilldownOpsChart', tdPress.map(x=>x[0]), tdPress.map(x=>x[1]), 'Total Downtime %', 'percent'); }
       setTable(['Press','Day','Runtime','Maintenance','Not available','Total downtime'], rows, r=>[r.canonicalPress||r.press, r.day, formatDuration(r.runtimeSeconds||0), formatDuration(r.plannedDowntimeSeconds||r.maintenanceSeconds||0), formatDuration(r.unplannedDowntimeSeconds||r.errorNotAvailableSeconds||0), formatDuration(totalDowntimeFromAvailabilityRow(r))]);
       return true;
     }
@@ -6939,24 +6997,7 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
     customerVolumeSort.addEventListener('change', e => { STATE.customerVolumeSort = e.target.value; scheduleRender(); });
     customerVolumeExpand.addEventListener('click', () => { STATE.customerVolumeExpanded = !STATE.customerVolumeExpanded; scheduleRender(); });
     closeDrilldown.addEventListener('click', () => forceCloseDrilldown('close-button'));
-    document.getElementById('drilldownBack')?.addEventListener('click', () => {
-      const history = STATE.drilldownStack || [];
-      if (history.length <= 1) {
-        forceCloseDrilldown('back-root');
-        return;
-      }
-      history.pop();
-      const previous = history[history.length - 1];
-      if (!previous || !Array.isArray(previous.rows) || previous.rows.length === 0) { forceCloseDrilldown('invalid-back-state'); return; }
-      STATE.drilldown = {
-        ...previous,
-        simulation: {
-          pendingExcluded: new Set(previous?.simulation?.pendingExcluded || []),
-          appliedExcluded: new Set(previous?.simulation?.appliedExcluded || [])
-        }
-      };
-      renderDrilldown();
-    });
+    document.getElementById('drilldownBack')?.addEventListener('click', () => goBackDrilldownLevel());
     drilldownDrawer.addEventListener('click', e => { if (e.target.id === 'drilldownDrawer') forceCloseDrilldown('outside-click'); });
     document.querySelector('#drilldownDrawer .drawer-panel')?.addEventListener('click', e => e.stopPropagation());
     document.addEventListener('keydown', e => {
