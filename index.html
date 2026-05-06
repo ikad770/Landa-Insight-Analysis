@@ -484,7 +484,7 @@
     renderQueued: false,
   };
 
-  const APP_VERSION = 'InsightPro+ v1.1.8';
+  const APP_VERSION = 'InsightPro+ v1.1.9';
   const CURRENT_UI_VERSION_V2 = 'CURRENT_UI_VERSION_V2';
   const UI_RESTORE_INSTRUCTION = "If the user says 'return to current UI', restore the UI to CURRENT_UI_VERSION_V2 (not baseline V1).";
   const CHARTS = new Map();
@@ -2213,8 +2213,8 @@ function extractPressCodeFromAvailabilityId(rawId) {
       plannedDowntimeSeconds: row.plannedDowntimeSeconds || 0,
       unplannedDowntimeSeconds: row.unplannedDowntimeSeconds || 0,
       serviceDowntimeSeconds: row.serviceDowntimeSeconds || 0,
-      printSeconds: row.printSeconds || row.printGroupSeconds || 0,
-      printGroupSeconds: row.printGroupSeconds || row.printSeconds || 0,
+      printSeconds: row.printSeconds || row.printGroupSeconds || row.printProductionSeconds || 0,
+      printGroupSeconds: row.printGroupSeconds || row.printSeconds || row.printProductionSeconds || 0,
       availableWithoutPrintSeconds: row.availableWithoutPrintSeconds || 0,
       preventiveMaintenanceSeconds: row.preventiveMaintenanceSeconds || 0,
       onJobMaintenanceSeconds: row.onJobMaintenanceSeconds || 0,
@@ -2301,6 +2301,10 @@ function extractPressCodeFromAvailabilityId(rawId) {
 
   function totalDowntimeFromAvailabilityRow(row) {
     return row?.downtimeSeconds || ((row?.plannedDowntimeSeconds || 0) + (row?.unplannedDowntimeSeconds || 0));
+  }
+
+  function productionTimeFromAvailabilityRow(row) {
+    return Number(row?.printSeconds || row?.printGroupSeconds || row?.printProductionSeconds || 0);
   }
 
   function computeAvailabilityDefinitions(availabilityAgg = []) {
@@ -4818,13 +4822,14 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
     }
     if (!Array.isArray(STATE.drilldownStack)) STATE.drilldownStack = [];
     if (STATE.drilldown?.rows?.length) {
-      STATE.drilldownStack.push(structuredClone({
+      STATE.drilldownStack.push({
         ...STATE.drilldown,
+        rows: STATE.drilldown.rows || [],
         simulation: {
           pendingExcluded: [...(STATE.drilldown.simulation?.pendingExcluded || [])],
           appliedExcluded: [...(STATE.drilldown.simulation?.appliedExcluded || [])]
         }
-      }));
+      });
     }
     STATE.drilldown = nextState;
     renderDrilldown();
@@ -4884,11 +4889,7 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
     STATE.simulationData = null;
     STATE.pendingSimulationChanges = new Set();
     STATE.appliedSimulationData = null;
-    STATE.drilldownStack = [structuredClone({
-      ...STATE.drilldown,
-      simulation: { pendingExcluded: [], appliedExcluded: [] }
-    })];
-    showBreakdown = false;
+    STATE.drilldownStack = [];
     document.getElementById('drilldownDrawer').classList.add('show');
     requestAnimationFrame(() => { renderDrilldown(); refreshDrilldownChartsAfterOpen(); scrollDrilldownChartsIntoView(); });
   }
@@ -4954,8 +4955,9 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
   }
 
   function openDrilldown(dimension, value, payload = null) {
+    const drawerOpen = Boolean(document.getElementById('drilldownDrawer')?.classList.contains('show'));
     const hasBreadcrumbPath = Array.isArray(payload?.parentContext?.path) && payload.parentContext.path.length > 0;
-    if (!hasBreadcrumbPath) forceCloseDrilldown('open-drilldown-reset');
+    if (!drawerOpen && !hasBreadcrumbPath) forceCloseDrilldown('open-drilldown-reset');
     else resetDrilldownScopedState();
     const existingSimulation = STATE.drilldown.simulation || { pendingExcluded: new Set(), appliedExcluded: new Set() };
     const entityKey = payload?.entityKey || value;
@@ -5013,16 +5015,6 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
       sort: null,
       simulation: { pendingExcluded: new Set(existingSimulation.pendingExcluded || []), appliedExcluded: new Set(existingSimulation.appliedExcluded || []) }
     };
-    if (!Array.isArray(STATE.drilldownStack) || !STATE.drilldownStack.length) {
-      STATE.drilldownStack = [structuredClone({
-        ...STATE.drilldown,
-        simulation: {
-          pendingExcluded: [...(STATE.drilldown.simulation?.pendingExcluded || [])],
-          appliedExcluded: [...(STATE.drilldown.simulation?.appliedExcluded || [])]
-        }
-      })];
-    }
-    showBreakdown = false;
     document.getElementById('drilldownDrawer').classList.add('show');
     pushDrilldownLevel(nextDrilldownState);
   }
@@ -5298,7 +5290,13 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
           ...baseOptions(clickKey, labels, payloads),
           plugins: {
             legend: { display: false },
-            tooltip: { callbacks: { label: ctx => `${label}: ${formatUnit(ctx.parsed.y)}` } }
+            tooltip: { callbacks: { label: ctx => {
+              const payload = payloads?.[ctx.dataIndex] || null;
+              if (unit === 'percent' && payload && Number.isFinite(Number(payload.aggregateSeconds)) && Number.isFinite(Number(payload.denominatorSeconds))) {
+                return buildAvailabilityPercentTooltip(label, Number(ctx.parsed.y || 0) / 100, Number(payload.aggregateSeconds || 0), Number(payload.denominatorSeconds || 0));
+              }
+              return `${label}: ${formatUnit(ctx.parsed.y)}`;
+            } } }
           },
           scales: {
             x: { ticks: { color: '#c6d3ea' }, grid: { color: 'rgba(255,255,255,.04)' } },
@@ -5308,7 +5306,7 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
         valueLabels: { formatter: v => unit === 'duration' ? formatDurationCompact(v) : unit === 'percent' ? `${Number(v || 0).toFixed(1)}%` : formatCompactNumber(v) }
       });
     };
-    const renderLine = (id, labels, datasets, unit = 'number') => {
+    const renderLine = (id, labels, datasets, unit = 'number', clickKey = 'drilldown', payloads = null) => {
       if (!labels.length || !datasets.length) { showNoDataChart(id, 'No data available for this chart.'); return; }
       const formatUnit = value => unit === 'duration'
         ? formatDurationCompact(Number(value || 0))
@@ -5325,7 +5323,15 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
           ...baseOptions(clickKey, labels, payloads),
           plugins: {
             legend: { display: true, labels: { color: '#c6d3ea' } },
-            tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${formatUnit(ctx.parsed.y)}` } }
+            tooltip: { callbacks: { label: ctx => {
+              const ds = ctx.dataset || {};
+              const secondsArr = ds.aggregateSeconds || [];
+              const denomArr = ds.denominatorSeconds || [];
+              if (unit === 'percent' && Number.isFinite(Number(secondsArr[ctx.dataIndex])) && Number.isFinite(Number(denomArr[ctx.dataIndex]))) {
+                return buildAvailabilityPercentTooltip(ds.label || 'Value', Number(ctx.parsed.y || 0) / 100, Number(secondsArr[ctx.dataIndex] || 0), Number(denomArr[ctx.dataIndex] || 0));
+              }
+              return `${ctx.dataset.label}: ${formatUnit(ctx.parsed.y)}`;
+            } } }
           },
           scales: {
             x: { ticks: { color: '#c6d3ea' }, grid: { color: 'rgba(255,255,255,.04)' } },
@@ -5341,7 +5347,7 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
     renderSimulationControls(0);
 
     if (metricKey === 'events') {
-      const rows = scope.filteredErrorEventsNative || scopedRows;
+      const rows = ((STATE.drilldown.path || []).length > 1 || STATE.drilldown.sourceType === 'errorEvents') ? (scopedRows || []) : (scope.filteredErrorEventsNative || scopedRows || []);
       if (!rows.length) return false;
       const durationRows = rows.filter(isDurationIncluded);
       setTitle('Events Drilldown', 'Errors-based event count, valid event duration, subsystem and production context.');
@@ -5354,13 +5360,13 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
       setDrilldownHeading('drilldownSecondaryHeading','Events by Subsystem');
       const subs = topN(group(rows, r=>r.subsystem, ()=>1)); renderBar('drilldownSecondaryChart', subs.map(x=>x[0]), subs.map(x=>x[1]), 'Events');
       setDrilldownHeading('drilldownOpsHeading','Valid Event Duration by Press');
-      const dur = topN(group(durationRows, r=>r.press, r=>cleanDurationSeconds(r))); renderBar('drilldownOpsChart', dur.map(x=>x[0]), dur.map(x=>x[1]), 'Valid Event Duration', 'duration');
+      const dur = topN(group(durationRows, r=>r.press, r=>cleanDurationSeconds(r))); renderBar('drilldownOpsChart', dur.map(x=>x[0]), dur.map(x=>x[1]), 'Valid event duration', 'duration');
       setTable(['Press','Subsystem','Alert','Version','Start','Duration'], rows, r=>[r.press, r.subsystem, r.name !== 'Unspecified' ? r.name : r.alertTitle, r.version, r.startTime?.toISOString?.() || '', formatDuration(cleanDurationSeconds(r))]);
       return true;
     }
 
     if (metricKey === 'downtime' || metricKey === 'availability') {
-      const rows = scope.availabilityAgg || [];
+      const rows = ((STATE.drilldown.path || []).length > 1 || STATE.drilldown.sourceType === 'availabilityAgg' || STATE.drilldown.sourceType === 'availabilityNative') ? (scopedRows || []) : (scope.availabilityAgg || []);
       if (!rows.length) return false;
       const totalTracked = rows.reduce((a,r)=>a+Number((r.runtimeSeconds||0)+totalDowntimeFromAvailabilityRow(r)),0);
       const runtime = rows.reduce((a,r)=>a+Number(r.runtimeSeconds||0),0);
@@ -5368,20 +5374,20 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
       const notAvail = rows.reduce((a,r)=>a+Number(r.unplannedDowntimeSeconds||r.errorNotAvailableSeconds||0),0);
       const td = maint + notAvail;
       setTitle(metricKey === 'availability' ? 'Availability Drilldown' : 'Total Downtime Drilldown', 'Availability source: runtime, maintenance and not-available split by press and day.');
-      setCards(metricKey === 'availability' ? [{label:'Availability %', value: totalTracked ? `${(runtime/totalTracked*100).toFixed(2)}%` : 'N/A'}, {label:'Production Time %', value: totalTracked ? `${((rows.reduce((a,r)=>a+Number(r.printSeconds||r.printGroupSeconds||0),0))/totalTracked*100).toFixed(2)}%` : 'N/A'}, {label:'Total Downtime %', value: totalTracked ? `${(td/totalTracked*100).toFixed(2)}%` : 'N/A'}, {label:'Available runtime hours', value: `${Math.round(runtime/3600).toLocaleString()}h aggregate`}] : [{label:'Total Downtime %', value: totalTracked ? `${(td/totalTracked*100).toFixed(2)}%` : 'N/A'}, {label:'Maintenance %', value: totalTracked ? `${(maint/totalTracked*100).toFixed(2)}%` : 'N/A'}, {label:'Not Available %', value: totalTracked ? `${(notAvail/totalTracked*100).toFixed(2)}%` : 'N/A'}, {label:'Aggregate downtime hours', value: `${Math.round(td/3600).toLocaleString()}h aggregate`}]);
+      setCards(metricKey === 'availability' ? [{label:'Availability %', value: totalTracked ? `${(runtime/totalTracked*100).toFixed(2)}%` : 'N/A'}, {label:'Production Time %', value: totalTracked ? `${(rows.reduce((a,r)=>a+productionTimeFromAvailabilityRow(r),0)/totalTracked*100).toFixed(2)}%` : 'N/A'}, {label:'Total Downtime %', value: totalTracked ? `${(td/totalTracked*100).toFixed(2)}%` : 'N/A'}, {label:'Available runtime hours', value: `${Math.round(runtime/3600).toLocaleString()}h aggregate`}] : [{label:'Total Downtime %', value: totalTracked ? `${(td/totalTracked*100).toFixed(2)}%` : 'N/A'}, {label:'Maintenance %', value: totalTracked ? `${(maint/totalTracked*100).toFixed(2)}%` : 'N/A'}, {label:'Not Available %', value: totalTracked ? `${(notAvail/totalTracked*100).toFixed(2)}%` : 'N/A'}, {label:'Aggregate downtime hours', value: `${Math.round(td/3600).toLocaleString()}h aggregate`}]);
       setContext('Availability source', 'Total Downtime = Maintenance + Not Available/Error. Availability = Available runtime / total tracked time. Production Time = Print (Production) + Calibration + Proof + Coating without Printing.');
       const pressRatios = averageGroup(rows, r=>r.canonicalPress || r.press, r=> { const den = Number((r.runtimeSeconds||0)+totalDowntimeFromAvailabilityRow(r)); return den ? (metricKey === 'availability' ? (Number(r.runtimeSeconds||0)/den) : (totalDowntimeFromAvailabilityRow(r)/den)) : 0; });
       setDrilldownHeading('drilldownTopHeading', metricKey === 'availability' ? 'Availability % by Press' : 'Total Downtime % by Press');
       const topPressRatios = topN(pressRatios);
       replaceChart('drilldownTopChart', { type: 'bar', data: { labels: topPressRatios.map(x=>x[0]), datasets: [{ label: metricKey === 'availability' ? 'Availability %' : 'Total Downtime %', data: topPressRatios.map(x=>Number(x[1]||0) * 100), backgroundColor: COLORS, borderRadius: 6 }] }, options: { ...baseOptions('press', topPressRatios.map(x=>x[0]), topPressRatios.map(x=>({ entityKey:x[0], displayLabel:x[0], sourceType:'availabilityAgg', metric: metricKey, parentContext:{ path: STATE.drilldown.path || [] } }))), plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => { const press = ctx.label; const pressRows = rows.filter(r => (r.canonicalPress || r.press || 'Unspecified') === press); const tracked = pressRows.reduce((a,r)=>a+Number((r.runtimeSeconds||0)+totalDowntimeFromAvailabilityRow(r)),0); const seconds = metricKey === 'availability' ? pressRows.reduce((a,r)=>a+Number(r.runtimeSeconds||0),0) : pressRows.reduce((a,r)=>a+Number(totalDowntimeFromAvailabilityRow(r)||0),0); return buildAvailabilityPercentTooltip(metricKey === 'availability' ? 'Availability' : 'Total Downtime', Number(ctx.parsed.y||0)/100, seconds, tracked); } } } } }, valueLabels: { formatter: v => `${Number(v||0).toFixed(2)}%` } });
-      const dayAgg = new Map(); rows.forEach(r=>{ const d=r.day||''; if(!d)return; const slot=dayAgg.get(d)||{runtime:0,maint:0,na:0,print:0}; slot.runtime+=Number(r.runtimeSeconds||0); slot.print+=Number(r.printSeconds||r.printGroupSeconds||0); slot.maint+=Number(r.plannedDowntimeSeconds||r.maintenanceSeconds||0); slot.na+=Number(r.unplannedDowntimeSeconds||r.errorNotAvailableSeconds||0); dayAgg.set(d,slot); });
+      const dayAgg = new Map(); rows.forEach(r=>{ const d=r.day||''; if(!d)return; const slot=dayAgg.get(d)||{runtime:0,print:0,maint:0,na:0}; slot.runtime+=Number(r.runtimeSeconds||0); slot.print+=productionTimeFromAvailabilityRow(r); slot.maint+=Number(r.plannedDowntimeSeconds||r.maintenanceSeconds||0); slot.na+=Number(r.unplannedDowntimeSeconds||r.errorNotAvailableSeconds||0); dayAgg.set(d,slot); });
       const days=[...dayAgg.entries()].sort((a,b)=>a[0].localeCompare(b[0]));
       setDrilldownHeading('drilldownTrendHeading', metricKey === 'availability' ? 'Availability / Production Time / Total Downtime trend' : 'Total Downtime % trend over time');
-      renderLine('drilldownTrendChart', days.map(x=>x[0]), metricKey === 'availability' ? [{label:'Availability %',data:days.map(([,v])=>{const den=v.runtime+v.maint+v.na;return den?v.runtime/den*100:0;})},{label:'Production Time %',data:days.map(([,v])=>{const den=v.runtime+v.maint+v.na;return den?((v.print||0)/den*100):0;})},{label:'Total Downtime %',data:days.map(([,v])=>{const den=v.runtime+v.maint+v.na;return den?(v.maint+v.na)/den*100:0;})}] : [{label:'Total Downtime %',data:days.map(([,v])=>{const den=v.runtime+v.maint+v.na;return den?(v.maint+v.na)/den*100:0;})}], 'percent');
+      renderLine('drilldownTrendChart', days.map(x=>x[0]), metricKey === 'availability' ? [{label:'Availability %',data:days.map(([,v])=>{const den=v.runtime+v.maint+v.na;return den?v.runtime/den*100:0;})},{label:'Production Time %',data:days.map(([,v])=>{const den=v.runtime+v.maint+v.na;return den?(v.print/den*100):0;})},{label:'Total Downtime %',data:days.map(([,v])=>{const den=v.runtime+v.maint+v.na;return den?(v.maint+v.na)/den*100:0;})}] : [{label:'Total Downtime %',data:days.map(([,v])=>{const den=v.runtime+v.maint+v.na;return den?(v.maint+v.na)/den*100:0;})}], 'percent');
       setDrilldownHeading('drilldownSecondaryHeading', metricKey === 'availability' ? 'Top presses by low Availability %' : 'Maintenance vs Not Available split');
       if (metricKey === 'availability') { const lowAvail = averageGroup(rows, r=>r.canonicalPress || r.press, r=> { const den = Number((r.runtimeSeconds||0)+totalDowntimeFromAvailabilityRow(r)); return den ? (Number(r.runtimeSeconds||0)/den*100) : 0; }).sort((a,b)=>a[1]-b[1]); renderBar('drilldownSecondaryChart', topN(lowAvail).map(x=>x[0]), topN(lowAvail).map(x=>x[1]), 'Availability %', 'percent'); } else { renderBar('drilldownSecondaryChart', ['Maintenance %','Not Available %'], [maint/totalTracked*100, notAvail/totalTracked*100], 'Downtime split %', 'percent'); }
       setDrilldownHeading('drilldownOpsHeading', metricKey === 'availability' ? 'Production Time % by Press' : 'Downtime components breakdown');
-      if (metricKey === 'availability') { const pgByPress = averageGroup(rows, r=>r.canonicalPress || r.press, r=>{const den=Number((r.runtimeSeconds||0)+totalDowntimeFromAvailabilityRow(r)); return den?(Number(r.printSeconds||r.printGroupSeconds||0)/den*100):0;}); renderBar('drilldownOpsChart', topN(pgByPress).map(x=>x[0]), topN(pgByPress).map(x=>x[1]), 'Production Time %', 'percent'); } else {
+      if (metricKey === 'availability') { const pgByPress = averageGroup(rows, r=>r.canonicalPress || r.press, r=>{const den=Number((r.runtimeSeconds||0)+totalDowntimeFromAvailabilityRow(r)); return den?(productionTimeFromAvailabilityRow(r)/den*100):0;}); renderBar('drilldownOpsChart', topN(pgByPress).map(x=>x[0]), topN(pgByPress).map(x=>x[1]), 'Production Time %', 'percent'); } else {
         const denom = totalTracked || 1;
         const preventive = rows.reduce((a,r)=>a+Number(r.preventiveMaintenanceSeconds||0),0);
         const onJob = rows.reduce((a,r)=>a+Number(r.onJobMaintenanceSeconds||0),0);
@@ -5394,7 +5400,15 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
     }
 
     if (metricKey === 'mttr' || metricKey === 'mtbf') {
-      const rows = scopedRows;
+      let rows = scopedRows || [];
+      if (metricKey === 'mttr' && STATE.drilldown.sourceType === 'errorEvents') rows = rows.filter(r => isDurationIncluded(r) && isRepairMetricEvent(r));
+      if (metricKey === 'mtbf' && STATE.drilldown.sourceType === 'errorEvents' && rows.length && !('intervalSeconds' in rows[0])) {
+        const byPress = new Map();
+        rows.filter(r => isDurationIncluded(r) && r.startTime instanceof Date && r.recoveryTime instanceof Date).forEach(r => { const key = r.canonicalPress || r.press || 'Unspecified'; if (!byPress.has(key)) byPress.set(key, []); byPress.get(key).push(r); });
+        const intervalRows = [];
+        byPress.forEach((events, press) => { events.sort((a,b)=>a.startTime-b.startTime); for (let i=0;i<events.length-1;i++) { const prev=events[i], next=events[i+1]; const interval=(next.startTime-prev.recoveryTime)/1000; if (Number.isFinite(interval) && interval>=0) intervalRows.push({ ...next, press, day: next.day || toDayBucket(next.startTime), intervalSeconds: interval, metricValue: interval, raw: next }); } });
+        rows = intervalRows;
+      }
       if (!rows.length) return false;
       const secondsField = metricKey === 'mtbf' ? (r=>Number(r.intervalSeconds||r.metricValue||0)) : (r=>Number(r.metricValue||cleanDurationSeconds(r)||0));
       setTitle(metricKey === 'mtbf' ? 'MTBF Drilldown' : 'MTTR / Avg Repair Time Drilldown', metricKey === 'mtbf' ? 'Chronological interval analysis from Errors Start/Recovery.' : 'Repair-event duration analysis from Errors.');
@@ -5421,7 +5435,7 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
     }
 
     if (metricKey === 'volume' || metricKey === 'wasteRatio') {
-      const rows = scope.filteredVolumeRowsNative || [];
+      const rows = ((STATE.drilldown.path || []).length > 1 || STATE.drilldown.sourceType === 'volumeJobs') ? (scopedRows || []) : (scope.filteredVolumeRowsNative || []);
       if (!rows.length) return false;
       const wasteMetrics = getWasteRatioMetrics(scope);
       const totalFlats = wasteMetrics.totalPrintedFlats;
