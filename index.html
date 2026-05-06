@@ -400,10 +400,10 @@
     <div id="drilldownExplanation" class="card hidden" style="margin-bottom:10px;"></div>
     <details id="drilldownCalcDetails" class="card hidden" style="margin-bottom:10px;"><summary style="cursor:pointer;font-weight:600;">Calculation details</summary><div id="drilldownCalcBody" style="margin-top:8px;"></div></details>
     <div id="drilldownChartsContainer" class="grid" style="margin-bottom:10px;">
-      <article class="card span-6"><h4 id="drilldownTopHeading" style="margin:0 0 8px;">Top presses by selected metric</h4><div class="chart-area" style="height:220px;min-height:220px;"><canvas id="drilldownTopChart"></canvas></div></article>
-      <article class="card span-6"><h4 id="drilldownTrendHeading" style="margin:0 0 8px;">Trend over time</h4><div class="chart-area" style="height:220px;min-height:220px;"><canvas id="drilldownTrendChart"></canvas></div></article>
-      <article class="card span-6"><h4 id="drilldownSecondaryHeading" style="margin:0 0 8px;">Events by subsystem</h4><div class="chart-area" style="height:220px;min-height:220px;"><canvas id="drilldownSecondaryChart"></canvas></div></article>
-      <article class="card span-6"><h4 id="drilldownOpsHeading" style="margin:0 0 8px;">Selected metric composition</h4><div class="chart-area" style="height:220px;min-height:220px;"><canvas id="drilldownOpsChart"></canvas></div></article>
+      <article class="card span-6"><h4 id="drilldownTopHeading" style="margin:0 0 8px;">Top presses by selected metric</h4><div class="chart-area" style="height:260px;min-height:260px;"><canvas id="drilldownTopChart"></canvas></div></article>
+      <article class="card span-6"><h4 id="drilldownTrendHeading" style="margin:0 0 8px;">Trend over time</h4><div class="chart-area" style="height:260px;min-height:260px;"><canvas id="drilldownTrendChart"></canvas></div></article>
+      <article class="card span-6"><h4 id="drilldownSecondaryHeading" style="margin:0 0 8px;">Events by subsystem</h4><div class="chart-area" style="height:260px;min-height:260px;"><canvas id="drilldownSecondaryChart"></canvas></div></article>
+      <article class="card span-6"><h4 id="drilldownOpsHeading" style="margin:0 0 8px;">Selected metric composition</h4><div class="chart-area" style="height:260px;min-height:260px;"><canvas id="drilldownOpsChart"></canvas></div></article>
     </div>
     <div id="simulationStateStrip" class="sim-state-strip hidden"></div>
     <div id="drilldownTableWrap" class="table-wrap"><table id="drilldownTable"></table></div>
@@ -484,7 +484,7 @@
     renderQueued: false,
   };
 
-  const APP_VERSION = 'InsightPro+ v1.1.10';
+  const APP_VERSION = 'InsightPro+ v1.1.11';
   const CURRENT_UI_VERSION_V2 = 'CURRENT_UI_VERSION_V2';
   const UI_RESTORE_INSTRUCTION = "If the user says 'return to current UI', restore the UI to CURRENT_UI_VERSION_V2 (not baseline V1).";
   const CHARTS = new Map();
@@ -5273,150 +5273,134 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
       });
       return [...map.entries()].sort((a,b)=>a[0].localeCompare(b[0])).map(([day, slot]) => [day, avg && slot.count ? slot.sum / slot.count : slot.sum]);
     };
-    const drilldownSeriesColor = (label = '', index = 0) => {
-      const text = String(label || '').toLowerCase();
-      if (text.includes('production') || text.includes('good') || text.includes('volume') || text.includes('printed')) return '#22c55e';
-      if (text.includes('downtime') || text.includes('error') || text.includes('critical')) return '#ef4444';
-      if (text.includes('waste') || text.includes('maintenance')) return '#f59e0b';
-      if (text.includes('availability') || text.includes('runtime')) return '#38bdf8';
-      if (text.includes('mttr')) return '#f97316';
-      if (text.includes('mtbf')) return '#60a5fa';
-      if (text.includes('event')) return '#60a5fa';
-      return COLORS[index % COLORS.length] || '#7b8dff';
+    const shortAxisLabel = (value, limit = 18) => {
+      const text = String(value ?? '');
+      return text.length > limit ? `${text.slice(0, Math.max(0, limit - 1))}…` : text;
     };
-
-    const formatDrilldownValue = (value, unit = 'number') => {
+    const chartColorFor = (label = '', unit = 'number', index = 0) => {
+      const key = String(label || '').toLowerCase();
+      if (key.includes('downtime') || key.includes('error') || key.includes('duration')) return SEMANTIC_COLORS.critical;
+      if (key.includes('maintenance') || key.includes('waste') || key.includes('mttr')) return SEMANTIC_COLORS.elevated;
+      if (key.includes('production') || key.includes('good') || key.includes('mtbf')) return '#57c98a';
+      if (key.includes('availability')) return '#43c7e8';
+      if (key.includes('event')) return '#6f8cff';
+      if (unit === 'percent') return '#6f8cff';
+      return COLORS[index % COLORS.length];
+    };
+    const paletteFor = (label, unit, count) => {
+      const key = String(label || '').toLowerCase();
+      if (key.includes('trend') || count <= 2) return Array.from({length: count}, (_, i) => COLORS[i % COLORS.length]);
+      if (key.includes('availability')) return Array.from({length: count}, () => '#43c7e8');
+      if (key.includes('downtime') || key.includes('duration') || key.includes('error')) return Array.from({length: count}, (_, i) => i % 5 === 1 ? SEMANTIC_COLORS.elevated : (i % 5 === 2 ? SEMANTIC_COLORS.normal : (i % 5 === 3 ? SEMANTIC_COLORS.low : SEMANTIC_COLORS.critical)));
+      if (key.includes('production') || key.includes('good')) return Array.from({length: count}, () => '#57c98a');
+      if (key.includes('waste') || key.includes('maintenance')) return Array.from({length: count}, (_, i) => i % 2 ? SEMANTIC_COLORS.elevated : SEMANTIC_COLORS.critical);
+      if (key.includes('event')) return Array.from({length: count}, (_, i) => COLORS[i % COLORS.length]);
+      return Array.from({length: count}, (_, i) => COLORS[i % COLORS.length]);
+    };
+    const unitFormatter = (unit = 'number') => value => {
       const n = Number(value || 0);
       if (unit === 'duration') return formatDurationCompact(n);
-      if (unit === 'percent') return `${n.toFixed(2)}%`;
-      return formatCompactNumber(n);
+      if (unit === 'percent') return `${n.toFixed(Math.abs(n) >= 10 ? 1 : 2)}%`;
+      if (unit === 'volume') return formatCompactNumber(n);
+      return n >= 1000 ? formatCompactNumber(n) : n.toLocaleString(undefined, { maximumFractionDigits: 0 });
     };
-
-    const tooltipTextForPoint = (label, value, unit, payload = null) => {
-      if (unit === 'percent' && payload && Number.isFinite(Number(payload.aggregateSeconds)) && Number.isFinite(Number(payload.denominatorSeconds))) {
-        return buildAvailabilityPercentTooltip(label, Number(value || 0) / 100, Number(payload.aggregateSeconds || 0), Number(payload.denominatorSeconds || 0)).join('\n');
-      }
-      return `${label}: ${formatDrilldownValue(value, unit)}`;
+    const drilldownChartOptions = (clickKey, labels, payloads, unit, chartKind = 'bar') => {
+      const formatUnit = unitFormatter(unit);
+      const opts = baseOptions(clickKey, labels, payloads);
+      opts.layout = { padding: { top: chartKind === 'bar' ? 18 : 8, right: 10, bottom: 12, left: 4 } };
+      opts.interaction = { mode: 'index', intersect: false };
+      opts.plugins = {
+        ...(opts.plugins || {}),
+        legend: { display: chartKind === 'line', labels: { color: '#c6d3ea', boxWidth: 14, usePointStyle: true, pointStyle: 'line' } },
+        tooltip: { callbacks: {
+          title: items => String(items?.[0]?.label || ''),
+          label: ctx => {
+            const payload = payloads?.[ctx.dataIndex] || null;
+            const parsed = chartKind === 'line' ? ctx.parsed.y : ctx.parsed.y;
+            if (unit === 'percent' && payload && Number.isFinite(Number(payload.aggregateSeconds)) && Number.isFinite(Number(payload.denominatorSeconds))) {
+              return buildAvailabilityPercentTooltip(ctx.dataset?.label || ctx.label || 'Value', Number(parsed || 0) / 100, Number(payload.aggregateSeconds || 0), Number(payload.denominatorSeconds || 0));
+            }
+            const ds = ctx.dataset || {};
+            const secondsArr = ds.aggregateSeconds || [];
+            const denomArr = ds.denominatorSeconds || [];
+            if (unit === 'percent' && Number.isFinite(Number(secondsArr[ctx.dataIndex])) && Number.isFinite(Number(denomArr[ctx.dataIndex]))) {
+              return buildAvailabilityPercentTooltip(ds.label || 'Value', Number(parsed || 0) / 100, Number(secondsArr[ctx.dataIndex] || 0), Number(denomArr[ctx.dataIndex] || 0));
+            }
+            return `${ctx.dataset?.label || 'Value'}: ${formatUnit(parsed)}`;
+          }
+        } }
+      };
+      opts.scales = {
+        x: {
+          ticks: {
+            color: '#c6d3ea',
+            autoSkip: labels.length > 12,
+            maxRotation: labels.length > 6 ? 32 : 0,
+            minRotation: labels.length > 6 ? 24 : 0,
+            callback: function(value) { return shortAxisLabel(this.getLabelForValue(value), labels.length > 8 ? 14 : 22); },
+            padding: 6,
+            font: { size: 11 }
+          },
+          grid: { color: 'rgba(255,255,255,.035)' }
+        },
+        y: {
+          beginAtZero: true,
+          suggestedMax: unit === 'percent' ? 100 : undefined,
+          max: unit === 'percent' ? 100 : undefined,
+          ticks: {
+            color: '#c6d3ea',
+            maxTicksLimit: 6,
+            callback: v => formatUnit(v),
+            font: { size: 11 }
+          },
+          grid: { color: 'rgba(255,255,255,.055)' }
+        }
+      };
+      return opts;
     };
-
-    const prepareDrilldownChartHost = (id) => {
-      const canvas = document.getElementById(id);
-      if (!canvas) return null;
-      destroyChart(id);
-      const area = canvas.closest('.chart-area');
-      if (!area) return null;
-      area.querySelector('.chart-empty-state')?.remove();
-      area.querySelector('.drilldown-svg-chart')?.remove();
-      canvas.style.display = 'none';
-      const host = document.createElement('div');
-      host.className = 'drilldown-svg-chart';
-      host.style.cssText = 'width:100%;height:100%;min-height:220px;position:relative;';
-      area.appendChild(host);
-      return host;
-    };
-
-    const clearDrilldownSvgChart = (id) => {
-      const canvas = document.getElementById(id);
-      const area = canvas?.closest('.chart-area');
-      area?.querySelector('.drilldown-svg-chart')?.remove();
-      if (canvas) canvas.style.display = '';
-    };
-
-    const renderSvgNoData = (id, message = 'No data available for this chart.') => {
-      clearDrilldownSvgChart(id);
-      showNoDataChart(id, message);
-    };
-
     const renderBar = (id, labels, values, label, unit = 'number', clickKey = 'drilldown', payloads = null) => {
-      labels = (labels || []).map(v => String(v ?? 'Unspecified'));
-      values = (values || []).map(v => Number(v || 0));
-      if (!labels.length || !values.some(v => Number.isFinite(v))) { renderSvgNoData(id); return; }
-      const host = prepareDrilldownChartHost(id);
-      if (!host) return;
-      const W = 760, H = 245;
-      const m = { left: 52, right: 18, top: 18, bottom: 68 };
-      const innerW = W - m.left - m.right;
-      const innerH = H - m.top - m.bottom;
-      const maxRaw = Math.max(...values.map(v => Number.isFinite(v) ? v : 0), 1);
-      const maxY = unit === 'percent' ? Math.min(100, Math.max(1, maxRaw * 1.18)) : maxRaw * 1.18;
-      const step = innerW / Math.max(labels.length, 1);
-      const barW = Math.max(12, Math.min(48, step * .62));
-      const color = drilldownSeriesColor(label, 0);
-      const y = v => m.top + innerH - (Math.max(0, v) / maxY) * innerH;
-      const grid = [0,.25,.5,.75,1].map(t => {
-        const yy = m.top + innerH - t * innerH;
-        const val = maxY * t;
-        return `<line x1="${m.left}" y1="${yy}" x2="${W-m.right}" y2="${yy}" stroke="rgba(255,255,255,.08)"/><text x="${m.left-8}" y="${yy+4}" text-anchor="end" fill="#c6d3ea" font-size="11">${unit === 'percent' ? `${val.toFixed(0)}%` : formatDrilldownValue(val, unit)}</text>`;
-      }).join('');
-      const bars = labels.map((name, i) => {
-        const v = Number(values[i] || 0);
-        const x = m.left + i * step + (step - barW) / 2;
-        const yy = y(v);
-        const h = Math.max(1, m.top + innerH - yy);
-        const c = COLORS[i % COLORS.length] || color;
-        const title = tooltipTextForPoint(label, v, unit, payloads?.[i]);
-        const shortName = name.length > 22 ? `${name.slice(0, 20)}…` : name;
-        const valLabel = formatDrilldownValue(v, unit);
-        return `<g class="svg-click-target" data-idx="${i}" style="cursor:pointer"><title>${esc(title)}</title><rect x="${x.toFixed(1)}" y="${yy.toFixed(1)}" width="${barW.toFixed(1)}" height="${h.toFixed(1)}" rx="6" fill="${c}" opacity=".92"/><text x="${(x+barW/2).toFixed(1)}" y="${Math.max(12, yy-7).toFixed(1)}" text-anchor="middle" fill="#dbe7f8" font-size="11" font-weight="700">${esc(valLabel)}</text><text x="${(x+barW/2).toFixed(1)}" y="${H-22}" text-anchor="end" transform="rotate(-32 ${(x+barW/2).toFixed(1)} ${H-22})" fill="#c6d3ea" font-size="11">${esc(shortName)}</text></g>`;
-      }).join('');
-      host.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="100%" height="100%" preserveAspectRatio="none" role="img" aria-label="${esc(label)} chart">${grid}<line x1="${m.left}" y1="${m.top+innerH}" x2="${W-m.right}" y2="${m.top+innerH}" stroke="rgba(255,255,255,.12)"/>${bars}</svg>`;
-      host.querySelectorAll('.svg-click-target').forEach(node => node.addEventListener('click', event => {
-        event.stopPropagation();
-        const idx = Number(node.getAttribute('data-idx'));
-        const payload = payloads?.[idx] || null;
-        if (payload && payload.entityKey) openDrilldown(clickKey, payload.entityKey, payload);
-        else if (labels[idx]) openDrilldown(clickKey, labels[idx]);
-      }));
+      if (!labels.length) { showNoDataChart(id, 'No data available for this chart.'); return; }
+      const safeValues = values.map(v => Number(v || 0));
+      const formatter = unitFormatter(unit);
+      replaceChart(id, {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [{
+            label,
+            data: safeValues,
+            backgroundColor: paletteFor(label, unit, labels.length),
+            borderRadius: 7,
+            categoryPercentage: .72,
+            barPercentage: .72,
+            maxBarThickness: 44
+          }]
+        },
+        options: drilldownChartOptions(clickKey, labels, payloads, unit, 'bar'),
+        valueLabels: { formatter: v => unit === 'duration' ? formatDurationCompact(v) : unit === 'percent' ? `${Number(v || 0).toFixed(1)}%` : formatCompactNumber(v) }
+      });
     };
-
     const renderLine = (id, labels, datasets, unit = 'number', clickKey = 'drilldown', payloads = null) => {
-      labels = (labels || []).map(v => String(v ?? ''));
-      datasets = (datasets || []).filter(ds => Array.isArray(ds.data) && ds.data.length);
-      if (!labels.length || !datasets.length) { renderSvgNoData(id); return; }
-      const host = prepareDrilldownChartHost(id);
-      if (!host) return;
-      const W = 760, H = 245;
-      const m = { left: 54, right: 18, top: 30, bottom: 56 };
-      const innerW = W - m.left - m.right;
-      const innerH = H - m.top - m.bottom;
-      const allVals = datasets.flatMap(ds => ds.data.map(v => Number(v || 0))).filter(Number.isFinite);
-      const maxRaw = Math.max(...allVals, 1);
-      const maxY = unit === 'percent' ? Math.min(100, Math.max(1, maxRaw * 1.18)) : maxRaw * 1.18;
-      const x = i => m.left + (labels.length <= 1 ? innerW / 2 : (i / (labels.length - 1)) * innerW);
-      const y = v => m.top + innerH - (Math.max(0, Number(v || 0)) / maxY) * innerH;
-      const grid = [0,.25,.5,.75,1].map(t => {
-        const yy = m.top + innerH - t * innerH;
-        const val = maxY * t;
-        return `<line x1="${m.left}" y1="${yy}" x2="${W-m.right}" y2="${yy}" stroke="rgba(255,255,255,.08)"/><text x="${m.left-8}" y="${yy+4}" text-anchor="end" fill="#c6d3ea" font-size="11">${unit === 'percent' ? `${val.toFixed(0)}%` : formatDrilldownValue(val, unit)}</text>`;
-      }).join('');
-      const legend = datasets.map((ds, i) => {
-        const c = ds.borderColor || drilldownSeriesColor(ds.label, i);
-        return `<g transform="translate(${m.left + i * 145},14)"><rect width="18" height="4" rx="2" fill="${c}"/><text x="24" y="5" fill="#c6d3ea" font-size="11">${esc(ds.label || 'Value')}</text></g>`;
-      }).join('');
-      const series = datasets.map((ds, di) => {
-        const c = ds.borderColor || drilldownSeriesColor(ds.label, di);
-        const points = ds.data.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
-        const circles = ds.data.map((v, i) => {
-          const title = unit === 'percent' && Array.isArray(ds.aggregateSeconds) && Array.isArray(ds.denominatorSeconds)
-            ? buildAvailabilityPercentTooltip(ds.label || 'Value', Number(v || 0) / 100, Number(ds.aggregateSeconds[i] || 0), Number(ds.denominatorSeconds[i] || 0)).join('\n')
-            : `${ds.label || 'Value'}: ${formatDrilldownValue(v, unit)}\n${labels[i] || ''}`;
-          return `<circle class="svg-click-target" data-idx="${i}" cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="4" fill="${c}" stroke="#0f172a" stroke-width="1.5" style="cursor:pointer"><title>${esc(title)}</title></circle>`;
-        }).join('');
-        const area = ds.fill ? `<polygon points="${m.left},${m.top+innerH} ${points} ${m.left+innerW},${m.top+innerH}" fill="${c}" opacity=".13"/>` : '';
-        return `${area}<polyline points="${points}" fill="none" stroke="${c}" stroke-width="2.5"/>${circles}`;
-      }).join('');
-      const xLabels = labels.map((name, i) => {
-        const show = labels.length <= 12 || i % Math.ceil(labels.length / 12) === 0 || i === labels.length - 1;
-        if (!show) return '';
-        return `<text x="${x(i).toFixed(1)}" y="${H-22}" text-anchor="end" transform="rotate(-45 ${x(i).toFixed(1)} ${H-22})" fill="#c6d3ea" font-size="11">${esc(name)}</text>`;
-      }).join('');
-      host.innerHTML = `<svg viewBox="0 0 ${W} ${H}" width="100%" height="100%" preserveAspectRatio="none" role="img">${legend}${grid}<line x1="${m.left}" y1="${m.top+innerH}" x2="${W-m.right}" y2="${m.top+innerH}" stroke="rgba(255,255,255,.12)"/>${series}${xLabels}</svg>`;
-      host.querySelectorAll('.svg-click-target').forEach(node => node.addEventListener('click', event => {
-        event.stopPropagation();
-        const idx = Number(node.getAttribute('data-idx'));
-        const payload = payloads?.[idx] || null;
-        if (payload && payload.entityKey) openDrilldown(clickKey, payload.entityKey, payload);
-      }));
+      if (!labels.length || !datasets.length) { showNoDataChart(id, 'No data available for this chart.'); return; }
+      replaceChart(id, {
+        type: 'line',
+        data: {
+          labels,
+          datasets: datasets.map((ds, i) => ({
+            ...ds,
+            borderColor: ds.borderColor || chartColorFor(ds.label, unit, i),
+            backgroundColor: ds.backgroundColor || `${chartColorFor(ds.label, unit, i)}22`,
+            pointBackgroundColor: ds.borderColor || chartColorFor(ds.label, unit, i),
+            pointBorderColor: ds.borderColor || chartColorFor(ds.label, unit, i),
+            borderWidth: 2,
+            pointRadius: 2.5,
+            pointHoverRadius: 4,
+            tension: .28,
+            fill: Boolean(ds.fill)
+          }))
+        },
+        options: drilldownChartOptions(clickKey, labels, payloads, unit, 'line')
+      });
     };
     const topN = arr => arr.slice(0, 10);
     const cardsHost = ['drilldownTopChart','drilldownTrendChart','drilldownSecondaryChart','drilldownOpsChart'];
@@ -5444,38 +5428,105 @@ function renderVolumeByPressChart(customerVolumeRows = [], hasWasteData = true) 
     }
 
     if (metricKey === 'downtime' || metricKey === 'availability') {
-      const rows = ((STATE.drilldown.path || []).length > 1 || STATE.drilldown.sourceType === 'availabilityAgg' || STATE.drilldown.sourceType === 'availabilityNative') ? (scopedRows || []) : (scope.availabilityAgg || []);
+      const sourceRows = ((STATE.drilldown.path || []).length > 1 || STATE.drilldown.sourceType === 'availabilityAgg' || STATE.drilldown.sourceType === 'availabilityNative') ? (scopedRows || []) : (scope.availabilityAgg || []);
+      const rows = (sourceRows || []).filter(r => r && (r.runtimeSeconds != null || r.availabilityRuntimeSeconds != null || r.downtimeSeconds != null || r.maintenanceSeconds != null || r.errorNotAvailableSeconds != null));
       if (!rows.length) return false;
-      const totalTracked = rows.reduce((a,r)=>a+Number((r.runtimeSeconds||0)+totalDowntimeFromAvailabilityRow(r)),0);
-      const runtime = rows.reduce((a,r)=>a+Number(r.runtimeSeconds||0),0);
-      const maint = rows.reduce((a,r)=>a+Number(r.plannedDowntimeSeconds||r.maintenanceSeconds||0),0);
-      const notAvail = rows.reduce((a,r)=>a+Number(r.unplannedDowntimeSeconds||r.errorNotAvailableSeconds||0),0);
-      const td = maint + notAvail;
-      setTitle(metricKey === 'availability' ? 'Availability Drilldown' : 'Total Downtime Drilldown', 'Availability source: runtime, maintenance and not-available split by press and day.');
-      setCards(metricKey === 'availability' ? [{label:'Availability %', value: totalTracked ? `${(runtime/totalTracked*100).toFixed(2)}%` : 'N/A'}, {label:'Production Time %', value: totalTracked ? `${(rows.reduce((a,r)=>a+productionTimeFromAvailabilityRow(r),0)/totalTracked*100).toFixed(2)}%` : 'N/A'}, {label:'Total Downtime %', value: totalTracked ? `${(td/totalTracked*100).toFixed(2)}%` : 'N/A'}, {label:'Available runtime hours', value: `${Math.round(runtime/3600).toLocaleString()}h aggregate`}] : [{label:'Total Downtime %', value: totalTracked ? `${(td/totalTracked*100).toFixed(2)}%` : 'N/A'}, {label:'Maintenance %', value: totalTracked ? `${(maint/totalTracked*100).toFixed(2)}%` : 'N/A'}, {label:'Not Available %', value: totalTracked ? `${(notAvail/totalTracked*100).toFixed(2)}%` : 'N/A'}, {label:'Aggregate downtime hours', value: `${Math.round(td/3600).toLocaleString()}h aggregate`}]);
-      setContext('Availability source', 'Total Downtime = Maintenance + Not Available/Error. Availability = Available runtime / total tracked time. Production Time = Print (Production) + Calibration + Proof + Coating without Printing.');
-      const pressRatios = averageGroup(rows, r=>r.canonicalPress || r.press, r=> { const den = Number((r.runtimeSeconds||0)+totalDowntimeFromAvailabilityRow(r)); return den ? (metricKey === 'availability' ? (Number(r.runtimeSeconds||0)/den) : (totalDowntimeFromAvailabilityRow(r)/den)) : 0; });
-      setDrilldownHeading('drilldownTopHeading', metricKey === 'availability' ? 'Availability % by Press' : 'Total Downtime % by Press');
-      const topPressRatios = topN(pressRatios);
-      replaceChart('drilldownTopChart', { type: 'bar', data: { labels: topPressRatios.map(x=>x[0]), datasets: [{ label: metricKey === 'availability' ? 'Availability %' : 'Total Downtime %', data: topPressRatios.map(x=>Number(x[1]||0) * 100), backgroundColor: COLORS, borderRadius: 6 }] }, options: { ...baseOptions('press', topPressRatios.map(x=>x[0]), topPressRatios.map(x=>({ entityKey:x[0], displayLabel:x[0], sourceType:'availabilityAgg', metric: metricKey, parentContext:{ path: STATE.drilldown.path || [] } }))), plugins: { legend: { display: false }, tooltip: { callbacks: { label: ctx => { const press = ctx.label; const pressRows = rows.filter(r => (r.canonicalPress || r.press || 'Unspecified') === press); const tracked = pressRows.reduce((a,r)=>a+Number((r.runtimeSeconds||0)+totalDowntimeFromAvailabilityRow(r)),0); const seconds = metricKey === 'availability' ? pressRows.reduce((a,r)=>a+Number(r.runtimeSeconds||0),0) : pressRows.reduce((a,r)=>a+Number(totalDowntimeFromAvailabilityRow(r)||0),0); return buildAvailabilityPercentTooltip(metricKey === 'availability' ? 'Availability' : 'Total Downtime', Number(ctx.parsed.y||0)/100, seconds, tracked); } } } } }, valueLabels: { formatter: v => `${Number(v||0).toFixed(2)}%` } });
-      const dayAgg = new Map(); rows.forEach(r=>{ const d=r.day||''; if(!d)return; const slot=dayAgg.get(d)||{runtime:0,print:0,maint:0,na:0}; slot.runtime+=Number(r.runtimeSeconds||0); slot.print+=productionTimeFromAvailabilityRow(r); slot.maint+=Number(r.plannedDowntimeSeconds||r.maintenanceSeconds||0); slot.na+=Number(r.unplannedDowntimeSeconds||r.errorNotAvailableSeconds||0); dayAgg.set(d,slot); });
-      const days=[...dayAgg.entries()].sort((a,b)=>a[0].localeCompare(b[0]));
-      setDrilldownHeading('drilldownTrendHeading', metricKey === 'availability' ? 'Availability / Production Time / Total Downtime trend' : 'Total Downtime % trend over time');
-      renderLine('drilldownTrendChart', days.map(x=>x[0]), metricKey === 'availability' ? [{label:'Availability %',data:days.map(([,v])=>{const den=v.runtime+v.maint+v.na;return den?v.runtime/den*100:0;})},{label:'Production Time %',data:days.map(([,v])=>{const den=v.runtime+v.maint+v.na;return den?(v.print/den*100):0;})},{label:'Total Downtime %',data:days.map(([,v])=>{const den=v.runtime+v.maint+v.na;return den?(v.maint+v.na)/den*100:0;})}] : [{label:'Total Downtime %',data:days.map(([,v])=>{const den=v.runtime+v.maint+v.na;return den?(v.maint+v.na)/den*100:0;})}], 'percent');
-      setDrilldownHeading('drilldownSecondaryHeading', metricKey === 'availability' ? 'Top presses by low Availability %' : 'Maintenance vs Not Available split');
-      if (metricKey === 'availability') { const lowAvail = averageGroup(rows, r=>r.canonicalPress || r.press, r=> { const den = Number((r.runtimeSeconds||0)+totalDowntimeFromAvailabilityRow(r)); return den ? (Number(r.runtimeSeconds||0)/den*100) : 0; }).sort((a,b)=>a[1]-b[1]); renderBar('drilldownSecondaryChart', topN(lowAvail).map(x=>x[0]), topN(lowAvail).map(x=>x[1]), 'Availability %', 'percent'); } else { renderBar('drilldownSecondaryChart', ['Maintenance %','Not Available %'], [maint/totalTracked*100, notAvail/totalTracked*100], 'Downtime split %', 'percent'); }
-      setDrilldownHeading('drilldownOpsHeading', metricKey === 'availability' ? 'Production Time % by Press' : 'Downtime components breakdown');
-      if (metricKey === 'availability') { const pgByPress = averageGroup(rows, r=>r.canonicalPress || r.press, r=>{const den=Number((r.runtimeSeconds||0)+totalDowntimeFromAvailabilityRow(r)); return den?(productionTimeFromAvailabilityRow(r)/den*100):0;}); renderBar('drilldownOpsChart', topN(pgByPress).map(x=>x[0]), topN(pgByPress).map(x=>x[1]), 'Production Time %', 'percent'); } else {
-        const denom = totalTracked || 1;
+      const rowRuntime = r => Number(r.runtimeSeconds ?? r.availabilityRuntimeSeconds ?? 0);
+      const rowMaintenance = r => Number(r.maintenanceSeconds ?? r.plannedDowntimeSeconds ?? 0);
+      const rowNotAvailable = r => Number(r.errorNotAvailableSeconds ?? r.unplannedDowntimeSeconds ?? 0);
+      const rowDowntime = r => Number(r.downtimeSeconds ?? (rowMaintenance(r) + rowNotAvailable(r)) ?? 0);
+      const rowTracked = r => rowRuntime(r) + rowDowntime(r);
+      const rowProductionTime = r => Number(productionTimeFromAvailabilityRow(r) || 0);
+      const totalTracked = rows.reduce((a,r)=>a+rowTracked(r),0);
+      const runtime = rows.reduce((a,r)=>a+rowRuntime(r),0);
+      const downtime = rows.reduce((a,r)=>a+rowDowntime(r),0);
+      const maint = rows.reduce((a,r)=>a+rowMaintenance(r),0);
+      const notAvail = rows.reduce((a,r)=>a+rowNotAvailable(r),0);
+      const productionTime = rows.reduce((a,r)=>a+rowProductionTime(r),0);
+      const availabilityPct = totalTracked ? runtime / totalTracked * 100 : 0;
+      const downtimePct = totalTracked ? downtime / totalTracked * 100 : 0;
+      const maintPct = totalTracked ? maint / totalTracked * 100 : 0;
+      const notAvailPct = totalTracked ? notAvail / totalTracked * 100 : 0;
+      const productionPct = totalTracked ? productionTime / totalTracked * 100 : 0;
+      setTitle(metricKey === 'availability' ? 'Availability Drilldown' : 'Total Downtime Drilldown', 'Availability source: runtime, production time, maintenance and not-available split by press and day.');
+      setCards(metricKey === 'availability'
+        ? [{label:'Availability %', value:`${availabilityPct.toFixed(2)}%`}, {label:'Production Time %', value:`${productionPct.toFixed(2)}%`}, {label:'Total Downtime %', value:`${downtimePct.toFixed(2)}%`}, {label:'Available runtime hours', value:`${formatAggregateHours(runtime)} aggregate`}]
+        : [{label:'Total Downtime %', value:`${downtimePct.toFixed(2)}%`}, {label:'Maintenance %', value:`${maintPct.toFixed(2)}%`}, {label:'Not available %', value:`${notAvailPct.toFixed(2)}%`}, {label:'Aggregate downtime hours', value:`${formatAggregateHours(downtime)} aggregate`}]);
+      setContext('Availability source', 'Total Downtime = Maintenance + Not Available/Error. Availability = available runtime / total tracked time. Production Time = Print (Production) + Calibration + Proof + Coating without Printing.');
+      const pressMap = new Map();
+      rows.forEach(r => {
+        const key = r.canonicalPress || r.press || 'Unspecified';
+        const slot = pressMap.get(key) || { runtime:0, downtime:0, maint:0, notAvail:0, tracked:0, production:0 };
+        slot.runtime += rowRuntime(r);
+        slot.downtime += rowDowntime(r);
+        slot.maint += rowMaintenance(r);
+        slot.notAvail += rowNotAvailable(r);
+        slot.tracked += rowTracked(r);
+        slot.production += rowProductionTime(r);
+        pressMap.set(key, slot);
+      });
+      const pressRows = [...pressMap.entries()].map(([press, v]) => ({
+        press,
+        ...v,
+        availabilityPct: v.tracked ? v.runtime / v.tracked * 100 : 0,
+        downtimePct: v.tracked ? v.downtime / v.tracked * 100 : 0,
+        productionPct: v.tracked ? v.production / v.tracked * 100 : 0
+      }));
+      const topDowntime = pressRows.slice().sort((a,b)=>b.downtimePct-a.downtimePct).slice(0,10);
+      const topAvailability = pressRows.slice().sort((a,b)=>b.availabilityPct-a.availabilityPct).slice(0,10);
+      const lowAvailability = pressRows.slice().sort((a,b)=>a.availabilityPct-b.availabilityPct).slice(0,10);
+      const topProduction = pressRows.slice().sort((a,b)=>b.productionPct-a.productionPct).slice(0,10);
+      const dayMap = new Map();
+      rows.forEach(r => {
+        const day = r.day || toDayBucket(r.date);
+        if (!day) return;
+        const v = dayMap.get(day) || { runtime:0, downtime:0, maint:0, notAvail:0, tracked:0, production:0 };
+        v.runtime += rowRuntime(r);
+        v.downtime += rowDowntime(r);
+        v.maint += rowMaintenance(r);
+        v.notAvail += rowNotAvailable(r);
+        v.tracked += rowTracked(r);
+        v.production += rowProductionTime(r);
+        dayMap.set(day, v);
+      });
+      const days = [...dayMap.entries()].sort((a,b)=>a[0].localeCompare(b[0]));
+      if (metricKey === 'availability') {
+        setDrilldownHeading('drilldownTopHeading','Availability % by Press');
+        renderBar('drilldownTopChart', topAvailability.map(x=>x.press), topAvailability.map(x=>x.availabilityPct), 'Availability %', 'percent', 'press', topAvailability.map(x=>({entityKey:x.press,displayLabel:x.press,sourceType:'availabilityAgg',metric:'availability',aggregateSeconds:x.runtime,denominatorSeconds:x.tracked,parentContext:{path:STATE.drilldown.path||[]}})));
+        setDrilldownHeading('drilldownTrendHeading','Availability / Production Time / Total Downtime trend');
+        renderLine('drilldownTrendChart', days.map(x=>x[0]), [
+          {label:'Availability %', data:days.map(([,v])=>v.tracked?v.runtime/v.tracked*100:0), borderColor:'#43c7e8', backgroundColor:'rgba(67,199,232,.15)', aggregateSeconds:days.map(([,v])=>v.runtime), denominatorSeconds:days.map(([,v])=>v.tracked)},
+          {label:'Production Time %', data:days.map(([,v])=>v.tracked?v.production/v.tracked*100:0), borderColor:'#57c98a', backgroundColor:'rgba(87,201,138,.12)', aggregateSeconds:days.map(([,v])=>v.production), denominatorSeconds:days.map(([,v])=>v.tracked)},
+          {label:'Total Downtime %', data:days.map(([,v])=>v.tracked?v.downtime/v.tracked*100:0), borderColor:SEMANTIC_COLORS.critical, backgroundColor:'rgba(243,107,99,.12)', aggregateSeconds:days.map(([,v])=>v.downtime), denominatorSeconds:days.map(([,v])=>v.tracked)}
+        ], 'percent');
+        setDrilldownHeading('drilldownSecondaryHeading','Top presses by low Availability %');
+        renderBar('drilldownSecondaryChart', lowAvailability.map(x=>x.press), lowAvailability.map(x=>x.availabilityPct), 'Availability %', 'percent', 'press', lowAvailability.map(x=>({entityKey:x.press,displayLabel:x.press,sourceType:'availabilityAgg',metric:'availability',aggregateSeconds:x.runtime,denominatorSeconds:x.tracked,parentContext:{path:STATE.drilldown.path||[]}})));
+        setDrilldownHeading('drilldownOpsHeading','Production Time % by Press');
+        renderBar('drilldownOpsChart', topProduction.map(x=>x.press), topProduction.map(x=>x.productionPct), 'Production Time %', 'percent', 'press', topProduction.map(x=>({entityKey:x.press,displayLabel:x.press,sourceType:'availabilityAgg',metric:'availability',aggregateSeconds:x.production,denominatorSeconds:x.tracked,parentContext:{path:STATE.drilldown.path||[]}})));
+      } else {
+        setDrilldownHeading('drilldownTopHeading','Total Downtime % by Press');
+        renderBar('drilldownTopChart', topDowntime.map(x=>x.press), topDowntime.map(x=>x.downtimePct), 'Total Downtime %', 'percent', 'press', topDowntime.map(x=>({entityKey:x.press,displayLabel:x.press,sourceType:'availabilityAgg',metric:'downtime',aggregateSeconds:x.downtime,denominatorSeconds:x.tracked,parentContext:{path:STATE.drilldown.path||[]}})));
+        setDrilldownHeading('drilldownTrendHeading','Total Downtime % trend over time');
+        renderLine('drilldownTrendChart', days.map(x=>x[0]), [{label:'Total Downtime %', data:days.map(([,v])=>v.tracked?v.downtime/v.tracked*100:0), borderColor:SEMANTIC_COLORS.critical, backgroundColor:'rgba(243,107,99,.14)', fill:false, aggregateSeconds:days.map(([,v])=>v.downtime), denominatorSeconds:days.map(([,v])=>v.tracked)}], 'percent');
+        setDrilldownHeading('drilldownSecondaryHeading','Maintenance vs Not Available split');
+        renderBar('drilldownSecondaryChart', ['Maintenance','Not Available'], [maintPct, notAvailPct], 'Downtime split %', 'percent', 'availability-component', [{aggregateSeconds:maint, denominatorSeconds:totalTracked},{aggregateSeconds:notAvail, denominatorSeconds:totalTracked}]);
+        setDrilldownHeading('drilldownOpsHeading','Downtime components breakdown');
         const preventive = rows.reduce((a,r)=>a+Number(r.preventiveMaintenanceSeconds||0),0);
         const onJob = rows.reduce((a,r)=>a+Number(r.onJobMaintenanceSeconds||0),0);
         const recovery = rows.reduce((a,r)=>a+Number(r.recoverySeconds||((r.errorSeconds||0)+(r.restartSeconds||0))),0);
         const jams = rows.reduce((a,r)=>a+Number(r.jamsSeconds||r.paperJamSeconds||0),0);
-        renderBar('drilldownOpsChart', ['Preventive Maintenance','On Job Maintenance','Recovery/Error','Jams'], [preventive/denom*100, onJob/denom*100, recovery/denom*100, jams/denom*100], 'Downtime component %', 'percent');
+        const components = [
+          ['Preventive Maintenance', preventive],
+          ['On Job Maintenance', onJob],
+          ['Recovery/Error', recovery],
+          ['Jams', jams]
+        ];
+        renderBar('drilldownOpsChart', components.map(x=>x[0]), components.map(x=>totalTracked?x[1]/totalTracked*100:0), 'Downtime component %', 'percent', 'availability-component', components.map(x=>({aggregateSeconds:x[1], denominatorSeconds:totalTracked})));
       }
-      setTable(['Press','Day','Runtime','Maintenance','Not available','Total downtime'], rows, r=>[r.canonicalPress||r.press, r.day, formatDuration(r.runtimeSeconds||0), formatDuration(r.plannedDowntimeSeconds||r.maintenanceSeconds||0), formatDuration(r.unplannedDowntimeSeconds||r.errorNotAvailableSeconds||0), formatDuration(totalDowntimeFromAvailabilityRow(r))]);
+      setTable(['Press','Day','Runtime','Maintenance','Not available','Total downtime'], rows, r=>[r.canonicalPress||r.press, r.day, formatDuration(rowRuntime(r)), formatDuration(rowMaintenance(r)), formatDuration(rowNotAvailable(r)), formatDuration(rowDowntime(r))]);
       return true;
     }
+
 
     if (metricKey === 'mttr' || metricKey === 'mtbf') {
       let rows = scopedRows || [];
